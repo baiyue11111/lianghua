@@ -1,0 +1,86 @@
+[project]
+name = "lianghua-backtest"
+version = "0.1.0"
+description = "Auditable A-share exploratory backtesting system"
+requires-python = ">=3.12"
+dependencies = [
+  "baostock>=0.9.3,<0.10",
+  "duckdb>=1.5.5",
+  "fastapi>=0.141,<0.142",
+  "numpy>=2.2,<3",
+  "pandas>=3.0,<4",
+  "plotly>=7,<8",
+  "pyarrow>=18,<20",
+  "pypdf==6.10.0",
+  "pydantic>=2.13,<3",
+  "rich>=15,<16",
+  "uvicorn>=0.52,<0.53",
+]
+
+[project.scripts]
+lianghua-backtest = "frontend.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+package-dir = {"" = "src", "frontend" = "frontend"}
+packages = [
+  "core",
+  "data",
+  "plugins",
+  "plugins.accounts",
+  "plugins.allocators",
+  "plugins.markets",
+  "plugins.recorders",
+  "plugins.risk",
+  "plugins.strategies",
+  "strategies",
+  "frontend",
+  "frontend.api",
+  "frontend.api.workbench",
+]
+py-modules = [
+  "account_allocation",
+  "account_execution",
+  "account_history",
+  "account_ledger",
+  "adjusted_panel",
+  "application",
+  "audit",
+  "comparison",
+  "config",
+  "contracts",
+  "corporate_actions",
+  "distribution_ledger",
+  "dividend_tax",
+  "document_text",
+  "dynamic_selection",
+  "evaluator",
+  "execution",
+  "execution_risk",
+  "factor_candidates",
+  "features",
+  "fees",
+  "history_data",
+  "panel_features",
+  "protocal",
+  "provider_cache",
+  "raw_bar_evidence",
+  "raw_candidate",
+  "research",
+  "research_registry",
+  "security_identity",
+  "strategy",
+  "tax_ledger",
+]
+
+[tool.setuptools.package-data]
+frontend = ["display/runtime/cli.mjs"]
+
+[tool.uv]
+package = true
+
+[tool.unittest]
+start-directory = "tests"

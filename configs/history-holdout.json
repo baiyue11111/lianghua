@@ -1,0 +1,29 @@
+{
+  "daily_dir": "data/lake/daily",
+  "cache_dir": "data/research_cache_verified",
+  "calendar_source": "data/backtest_calendar_source.json",
+  "code_changes": "data/security_code_changes.json",
+  "output": "data/history_holdout",
+  "universe": "fixed_symbols",
+  "symbols": ["000001", "000333", "000651", "600000", "600016", "600036", "600519", "600900", "601318", "601398"],
+  "fields": {
+    "total_mv": {"column": "total_mv", "unit": "亿元"},
+    "float_mv": {"column": "float_mv", "unit": "亿元"},
+    "float_shares": {"column": "float_shares", "unit": "股"},
+    "turn": {"column": "turn", "unit": "%"}
+  },
+  "history_start": "2023-01-01",
+  "end": "2025-12-31",
+  "factor_start": "1990-01-01",
+  "factor_end": "2026-09-18",
+  "validation": {
+    "module": "plugins.strategies.moving_average_cross",
+    "baseline": {"fast_window": 20, "slow_window": 60, "exposure": 1.0},
+    "changed": {"fast_window": 10, "slow_window": 60, "exposure": 1.0},
+    "initial_cash": 1000000,
+    "start": "2024-01-02",
+    "end": "2025-12-31",
+    "dataset_id": "history_holdout",
+    "purpose": "接口与真实账户路径的保留样本验收；固定10股，非全市场或盈利能力证明"
+  }
+}

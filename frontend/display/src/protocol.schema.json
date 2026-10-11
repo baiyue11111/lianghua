@@ -1,0 +1,729 @@
+{
+  "$defs": {
+    "FieldHint": {
+      "additionalProperties": false,
+      "description": "给显示层的字段语义提示。\n\n这里描述数据的含义，不描述 React 组件、HTML、CSS 或布局。",
+      "properties": {
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Label"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "format": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Format"
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Unit"
+        },
+        "precision": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Precision"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        },
+        "visible": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Visible"
+        }
+      },
+      "required": [
+        "path"
+      ],
+      "title": "FieldHint",
+      "type": "object"
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "string"
+        },
+        {
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "array"
+        },
+        {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "Presentation": {
+      "additionalProperties": false,
+      "description": "可选的语义呈现提示。",
+      "properties": {
+        "title": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Title"
+        },
+        "role": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Role"
+        },
+        "fields": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/FieldHint"
+          },
+          "title": "Fields",
+          "type": "array"
+        }
+      },
+      "title": "Presentation",
+      "type": "object"
+    },
+    "UiAction": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "minLength": 1,
+          "title": "Action Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "edit",
+            "select",
+            "query",
+            "invoke",
+            "reset",
+            "dismiss"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "target": {
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "operation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Operation"
+        }
+      },
+      "required": [
+        "action_id",
+        "kind",
+        "target"
+      ],
+      "title": "UiAction",
+      "type": "object",
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "kind": {
+                "const": "invoke"
+              }
+            },
+            "required": [
+              "kind"
+            ]
+          },
+          "then": {
+            "required": [
+              "operation"
+            ],
+            "properties": {
+              "operation": {
+                "type": "string",
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ]
+    },
+    "UiFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "enum": [
+            "action",
+            "request",
+            "response",
+            "state",
+            "close"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "action": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UiAction"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "request": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UiRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "messages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UiMessage"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UiState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "kind"
+      ],
+      "title": "UiFrame",
+      "type": "object"
+    },
+    "UiLink": {
+      "additionalProperties": false,
+      "description": "消息中的关系链接，不规定具体传输方式。",
+      "properties": {
+        "rel": {
+          "minLength": 1,
+          "title": "Rel",
+          "type": "string"
+        },
+        "href": {
+          "minLength": 1,
+          "title": "Href",
+          "type": "string"
+        },
+        "type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Type"
+        }
+      },
+      "required": [
+        "rel",
+        "href"
+      ],
+      "title": "UiLink",
+      "type": "object"
+    },
+    "UiMessage": {
+      "additionalProperties": false,
+      "description": "后端和前端之间唯一的通用语义消息。",
+      "properties": {
+        "message_id": {
+          "minLength": 1,
+          "title": "Message Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "resource",
+            "collection",
+            "series",
+            "document",
+            "operation",
+            "event",
+            "problem",
+            "custom"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        },
+        "schema": {
+          "minLength": 1,
+          "title": "Schema",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/JsonValue"
+        },
+        "correlation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Correlation Id"
+        },
+        "presentation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Presentation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "links": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UiLink"
+          },
+          "title": "Links",
+          "type": "array"
+        },
+        "extensions": {
+          "patternProperties": {
+            "^(.*:.*|x-.*)$": {
+              "$ref": "#/$defs/JsonValue"
+            }
+          },
+          "title": "Extensions",
+          "type": "object",
+          "additionalProperties": false
+        },
+        "protocol": {
+          "const": "lianghua.ui",
+          "default": "lianghua.ui",
+          "title": "Protocol",
+          "type": "string"
+        },
+        "version": {
+          "const": 1,
+          "default": 1,
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "message_id",
+        "kind",
+        "type",
+        "schema",
+        "data"
+      ],
+      "title": "UiMessage",
+      "type": "object"
+    },
+    "UiOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "operation": {
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "input_schema": {
+          "minLength": 1,
+          "title": "Input Schema",
+          "type": "string"
+        },
+        "response_schemas": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "title": "Response Schemas",
+          "type": "array"
+        },
+        "mode": {
+          "default": "read",
+          "enum": [
+            "read",
+            "write"
+          ],
+          "title": "Mode",
+          "type": "string"
+        }
+      },
+      "required": [
+        "operation",
+        "input_schema",
+        "response_schemas"
+      ],
+      "title": "UiOperation",
+      "type": "object"
+    },
+    "UiOperationState": {
+      "additionalProperties": false,
+      "properties": {
+        "available": {
+          "default": false,
+          "title": "Available",
+          "type": "boolean"
+        },
+        "status": {
+          "default": "idle",
+          "enum": [
+            "idle",
+            "pending",
+            "succeeded",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "request_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Request Id"
+        },
+        "revision": {
+          "default": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "input": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "result_input": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        }
+      },
+      "title": "UiOperationState",
+      "type": "object"
+    },
+    "UiProblem": {
+      "additionalProperties": false,
+      "description": "可放入 ``problem`` 消息正文的通用问题。",
+      "properties": {
+        "type": {
+          "minLength": 1,
+          "title": "Type",
+          "type": "string"
+        },
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
+        "field": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Field"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "extensions": {
+          "patternProperties": {
+            "^(.*:.*|x-.*)$": {
+              "$ref": "#/$defs/JsonValue"
+            }
+          },
+          "title": "Extensions",
+          "type": "object",
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "type",
+        "code",
+        "title"
+      ],
+      "title": "UiProblem",
+      "type": "object"
+    },
+    "UiRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "request_id": {
+          "minLength": 1,
+          "title": "Request Id",
+          "type": "string"
+        },
+        "operation": {
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "schema": {
+          "minLength": 1,
+          "title": "Schema",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/JsonValue"
+        }
+      },
+      "required": [
+        "request_id",
+        "operation",
+        "schema",
+        "data"
+      ],
+      "title": "UiRequest",
+      "type": "object"
+    },
+    "UiSlot": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "default": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "values": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Values",
+          "type": "object"
+        },
+        "selection": {
+          "$ref": "#/$defs/JsonValue",
+          "default": null
+        },
+        "query": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Query",
+          "type": "object"
+        },
+        "messages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UiMessage"
+          },
+          "title": "Messages",
+          "type": "array"
+        },
+        "problems": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/UiProblem"
+          },
+          "title": "Problems",
+          "type": "array"
+        },
+        "operations": {
+          "additionalProperties": {
+            "$ref": "#/$defs/UiOperationState"
+          },
+          "title": "Operations",
+          "type": "object"
+        }
+      },
+      "title": "UiSlot",
+      "type": "object"
+    },
+    "UiState": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {
+          "default": 0,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "targets": {
+          "additionalProperties": {
+            "$ref": "#/$defs/UiSlot"
+          },
+          "title": "Targets",
+          "type": "object"
+        }
+      },
+      "title": "UiState",
+      "type": "object"
+    }
+  },
+  "anyOf": [
+    {
+      "$ref": "#/$defs/UiAction"
+    },
+    {
+      "$ref": "#/$defs/UiRequest"
+    },
+    {
+      "$ref": "#/$defs/UiState"
+    },
+    {
+      "$ref": "#/$defs/UiMessage"
+    },
+    {
+      "$ref": "#/$defs/UiProblem"
+    },
+    {
+      "$ref": "#/$defs/UiOperation"
+    },
+    {
+      "$ref": "#/$defs/UiFrame"
+    }
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:lianghua:ui:v1"
+}

@@ -1,0 +1,21 @@
+{
+  "name": "@lianghua/display",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "generate": "node scripts/generate.mjs",
+    "check:protocol": "node scripts/generate.mjs --check",
+    "build": "tsc --noEmit && node scripts/build.mjs",
+    "test": "npm run check:protocol && npm run build && node --test tests/*.test.mjs",
+    "check:runtime": "node scripts/build.mjs --check"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "ajv-formats": "^3.0.1"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0",
+    "json-schema-to-typescript": "^15.0.0",
+    "typescript": "~5.9.3"
+  }
+}

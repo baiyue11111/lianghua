@@ -1,0 +1,12 @@
+{
+  "schema": 1,
+  "validation_status": "UNVALIDATED_RESEARCH_POLICY",
+  "policy": {
+    "lookback": 60,
+    "entry_sharpe": 1.0,
+    "exit_sharpe": 0.0,
+    "max_drawdown": 0.15,
+    "confirmations": 3,
+    "min_active_days": 5
+  }
+}

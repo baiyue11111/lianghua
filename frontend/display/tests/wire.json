@@ -1,0 +1,459 @@
+[
+  {
+    "name": "edit action",
+    "model": "UiAction",
+    "valid": true,
+    "value": {
+      "action_id": "a1",
+      "kind": "edit",
+      "target": "form",
+      "data": {
+        "amount": "12.50"
+      }
+    }
+  },
+  {
+    "name": "invoke action",
+    "model": "UiAction",
+    "valid": true,
+    "value": {
+      "action_id": "a2",
+      "kind": "invoke",
+      "target": "form",
+      "operation": "example.save",
+      "data": {}
+    }
+  },
+  {
+    "name": "empty identity",
+    "model": "UiAction",
+    "valid": false,
+    "value": {
+      "action_id": "",
+      "kind": "edit",
+      "target": "form",
+      "data": {}
+    }
+  },
+  {
+    "name": "unknown action",
+    "model": "UiAction",
+    "valid": false,
+    "value": {
+      "action_id": "a3",
+      "kind": "click",
+      "target": "form",
+      "data": {}
+    }
+  },
+  {
+    "name": "operation absent",
+    "model": "UiAction",
+    "valid": false,
+    "value": {
+      "action_id": "a4",
+      "kind": "invoke",
+      "target": "form",
+      "data": {}
+    }
+  },
+  {
+    "name": "extra field",
+    "model": "UiAction",
+    "valid": false,
+    "value": {
+      "action_id": "a5",
+      "kind": "edit",
+      "target": "form",
+      "data": {},
+      "html": "<script>"
+    }
+  },
+  {
+    "name": "request",
+    "model": "UiRequest",
+    "valid": true,
+    "value": {
+      "request_id": "r1",
+      "operation": "example.save",
+      "schema": "urn:example:input",
+      "data": {
+        "amount": "12.50"
+      }
+    }
+  },
+  {
+    "name": "resource",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "m1",
+      "kind": "resource",
+      "type": "urn:example:item",
+      "schema": "urn:example:item:1",
+      "data": {
+        "amount": "12.50"
+      }
+    }
+  },
+  {
+    "name": "bad version",
+    "model": "UiMessage",
+    "valid": false,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 2,
+      "message_id": "m2",
+      "kind": "resource",
+      "type": "urn:example:item",
+      "schema": "urn:example:item:1",
+      "data": {}
+    }
+  },
+  {
+    "name": "bad extension",
+    "model": "UiMessage",
+    "valid": false,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "m3",
+      "kind": "custom",
+      "type": "urn:example:item",
+      "schema": "urn:example:item:1",
+      "data": {},
+      "extensions": {
+        "debug": true
+      }
+    }
+  },
+  {
+    "name": "nested json",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "m4",
+      "kind": "document",
+      "type": "urn:example:document",
+      "schema": "urn:example:document:1",
+      "data": [
+        null,
+        true,
+        12,
+        12.5,
+        "text",
+        {
+          "nested": []
+        }
+      ]
+    }
+  },
+  {
+    "name": "message collection",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "collection",
+      "kind": "collection",
+      "type": "urn:test:collection",
+      "schema": "urn:test:schema",
+      "data": {
+        "amount": "9007199254740993.10"
+      },
+      "correlation_id": "request",
+      "presentation": {
+        "fields": [
+          {
+            "path": "amount",
+            "format": "decimal",
+            "precision": 2
+          }
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "urn:test:record"
+        }
+      ],
+      "extensions": {
+        "x-test": {
+          "nested": [
+            true,
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "message series",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "series",
+      "kind": "series",
+      "type": "urn:test:series",
+      "schema": "urn:test:schema",
+      "data": {
+        "amount": "9007199254740993.10"
+      },
+      "correlation_id": "request",
+      "presentation": {
+        "fields": [
+          {
+            "path": "amount",
+            "format": "decimal",
+            "precision": 2
+          }
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "urn:test:record"
+        }
+      ],
+      "extensions": {
+        "x-test": {
+          "nested": [
+            true,
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "message operation",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "operation",
+      "kind": "operation",
+      "type": "urn:test:operation",
+      "schema": "urn:test:schema",
+      "data": {
+        "amount": "9007199254740993.10"
+      },
+      "correlation_id": "request",
+      "presentation": {
+        "fields": [
+          {
+            "path": "amount",
+            "format": "decimal",
+            "precision": 2
+          }
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "urn:test:record"
+        }
+      ],
+      "extensions": {
+        "x-test": {
+          "nested": [
+            true,
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "message event",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "event",
+      "kind": "event",
+      "type": "urn:test:event",
+      "schema": "urn:test:schema",
+      "data": {
+        "amount": "9007199254740993.10"
+      },
+      "correlation_id": "request",
+      "presentation": {
+        "fields": [
+          {
+            "path": "amount",
+            "format": "decimal",
+            "precision": 2
+          }
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "urn:test:record"
+        }
+      ],
+      "extensions": {
+        "x-test": {
+          "nested": [
+            true,
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "message problem",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "problem",
+      "kind": "problem",
+      "type": "urn:test:problem",
+      "schema": "urn:test:schema",
+      "data": {
+        "amount": "9007199254740993.10"
+      },
+      "correlation_id": "request",
+      "presentation": {
+        "fields": [
+          {
+            "path": "amount",
+            "format": "decimal",
+            "precision": 2
+          }
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "urn:test:record"
+        }
+      ],
+      "extensions": {
+        "x-test": {
+          "nested": [
+            true,
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "message custom",
+    "model": "UiMessage",
+    "valid": true,
+    "value": {
+      "protocol": "lianghua.ui",
+      "version": 1,
+      "message_id": "custom",
+      "kind": "custom",
+      "type": "urn:test:custom",
+      "schema": "urn:test:schema",
+      "data": {
+        "amount": "9007199254740993.10"
+      },
+      "correlation_id": "request",
+      "presentation": {
+        "fields": [
+          {
+            "path": "amount",
+            "format": "decimal",
+            "precision": 2
+          }
+        ]
+      },
+      "links": [
+        {
+          "rel": "self",
+          "href": "urn:test:record"
+        }
+      ],
+      "extensions": {
+        "x-test": {
+          "nested": [
+            true,
+            null
+          ]
+        }
+      }
+    }
+  },
+  {
+    "name": "state",
+    "model": "UiState",
+    "valid": true,
+    "value": {
+      "revision": 1,
+      "targets": {
+        "form": {
+          "values": {
+            "amount": "12.50"
+          },
+          "operations": {
+            "save": {
+              "status": "succeeded",
+              "available": true
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "invalid status",
+    "model": "UiState",
+    "valid": false,
+    "value": {
+      "targets": {
+        "form": {
+          "operations": {
+            "save": {
+              "status": "running"
+            }
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "unknown view hint",
+    "model": "UiMessage",
+    "valid": false,
+    "value": {
+      "message_id": "bad",
+      "kind": "resource",
+      "type": "urn:test",
+      "schema": "urn:test",
+      "data": {},
+      "presentation": {
+        "component": "React"
+      }
+    }
+  },
+  {
+    "name": "extra request route",
+    "model": "UiRequest",
+    "valid": false,
+    "value": {
+      "request_id": "r",
+      "operation": "save",
+      "schema": "urn:test",
+      "data": {},
+      "url": "/custom"
+    }
+  }
+]
