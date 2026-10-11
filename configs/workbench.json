@@ -1,0 +1,97 @@
+{
+  "schema": 1,
+  "storage": "data/workbench",
+  "research": {
+    "adapter": "frontend.api.workbench.research:FileResearch",
+    "roots": [
+      "runs",
+      "runs_exact",
+      "runs_full",
+      "runs_parameters"
+    ]
+  },
+  "sources": [
+    {
+      "id": "quotes",
+      "name": "实时个股与指数报价",
+      "adapter": "frontend.api.workbench.providers:EastmoneyQuotes",
+      "frequency": "供应商最新报价快照",
+      "defaults": {
+        "codes": [
+          "1.000001",
+          "0.399001",
+          "1.600000"
+        ]
+      }
+    },
+    {
+      "id": "daily",
+      "name": "历史日线",
+      "adapter": "frontend.api.workbench.providers:BaostockDaily",
+      "frequency": "日线，不复权",
+      "defaults": {
+        "codes": [
+          "sh.600000",
+          "sz.000001"
+        ],
+        "lookback_days": 14
+      }
+    },
+    {
+      "id": "announcements",
+      "name": "公司公告目录",
+      "adapter": "frontend.api.workbench.providers:CninfoAnnouncements",
+      "frequency": "公开披露目录",
+      "category": "",
+      "defaults": {
+        "lookback_days": 1,
+        "keyword": ""
+      }
+    },
+    {
+      "id": "financials",
+      "name": "定期财报目录",
+      "adapter": "frontend.api.workbench.providers:CninfoAnnouncements",
+      "frequency": "年报、半年报、季报原文目录",
+      "category": "category_ndbg_szsh;category_bndbg_szsh;category_sjdbg_szsh;category_yjdbg_szsh;",
+      "defaults": {
+        "lookback_days": 7,
+        "keyword": ""
+      }
+    },
+    {
+      "id": "benchmark_hs300",
+      "name": "沪深300基准日线",
+      "adapter": "frontend.api.workbench.providers:BaostockDaily",
+      "frequency": "指数收盘点位，价格指数，不含分红再投资",
+      "defaults": {
+        "codes": [
+          "sh.000300"
+        ],
+        "lookback_days": 5000
+      }
+    }
+  ],
+  "benchmarks": [
+    {
+      "id": "hs300",
+      "name": "沪深300",
+      "source_id": "benchmark_hs300",
+      "code": "sh.000300",
+      "provider": "BaoStock",
+      "currency": "CNY",
+      "return_type": "price"
+    }
+  ],
+  "backtests": {
+    "adapter": "history_data:HistoricalLake",
+    "datasets": [
+      {
+        "id": "history_holdout",
+        "name": "真实历史 · 固定10股 · 2023—2025",
+        "path": "data/history_holdout"
+      }
+    ],
+    "output": "runs_parameters"
+  }
+}
