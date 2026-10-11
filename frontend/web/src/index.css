@@ -1,0 +1,79 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 纯黑交易终端基调：数据主导，铬件后退 */
+    --background: 0 0% 0%;
+    --foreground: 0 0% 88%;
+    --card: 240 6% 7%;
+    --card-foreground: 0 0% 88%;
+    --popover: 240 6% 7%;
+    --popover-foreground: 0 0% 88%;
+    --primary: 0 0% 96%;
+    --primary-foreground: 0 0% 4%;
+    --secondary: 240 4% 12%;
+    --secondary-foreground: 0 0% 88%;
+    --muted: 240 4% 12%;
+    --muted-foreground: 240 2% 56%;
+    --accent: 240 4% 12%;
+    --accent-foreground: 0 0% 88%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5% 14%;
+    --input: 240 5% 18%;
+    --ring: 199 89% 48%;
+    --radius: 0.375rem;
+  }
+}
+
+@layer base {
+  * {
+    border-color: hsl(var(--border));
+  }
+  body {
+    background: #000;
+    color: hsl(var(--foreground));
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    overscroll-behavior: none;
+  }
+  /* 数字一律等宽，对齐是行情终端的底线 */
+  .num {
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    font-variant-numeric: tabular-nums;
+  }
+  /* 细滚动条，融入暗色底 */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 3px;
+  }
+}
+
+@layer utilities {
+  /* A 股配色：红涨绿跌 */
+  .text-up {
+    color: #fb2c36;
+  }
+  .text-down {
+    color: #00bb7f;
+  }
+  .text-flat {
+    color: #8f8f8f;
+  }
+  /* 模块标签：等宽大写宽字距 */
+  .tag-label {
+    font-family: "SF Mono", "Fira Code", ui-monospace, monospace;
+    font-size: 10px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: #8f8f8f;
+  }
+}
