@@ -1,9 +1,9 @@
 {
-  "daily_dir": "data/lake/daily",
-  "cache_dir": "data/research_cache_verified",
-  "calendar_source": "data/backtest_calendar_source.json",
-  "code_changes": "data/security_code_changes.json",
-  "output": "data/history_holdout",
+  "daily_dir": "data/sources/lake/daily",
+  "cache_dir": "data/sources/research_cache_verified",
+  "calendar_source": "data/sources/research/backtest_calendar_source.json",
+  "code_changes": "data/sources/research/security_code_changes.json",
+  "dataset_id": "history_holdout",
   "universe": "fixed_symbols",
   "symbols": ["000001", "000333", "000651", "600000", "600016", "600036", "600519", "600900", "601318", "601398"],
   "fields": {

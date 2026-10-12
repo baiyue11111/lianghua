@@ -75,6 +75,10 @@
   ],
   "backtests": {
     "adapter": "history_data:HistoricalLake",
+    "settlement": {
+      "module": "plugins.data:Settlement",
+      "params": {}
+    },
     "datasets": [
       {
         "id": "history_holdout",

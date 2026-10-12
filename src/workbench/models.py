@@ -37,6 +37,13 @@ class BacktestRequest(BaseModel):
     start: str
     end: str
     dataset_id: str
+    fields:list[str]=Field(default_factory=list)
+    history:int=0
+    price_basis:str='adjusted'
+    as_of:str|None=None
+    symbols:list[str]|None=None
+    universe:str='dataset'
+    benchmark_id: str|None = None
     @model_validator(mode='after')
     def period(self):
         if date.fromisoformat(self.start)>date.fromisoformat(self.end):

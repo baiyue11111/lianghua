@@ -1,6 +1,7 @@
 """Trend pullback strategy with a declared signal price and tunable windows."""
 from dataclasses import dataclass, field
 
+from core.calculation import Calculation
 from core.contracts import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from ._ranked_signal import histories, weights
@@ -40,7 +41,7 @@ class Strategy:
         p = self.params
         candidates = []
         for symbol, prices in histories(frame, p.trend_window).items():
-            trend = sum(prices[-p.trend_window:]) / p.trend_window
+            trend = Calculation.sma(prices, p.trend_window)
             recent = prices[-p.pullback_window:]
             peak = max(prices[-p.trend_window:])
             drawdown = 1 - recent[-1] / peak

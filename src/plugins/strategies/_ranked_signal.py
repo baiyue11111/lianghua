@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from math import isfinite
 
+from core.calculation import Calculation
+
 
 def histories(frame, window):
     result = {}
@@ -14,4 +16,4 @@ def histories(frame, window):
 
 
 def weights(symbols, exposure):
-    return {symbol: exposure / len(symbols) for symbol in symbols} if symbols and exposure else {}
+    return Calculation.equal_weights(symbols, len(symbols), exposure) if symbols and exposure else {}

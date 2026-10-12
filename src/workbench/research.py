@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import csv
 import hashlib
-import io
 import json
 
 from typing import TYPE_CHECKING
@@ -21,13 +19,15 @@ class Research:
         for ref in self.data.list("runs"):
             names.setdefault(ref.identity, set()).add(ref.name)
         return tuple(sorted(identity for identity, files in names.items()
-                            if {"manifest.json", "metrics.json"} <= files))
+                            if {"manifest.json", "metrics.json", "result.json", "trace.json"} <= files))
 
     def _read(self, identity: str) -> dict:
         manifest_bytes = self.data.read("runs", identity, "manifest.json")
         metrics_bytes = self.data.read("runs", identity, "metrics.json")
+        result_bytes = self.data.read("runs", identity, "result.json")
         manifest = json.loads(manifest_bytes)
         metrics = json.loads(metrics_bytes)
+        result = json.loads(result_bytes)
         return {
             "id": identity,
             "run_id": manifest["run_id"],
@@ -47,6 +47,7 @@ class Research:
             "code_hash": manifest.get("code_hash"),
             "data_hash": manifest.get("data_hash"),
             "execution_hash": manifest.get("execution_hash"),
+            "result": result,
         }
 
     def list(self) -> list[dict]:
@@ -58,25 +59,21 @@ class Research:
         value = self._read(identity)
         manifest = json.loads(self.data.read("runs", identity, "manifest.json"))
         refs = {(item.identity, item.name): item for item in self.data.list("runs")}
-        trades = []
-        equity = []
+        result = value.pop("result")
+        all_trades = result.get("trades", [])
+        all_equity = result.get("equity", [])
+        trades = all_trades[offset:offset + limit]
+        stride = max(1, (len(all_equity) + 799) // 800)
+        equity = all_equity[::stride]
+        if all_equity and equity[-1] != all_equity[-1]:
+            equity.append(all_equity[-1])
+        value["trades_total"] = len(all_trades)
+        value["equity_sampling"] = {"total": len(all_equity), "stride": stride}
         evidence = []
-        for name in ("audit/fills.csv", "audit/equity.csv"):
+        for name in ("manifest.json", "metrics.json", "result.json", "trace.json"):
             ref = refs.get((identity, name))
-            if ref is None:
-                continue
-            rows = list(csv.DictReader(io.StringIO(self.data.read("runs", identity, name).decode())))
-            evidence.append({"file": ref.file, "sha256": ref.sha256})
-            if name.endswith("fills.csv"):
-                trades = rows[offset:offset + limit]
-                value["trades_total"] = len(rows)
-            else:
-                stride = max(1, (len(rows) + 799) // 800)
-                sample = rows[::stride]
-                if rows and sample[-1] != rows[-1]:
-                    sample.append(rows[-1])
-                equity = [{"at": row["trade_date"], "equity": float(row["equity"])} for row in sample]
-                value["equity_sampling"] = {"total": len(rows), "stride": stride}
+            if ref is not None:
+                evidence.append({"file": ref.file, "sha256": ref.sha256})
         return {
             **value,
             "manifest": manifest,

@@ -2,13 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import AbstractContextManager
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 from typing import Protocol
 
-from .backtest import BacktestRequest
-
+from .backtest import Trial
 from .contracts import (
     AccountSnapshot,
     ExecutionResult,
@@ -17,6 +15,7 @@ from .contracts import (
     DataRequest,
     StepResult,
     TargetSet,
+    Scalar,
 )
 
 
@@ -83,11 +82,15 @@ class Components:
     recorder: Recorder
 
 
-class RunFactory(Protocol):
-    """Resolve request data and plug-ins; release resources without hiding errors.
+class DatasetPort(Protocol):
+    """The standard query boundary injected into the resident kernel."""
 
-    Validate strategy parameters, use Strategy.requirements() to prepare data,
-    and return fresh Components. The kernel itself is never a factory output.
-    """
+    def query(self, query): ...
 
-    def open(self, request: BacktestRequest) -> AbstractContextManager[Components]: ...
+
+class StrategyLoader(Protocol):
+    def __call__(self, strategy_id: str, parameters: dict): ...
+
+
+class ParameterUpdater(Protocol):
+    def __call__(self, trials: tuple[Trial, ...]) -> Mapping[str, Scalar] | None: ...

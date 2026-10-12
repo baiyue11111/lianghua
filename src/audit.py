@@ -13,7 +13,7 @@ import pyarrow as pa
 import pyarrow.csv as pacsv
 import pyarrow.parquet as pq
 
-from evaluator import evaluate_equity
+from core.calculation import Calculation
 from research import BacktestResult
 
 
@@ -59,7 +59,7 @@ def write_audit_bundle(
     _write_records(audit_dir / "targets", [_target_row(target) for target in result.targets])
     _write_records(audit_dir / "daily_holdings", result.holdings)
     _write_records(audit_dir / "signals", result.signals)
-    metrics = evaluate_equity(result.equity)
+    metrics = Calculation.evaluate(result.equity)
     # This writer receives equity, not validated data/ledger/walk-forward
     # evidence. Descriptive metrics cannot certify candidate eligibility.
     status = "UNVALIDATED_BACKTEST"

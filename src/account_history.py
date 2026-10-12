@@ -127,76 +127,25 @@ def run_account_history(strategy: Strategy, *, calendar: tuple[date,...],
     """
     if len(calendar)<2 or any(not isinstance(day,date) for day in calendar) or tuple(sorted(set(calendar)))!=calendar:
         raise ValueError('ordered unique session calendar and next-session sentinel required')
-    account=AccountLedger(initial_cash); execution=AccountExecutionSession(account,fees)
-    distributions=AccountDistributionLedger(account)
-    taxes=TaxLedger(tax_policy)
-    tax_liabilities=[]
-    frames=[]; targets=[]; allocations=[]; points=[]; holdings=[]; postings=[]; registrations=[]
+    from plugins.data import Settlement
+
+    settlement = Settlement(initial_cash, fees, tax_policy, limits)
     count=0
-    def trace():
-        return HistoryResult(tuple(frames),tuple(targets),tuple(allocations),execution.orders,execution.fills,
-                             execution.pending,account.order_cancellations,account.cash_events,tuple(points),
-                             tuple(holdings),tuple(postings),tuple(registrations),tuple(taxes.payments),tuple(tax_liabilities),tuple(taxes.pending.values()),taxes.lots)
     try:
         for index,record in enumerate(days):
             if index>=len(calendar)-1: raise ValueError('history exceeds declared calendar coverage')
             day=calendar[index]; following=calendar[index+1]
-            _validate_day(record,day)
-            # Interleave gross income and tax on their actual dates, before opening.
-            due_dates={p.due for p in taxes.pending.values() if p.due<=day}
-            due_dates.update(distributions.due_dates(day))
-            for when in sorted(due_dates|{day}):
-                if account.as_of is not None and when<account.as_of: continue
-                delivered=distributions.advance(when); postings.extend(delivered)
-                taxes.advance(when)
-                for payment in taxes.settle(when):
-                    account.record_cash(payment.event_id,payment.due,'dividend_tax',-payment.amount,payment.source_sha256)
-            taxes.begin(day)
-            claims=distributions.receivable_value(day,record.opening_marks)
-            new_fills=execution.execute_open(day,record.bars,record.previous_closes,
-                risk=OpeningRiskSnapshot(record.liquidity_as_of,record.opening_marks,record.opening_amount20,
-                                         claims,taxes.liability(day),limits),
-                cash_reserve=lambda: taxes.reserve(day),on_fill=taxes.preview)
-            taxes.end(new_fills)
-            for payment in taxes.settle(day):
-                account.record_cash(payment.event_id,day,'dividend_tax',-payment.amount,payment.source_sha256)
-            claims=distributions.receivable_value(day,record.closing_marks)
-            point=account.mark(day,record.closing_marks,claims,taxes.liability(day))
-            tax_liabilities.append((day,taxes.liability(day)))
-            for action in record.registrations:
-                registrations.append(_register(action,account,distributions))
-                taxes.register(action.distribution_id,action.event,action.stock_nominal,action.reserve_taxable,
-                               action.tax_source_sha256,credit_date=action.share_credit_date)
-            actual={}
-            for lot in account.lots: actual[lot.symbol]=actual.get(lot.symbol,0)+lot.shares
-            tax_count={}
-            for lot in taxes.lots: tax_count[lot.symbol]=tax_count.get(lot.symbol,0)+lot.shares
-            if actual!=tax_count: raise ValueError('account and tax share quantities differ')
-            positions={}
-            sellable={}
-            for lot in account.lots:
-                positions[lot.symbol]=positions.get(lot.symbol,Decimal(0))+lot.shares
-                if lot.tradable_from<=day:
-                    sellable[lot.symbol]=sellable.get(lot.symbol,Decimal(0))+lot.shares
-            active=trade_start is None or day>=trade_start
-            frame=replace(record.frame,context={**record.frame.context,"next_session":following.isoformat(),"trading":active})
-            snapshot=AccountSnapshot(frame.at,account.cash,point.equity,positions,sellable)
-            target=strategy.generate(frame,snapshot)
+            _validate_day(record, day)
+            frame, snapshot = settlement.apply(record, following, trade_start)
+            target = strategy.generate(frame, snapshot)
             if target is not None:
                 if not isinstance(target,TargetSet) or target.as_of!=frame.at or target.source_id!=strategy.strategy_id:
                     raise ValueError('strategy target identity/time do not match decision')
-            # The legacy portfolio type belongs to the execution ledger, not to
-            # the strategy port. None preserves pending requests; {} cancels/exits.
-            portfolio=TargetPortfolio(strategy.strategy_id,day,
-                {} if target is None else target.weights,
-                0. if target is None else sum(target.weights.values()),
-                {} if target is None else target.reasons,rebalance=active and target is not None)
-            plan=execution.apply_target(portfolio,next_session=following,equity=point.equity,
-                                        raw_closes=record.closing_marks,amount20=record.closing_amount20,limits=limits)
-            frames.append(replace(frame,history={})); targets.append(target); allocations.append(plan); points.append(point)
-            holdings.append((day,account.lots)); count+=1
+            settlement.plan(target, strategy.strategy_id)
+            count += 1
         if count!=len(calendar)-1: raise ValueError('history is missing required calendar sessions')
     except Exception as error:
+        settlement.fail(error)
         raise HistoryRunError(error,failed_day=calendar[min(count,len(calendar)-1)],
-                              partial_trace=trace(),cash=account.cash,lots=account.lots) from error
-    return trace()
+                              partial_trace=settlement.result(),cash=settlement.cash,lots=settlement.lots) from error
+    return settlement.result()

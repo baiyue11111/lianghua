@@ -2,9 +2,9 @@
 from dataclasses import dataclass, field
 from math import isfinite
 
+from core.calculation import Calculation
 from core.contracts import DataRequest, TargetSet
 from strategy import validate_params
-from ..allocators.equal_weight import equal_weights
 
 NAME='双均线'
 
@@ -51,11 +51,11 @@ class Strategy:
                 prices.append(value)
             if len(prices)<p.slow_window:
                 return None
-            if sum(prices[-p.fast_window:])/p.fast_window>sum(prices[-p.slow_window:])/p.slow_window and p.exposure>0:
+            if Calculation.sma(prices, p.fast_window)>Calculation.sma(prices, p.slow_window) and p.exposure>0:
                 selected.append(symbol)
         selected=tuple(selected)
         if selected==self.selected:
             return None
         self.selected=selected
-        weights=equal_weights(selected,len(selected),p.exposure) if selected else {}
+        weights=Calculation.equal_weights(selected,len(selected),p.exposure) if selected else {}
         return TargetSet(self.strategy_id,frame.at,weights,{symbol:'fast_mean_above_slow_mean' for symbol in selected})

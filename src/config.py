@@ -21,7 +21,8 @@ class RunConfig:
     @classmethod
     def from_mapping(cls,raw:Mapping):
         required={'module','params','initial_cash','start','end','dataset_id'}
-        allowed=required|{'requirements','state_start','price_basis','execution','data_hash','account_hash','data_scope'}
+        allowed=required|{'requirements','state_start','price_basis','execution','data_hash','account_hash','data_scope',
+                          'fields','history','as_of','symbols','universe','benchmark_id'}
         if set(raw)-allowed: raise ValueError('unknown run fields: '+', '.join(sorted(set(raw)-allowed)))
         missing=required-set(raw)
         if missing: raise ValueError('missing run fields: '+', '.join(sorted(missing)))
