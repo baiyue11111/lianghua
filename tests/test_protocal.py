@@ -4,6 +4,9 @@ import json
 import unittest
 from contextlib import contextmanager
 from decimal import Decimal
+from pathlib import Path
+from storage import DataStore
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 from datetime import timedelta
 
@@ -36,11 +39,59 @@ def wire_request(value=None, request_id="one"):
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_command_outputs_are_resolved_by_the_shared_data_store(self):
+        from protocal import CommandPort
+
+        with TemporaryDirectory() as root:
+            data = DataStore(Path(root))
+            with patch("data.ingest.ingest_exploratory") as ingest:
+                ingest.return_value = type("Result", (), {"__dataclass_fields__": {}})()
+                CommandPort(Path(root), EmptyPort(), data).handle("cli.ingest", {
+                    "price": "price.xlsx", "fundamentals": "fund.xlsx",
+                    "valuations": "value.xlsx", "output": "exploratory",
+                    "max_symbols": None, "price_part": None,
+                })
+            self.assertEqual(
+                ingest.call_args.kwargs["output_dir"],
+                data.path("sources", "exploratory", "manifest.json").parent,
+            )
+            with self.assertRaises(ValueError):
+                CommandPort(Path(root), EmptyPort(), data).handle("cli.ingest", {
+                    "price": "p", "fundamentals": "f", "valuations": "v",
+                    "output": "../outside", "max_symbols": None, "price_part": None,
+                })
+            with patch("protocal.subprocess.run") as run:
+                result = CommandPort(Path(root), EmptyPort(), data).handle("cli.report", {
+                    "artifact": "artifact.json", "output": "report-one",
+                    "builder": "build.mjs", "ready_timeout_ms": 1, "timeout_ms": 2,
+                })
+            expected = data.path("runs", "report-one", "report.html")
+            self.assertIn(str(expected), run.call_args.args[0])
+            self.assertEqual(result, {"output": str(expected)})
+
+    def test_kernel_result_is_saved_once_in_the_shared_data_store(self):
+        from protocal import KernelBacktestPort
+        from storage import DataStore
+        from workbench.research import Research
+
+        with TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            payload = {**wire_request().data, "run_id": "one"}
+            result = KernelBacktestPort(Factory(root), store).handle("workbench.backtest", payload)
+            items = Research(store).list()
+
+            self.assertEqual(result.data["run_id"], "one")
+            self.assertEqual(len(items), 1)
+            self.assertEqual(items[0]["run_id"], "one")
+            self.assertEqual(items[0]["manifest_file"], "data/runs/one/manifest.json")
+            self.assertTrue(store.path("runs", "one", "manifest.json").is_file())
+            self.assertFalse((Path(root) / "runs").exists())
+
     def test_real_result_reaches_existing_ui_port_as_exact_json(self):
         from protocal import KernelBacktestPort, Modules, Protocol
 
         with TemporaryDirectory() as root:
-            backend = Protocol(Modules(KernelBacktestPort(Factory(root)), *[EmptyPort() for _ in range(4)]))
+            backend = Protocol(Modules(KernelBacktestPort(Factory(root), DataStore(Path(root))), *[EmptyPort() for _ in range(4)]))
             message = send(backend, wire_request())
             wire = json.loads(json.dumps(message.to_dict(), allow_nan=False))
 
@@ -73,7 +124,7 @@ class ProtocolTests(unittest.TestCase):
 
         with TemporaryDirectory() as root:
             factory = BrokenFirst(root)
-            backend = Protocol(Modules(KernelBacktestPort(factory), *[EmptyPort() for _ in range(4)]))
+            backend = Protocol(Modules(KernelBacktestPort(factory, DataStore(Path(root))), *[EmptyPort() for _ in range(4)]))
             bad = send(backend, wire_request(request("bad"), "bad"))
             good = send(backend, wire_request(request("good"), "good"))
 
@@ -90,7 +141,7 @@ class ProtocolTests(unittest.TestCase):
 
         with TemporaryDirectory() as root:
             factory = Factory(root)
-            backend = Protocol(Modules(KernelBacktestPort(factory), *[EmptyPort() for _ in range(4)]))
+            backend = Protocol(Modules(KernelBacktestPort(factory, DataStore(Path(root))), *[EmptyPort() for _ in range(4)]))
             value = send(backend, ui.UiRequest("bad", "workbench.backtest", "urn:lianghua:ui:input:workbench.backtest:v1", {}))
 
         self.assertEqual(value.kind, "problem")
@@ -109,7 +160,7 @@ class ProtocolTests(unittest.TestCase):
 
         with TemporaryDirectory() as root:
             value = request(end=START + timedelta(days=1))
-            backend = Protocol(Modules(KernelBacktestPort(Short(root)), *[EmptyPort() for _ in range(4)]))
+            backend = Protocol(Modules(KernelBacktestPort(Short(root), DataStore(Path(root))), *[EmptyPort() for _ in range(4)]))
             message = send(backend, wire_request(value))
             data = json.loads(json.dumps(message.to_dict(), allow_nan=False))["data"]
 

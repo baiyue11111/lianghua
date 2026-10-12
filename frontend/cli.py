@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 from pathlib import Path
 import subprocess
@@ -12,11 +13,9 @@ from typing import Sequence
 import importlib
 import selectors
 import time
-from typing import Callable
 
 protocol = importlib.import_module("frontend.ui-protocol")
 CORE = Path(__file__).parent / "display" / "runtime" / "cli.mjs"
-Send = Callable[[protocol.UiRequest], list[protocol.UiMessage]]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -72,11 +71,11 @@ def to_action(args: argparse.Namespace):
     return protocol.UiAction("cli-1", "invoke", "cli", values, "cli." + args.command)
 
 
-def exchange(action, send: Send | None = None):
+def exchange(action, backend: protocol.BackendPort | None = None):
     """Run the packaged core. A backend, when supplied, speaks only UiRequest/UiMessage."""
     if not CORE.is_file():
         raise OSError("交互核心发布产物缺失；请运行 npm run build --prefix frontend/display")
-    command = ["node", str(CORE)] + (["--connected"] if send else [])
+    command = ["node", str(CORE)] + (["--connected"] if backend else [])
     process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
                                stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
     try:
@@ -99,10 +98,10 @@ def exchange(action, send: Send | None = None):
                 if frame.kind == "state":
                     write({"kind": "close"})
                     return frame.state
-                if frame.kind != "request" or frame.request is None or send is None:
+                if frame.kind != "request" or frame.request is None or backend is None:
                     raise ValueError("无效桥接消息")
                 try:
-                    messages = send(frame.request)
+                    messages = asyncio.run(backend.send(frame.request))
                 except Exception as exc:
                     issue = protocol.UiProblem("urn:lianghua:ui:problem", "backend_failed", str(exc))
                     messages = [protocol.UiMessage("failure", "problem", "urn:lianghua:ui:problem",
@@ -129,7 +128,7 @@ def exchange(action, send: Send | None = None):
         process.stderr.close()
 
 
-def main(argv: Sequence[str] | None = None, *, send: Send | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, backend: protocol.BackendPort | None = None) -> int:
     parser = build_parser()
     values = list(sys.argv[1:] if argv is None else argv)
     if not values:
@@ -137,7 +136,7 @@ def main(argv: Sequence[str] | None = None, *, send: Send | None = None) -> int:
         return 0
     args = parser.parse_args(values)
     try:
-        state = exchange(to_action(args), send)
+        state = exchange(to_action(args), backend)
         slot = state.targets["cli"]
         if slot.problems:
             print("；".join(issue.title for issue in slot.problems), file=sys.stderr)

@@ -2,25 +2,21 @@
 from __future__ import annotations
 
 import json
-import os
 import threading
 import time
 from datetime import date, datetime, timedelta
-from pathlib import Path
 from typing import Callable
-
-REJECTED_RETRY_SECONDS = 60
 
 
 class FetchManager:
-    def __init__(self, config_path: str):
+    def __init__(self, data):
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._scheduler_stop = threading.Event()
         self._thread: threading.Thread | None = None
         self._scheduler_thread: threading.Thread | None = None
         self._scheduled_callback: Callable[[], bool] = lambda: False
-        self._config_path = Path(config_path)
+        self.data = data
         self._schedule = self._load_schedule()
         self.state = self._new_state()
 
@@ -126,6 +122,16 @@ class FetchManager:
                 target=self._scheduler_loop, args=(stop_event,), daemon=True)
             self._scheduler_thread.start()
 
+    def close(self) -> None:
+        """Stop process-local work without changing the saved schedule."""
+        self._scheduler_stop.set()
+        self._stop.set()
+        for thread in (self._scheduler_thread, self._thread):
+            if thread is not None and thread is not threading.current_thread():
+                thread.join(timeout=30)
+                if thread.is_alive():
+                    raise TimeoutError('collection has not stopped')
+
     def _scheduler_loop(self, stop_event: threading.Event) -> None:
         while True:
             with self._lock:
@@ -133,10 +139,7 @@ class FetchManager:
                     return
                 interval = self._schedule["interval_seconds"]
                 next_run = self._schedule.get("next_run_at")
-                try:
-                    delay = max(0.0, datetime.fromisoformat(next_run).timestamp() - time.time())
-                except (TypeError, ValueError):
-                    delay = float(interval)
+                delay = max(0.0, datetime.fromisoformat(next_run).timestamp() - time.time())
             if stop_event.wait(delay):
                 return
             with self._lock:
@@ -154,15 +157,13 @@ class FetchManager:
                     self._schedule["schedule_error"] = str(exc)
                     self._persist_schedule()
                 return
-            if not accepted:
-                if stop_event.wait(REJECTED_RETRY_SECONDS):
-                    return
-                continue
             with self._lock:
                 if not self._schedule["enabled"] or stop_event.is_set():
                     return
                 now = datetime.now()
-                self._schedule["last_run_at"] = now.isoformat(timespec="seconds")
+                self._schedule['schedule_error'] = None if accepted else 'collection not accepted'
+                if accepted:
+                    self._schedule["last_run_at"] = now.isoformat(timespec="seconds")
                 self._schedule["next_run_at"] = (
                     now + timedelta(seconds=interval)).isoformat(timespec="seconds")
                 self._persist_schedule()
@@ -172,31 +173,30 @@ class FetchManager:
         return date.today().isoformat()
 
     def _load_schedule(self) -> dict:
+        from protocal import DataError
         try:
-            with open(self._config_path, encoding="utf-8") as fp:
-                value = json.load(fp)
+            value = json.loads(self.data.read('state', 'schedules', 'lake.json'))
             interval = int(value["interval_seconds"])
             if interval < 60:
                 raise ValueError
             if not isinstance(value.get("enabled"), bool):
                 raise ValueError("enabled 必须是布尔值")
             next_run = value.get("next_run_at")
+            if value['enabled'] and next_run is None:
+                raise ValueError('enabled schedule requires next_run_at')
             if next_run is not None:
                 datetime.fromisoformat(next_run)
             return {"enabled": bool(value["enabled"]), "interval_seconds": interval,
                     "last_run_at": value.get("last_run_at"),
                     "next_run_at": next_run,
                     "schedule_error": value.get("schedule_error")}
-        except FileNotFoundError:
+        except DataError as error:
+            if error.code != 'missing': raise
             return {"enabled": False, "interval_seconds": 86400,
                     "last_run_at": None, "next_run_at": None, "schedule_error": None}
         except (OSError, ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
-            raise ValueError(f"调度配置损坏：{self._config_path}: {exc}") from exc
+            raise ValueError(f"调度配置损坏：{exc}") from exc
 
     def _persist_schedule(self) -> None:
-        self._config_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = self._config_path.with_name(
-            f"{self._config_path.name}.{threading.get_ident()}.tmp")
-        with open(tmp, "w", encoding="utf-8") as fp:
-            json.dump(self._schedule, fp, ensure_ascii=False)
-        os.replace(tmp, self._config_path)
+        self.data.write('state', 'schedules', 'lake.json',
+                        json.dumps(self._schedule, ensure_ascii=False).encode())

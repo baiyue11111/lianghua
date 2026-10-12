@@ -4,6 +4,8 @@ version = "0.1.0"
 description = "Auditable A-share exploratory backtesting system"
 requires-python = ">=3.12"
 dependencies = [
+  "akshare>=1,<2",
+  "beautifulsoup4>=4,<5",
   "baostock>=0.9.3,<0.10",
   "duckdb>=1.5.5",
   "fastapi>=0.141,<0.142",
@@ -14,6 +16,7 @@ dependencies = [
   "pypdf==6.10.0",
   "pydantic>=2.13,<3",
   "rich>=15,<16",
+  "requests>=2,<3",
   "uvicorn>=0.52,<0.53",
 ]
 
@@ -27,6 +30,7 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools]
 package-dir = {"" = "src", "frontend" = "frontend"}
 packages = [
+  "collect",
   "core",
   "data",
   "plugins",
@@ -38,8 +42,7 @@ packages = [
   "plugins.strategies",
   "strategies",
   "frontend",
-  "frontend.api",
-  "frontend.api.workbench",
+  "workbench",
 ]
 py-modules = [
   "account_allocation",
@@ -51,6 +54,7 @@ py-modules = [
   "audit",
   "comparison",
   "config",
+  "closed_loop_report",
   "contracts",
   "corporate_actions",
   "distribution_ledger",
@@ -72,6 +76,7 @@ py-modules = [
   "research",
   "research_registry",
   "security_identity",
+  "storage",
   "strategy",
   "tax_ledger",
 ]
