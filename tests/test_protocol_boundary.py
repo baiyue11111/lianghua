@@ -1,6 +1,8 @@
 import asyncio
+import ast
 import importlib
 import unittest
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from dataclasses import asdict
@@ -22,6 +24,108 @@ class Port:
 
 
 class ProtocolBoundaryTests(unittest.TestCase):
+    def test_http_transport_has_one_route_and_calls_only_backend_port(self):
+        from frontend.web import create_app
+
+        class Backend:
+            def __init__(self):
+                self.requests = []
+
+            async def send(self, request):
+                self.requests.append(request)
+                return [ui.UiMessage(
+                    "message-1", "resource", "urn:test:result",
+                    "urn:lianghua:ui:output:lake.status:v1", {"ok": True},
+                    correlation_id=request.request_id,
+                )]
+
+        async def call(app, payload):
+            body = json.dumps(payload).encode()
+            sent = []
+
+            async def receive():
+                return {"type": "http.request", "body": body, "more_body": False}
+
+            async def send(value):
+                sent.append(value)
+
+            scope = {
+                "type": "http", "asgi": {"version": "3.0"}, "method": "POST",
+                "path": "/api/protocol", "raw_path": b"/api/protocol",
+                "query_string": b"", "headers": [(b"content-type", b"application/json")],
+                "scheme": "http", "server": ("test", 80), "client": ("test", 1),
+                "root_path": "",
+            }
+            await app(scope, receive, send)
+            status = next(item["status"] for item in sent if item["type"] == "http.response.start")
+            raw = b"".join(item.get("body", b"") for item in sent if item["type"] == "http.response.body")
+            return status, json.loads(raw)
+
+        backend = Backend()
+        app = create_app(backend)
+        request = ui.UiRequest(
+            "request-1", "lake.status", "urn:lianghua:ui:input:lake.status:v1", {}
+        )
+        status, body = asyncio.run(call(app, request.to_dict()))
+
+        self.assertEqual(status, 200)
+        self.assertEqual(body[0]["correlation_id"], "request-1")
+        self.assertEqual(backend.requests, [request])
+        self.assertEqual(
+            {route.path for route in app.routes if route.path.startswith("/api/")},
+            {"/api/protocol"},
+        )
+
+    def test_frontend_adapters_do_not_import_business_modules(self):
+        root = Path(__file__).resolve().parents[1]
+        forbidden = {
+            "application", "core", "history_data", "lake", "protocal",
+            "research_registry", "strategy", "tools",
+        }
+        for relative in ("frontend/web.py", "frontend/cli.py"):
+            path = root / relative
+            imports = []
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.ImportFrom):
+                    imports.append((node.module or "").split(".")[0])
+                elif isinstance(node, ast.Import):
+                    imports.extend(alias.name.split(".")[0] for alias in node.names)
+            self.assertFalse(forbidden.intersection(imports), (relative, imports))
+
+    def test_kernel_and_browser_have_one_protocol_connection(self):
+        root = Path(__file__).resolve().parents[1]
+        kernel_importers = []
+        for path in (root / "src").rglob("*.py"):
+            for node in ast.walk(ast.parse(path.read_text())):
+                if isinstance(node, ast.ImportFrom) and node.module == "core.kernel":
+                    kernel_importers.append(path.relative_to(root).as_posix())
+                elif isinstance(node, ast.Import) and any(alias.name == "core.kernel" for alias in node.names):
+                    kernel_importers.append(path.relative_to(root).as_posix())
+        self.assertEqual(kernel_importers, ["src/protocal.py"])
+
+        source = (root / "frontend/web/src/main.tsx").read_text()
+        self.assertIn("createBackend", source)
+        self.assertIn("<App backend={backend}", source)
+
+    def test_frontend_has_no_backend_api_package_or_business_routes(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertFalse(list((root / "frontend" / "api").glob("*.py")))
+        routes = []
+        for path in (root / "frontend").rglob("*.py"):
+            tree = ast.parse(path.read_text())
+            for node in ast.walk(tree):
+                if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    continue
+                for decorator in node.decorator_list:
+                    if (isinstance(decorator, ast.Call)
+                            and isinstance(decorator.func, ast.Attribute)
+                            and decorator.func.attr in {"get", "post", "put", "patch", "delete"}
+                            and decorator.args
+                            and isinstance(decorator.args[0], ast.Constant)
+                            and str(decorator.args[0].value).startswith("/api/")):
+                        routes.append((path.relative_to(root).as_posix(), decorator.args[0].value))
+        self.assertEqual(routes, [("frontend/web.py", "/api/protocol")])
+
     def test_operation_directory_is_the_single_public_operation_list(self):
         from protocal import Modules, Protocol, build_protocol, export_operations
 
@@ -62,12 +166,32 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(messages[0].data, value)
         self.assertEqual(source.calls, [("workbench.sources", {})])
 
+    def test_cli_run_uses_the_same_backtest_module(self):
+        from protocal import CommandPort
+
+        backtests = Port({"run_id": "shared"})
+        with TemporaryDirectory() as root:
+            path = Path(root) / "run.json"
+            request = {
+                "module": "plugins.strategies.moving_average_cross", "params": {},
+                "dataset_id": "history", "start": "2020-01-01", "end": "2020-12-31",
+                "initial_cash": "100000.00",
+            }
+            path.write_text(json.dumps({"request": request}))
+
+            result = CommandPort(Path(root), backtests, __import__('storage').DataStore(Path(root))).handle(
+                "cli.run", {"config": str(path), "root": root}
+            )
+
+        self.assertEqual(result, {"run_id": "shared"})
+        self.assertEqual(backtests.calls, [("workbench.backtest", request)])
+
     def test_backtest_port_is_the_only_protocol_owned_kernel_adapter(self):
         from protocal import KernelBacktestPort, Modules, Protocol
 
         with TemporaryDirectory() as root:
             protocol = Protocol(Modules(
-                backtests=KernelBacktestPort(Factory(root)),
+                backtests=KernelBacktestPort(Factory(root), __import__('storage').DataStore(Path(root))),
                 research=Port({}), sources=Port({}), lake=Port({}), commands=Port({}),
             ))
             request = ui.UiRequest(
@@ -115,3 +239,4 @@ class ProtocolBoundaryTests(unittest.TestCase):
 
         self.assertEqual(messages[0].kind, "problem")
         self.assertEqual(messages[0].data["code"], "module_failed")
+        self.assertEqual(messages[0].schema, "urn:lianghua:ui:problem:v1")

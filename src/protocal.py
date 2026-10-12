@@ -1,22 +1,26 @@
 """唯一的后端协议入口。
 
-这个文件只做三件事：定义外部操作目录、把请求分发到模块端口、把结果
-转换成 ``frontend/ui-protocol.py`` 的消息。Kernel 只在这里被接入一次。
+这个文件集中定义外部操作和数据读写协议，把请求分发到模块端口，
+把结果转换成 ``frontend/ui-protocol.py`` 的消息。Kernel 只在这里被接入一次。
 HTTP、CLI、任务线程和前端组件都不属于本层。
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from importlib import import_module
+from pathlib import Path
+import json
+import subprocess
 from typing import Literal, Mapping, Protocol as TypingProtocol, TypeAlias
 from uuid import uuid4
 
 from core.backtest import BacktestError, BacktestRequest, BacktestResponse
 from core.interfaces import RunFactory
 from core.kernel import Kernel
+from application import save_backtest
 
 ui = import_module("frontend.ui-protocol")
 
@@ -26,7 +30,72 @@ PortKind: TypeAlias = Literal["backtests", "research", "sources", "lake", "comma
 
 PROTOCOL_NAME = ui.PROTOCOL_NAME
 PROTOCOL_VERSION = ui.PROTOCOL_VERSION
-PROBLEM_SCHEMA = "urn:lianghua:schema:protocol-problem:1"
+PROBLEM_SCHEMA = "urn:lianghua:ui:problem:v1"
+
+
+@dataclass(frozen=True)
+class DataRef:
+    kind: str
+    identity: str
+    name: str
+    file: str
+    sha256: str
+    size: int
+
+
+class DataError(ValueError):
+    def __init__(self, code: str, detail: str):
+        super().__init__(detail)
+        self.code = code
+
+
+class DataPort(TypingProtocol):
+    def read(self, kind: str, identity: str, name: str) -> bytes: ...
+    def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef: ...
+    def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]: ...
+    def path(self, kind: str, identity: str, name: str) -> Path: ...
+    def delete(self, kind: str, identity: str, name: str) -> None: ...
+
+
+class DataBus:
+    """All business persistence enters this standard protocol boundary."""
+    kinds = frozenset({'sources', 'runs', 'state', 'validation'})
+
+    def __init__(self, store: DataPort):
+        self._store = store
+
+    def _call(self, operation, kind, *args):
+        try:
+            if kind not in self.kinds:
+                raise ValueError('invalid data kind')
+            return getattr(self._store, operation)(kind, *args)
+        except FileNotFoundError as error:
+            raise DataError('missing', str(error)) from error
+        except (ValueError, TypeError) as error:
+            raise DataError('invalid_identity', str(error)) from error
+        except OSError as error:
+            raise DataError('io_failed', str(error)) from error
+
+    def read(self, kind, identity, name) -> bytes:
+        return self._call('read', kind, identity, name)
+
+    def write(self, kind, identity, name, value: bytes) -> DataRef:
+        return self._call('write', kind, identity, name, value)
+
+    def list(self, kind, identity=None) -> tuple[DataRef, ...]:
+        return self._call('list', kind, identity)
+
+    def path(self, kind, identity, name) -> Path:
+        return self._call('path', kind, identity, name)
+
+    def delete(self, kind, identity, name) -> None:
+        self._call('delete', kind, identity, name)
+
+
+def build_data(root: Path) -> DataBus:
+    """Explicit composition for both the backend and offline operations."""
+    from storage import DataStore
+    return DataBus(DataStore(root))
 
 
 @dataclass(frozen=True)
@@ -71,14 +140,14 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("workbench.strategies", "read", "strategies", "strategies", "collection", "backtests"),
     OperationSpec("workbench.preflight", "read", "preflight", "preflight", "document", "backtests"),
     OperationSpec("workbench.backtest", "write", "backtest", "backtest-result", "resource", "backtests"),
-    OperationSpec("cli.run", "write", "cli-run", "cli-run", "operation", "backtests"),
+    OperationSpec("cli.run", "write", "cli-run", "cli-run", "operation", "commands"),
     OperationSpec("workbench.runs", "read", "runs", "runs", "collection", "research"),
     OperationSpec("workbench.run", "read", "run", "run", "resource", "research"),
     OperationSpec("workbench.benchmarks", "read", "benchmarks", "benchmarks", "collection", "research"),
     OperationSpec("workbench.benchmark", "read", "benchmark", "benchmark", "resource", "research"),
-    OperationSpec("lake.researchDaily", "read", "research-daily", "research-daily", "series", "research"),
-    OperationSpec("lake.researchInputs", "read", "research-inputs", "research-inputs", "document", "research"),
-    OperationSpec("lake.closedLoop", "read", "closed-loop", "closed-loop", "document", "research"),
+    OperationSpec("lake.researchDaily", "read", "research-daily", "research-daily", "series", "lake"),
+    OperationSpec("lake.researchInputs", "read", "research-inputs", "research-inputs", "document", "lake"),
+    OperationSpec("lake.closedLoop", "read", "closed-loop", "closed-loop", "document", "lake"),
     OperationSpec("workbench.sources", "read", "sources", "sources", "collection", "sources"),
     OperationSpec("workbench.sync", "write", "sync", "sync", "operation", "sources"),
     OperationSpec("workbench.schedule", "write", "schedule", "schedule", "operation", "sources"),
@@ -128,20 +197,105 @@ def build_protocol(modules: Modules) -> Protocol:
     return Protocol(modules)
 
 
+def build_backend(root: Path, factory: RunFactory) -> Protocol:
+    """Compose the project once; adapters receive only the returned backend port."""
+
+    from collect.lake_display import LakePort
+    from workbench.port import WorkbenchPort
+    from collect.display import CollectPort
+    from collect.data import Store
+
+    project = Path(root).resolve()
+    config = json.loads((project / "configs/workbench.json").read_bytes())
+    data = build_data(project)
+    store = Store(data)
+    providers = {
+        item['id']: getattr(import_module(item['adapter'].split(':', 1)[0]),
+                            item['adapter'].split(':', 1)[1])(item)
+        for item in config['sources']
+    }
+    sources = CollectPort(config['sources'], store, providers)
+    workbench = WorkbenchPort(project, config, data, store=store)
+    backtests = BacktestModule(workbench, KernelBacktestPort(factory, data))
+    lake = LakePort(data)
+    commands = CommandPort(project, backtests, data)
+    return Protocol(Modules(backtests, workbench, sources, lake, commands))
+
+
 class KernelBacktestPort:
     """把固定 Kernel 适配成统一协议中的一个端口。"""
 
-    def __init__(self, factory: RunFactory) -> None:
+    def __init__(self, factory: RunFactory, data: DataPort) -> None:
         self._kernel = Kernel(factory)
+        self._data = data
 
     def handle(self, operation: str, data: JsonValue) -> PortResult:
         if operation != "workbench.backtest":
             raise BacktestError("unsupported_operation", operation)
-        result = self._kernel.run(_request(data))
+        request = _request(data)
+        result = self._kernel.run(request)
+        value = _result_data(result)
+        save_backtest(self._data, request, value)
         return PortResult(
             "resource", "lianghua:backtest-result",
-            "urn:lianghua:ui:output:workbench.backtest:v1", _result_data(result),
+            "urn:lianghua:ui:output:workbench.backtest:v1", value,
         )
+
+
+class BacktestModule:
+    """Catalog and preflight share a port; execution always enters Kernel."""
+
+    def __init__(self, workbench: ModulePort, kernel: KernelBacktestPort) -> None:
+        self._workbench = workbench
+        self._kernel = kernel
+
+    def handle(self, operation: str, data: JsonValue) -> PortResult | JsonValue:
+        if operation == "workbench.backtest":
+            return self._kernel.handle(operation, data)
+        if operation in {"workbench.strategies", "workbench.preflight"}:
+            return self._workbench.handle(operation, data)
+        raise ValueError(f"unsupported backtest operation: {operation}")
+
+
+class CommandPort:
+    """CLI transport operations; no command owns a business execution path."""
+
+    def __init__(self, root: Path, backtests: ModulePort, data: DataPort) -> None:
+        self._root = Path(root).resolve()
+        self._backtests = backtests
+        self._data = data
+
+    def handle(self, operation: str, data: JsonValue) -> JsonValue:
+        if not isinstance(data, dict):
+            raise TypeError("operation data must be an object")
+        if operation == "cli.run":
+            config = json.loads(Path(_text(data, "config")).read_bytes())
+            return self._backtests.handle("workbench.backtest", config["request"])
+        if operation == "cli.ingest":
+            from data.ingest import ingest_exploratory
+
+            identity = _identity(data, "output")
+            result = ingest_exploratory(
+                price_workbook=Path(_text(data, "price")),
+                fundamental_workbook=Path(_text(data, "fundamentals")),
+                valuation_workbook=Path(_text(data, "valuations")),
+                output_dir=self._data.path("sources", identity, "manifest.json").parent,
+                max_symbols=data.get("max_symbols"),
+                only_price_parts=(
+                    tuple(data["price_part"]) if data.get("price_part") is not None else None
+                ),
+            )
+            return asdict(result)
+        if operation == "cli.report":
+            output = self._data.path("runs", _identity(data, "output"), "report.html")
+            output.parent.mkdir(parents=True, exist_ok=True)
+            subprocess.run([
+                "node", _text(data, "builder"), "--input", _text(data, "artifact"),
+                "--output", str(output), "--ready-timeout-ms",
+                str(data["ready_timeout_ms"]), "--timeout-ms", str(data["timeout_ms"]),
+            ], check=True)
+            return {"output": str(output)}
+        raise ValueError(f"unsupported command operation: {operation}")
 
 
 class Protocol:
@@ -169,6 +323,8 @@ class Protocol:
                 message_id=uuid4().hex, correlation_id=request.request_id,
                 kind=result.kind, type=result.type, schema=result.schema, data=result.data,
             )]
+        except DataError as error:
+            return [self._problem(request.request_id, error.code, str(error))]
         except BacktestError as error:
             return [self._problem(request.request_id, error.code, str(error), error.code == "busy")]
         except (TypeError, ValueError) as error:
@@ -177,10 +333,26 @@ class Protocol:
             return [self._problem(request.request_id, "module_failed", str(error))]
 
     def start(self) -> None:
-        return None
+        for port in self._ports():
+            start = getattr(port, "start", None)
+            if callable(start):
+                start()
 
     def close(self) -> None:
-        return None
+        for port in reversed(self._ports()):
+            close = getattr(port, "close", None)
+            if callable(close):
+                close()
+
+    def _ports(self) -> tuple[ModulePort, ...]:
+        unique = []
+        for port in (
+            self._modules.backtests, self._modules.research, self._modules.sources,
+            self._modules.lake, self._modules.commands,
+        ):
+            if all(port is not item for item in unique):
+                unique.append(port)
+        return tuple(unique)
 
     @staticmethod
     def _problem(correlation_id: str | None, code: str, detail: str, retryable: bool = False) -> ui.UiMessage:
@@ -219,6 +391,13 @@ def _text(data: Mapping[str, JsonValue], name: str) -> str:
     return value
 
 
+def _identity(data: Mapping[str, JsonValue], name: str) -> str:
+    value = _text(data, name)
+    if Path(value).name != value:
+        raise ValueError(f"{name} must be a data identity")
+    return value
+
+
 def _instant(data: Mapping[str, JsonValue], name: str) -> datetime:
     value = datetime.fromisoformat(_text(data, name))
     return value if value.tzinfo is not None else value.replace(tzinfo=timezone.utc)
@@ -243,7 +422,7 @@ def _result_data(result: BacktestResponse) -> JsonObject:
 
 
 __all__ = [
-    "BacktestError", "KernelBacktestPort", "Modules", "OperationSpec", "PortResult",
+    "BacktestError", "BacktestModule", "CommandPort", "KernelBacktestPort", "Modules", "OperationSpec", "PortResult",
     "Protocol", "PROTOCOL_NAME", "PROTOCOL_VERSION", "export_operations",
-    "build_protocol",
+    "build_backend", "build_protocol", "build_data", "DataBus", "DataPort", "DataRef", "DataError",
 ]

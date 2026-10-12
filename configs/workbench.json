@@ -1,20 +1,10 @@
 {
   "schema": 1,
-  "storage": "data/workbench",
-  "research": {
-    "adapter": "frontend.api.workbench.research:FileResearch",
-    "roots": [
-      "runs",
-      "runs_exact",
-      "runs_full",
-      "runs_parameters"
-    ]
-  },
   "sources": [
     {
       "id": "quotes",
       "name": "实时个股与指数报价",
-      "adapter": "frontend.api.workbench.providers:EastmoneyQuotes",
+      "adapter": "collect.quotes:EastmoneyQuotes",
       "frequency": "供应商最新报价快照",
       "defaults": {
         "codes": [
@@ -27,7 +17,7 @@
     {
       "id": "daily",
       "name": "历史日线",
-      "adapter": "frontend.api.workbench.providers:BaostockDaily",
+      "adapter": "collect.quotes:BaostockDaily",
       "frequency": "日线，不复权",
       "defaults": {
         "codes": [
@@ -40,7 +30,7 @@
     {
       "id": "announcements",
       "name": "公司公告目录",
-      "adapter": "frontend.api.workbench.providers:CninfoAnnouncements",
+      "adapter": "collect.announcements:CninfoAnnouncements",
       "frequency": "公开披露目录",
       "category": "",
       "defaults": {
@@ -51,7 +41,7 @@
     {
       "id": "financials",
       "name": "定期财报目录",
-      "adapter": "frontend.api.workbench.providers:CninfoAnnouncements",
+      "adapter": "collect.announcements:CninfoAnnouncements",
       "frequency": "年报、半年报、季报原文目录",
       "category": "category_ndbg_szsh;category_bndbg_szsh;category_sjdbg_szsh;category_yjdbg_szsh;",
       "defaults": {
@@ -62,7 +52,7 @@
     {
       "id": "benchmark_hs300",
       "name": "沪深300基准日线",
-      "adapter": "frontend.api.workbench.providers:BaostockDaily",
+      "adapter": "collect.quotes:BaostockDaily",
       "frequency": "指数收盘点位，价格指数，不含分红再投资",
       "defaults": {
         "codes": [
@@ -88,10 +78,8 @@
     "datasets": [
       {
         "id": "history_holdout",
-        "name": "真实历史 · 固定10股 · 2023—2025",
-        "path": "data/history_holdout"
+        "name": "真实历史 · 固定10股 · 2023—2025"
       }
-    ],
-    "output": "runs_parameters"
+    ]
   }
 }

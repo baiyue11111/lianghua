@@ -1,0 +1,87 @@
+{
+  "request": {
+    "codes": [
+      "1.600000"
+    ],
+    "start": "2026-09-30",
+    "end": "2026-09-30",
+    "keyword": ""
+  },
+  "response": {
+    "data": {
+      "diff": [
+        {
+          "f13": 1,
+          "f12": "600000",
+          "f14": "浦发银行",
+          "f2": 10.12,
+          "f3": 1.2,
+          "f5": 1200,
+          "f6": 12144,
+          "f124": 1790812800
+        }
+      ]
+    }
+  },
+  "snapshot": {
+    "source_id": "quotes",
+    "collected_at": "2026-09-30T00:00:00+00:00",
+    "request": {
+      "codes": [
+        "1.600000"
+      ],
+      "start": "2026-09-30",
+      "end": "2026-09-30",
+      "keyword": ""
+    },
+    "records": [
+      {
+        "code": "1.600000",
+        "name": "浦发银行",
+        "price": 10.12,
+        "change_pct": 1.2,
+        "volume": 1200,
+        "amount": 12144,
+        "data_at": "2026-10-01T00:00:00+00:00",
+        "raw_page": 0
+      }
+    ],
+    "raw": [
+      {
+        "url": "https://push2.eastmoney.com/api/qt/ulist.np/get?secids=1.600000&fields=f2%2Cf3%2Cf4%2Cf5%2Cf6%2Cf12%2Cf13%2Cf14%2Cf124&fltt=2",
+        "request": {
+          "codes": [
+            "1.600000"
+          ],
+          "start": "2026-09-30",
+          "end": "2026-09-30",
+          "keyword": ""
+        },
+        "response": {
+          "data": {
+            "diff": [
+              {
+                "f13": 1,
+                "f12": "600000",
+                "f14": "浦发银行",
+                "f2": 10.12,
+                "f3": 1.2,
+                "f5": 1200,
+                "f6": 12144,
+                "f124": 1790812800
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "data_as_of": "2026-10-01T00:00:00+00:00",
+    "scope": {
+      "codes": [
+        "1.600000"
+      ],
+      "frequency": "provider quote snapshot"
+    },
+    "snapshot_id": "c0af0220a1ae6d1968c2e47a9dbb0e81c4a39e8beeb3d21279f7fa61213eeaf1"
+  }
+}
