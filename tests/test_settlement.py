@@ -7,9 +7,9 @@ from zoneinfo import ZoneInfo
 from plugins.data import Adapter, Settlement
 from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
 from tests.fee_fixture import fees, tax_policy
-from tests.test_account_history import AccountHistoryTests
+from tests.settlement_fixture import SettlementFixture
 from corporate_actions import normalize_dividend_records
-from core.contracts import HistoryBar, MarketFrame
+from protocal import HistoryBar, MarketFrame, RegistrationAction
 
 
 class DataPluginSettlementTests(unittest.TestCase):
@@ -152,18 +152,18 @@ class DataPluginSettlementTests(unittest.TestCase):
             Adapter.validate((missing,), symbols=("B", "A"))
 
     def test_settlement_matches_runner_for_nonempty_dividend_and_share_tax_trace(self):
-        case = AccountHistoryTests()
+        case = SettlementFixture()
         records = list(case.inputs(exit_market=False))
         event = normalize_dividend_records([{
             "code": "000001", "dividRegistDate": "2020-02-03", "dividOperateDate": "2020-02-04",
             "dividPayDate": "2020-02-05", "dividStockMarketDate": "2020-02-06",
             "dividCashPsBeforeTax": "0.3", "dividStocksPs": "0.1",
         }])[0]
-        action = __import__("account_history").RegistrationAction(
+        action = RegistrationAction(
             "plan", event, "a" * 64, date(2020, 2, 5), D(1), D(0), "b" * 64
         )
         records[1] = replace(records[1], registrations=(action,))
-        expected = case.run_history(records)
+        expected = case.run_settlement(records)
 
         strategy = Strategy(Params(breadth_window=1))
         settlement = Settlement(D("100000"), fees(), tax_policy())
@@ -180,7 +180,7 @@ class DataPluginSettlementTests(unittest.TestCase):
         self.assertAlmostEqual(actual.equity[-1].liabilities, D("96"), places=24)
 
     def test_settlement_rejects_double_apply_and_missing_plan(self):
-        case = AccountHistoryTests()
+        case = SettlementFixture()
         record = case.inputs()[0]
         settlement = Settlement(D("100000"), fees(), tax_policy())
         settlement.apply(record, case.calendar[1])

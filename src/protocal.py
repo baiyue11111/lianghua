@@ -7,9 +7,10 @@ HTTP、CLI、任务线程和前端组件都不属于本层。
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass, is_dataclass, replace
+from dataclasses import asdict, dataclass, field, is_dataclass, replace
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
+from enum import StrEnum
 from importlib import import_module
 from functools import partial
 from inspect import getattr_static, signature
@@ -17,25 +18,17 @@ from pathlib import Path
 from hashlib import sha256
 import json
 import subprocess
+from math import isfinite
 from types import MappingProxyType
-from typing import Literal, Mapping, Protocol as TypingProtocol, TypeAlias, TYPE_CHECKING
+from typing import Any, Literal, Mapping, Protocol as TypingProtocol, TypeAlias
 from uuid import uuid4
-
-from core.backtest import BacktestError, BacktestRequest, BacktestResponse
-from core.kernel import Kernel
-from application import save_backtest, save_failed_backtest
-
-ui = import_module("frontend.ui-protocol")
-
-if TYPE_CHECKING:
-    from account_history import HistoryDay
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
 PortKind: TypeAlias = Literal["backtests", "research", "sources", "lake", "commands"]
 
-PROTOCOL_NAME = ui.PROTOCOL_NAME
-PROTOCOL_VERSION = ui.PROTOCOL_VERSION
+PROTOCOL_NAME = "lianghua.ui"
+PROTOCOL_VERSION = 1
 PROBLEM_SCHEMA = "urn:lianghua:ui:problem:v1"
 EXECUTION_FIELDS = ("open", "high", "low", "close", "volume", "amount")
 
@@ -59,6 +52,239 @@ class DataError(ValueError):
     def __init__(self, code: str, detail: str):
         super().__init__(detail)
         self.code = code
+
+
+Scalar: TypeAlias = str | int | float | bool | None
+
+
+def _aware(value: datetime, name: str) -> None:
+    if not isinstance(value, datetime) or value.tzinfo is None or value.utcoffset() is None:
+        raise ValueError(f"{name} must be a timezone-aware datetime")
+
+
+def _name(value: str, name: str) -> None:
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f"{name} is required")
+
+
+def _decimal(value: Decimal, name: str, *, positive: bool = False) -> None:
+    if not isinstance(value, Decimal) or not value.is_finite() or (positive and value <= 0):
+        raise ValueError(f"{name} must be a finite Decimal{' greater than zero' if positive else ''}")
+
+
+def _floats(values: Mapping[str, float], name: str) -> Mapping[str, float]:
+    copied = dict(values)
+    for key, value in copied.items():
+        _name(key, f"{name} key")
+        if type(value) not in (int, float) or not isfinite(value):
+            raise ValueError(f"{name} values must be finite numbers")
+    return MappingProxyType(copied)
+
+
+def _decimals(values: Mapping[str, Decimal], name: str) -> Mapping[str, Decimal]:
+    copied = dict(values)
+    for key, value in copied.items():
+        _name(key, f"{name} key")
+        _decimal(value, f"{name} value")
+    return MappingProxyType(copied)
+
+
+class Side(StrEnum):
+    BUY = "buy"
+    SELL = "sell"
+
+
+@dataclass(frozen=True)
+class Bar:
+    symbol: str
+    trade_date: date
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
+    amount: float
+
+    @classmethod
+    def open_bar(cls, symbol: str, trade_date: date, price: float, volume: float, amount: float) -> "Bar":
+        return cls(symbol, trade_date, price, price, price, price, volume, amount)
+
+
+@dataclass(frozen=True)
+class Order:
+    order_id: str
+    symbol: str
+    side: Side
+    requested_shares: int
+    signal_date: date
+    submit_date: date
+    reason: str
+
+
+@dataclass(frozen=True)
+class Fill:
+    order_id: str
+    symbol: str
+    side: Side
+    trade_date: date
+    shares: int
+    price: float
+    gross_amount: float
+    commission: float
+    stamp_duty: float
+    status: str
+    reason: str | None = None
+    transfer_fee: float = 0.0
+
+
+@dataclass(frozen=True)
+class DataRequest:
+    fields: tuple[str, ...]
+    history_bars: int
+    frequency: str = "daily"
+    price_basis: str = "adjusted"
+    symbols: tuple[str, ...] | None = None
+    universe: str = "dataset"
+
+    def __post_init__(self) -> None:
+        if not self.fields or len(set(self.fields)) != len(self.fields):
+            raise ValueError("unique required data fields are required")
+        for name in self.fields:
+            _name(name, "data field")
+        if type(self.history_bars) is not int or self.history_bars < 1:
+            raise ValueError("history_bars must be a positive integer")
+        if self.symbols is not None:
+            if not self.symbols or tuple(sorted(set(self.symbols))) != self.symbols:
+                raise ValueError("symbols must be an ordered unique nonempty tuple")
+            for symbol in self.symbols:
+                _name(symbol, "requested symbol")
+        _name(self.universe, "data universe")
+        _name(self.frequency, "data frequency")
+        _name(self.price_basis, "price basis")
+
+
+@dataclass(frozen=True)
+class HistoryBar:
+    at: datetime
+    fields: Mapping[str, Scalar]
+
+    def __post_init__(self) -> None:
+        _aware(self.at, "history timestamp")
+        object.__setattr__(self, "fields", MappingProxyType(dict(self.fields)))
+
+
+@dataclass(frozen=True)
+class MarketFrame:
+    at: datetime
+    venue: str
+    fields: Mapping[str, Mapping[str, Scalar]]
+    context: Mapping[str, Scalar] = field(default_factory=dict)
+    history: Mapping[str, tuple[HistoryBar, ...]] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _aware(self.at, "market timestamp")
+        _name(self.venue, "venue")
+        copied = {}
+        for instrument, values in self.fields.items():
+            _name(instrument, "instrument")
+            if not isinstance(values, Mapping):
+                raise TypeError("instrument fields must be a mapping")
+            copied[instrument] = MappingProxyType(dict(values))
+        object.__setattr__(self, "fields", MappingProxyType(copied))
+        object.__setattr__(self, "context", MappingProxyType(dict(self.context)))
+        history = {}
+        for instrument, rows in self.history.items():
+            _name(instrument, "history instrument")
+            rows = tuple(rows)
+            if any(not isinstance(row, HistoryBar) for row in rows):
+                raise TypeError("history rows must be HistoryBar")
+            times = tuple(row.at for row in rows)
+            if tuple(sorted(set(times))) != times or any(at > self.at for at in times):
+                raise ValueError("history must be ordered, unique and not future")
+            history[instrument] = rows
+        object.__setattr__(self, "history", MappingProxyType(history))
+
+
+@dataclass(frozen=True)
+class TargetSet:
+    source_id: str
+    as_of: datetime
+    weights: Mapping[str, float]
+    reasons: Mapping[str, str] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _name(self.source_id, "source_id")
+        _aware(self.as_of, "target timestamp")
+        object.__setattr__(self, "weights", _floats(self.weights, "weights"))
+        object.__setattr__(self, "reasons", MappingProxyType(dict(self.reasons)))
+
+
+@dataclass(frozen=True)
+class AccountSnapshot:
+    as_of: datetime
+    cash: Decimal
+    equity: Decimal
+    positions: Mapping[str, Decimal]
+    sellable: Mapping[str, Decimal] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        _aware(self.as_of, "account timestamp")
+        _decimal(self.cash, "cash")
+        _decimal(self.equity, "equity")
+        object.__setattr__(self, "positions", _decimals(self.positions, "positions"))
+        object.__setattr__(self, "sellable", _decimals(self.sellable, "sellable"))
+
+
+@dataclass(frozen=True)
+class RegistrationAction:
+    distribution_id: str
+    event: object
+    source_sha256: str
+    share_credit_date: date | None
+    stock_nominal: Decimal
+    reserve_taxable: Decimal
+    tax_source_sha256: str
+
+
+@dataclass(frozen=True)
+class HistoryDay:
+    trade_date: date
+    frame: MarketFrame
+    bars: Mapping[str, Bar]
+    previous_closes: Mapping[str, float | None]
+    opening_marks: Mapping[str, Decimal]
+    closing_marks: Mapping[str, Decimal]
+    opening_amount20: Mapping[str, Decimal]
+    closing_amount20: Mapping[str, Decimal]
+    liquidity_as_of: date
+    registrations: tuple[RegistrationAction, ...]
+
+
+@dataclass(frozen=True)
+class RegistrationRecord:
+    action: RegistrationAction
+    entitlement: object
+    deliveries: tuple[object, ...]
+
+
+@dataclass(frozen=True)
+class HistoryResult:
+    frames: tuple[MarketFrame, ...]
+    targets: tuple[TargetSet | None, ...]
+    allocations: tuple[object, ...]
+    orders: tuple[Order, ...]
+    fills: tuple[Fill, ...]
+    pending: tuple[Order, ...]
+    cancellations: tuple[object, ...]
+    cash_events: tuple[object, ...]
+    equity: tuple[object, ...]
+    holdings: tuple[object, ...]
+    distribution_postings: tuple[object, ...]
+    registrations: tuple[object, ...]
+    tax_payments: tuple[object, ...]
+    tax_liabilities: tuple[object, ...]
+    tax_pending: tuple[object, ...]
+    tax_holdings: tuple[object, ...]
 
 
 @dataclass(frozen=True)
@@ -146,7 +372,21 @@ class Dataset:
             raise TypeError("dataset policies and provenance must be mappings")
 
 
+class _DataStore(TypingProtocol):
+    def read(self, kind: str, identity: str, name: str) -> bytes: ...
+    def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef: ...
+    def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]: ...
+    def path(self, kind: str, identity: str, name: str) -> Path: ...
+    def delete(self, kind: str, identity: str, name: str) -> None: ...
+    def snapshot(self, dataset: str) -> Mapping[str, object]: ...
+    def publish(self, dataset: str, manifest: Mapping[str, object]) -> DataRef: ...
+
+
 class DataPort(TypingProtocol):
+    """The single public data bus contract used by module consumers."""
+
+    def query(self, query: DataQuery) -> Dataset: ...
+    def read_ref(self, ref: DataRef) -> bytes: ...
     def read(self, kind: str, identity: str, name: str) -> bytes: ...
     def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef: ...
     def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]: ...
@@ -160,7 +400,7 @@ class DataBus:
     """All business persistence enters this standard protocol boundary."""
     kinds = frozenset({'sources', 'runs', 'state', 'validation'})
 
-    def __init__(self, store: DataPort, reader=None):
+    def __init__(self, store: _DataStore, reader=None):
         self._store = store
         self._reader = reader
 
@@ -185,6 +425,15 @@ class DataBus:
             raise DataError("scope_mismatch", "dataset universe does not satisfy query")
         if query.symbols is not None and tuple(result.scope.get("symbols", ())) != query.symbols:
             raise DataError("scope_mismatch", "dataset symbols do not satisfy query")
+        coverage_start = result.scope.get("calendar_start")
+        if not isinstance(coverage_start, str) or not coverage_start:
+            raise DataError("invalid_dataset", "dataset scope must declare calendar_start")
+        try:
+            coverage_start = date.fromisoformat(coverage_start)
+        except (TypeError, ValueError) as error:
+            raise DataError("invalid_dataset", "dataset calendar coverage is invalid") from error
+        if coverage_start > query.start:
+            raise DataError("date_coverage", "dataset calendar does not cover query start")
         if tuple(result.fields) != tuple(query.fields):
             raise DataError("field_mismatch", "dataset fields do not satisfy query")
         if result.history != query.history:
@@ -207,6 +456,20 @@ class DataBus:
             raise DataError("invalid_manifest", str(error)) from error
         self._validate_manifest(dataset, manifest)
         return manifest
+
+    def read_ref(self, ref: DataRef) -> bytes:
+        """Read and verify one explicit source reference through the bus."""
+        if not isinstance(ref, DataRef):
+            raise DataError("invalid_ref", "data reference is required")
+        if ref.kind not in self.kinds or not ref.identity or not ref.name:
+            raise DataError("invalid_ref", "data reference identity is invalid")
+        expected_file = (Path("data") / ref.kind / ref.identity / ref.name).as_posix()
+        if ref.file != expected_file:
+            raise DataError("invalid_ref", "data reference file does not match its identity")
+        value = self.read(ref.kind, ref.identity, ref.name)
+        if len(value) != ref.size or sha256(value).hexdigest() != ref.sha256:
+            raise DataError("source_hash_mismatch", f"data reference hash mismatch: {ref.file}")
+        return value
 
     def publish(self, dataset: str, manifest: Mapping[str, object]) -> DataRef:
         """Validate all bound evidence, then publish the manifest as the release marker."""
@@ -290,6 +553,159 @@ class DataBus:
 
     def delete(self, kind, identity, name) -> None:
         self._call('delete', kind, identity, name)
+
+
+class BacktestError(ValueError):
+    """Stable machine-readable error for the protocol and kernel boundary."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message)
+        self.code = code
+
+
+@dataclass(frozen=True)
+class BacktestRequest:
+    run_id: str
+    strategy_id: str
+    parameters: Mapping[str, Scalar]
+    dataset_id: str
+    start: datetime
+    end: datetime
+    initial_cash: Decimal
+    fields: tuple[str, ...] = ()
+    history: int = 0
+    price_basis: str = "adjusted"
+    as_of: date | None = None
+    symbols: tuple[str, ...] | None = None
+    universe: str = "dataset"
+    settlement_parameters: Mapping[str, object] | None = None
+    evaluation_parameters: Mapping[str, object] | None = None
+    benchmark_id: str | None = None
+
+    def __post_init__(self) -> None:
+        try:
+            for name in ("run_id", "strategy_id", "dataset_id"):
+                _name(getattr(self, name), name)
+            _aware(self.start, "start")
+            _aware(self.end, "end")
+            if self.start > self.end:
+                raise ValueError("start must not exceed end")
+            _decimal(self.initial_cash, "initial_cash", positive=True)
+            fields = tuple(self.fields)
+            if fields and (len(set(fields)) != len(fields)
+                           or any(not isinstance(item, str) or not item.strip() for item in fields)):
+                raise ValueError("fields must be unique non-empty strings")
+            object.__setattr__(self, "fields", fields)
+            if type(self.history) is not int or self.history < 0:
+                raise ValueError("history must be a non-negative integer")
+            if self.price_basis != "adjusted":
+                raise ValueError("unsupported price basis")
+            if self.as_of is not None and not isinstance(self.as_of, date):
+                raise ValueError("as_of must be a date")
+            symbols = None if self.symbols is None else tuple(self.symbols)
+            if symbols is not None and (not symbols or len(set(symbols)) != len(symbols)
+                                        or any(not isinstance(symbol, str) or not symbol.strip()
+                                               for symbol in symbols)):
+                raise ValueError("symbols must be ordered and unique")
+            object.__setattr__(self, "symbols", symbols)
+            _name(self.universe, "universe")
+            if self.benchmark_id is not None:
+                _name(self.benchmark_id, "benchmark_id")
+            for name in ("settlement_parameters", "evaluation_parameters"):
+                value = getattr(self, name)
+                if value is None:
+                    object.__setattr__(self, name, MappingProxyType({}))
+                elif not isinstance(value, Mapping):
+                    raise TypeError(f"{name} must be a mapping")
+                else:
+                    object.__setattr__(self, name, MappingProxyType(dict(value)))
+            evaluation = dict(self.evaluation_parameters)
+            if set(evaluation) - {"periods", "baseline"}:
+                raise ValueError("unsupported evaluation parameters")
+            if "periods" in evaluation and (type(evaluation["periods"]) is not int
+                                              or evaluation["periods"] < 1):
+                raise ValueError("evaluation periods must be a positive integer")
+            if "baseline" in evaluation and (type(evaluation["baseline"]) not in (int, float)
+                                               or not isfinite(evaluation["baseline"])):
+                raise ValueError("evaluation baseline must be a finite number")
+            object.__setattr__(self, "evaluation_parameters", MappingProxyType(evaluation))
+            if not isinstance(self.parameters, Mapping):
+                raise TypeError("parameters must be a mapping")
+            params = dict(self.parameters)
+            for key, value in params.items():
+                _name(key, "parameter name")
+                if type(value) not in (str, int, float, bool, type(None)):
+                    raise TypeError("parameter values must be scalars")
+                if type(value) is float and not isfinite(value):
+                    raise ValueError("parameter numbers must be finite")
+            object.__setattr__(self, "parameters", MappingProxyType(params))
+        except (TypeError, ValueError) as error:
+            raise BacktestError("invalid_request", str(error)) from error
+
+
+@dataclass(frozen=True)
+class BacktestResponse:
+    run_id: str
+    strategy_id: str
+    dataset_id: str
+    first_at: datetime
+    last_at: datetime
+    steps: int
+    fills: int
+    final_cash: Decimal
+    final_equity: Decimal
+    positions: Mapping[str, Decimal]
+    pending_orders: int
+    account_result: object | None = None
+    dataset: object | None = None
+    metrics: Mapping[str, float | int | None] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "positions", MappingProxyType(dict(self.positions)))
+        if not isinstance(self.metrics, Mapping):
+            raise TypeError("metrics must be a mapping")
+        metrics = dict(self.metrics)
+        for key, value in metrics.items():
+            if not isinstance(key, str):
+                raise TypeError("metric keys must be strings")
+            if value is not None and (type(value) not in (int, float) or not isfinite(value)):
+                raise ValueError("metric values must be finite numbers or None")
+        object.__setattr__(self, "metrics", MappingProxyType(metrics))
+
+
+@dataclass(frozen=True)
+class Trial:
+    request: BacktestRequest
+    response: BacktestResponse
+    score: float
+
+    def __post_init__(self) -> None:
+        if not isinstance(self.request, BacktestRequest):
+            raise TypeError("trial request must be BacktestRequest")
+        if not isinstance(self.response, BacktestResponse):
+            raise TypeError("trial response must be BacktestResponse")
+        if type(self.score) not in (int, float) or not isfinite(self.score):
+            raise ValueError("trial score must be a finite number")
+        object.__setattr__(self, "score", float(self.score))
+
+
+@dataclass(frozen=True)
+class SearchResponse:
+    trials: tuple[Trial, ...]
+    best_index: int
+    validation: BacktestResponse | None = None
+
+    def __post_init__(self) -> None:
+        trials = tuple(self.trials)
+        if not trials:
+            raise ValueError("search requires at least one trial")
+        if type(self.best_index) is not int or not 0 <= self.best_index < len(trials):
+            raise ValueError("best_index must point to a trial")
+        if any(not isinstance(trial, Trial) for trial in trials):
+            raise TypeError("trials must contain Trial values")
+        if self.validation is not None and not isinstance(self.validation, BacktestResponse):
+            raise TypeError("validation must be BacktestResponse or None")
+        object.__setattr__(self, "trials", trials)
 
 
 def build_data(root: Path, reader=None) -> DataBus:
@@ -442,6 +858,7 @@ class KernelBacktestPort:
     def __init__(self, data: DataPort, settlement_type, benchmarks=None) -> None:
         if not callable(settlement_type):
             raise TypeError("settlement plugin must be callable")
+        from core.kernel import Kernel
         self._kernel = Kernel(data, _load_registered_strategy, _query, settlement_type)
         self._data = data
         self._benchmarks = benchmarks
@@ -449,7 +866,8 @@ class KernelBacktestPort:
     def handle(self, operation: str, data: JsonValue) -> PortResult:
         if operation != "workbench.backtest":
             raise BacktestError("unsupported_operation", operation)
-        request = _request(data)
+        from application import save_backtest, save_failed_backtest
+        request = parse_backtest_request(data)
         search = _search(data, request)
         try:
             if search is None:
@@ -481,10 +899,10 @@ class KernelBacktestPort:
         )
 
     def _save_search_failure(self, request: BacktestRequest, error: BacktestError) -> str:
+        from application import save_backtest, save_failed_backtest
         completed = getattr(error, "completed_trials", ())
         for trial in completed:
             save_backtest(self._data, trial.request, _result_data(trial.response, trial.request, self._benchmarks))
-        from plugins.recorders.jsonl import _json_value
         failed_request = getattr(error, "failed_request", request)
         partial = getattr(error, "partial_result", None)
         evidence = {
@@ -501,6 +919,7 @@ class KernelBacktestPort:
         return save_failed_backtest(self._data, request, error, evidence)
 
     def _save_search(self, request: BacktestRequest, spec: SearchSpec, result) -> JsonObject:
+        from application import save_backtest
         from strategy import canonical_hash
 
         trials = []
@@ -612,7 +1031,8 @@ class Protocol:
     def __init__(self, modules: Modules) -> None:
         self._modules = modules
 
-    async def send(self, request: ui.UiRequest) -> list[ui.UiMessage]:
+    async def send(self, request) -> list:
+        ui = import_module("frontend.ui-protocol")
         if not isinstance(request, ui.UiRequest):
             return [self._problem(None, "invalid_request", "request must be UiRequest")]
         spec = _DIRECTORY.get(request.operation)
@@ -665,7 +1085,8 @@ class Protocol:
 
     @staticmethod
     def _problem(correlation_id: str | None, code: str, detail: str,
-                 retryable: bool = False, evidence: str | None = None) -> ui.UiMessage:
+                 retryable: bool = False, evidence: str | None = None):
+        ui = import_module("frontend.ui-protocol")
         problem = ui.UiProblem(
             type="urn:lianghua:problem:protocol", code=code,
             title="协议请求未完成", detail=detail, retryable=retryable,
@@ -677,7 +1098,7 @@ class Protocol:
         )
 
 
-def _request(data: JsonValue) -> BacktestRequest:
+def parse_backtest_request(data: JsonValue) -> BacktestRequest:
     if not isinstance(data, dict):
         raise BacktestError("invalid_request", "backtest data must be an object")
     try:
@@ -949,6 +1370,26 @@ def _config_value(value):
     return value
 
 
+def _json_value(value):
+    """Serialize protocol and settlement dataclasses without a recorder module."""
+    from datetime import date as date_type, datetime as datetime_type
+    from enum import Enum
+
+    if is_dataclass(value) and not isinstance(value, type):
+        return {item.name: _json_value(getattr(value, item.name)) for item in value.__dataclass_fields__.values()}
+    if isinstance(value, Mapping):
+        return {str(key): _json_value(item) for key, item in sorted(value.items())}
+    if isinstance(value, (tuple, list)):
+        return [_json_value(item) for item in value]
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, (date_type, datetime_type)):
+        return value.isoformat()
+    if isinstance(value, Enum):
+        return value.value
+    return value
+
+
 def _object(data: Mapping[str, JsonValue], name: str) -> Mapping[str, object]:
     value = data[name]
     if not isinstance(value, dict):
@@ -1002,7 +1443,7 @@ def _result_data(result: BacktestResponse, request: BacktestRequest | None = Non
             "dataset_id": request.dataset_id, "start": request.start.isoformat(),
             "end": request.end.isoformat(), "initial_cash": str(request.initial_cash),
             "fields": list(result.dataset.fields) if result.dataset is not None else list(request.fields),
-            "history": request.history,
+            "history": result.dataset.history if result.dataset is not None else request.history,
             "price_basis": request.price_basis, "as_of": request.as_of.isoformat() if request.as_of else None,
             "symbols": list(request.symbols) if request.symbols else None,
             "universe": request.universe, "evaluation": dict(request.evaluation_parameters), **plugin_config,
@@ -1025,7 +1466,6 @@ def _result_data(result: BacktestResponse, request: BacktestRequest | None = Non
             value["benchmark"] = benchmark
     if result.account_result is None:
         return value
-    from plugins.recorders.jsonl import _json_value
     points = [(point.day, float(point.equity)) for point in result.account_result.equity
               if point.day >= result.first_at.date()]
     value.update({
@@ -1044,6 +1484,8 @@ __all__ = [
     "BacktestError", "BacktestModule", "CommandPort", "KernelBacktestPort", "Modules", "OperationSpec", "PortResult",
     "Protocol", "PROTOCOL_NAME", "PROTOCOL_VERSION", "export_operations",
     "build_backend", "build_protocol", "build_data", "DataBus", "DataPort", "DataRef", "DataError",
-    "DataQuery", "Dataset",
+    "Scalar", "Side", "Bar", "Order", "Fill", "DataRequest", "HistoryBar", "MarketFrame", "TargetSet",
+    "AccountSnapshot", "RegistrationAction", "HistoryDay", "RegistrationRecord", "HistoryResult",
+    "BacktestRequest", "BacktestResponse", "Trial", "SearchResponse", "parse_backtest_request", "DataQuery", "Dataset",
     "EXECUTION_FIELDS", "required_fields",
 ]

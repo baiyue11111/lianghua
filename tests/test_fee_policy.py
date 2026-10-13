@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal as D
 import unittest
-from contracts import Side
+from protocal import Side
 
 class FeePolicyTests(unittest.TestCase):
     def fees(self):
@@ -19,7 +19,7 @@ class FeePolicyTests(unittest.TestCase):
             self.fees().calculate(D(100000),Side.SELL,date(2019,12,31))
     def test_buy_affordability_includes_transfer_fee(self):
         from execution import ExecutionEngine, PositionBook
-        from contracts import Order, Bar
+        from protocal import Order, Bar
         from dataclasses import replace
         fees=replace(self.fees(),transfer_rates=((date(2020,1,1),D('.01')),))
         fill=ExecutionEngine(fees).execute(Order('o','A',Side.BUY,100,date(2023,1,1),date(2023,1,2),'entry'),

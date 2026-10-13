@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal as D
 import unittest
-from contracts import Fill, Side
+from protocal import Fill, Side
 from corporate_actions import normalize_dividend_records
 
 

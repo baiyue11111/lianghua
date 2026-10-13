@@ -100,9 +100,9 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertFalse(bus.path("runs", "bad-shape", "manifest.json").exists())
 
     def test_request_accepts_only_the_declared_search_shape(self):
-        from protocal import _request
+        from protocal import parse_backtest_request
 
-        value = _request({
+        value = parse_backtest_request({
             "run_id": "search",
             "module": "plugins.strategies.moving_average_cross",
             "params": {"fast_window": 1, "slow_window": 2},
@@ -118,7 +118,7 @@ class SearchProtocolTests(unittest.TestCase):
             },
         })
 
-        from core.backtest import BacktestRequest
+        from protocal import BacktestRequest
 
         self.assertIsInstance(value, BacktestRequest)
 
@@ -252,8 +252,8 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertNotIn("extensions", message.data)
 
     def test_busy_does_not_write_failed_evidence(self):
-        from core.backtest import BacktestError
-        from protocal import DataBus, KernelBacktestPort, _request
+        from protocal import BacktestError
+        from protocal import DataBus, KernelBacktestPort, parse_backtest_request
         from storage import DataStore
 
         class BusyKernel:
@@ -278,7 +278,7 @@ class SearchProtocolTests(unittest.TestCase):
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from core.backtest import BacktestError
+        from protocal import BacktestError
 
         with TemporaryDirectory() as root:
             root = Path(root)
@@ -310,7 +310,7 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertFalse(bus.path("runs", "failed-search", "manifest.json").exists())
 
     def test_protocol_rejects_external_updater_module_and_unknown_search_field(self):
-        from protocal import _request, _search
+        from protocal import parse_backtest_request, _search
 
         base = {
             "run_id": "search", "module": "plugins.strategies.moving_average_cross",
@@ -322,14 +322,14 @@ class SearchProtocolTests(unittest.TestCase):
             },
         }
         with self.assertRaises(Exception):
-            _search(base, _request(base))
+            _search(base, parse_backtest_request(base))
         with self.assertRaises(Exception):
             value = {**base, "search": {**base["search"], "extra": True}}
-            _search(value, _request(value))
+            _search(value, parse_backtest_request(value))
         with self.assertRaises(Exception):
             value = {**base, "search": {"updater": base["search"]["updater"],
                                          "max_trials": 1, "metric": "total_return"}}
-            _search(value, _request(value))
+            _search(value, parse_backtest_request(value))
 
 
 if __name__ == "__main__":

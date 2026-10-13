@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from math import isfinite
 
 from core.calculation import Calculation
-from core.contracts import DataRequest, TargetSet
+from protocal import DataRequest, TargetSet
 from strategy import validate_params
 
 NAME='双均线'

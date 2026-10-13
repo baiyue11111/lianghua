@@ -32,7 +32,9 @@ def make_snapshot(root:Path, history_start=date(2019,7,1)):
         path.write_text(json.dumps(value,ensure_ascii=False))
         files.append({'file':name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'role':role})
     files.append({'file':'daily/bars.parquet','sha256':hashlib.sha256((folder/'daily/bars.parquet').read_bytes()).hexdigest(),'role':'market'})
-    write('calendar_source.json',{'type':'engineering_fixture','sessions':[d.isoformat() for d in sessions]})
+    write('calendar_source.json',{'type':'engineering_fixture',
+        'request':{'start':history_start.isoformat(),'end':sessions[-1].isoformat()},
+        'sessions':[d.isoformat() for d in sessions]})
     write('calendar.json',{'sessions':[d.isoformat() for d in sessions],'source_file':'calendar_source.json'})
     write('code_changes.json',{'schema':1,'scope':'engineering_fixture','events':[]})
     factor_start='1990-01-01'; factor_end='2020-02-05'; corp=[]

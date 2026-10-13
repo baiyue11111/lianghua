@@ -6,7 +6,7 @@ from threading import Event, Thread
 from types import SimpleNamespace
 import unittest
 
-from core.backtest import BacktestError, BacktestRequest, Trial
+from protocal import BacktestError, BacktestRequest, Trial
 from core.calculation import Calculation
 from core.kernel import Kernel
 from protocal import DataQuery, Dataset
@@ -66,7 +66,8 @@ class SearchData:
         )
         return Dataset(
             "fixture", (record,), {"fees": object(), "tax_policy": object()},
-            {"source": "test"}, {"universe": "fixture", "symbols": ()},
+            {"source": "test", "calendar_start": day.isoformat()},
+            {"universe": "fixture", "symbols": (), "calendar_start": day.isoformat()},
             (day, day.fromordinal(day.toordinal() + 1)), ("close",), query.history,
         )
 

@@ -5,7 +5,7 @@ import unittest
 
 import account_execution
 from account_ledger import AccountLedger
-from contracts import Bar, Order, Side
+from protocal import Bar, Order, Side
 
 
 class OpeningRiskTests(unittest.TestCase):

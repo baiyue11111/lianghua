@@ -8,7 +8,7 @@ from decimal import Decimal, ROUND_CEILING, ROUND_FLOOR
 from math import floor, isfinite
 from typing import Mapping
 
-from contracts import Bar, Fill, Order, Side
+from protocal import Bar, Fill, Order, Side
 from fees import FeePolicy
 
 

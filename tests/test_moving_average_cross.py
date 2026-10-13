@@ -4,7 +4,7 @@ from decimal import Decimal
 import unittest
 from zoneinfo import ZoneInfo
 
-from core.contracts import AccountSnapshot, HistoryBar, MarketFrame
+from protocal import AccountSnapshot, HistoryBar, MarketFrame
 from strategy import catalog, load_strategy
 
 MODULE='plugins.strategies.moving_average_cross'
@@ -54,3 +54,40 @@ class MovingAverageTests(unittest.TestCase):
         self.assertEqual(dict(self.generate(fast,{'x':[1,5,2]}).weights),{})
         self.assertEqual(dict(self.generate(slow,{'x':[1,5,2]}).weights),{'x':1.0})
         with self.assertRaises(ValueError):self.strategy({'fast_window':3,'slow_window':3})
+
+    def test_public_parameter_contract_rejects_unknown_and_coerced_values(self):
+        with self.assertRaises(ValueError): self.strategy({'fast_window':'2'})
+        with self.assertRaises(ValueError): self.strategy({'fast_window':True})
+        with self.assertRaises(ValueError): self.strategy({'unknown':2})
+
+    def test_requirements_and_identity_are_declared_by_the_plugin(self):
+        strategy=self.strategy({'fast_window':2,'slow_window':5})
+        request=strategy.requirements()
+        self.assertEqual(strategy.strategy_id,'moving_average_cross')
+        self.assertEqual(request.fields,('signal_close',))
+        self.assertEqual(request.history_bars,5)
+        self.assertEqual(request.frequency,'daily')
+        self.assertEqual(request.price_basis,'adjusted')
+
+    def test_empty_target_is_distinct_from_no_decision(self):
+        strategy=self.strategy({'fast_window':2,'slow_window':3})
+        self.assertIsNone(self.generate(strategy,{'x':[1,2]}))
+        entry=self.generate(strategy,{'x':[1,2,3]})
+        self.assertEqual(dict(entry.weights),{'x':1.0})
+        self.assertIsNone(self.generate(strategy,{'x':[1,2,3]}))
+        exit_target=self.generate(strategy,{'x':[3,2,1]})
+        self.assertIsNotNone(exit_target)
+        self.assertEqual(dict(exit_target.weights),{})
+
+    def test_exposure_changes_weights_without_removing_reason(self):
+        strategy=self.strategy({'fast_window':2,'slow_window':3,'exposure':.8})
+        target=self.generate(strategy,{'x':[1,2,3],'y':[3,2,1],'z':[2,3,4]})
+        self.assertEqual(dict(target.weights),{'x':.4,'z':.4})
+        self.assertEqual(dict(target.reasons),{
+            'x':'fast_mean_above_slow_mean','z':'fast_mean_above_slow_mean'})
+
+    def test_raw_history_window_controls_activation(self):
+        strategy=self.strategy({'fast_window':2,'slow_window':4})
+        self.assertIsNone(self.generate(strategy,{'x':[1,2,3]}))
+        target=self.generate(strategy,{'x':[1,2,3,4]})
+        self.assertEqual(dict(target.weights),{'x':1.0})

@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date
 from numbers import Real
 
 import numpy as np
 from account_allocation import AllocationLimits
+from protocal import HistoryResult, RegistrationRecord
 
 
 class Scaler:
@@ -121,7 +123,7 @@ class Adapter:
 
     @classmethod
     def validate(cls, frames, *, symbols=None, fields=None, missing="reject"):
-        from core.contracts import MarketFrame
+        from protocal import MarketFrame
 
         frames = tuple(frames)
         if not frames or any(not isinstance(frame, MarketFrame) for frame in frames):
@@ -246,7 +248,7 @@ class Adapter:
     def adjust(cls, frames, *, basis, as_of, factors, anchor="back", volume_field="volume"):
         from dataclasses import replace
         from datetime import date
-        from core.contracts import HistoryBar
+        from protocal import HistoryBar
 
         if basis == "adjusted":
             raise ValueError("total adjusted basis is not implemented")
@@ -399,11 +401,48 @@ class Settlement:
         self._failure = error
         self._sealed = True
 
+    @staticmethod
+    def _validate_day(record, day):
+        import re
+        if record.trade_date != day or record.frame.at.date() != day:
+            raise ValueError('history day/frame do not match required calendar session')
+        if record.liquidity_as_of >= day:
+            raise ValueError('opening liquidity cannot use current/future session')
+        for action in record.registrations:
+            event = action.event
+            if (not action.distribution_id or not event.executable
+                    or event.registration_date != day
+                    or not re.fullmatch('[0-9a-f]{64}', action.source_sha256)):
+                raise ValueError('identified executable registration action required')
+            if event.stock_dividend_per_share + event.reserve_to_stock_per_share > 0:
+                if (not isinstance(action.share_credit_date, date)
+                        or not event.operation_date <= action.share_credit_date <= event.stock_market_date):
+                    raise ValueError('explicit share credit date required; listing date is not a substitute')
+
+    def _register(self, action):
+        from decimal import Decimal
+        from corporate_actions import calculate_entitlement
+        from distribution_ledger import ShareDelivery
+
+        lots = tuple(lot for lot in self.account.lots if lot.symbol == action.event.code)
+        claim = calculate_entitlement(action.event, action.event.registration_date,
+                                      sum(lot.shares for lot in lots))
+        deliveries = []
+        ratio = Decimal(str(action.event.stock_dividend_per_share)) + Decimal(str(action.event.reserve_to_stock_per_share))
+        for lot in lots:
+            shares = Decimal(lot.shares) * ratio
+            if shares != shares.to_integral_value():
+                raise ValueError('fractional lot allocation requires source evidence; no rounding')
+            if shares:
+                deliveries.append(ShareDelivery(lot.lot_id, lot.acquired, int(shares),
+                                                action.share_credit_date, action.event.stock_market_date))
+        self.distributions.register(action.distribution_id, claim, action.source_sha256, tuple(deliveries))
+        return RegistrationRecord(action, claim, tuple(deliveries))
+
     def _apply(self, record, following, trade_start=None):
         from dataclasses import replace
         from decimal import Decimal
-        from account_history import _register, _validate_day
-        from core.contracts import AccountSnapshot
+        from protocal import AccountSnapshot
         from execution_risk import OpeningRiskSnapshot
 
         if self._pending is not None:
@@ -414,7 +453,7 @@ class Settlement:
             raise ValueError("history days must move forward")
         if following <= record.trade_date:
             raise ValueError("following session must be chronological")
-        _validate_day(record, record.trade_date)
+        self._validate_day(record, record.trade_date)
         day = record.trade_date
         due_dates = {p.due for p in self.taxes.pending.values() if p.due <= day}
         due_dates.update(self.distributions.due_dates(day))
@@ -449,7 +488,7 @@ class Settlement:
         point = self.account.mark(day, record.closing_marks, claims, self.taxes.liability(day))
         self.tax_liabilities.append((day, self.taxes.liability(day)))
         for action in record.registrations:
-            self.registrations.append(_register(action, self.account, self.distributions))
+            self.registrations.append(self._register(action))
             self.taxes.register(
                 action.distribution_id,
                 action.event,
@@ -489,8 +528,7 @@ class Settlement:
             raise
 
     def _plan(self, target, strategy_id):
-        from contracts import TargetPortfolio
-        from core.contracts import TargetSet
+        from protocal import TargetSet
         from dataclasses import replace
 
         if self._pending is None:
@@ -501,14 +539,10 @@ class Settlement:
         if target is not None:
             if not isinstance(target, TargetSet) or target.as_of != frame.at or target.source_id != strategy_id:
                 raise ValueError("strategy target identity/time do not match decision")
-        portfolio = TargetPortfolio(
-            strategy_id,
-            record.trade_date,
-            {} if target is None else target.weights,
-            0.0 if target is None else sum(target.weights.values()),
-            {} if target is None else target.reasons,
-            rebalance=active and target is not None,
-        )
+        if target is None:
+            portfolio = TargetSet(strategy_id, frame.at, {})
+        else:
+            portfolio = target
         plan = self.execution.apply_target(
             portfolio,
             next_session=following,
@@ -516,6 +550,7 @@ class Settlement:
             raw_closes=record.closing_marks,
             amount20=record.closing_amount20,
             limits=self.limits,
+            rebalance=active and target is not None,
         )
         self.frames.append(replace(frame, history={}))
         self.targets.append(target)
@@ -526,8 +561,6 @@ class Settlement:
         return plan
 
     def result(self):
-        from account_history import HistoryResult
-
         return HistoryResult(
             tuple(self.frames),
             tuple(self.targets),

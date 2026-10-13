@@ -10,7 +10,7 @@ from decimal import Decimal
 from hashlib import sha256
 from typing import Mapping
 
-from contracts import Order, Side, TargetPortfolio
+from protocal import Order, Side, TargetSet
 
 
 @dataclass(frozen=True)
@@ -42,13 +42,13 @@ def _positive(value):
     return value
 
 
-def allocate_target(target: TargetPortfolio, *, next_session: date,
+def allocate_target(target: TargetSet, *, next_session: date,
                     equity: Decimal, holdings: Mapping[str,int],
                     raw_closes: Mapping[str,Decimal], amount20: Mapping[str,Decimal],
-                    limits: AllocationLimits=AllocationLimits()) -> AllocationPlan:
-    if next_session<=target.as_of:
+                    limits: AllocationLimits=AllocationLimits(), rebalance: bool = True) -> AllocationPlan:
+    if next_session <= target.as_of.date():
         raise ValueError('next-session execution date required')
-    if not target.rebalance:
+    if not rebalance:
         return AllocationPlan((),())
     equity=_positive(equity)
     if type(limits.lot_size) is not int or limits.lot_size<=0:
@@ -56,8 +56,8 @@ def allocate_target(target: TargetPortfolio, *, next_session: date,
     weight_cap=_positive(limits.stock_weight); adv_cap=_positive(limits.adv_fraction)
     if max(weight_cap,adv_cap)>1:
         raise ValueError('risk fractions cannot exceed one')
-    weights={symbol:Decimal(str(weight)) for symbol,weight in target.target_weights.items()}
-    exposure=Decimal(str(target.gross_exposure))
+    weights={symbol:Decimal(str(weight)) for symbol,weight in target.weights.items()}
+    exposure=sum(weights.values(), Decimal(0))
     if (not exposure.is_finite() or not 0<=exposure<=1 or
             any(not w.is_finite() or w<0 for w in weights.values()) or
             sum(weights.values(),Decimal(0))>1 or
@@ -88,9 +88,9 @@ def allocate_target(target: TargetPortfolio, *, next_session: date,
         else:
             side=Side.BUY if delta>0 else Side.SELL
             reason=target.reasons.get(symbol,'target_exit')
-            identity=repr((target.strategy_id,target.as_of,next_session,symbol,side.value,requested,reason))
+            identity=repr((target.source_id,target.as_of.date(),next_session,symbol,side.value,requested,reason))
             orders.append(Order(sha256(identity.encode()).hexdigest(),symbol,side,requested,
-                                target.as_of,next_session,reason))
+                                target.as_of.date(),next_session,reason))
             decisions.append(AllocationDecision(symbol,desired,delta,'ordered',reason))
     orders.sort(key=lambda order:(order.side!=Side.SELL,order.symbol))
     return AllocationPlan(tuple(orders),tuple(decisions))

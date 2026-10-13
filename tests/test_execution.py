@@ -4,7 +4,7 @@ from math import nan
 import unittest
 import execution as execution
 
-from contracts import Bar, Order, Side
+from protocal import Bar, Order, Side
 from execution import ExecutionEngine, PositionBook
 
 

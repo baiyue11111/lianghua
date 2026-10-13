@@ -9,7 +9,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from decimal import Decimal
 import re
-from contracts import Side
+from protocal import Side
 from dividend_tax import holding_rate
 from strategy import canonical_hash
 

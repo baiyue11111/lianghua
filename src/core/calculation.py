@@ -7,7 +7,7 @@ from datetime import date
 from math import isfinite, sqrt
 from statistics import fmean, stdev
 
-from .backtest import Trial
+from protocal import Trial
 
 
 def _candidate_parameters(candidate: Mapping[str, object]) -> dict[str, object]:

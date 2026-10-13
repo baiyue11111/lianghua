@@ -3,6 +3,14 @@
   "cache_dir": "data/sources/research_cache_verified",
   "calendar_source": "data/sources/research/backtest_calendar_source.json",
   "code_changes": "data/sources/research/security_code_changes.json",
+  "account_policy_ref": {
+    "kind": "sources",
+    "identity": "account-policy",
+    "name": "account_policy.json",
+    "file": "data/sources/account-policy/account_policy.json",
+    "sha256": "8e3e3f7e2ca3844d80989ce51a84319178d9585feb32e12887eb2f4556b92e1f",
+    "size": 1751
+  },
   "dataset_id": "history_holdout",
   "universe": "fixed_symbols",
   "symbols": ["000001", "000333", "000651", "600000", "600016", "600036", "600519", "600900", "601318", "601398"],

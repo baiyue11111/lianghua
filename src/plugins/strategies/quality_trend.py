@@ -2,7 +2,7 @@
 from dataclasses import dataclass, field
 
 from core.calculation import Calculation
-from core.contracts import AccountSnapshot, DataRequest, MarketFrame, TargetSet
+from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from ._ranked_signal import histories, weights
 

@@ -29,7 +29,7 @@ class BacktestPortTests(unittest.TestCase):
         self.request = {
             "module": "plugins.strategies.breadth_low_amount_reversal",
             "params": {}, "initial_cash": "100000.00",
-            "start": "2020-01-01", "end": "2020-12-31", "dataset_id": "",
+            "start": "2020-01-01", "end": "2020-12-31", "dataset_id": "fixture",
         }
 
     def tearDown(self):
@@ -44,6 +44,17 @@ class BacktestPortTests(unittest.TestCase):
             "integer",
         )
         self.assertFalse(response["availability"]["ready"])
+
+    def test_catalog_keeps_fixed_slot_default(self):
+        item = next(
+            value for value in self.port.handle("workbench.strategies", {})["items"]
+            if value["module"] == "plugins.strategies.breadth_low_amount_reversal"
+        )
+        self.assertEqual(item["defaults"]["positions"], 8)
+        self.assertEqual(
+            next(value for value in item["parameters"] if value["key"] == "positions")["type"],
+            "integer",
+        )
 
     def test_preflight_has_effective_parameters_requirements_and_hash(self):
         first = self.port.handle("workbench.preflight", self.request)
@@ -61,6 +72,17 @@ class BacktestPortTests(unittest.TestCase):
             "workbench.preflight", {**self.request, "initial_cash": "100000.00"}
         )
         self.assertEqual(result["effective_config"]["initial_cash"], 100000.0)
+
+    def test_preflight_uses_the_protocol_request_contract(self):
+        models = importlib.import_module("workbench.models")
+        self.assertFalse(hasattr(models, "BacktestRequest"))
+        result = self.port.handle("workbench.preflight", self.request)
+        self.assertIn("requirements", result)
+
+    def test_application_prepare_rejects_raw_mapping(self):
+        from application import prepare_backtest
+        with self.assertRaisesRegex(TypeError, "canonical BacktestRequest"):
+            prepare_backtest(self.request, self.root)
 
     def test_wrong_parameters_fail_before_history(self):
         for params in ({"positions": "8"}, {"positions": True}, {"wrong": 3}):

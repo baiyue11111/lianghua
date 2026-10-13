@@ -4,7 +4,7 @@ from decimal import Decimal as D
 import unittest
 
 from account_ledger import AccountLedger
-from contracts import Order,Fill,Side
+from protocal import Order,Fill,Side
 
 
 class AccountLedgerTests(unittest.TestCase):

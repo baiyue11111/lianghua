@@ -1,8 +1,6 @@
 """HTTP business contract, independent of provider schemas."""
-from datetime import date
-from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, Field
 
 class Run(BaseModel):
     id:str; run_id:str; strategy_id:str; status:str; qualification:Literal['unverified']
@@ -28,27 +26,3 @@ class BenchmarkPoint(BaseModel):
     at:str;close:float
 class BenchmarkSeries(BenchmarkSpec):
     snapshot_id:str;collected_at:str;start:str;end:str;points:list[BenchmarkPoint]
-
-class BacktestRequest(BaseModel):
-    model_config = {'extra':'forbid','strict':True}
-    module: str
-    params: dict[str,Any]
-    initial_cash: str
-    start: str
-    end: str
-    dataset_id: str
-    fields:list[str]=Field(default_factory=list)
-    history:int=0
-    price_basis:str='adjusted'
-    as_of:str|None=None
-    symbols:list[str]|None=None
-    universe:str='dataset'
-    benchmark_id: str|None = None
-    @model_validator(mode='after')
-    def period(self):
-        if date.fromisoformat(self.start)>date.fromisoformat(self.end):
-            raise ValueError('start must not exceed end')
-        try: cash=Decimal(self.initial_cash)
-        except InvalidOperation as exc: raise ValueError('initial_cash must be a decimal string') from exc
-        if not cash.is_finite() or cash<=0: raise ValueError('initial_cash must be positive and finite')
-        return self

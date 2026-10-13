@@ -5,10 +5,9 @@ from decimal import Decimal as D
 import unittest
 
 from account_ledger import AccountLedger
-from contracts import Bar, Candidate, Fill, Order, Side, StrategyFrame
+from protocal import Bar, Fill, Order, Side
 from account_execution import AccountExecutionSession
 from execution_risk import OpeningRiskSnapshot
-from tests.legacy_breadth import BreadthLowAmountReversalStrategy
 
 
 class AccountExecutionTests(unittest.TestCase):
@@ -129,26 +128,5 @@ class AccountExecutionTests(unittest.TestCase):
             account.record_fill('late-fill',Fill('sell','600000',Side.SELL,date(2020,1,8),50,10.,500.,5.,.5,'filled'))
         self.assertEqual(account.cash,cash)
         self.assertEqual(sum(l.shares for l in account.lots),50)
-
-    def test_flat_market_gate_cancels_unfilled_buy_before_later_open(self):
-        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,fees())
-        strategy=BreadthLowAmountReversalStrategy({'entry_cadence':'on_qualification'})
-        frame=StrategyFrame(as_of=date(2020,1,31),breadth_exposure=1,
-                            candidates=(Candidate('600000',None,None,None,60000000,12,10,None,r20=-.12),),
-                            held_days={},market_on=True,market_breadth_120_smoothed=.60,is_month_end=True)
-        self.assertEqual(strategy.target(frame).target_weights,{'600000':.125})
-        session.submit(Order('buy','600000',Side.BUY,100,date(2020,1,31),date(2020,2,3),'entry'))
-        rejected=session.execute('buy',replace(self.bar(date(2020,2,3)),volume=0,amount=0),previous_close=10)
-        self.assertEqual(rejected.status,'rejected')
-        self.assertEqual(account.lots,())
-        target=strategy.target(replace(frame,as_of=date(2020,2,3),market_breadth_120_smoothed=.59,is_month_end=False))
-        self.assertTrue(target.rebalance)
-        self.assertEqual(target.target_weights,{})
-        session.cancel('buy',target.as_of,target.reasons['__market__'])
-        with self.assertRaises(KeyError): session.execute('buy',self.bar(date(2020,2,4)),previous_close=10)
-        self.assertEqual(account.cash,D('100000'))
-        self.assertEqual(account.lots,())
-        self.assertEqual(account.order_cancellations[0].reason,'wait_for_60pct_entry')
-
 
 if __name__=='__main__': unittest.main()

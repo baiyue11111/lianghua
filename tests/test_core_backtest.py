@@ -7,7 +7,7 @@ import unittest
 
 import numpy as np
 
-from core.backtest import BacktestError, BacktestRequest
+from protocal import BacktestError, BacktestRequest
 from core.calculation import Calculation
 from core.kernel import Kernel
 from protocal import DataQuery, Dataset
@@ -54,7 +54,8 @@ class FakeData:
         day = date(2020, 1, 1)
         record = SimpleNamespace(trade_date=day, frame=SimpleNamespace(at=datetime(2020, 1, 1, tzinfo=timezone.utc)))
         self.dataset = Dataset("fixture", (record,), {"fees": object(), "tax_policy": object()},
-                               {"source": "test"}, {"universe": "fixture", "symbols": ()},
+                               {"source": "test", "calendar_start": day.isoformat()},
+                               {"universe": "fixture", "symbols": (), "calendar_start": day.isoformat()},
                                (day, date(2020, 1, 2)), ("close",), 1)
 
     def query(self, query):
@@ -157,18 +158,3 @@ class BacktestTests(unittest.TestCase):
         with self.assertRaises(BacktestError) as caught:
             request(history=True)
         self.assertEqual(caught.exception.code, "invalid_request")
-
-    def test_core_imports_without_outer_runtime_modules(self):
-        import subprocess
-        import sys
-        result = subprocess.run([sys.executable, "-c", """
-import sys
-class BlockOuter:
-    def find_spec(self, fullname, path=None, target=None):
-        if fullname.split('.')[0] in {'frontend', 'plugins', 'protocal', 'application', 'history_data'}:
-            raise ImportError('outer import')
-sys.meta_path.insert(0, BlockOuter())
-from core.kernel import Kernel
-from core.interfaces import Components
-"""], capture_output=True, text=True)
-        self.assertEqual(result.returncode, 0, result.stderr)

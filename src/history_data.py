@@ -19,19 +19,14 @@ from pathlib import Path
 import numpy as np
 
 from account_allocation import AllocationLimits
-from account_history import HistoryDay, RegistrationAction
 from adjusted_panel import load_adjusted_lake_panel, _bs_code
-from contracts import Bar
-from core.contracts import HistoryBar, MarketFrame
+from protocal import Bar, DataPort, Dataset, HistoryBar, HistoryDay, MarketFrame, RegistrationAction
 from corporate_actions import normalize_dividend_records, reconcile_corporate_actions
 from panel_features import own_day_rolling_mean
 from strategy import canonical_hash, code_hash
 from provider_cache import validate_cache
 from fees import FeePolicy
 from tax_ledger import TaxPolicy, TaxLedger
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from protocal import DataPort
 
 
 EXECUTION = {
@@ -150,7 +145,18 @@ class HistoricalLake:
         calendar_payload=json.loads(read(manifest['calendar']))
         calendar=tuple(date.fromisoformat(value) for value in calendar_payload['sessions'])
         # Calendar evidence is mandatory even if OHLC happens to omit a session.
-        market_evidence(calendar_payload['source_file'])
+        calendar_source_name = calendar_payload['source_file']
+        market_evidence(calendar_source_name)
+        calendar_source = json.loads(read(calendar_source_name))
+        coverage_request = calendar_source.get('request')
+        if not isinstance(coverage_request, dict) or not isinstance(coverage_request.get('start'), str):
+            raise ValueError('calendar source must declare its requested start')
+        try:
+            calendar_start = date.fromisoformat(coverage_request['start'])
+        except ValueError as error:
+            raise ValueError('calendar source requested start is invalid') from error
+        if calendar_start > calendar[0]:
+            raise ValueError('calendar source coverage starts after its first session')
         if len(calendar)<2 or tuple(sorted(set(calendar)))!=calendar: raise ValueError('ordered calendar and next-session sentinel required')
         price=manifest['price']
         for directory in ('daily_dir','cache_dir','stock_basic_dir'):
@@ -169,6 +175,8 @@ class HistoricalLake:
                 raise ValueError('universe_scope_mismatch: requested subset does not satisfy complete universe')
 
         scope = dict(scope)
+        scope['calendar_start'] = calendar_start.isoformat()
+        scope['calendar_end'] = calendar[-2].isoformat()
         if tuple(sorted(set(declared)))!=declared or panel.symbols!=declared:
             raise ValueError('declared security scope differs from supplied historical lake')
         if tuple(calendar[:-1])!=panel.calendar:
@@ -426,7 +434,7 @@ class HistoricalLake:
     @staticmethod
     def _apply_signal_plugins(records, plugins, start, end):
         from dataclasses import replace
-        from core.contracts import HistoryBar, MarketFrame
+        from protocal import HistoryBar, MarketFrame
         from importlib import import_module
         from plugins.data import Adapter
         from strategy import canonical_hash

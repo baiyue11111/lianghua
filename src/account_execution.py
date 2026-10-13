@@ -9,7 +9,7 @@ from datetime import date
 from typing import Mapping
 
 from account_ledger import AccountLedger
-from contracts import Bar, Order, Side, Fill
+from protocal import Bar, Order, Side, Fill
 from execution import ExecutionEngine, PositionBook, remaining_order
 from account_allocation import AllocationLimits, allocate_target
 from execution_risk import (OpeningRiskSnapshot, opening_equity, opening_rejection,
@@ -134,11 +134,11 @@ class AccountExecutionSession:
         return holdings
 
     def apply_target(self, target, *, next_session, equity, raw_closes, amount20,
-                     limits=AllocationLimits()):
+                     limits=AllocationLimits(), rebalance=True):
         """Allocate first; only a validated replacement cancels old pending orders."""
-        key=(target.strategy_id,target.as_of)
-        inputs=(target.strategy_id,target.as_of,tuple(sorted(target.target_weights.items())),
-                target.gross_exposure,tuple(sorted(target.reasons.items())),target.rebalance,
+        key=(target.source_id,target.as_of)
+        inputs=(target.source_id,target.as_of,tuple(sorted(target.weights.items())),
+                tuple(sorted(target.reasons.items())),rebalance,
                 next_session,equity,tuple(sorted(raw_closes.items())),tuple(sorted(amount20.items())),limits)
         if key in self._targets:
             original,plan=self._targets[key]
@@ -146,10 +146,11 @@ class AccountExecutionSession:
             return plan
         holdings=self._holdings()
         plan=allocate_target(target,next_session=next_session,equity=equity,
-                             holdings=holdings,raw_closes=raw_closes,amount20=amount20,limits=limits)
-        if target.rebalance:
+                             holdings=holdings,raw_closes=raw_closes,amount20=amount20,limits=limits,
+                             rebalance=rebalance)
+        if rebalance:
             for order in self.pending:
-                self.cancel(order.order_id,target.as_of,target.reasons.get('__market__','target_replaced'))
+                self.cancel(order.order_id,target.as_of.date(),target.reasons.get('__market__','target_replaced'))
             for order in plan.orders: self.submit(order)
         self._targets[key]=(inputs,plan)
         return plan

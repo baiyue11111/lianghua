@@ -9,10 +9,7 @@ from typing import Any, Iterable, Mapping
 
 from config import RunConfig
 from strategy import load_strategy
-from typing import TYPE_CHECKING
-if TYPE_CHECKING:
-    from protocal import DataPort
-from core.backtest import BacktestRequest
+from protocal import BacktestRequest, DataPort
 
 
 def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, Any]) -> None:
@@ -38,7 +35,7 @@ def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, 
 
 def save_failed_backtest(data: DataPort, request: BacktestRequest, error: Exception,
                          partial: object | None) -> str:
-    from plugins.recorders.jsonl import _json_value
+    from protocal import _json_value
     value = {"run_id": request.run_id, "status": "failed", "code": getattr(error, "code", "run_failed"),
              "detail": str(error), "partial": _json_value(partial) if partial is not None else None}
     name = "failed.json"
@@ -69,7 +66,7 @@ def load_adapter(data: DataPort, settings: Mapping[str, Any]):
 
 
 def prepare_backtest(
-    request: Mapping[str, Any],
+    request: BacktestRequest,
     root: Path,
     settings: Mapping[str, Any] | None = None,
     *,
@@ -79,12 +76,14 @@ def prepare_backtest(
 ) -> BacktestPlan:
     """Validate one request and assemble the strategy plus history adapter.
 
-    CLI and HTTP code translate their own input into ``request`` and their own
-    output from the returned plan/result. They do not implement this workflow.
+    Callers must pass the canonical protocol request. Raw mappings are parsed
+    once at the protocol boundary.
     """
-    config = RunConfig.from_mapping(request)
+    if not isinstance(request, BacktestRequest):
+        raise TypeError("prepare_backtest requires canonical BacktestRequest")
+    strategy = load_strategy(request.strategy_id, dict(request.parameters))
+    config = RunConfig.from_request(request, strategy)
     values = config.values
-    strategy = load_strategy(values["module"], values["params"])
 
     if adapter is None:
         issues = list(missing_adapter_issues or [{

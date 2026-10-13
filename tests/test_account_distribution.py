@@ -7,7 +7,7 @@ import unittest
 import distribution_ledger
 from account_ledger import AccountLedger
 from account_execution import AccountExecutionSession
-from contracts import Bar, Order, Side
+from protocal import Bar, Order, Side
 from corporate_actions import calculate_entitlement, normalize_dividend_records
 
 

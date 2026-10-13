@@ -17,7 +17,7 @@ class ShiftSignalAdapter:
     @classmethod
     def validate(cls, frames, *, amount=1.0):
         from dataclasses import replace
-        from core.contracts import HistoryBar
+        from protocal import HistoryBar
 
         output = []
         for frame in frames:
@@ -39,7 +39,7 @@ class ExtraHistoryAdapter:
     @classmethod
     def validate(cls, frames):
         from dataclasses import replace
-        from core.contracts import HistoryBar
+        from protocal import HistoryBar
 
         frame = frames[0]
         symbol = next(iter(frame.history))
@@ -69,7 +69,7 @@ class InvalidScaler:
 class Task3ProtocolTests(unittest.TestCase):
     def test_data_query_declares_scope_and_bus_uses_one_reader(self):
         from protocal import DataBus, DataQuery, Dataset
-        from core.contracts import MarketFrame
+        from protocal import MarketFrame
 
         seen = []
 
@@ -79,7 +79,8 @@ class Task3ProtocolTests(unittest.TestCase):
         day = date(2020, 1, 1)
         record = SimpleNamespace(trade_date=day, frame=MarketFrame(datetime(2020, 1, 1, 15, tzinfo=timezone.utc), "TEST", {}))
         dataset = Dataset("fixture", (record,), {"fees": object(), "tax_policy": object()},
-                          {"source": "test"}, {"universe": "fixture", "symbols": ()},
+                          {"source": "test"}, {"universe": "fixture", "symbols": (),
+                                                   "calendar_start": day.isoformat()},
                           (day, date(2020, 1, 2)), ("close",), 20)
         class Reader:
             def query(self, query):
@@ -98,13 +99,14 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_data_bus_rejects_truncated_query_and_accepts_full_coverage(self):
         from protocal import DataBus, DataQuery, Dataset
-        from core.contracts import MarketFrame
+        from protocal import MarketFrame
 
         day = date(2020, 1, 1)
         record = SimpleNamespace(trade_date=day, frame=MarketFrame(
             datetime(2020, 1, 1, 15, tzinfo=timezone.utc), "TEST", {}))
         dataset = Dataset("fixture", (record,), {"fees": object(), "tax_policy": object()},
-                          {"source": "test"}, {"universe": "fixture", "symbols": ()},
+                          {"source": "test"}, {"universe": "fixture", "symbols": (),
+                                                   "calendar_start": day.isoformat()},
                           (day, date(2020, 1, 2)), ("close",), 20)
         class Reader:
             def query(self, query):
@@ -114,9 +116,64 @@ class Task3ProtocolTests(unittest.TestCase):
             bus.query(DataQuery("fixture", day, date(2020, 1, 3), ("close",), 20, "adjusted"))
         self.assertIs(bus.query(DataQuery("fixture", day, day, ("close",), 20, "adjusted")), dataset)
 
+    def test_data_bus_rejects_start_truncation_using_calendar_coverage(self):
+        from protocal import DataBus, DataError, DataQuery, Dataset, MarketFrame
+
+        first_session = date(2020, 1, 10)
+        record = SimpleNamespace(
+            trade_date=first_session,
+            frame=MarketFrame(datetime(2020, 1, 10, 15, tzinfo=timezone.utc), "TEST", {}),
+        )
+        dataset = Dataset(
+            "fixture", (record,), {"fees": object(), "tax_policy": object()},
+            {"source": "test"}, {"universe": "fixture", "symbols": (),
+                                  "calendar_start": first_session.isoformat()},
+            (first_session, date(2020, 1, 11)), ("close",), 20,
+        )
+
+        class Reader:
+            def query(self, query):
+                return dataset
+
+        bus = DataBus(object(), reader=Reader())
+        with self.assertRaisesRegex(DataError, "calendar does not cover query start"):
+            bus.query(DataQuery("fixture", date(2020, 1, 1), first_session,
+                                ("close",), 20, "adjusted"))
+
+        dataset = Dataset(
+            "fixture", (record,), {"fees": object(), "tax_policy": object()},
+            {"source": "test"}, {"universe": "fixture", "symbols": (),
+                                  "calendar_start": "2020-01-01"},
+            (first_session, date(2020, 1, 11)), ("close",), 20,
+        )
+        self.assertIs(bus.query(DataQuery("fixture", date(2020, 1, 6), first_session,
+                                          ("close",), 20, "adjusted")), dataset)
+
+    def test_data_bus_requires_explicit_calendar_coverage(self):
+        from protocal import DataBus, DataError, DataQuery, Dataset, MarketFrame
+
+        day = date(2020, 1, 3)
+        record = SimpleNamespace(
+            trade_date=day,
+            frame=MarketFrame(datetime(2020, 1, 3, 15, tzinfo=timezone.utc), "TEST", {}),
+        )
+        dataset = Dataset(
+            "fixture", (record,), {"fees": object(), "tax_policy": object()},
+            {"source": "test"}, {"universe": "fixture", "symbols": ()},
+            (day, date(2020, 1, 6)), ("close",), 20,
+        )
+        class Reader:
+            def query(self, _query):
+                return dataset
+
+        with self.assertRaisesRegex(DataError, "calendar_start"):
+            DataBus(object(), reader=Reader()).query(
+                DataQuery("fixture", date(2020, 1, 1), day, ("close",), 20, "adjusted")
+            )
+
     def test_query_cannot_lower_strategy_universe_or_claim_unproven_pit(self):
         from protocal import _query, DataQuery, DataBus
-        from core.backtest import BacktestRequest
+        from protocal import BacktestRequest
         from datetime import datetime
         from decimal import Decimal
         from history_data import HistoricalLake
@@ -149,7 +206,7 @@ class Task3ProtocolTests(unittest.TestCase):
     def test_query_always_keeps_execution_prices_with_strategy_fields(self):
         from datetime import datetime
         from decimal import Decimal
-        from core.backtest import BacktestRequest
+        from protocal import BacktestRequest
         from protocal import _query
 
         requirements = SimpleNamespace(fields=('signal_close',), history_bars=20,
@@ -193,7 +250,7 @@ class Task3ProtocolTests(unittest.TestCase):
                                     20, "adjusted", date(2020, 2, 5), universe="CN_A_SHARE"))
 
     def test_settlement_failure_is_sealed_and_keeps_partial_result(self):
-        from core.backtest import BacktestError
+        from protocal import BacktestError
         from core.kernel import Kernel
         from protocal import DataQuery
 
@@ -208,7 +265,7 @@ class Task3ProtocolTests(unittest.TestCase):
                 raise RuntimeError("decision failed")
 
         from tests.test_core_backtest import FakeData, FakeSettlement
-        from core.backtest import BacktestRequest
+        from protocal import BacktestRequest
         from decimal import Decimal
         kernel = Kernel(FakeData(), lambda _id, _params: BadStrategy(),
                         lambda req, requirements: DataQuery(
@@ -226,7 +283,7 @@ class Task3ProtocolTests(unittest.TestCase):
     def test_result_and_research_use_saved_json_trace_contract(self):
         from protocal import DataBus
         from application import save_backtest
-        from core.backtest import BacktestRequest
+        from protocal import BacktestRequest
         from storage import DataStore
         from workbench.research import Research
         from decimal import Decimal
@@ -462,14 +519,15 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_data_bus_requires_reader_fields_and_history_to_match(self):
         from protocal import DataBus, DataQuery, Dataset
-        from core.contracts import MarketFrame
+        from protocal import MarketFrame
 
         day = date(2020, 1, 1)
         record = SimpleNamespace(trade_date=day, frame=MarketFrame(
             datetime(2020, 1, 1, 15, tzinfo=timezone.utc), "TEST", {}))
         query = DataQuery("fixture", day, day, ("close",), 20, "adjusted", day)
         base = dict(dataset="fixture", records=(record,), policies={"fees": object(), "tax_policy": object()},
-                    provenance={"source": "test"}, scope={"universe": "dataset", "symbols": ()},
+                    provenance={"source": "test"},
+                    scope={"universe": "dataset", "symbols": (), "calendar_start": day.isoformat()},
                     calendar=(day, date(2020, 1, 2)), history=20)
 
         class Reader:
@@ -485,9 +543,9 @@ class Task3ProtocolTests(unittest.TestCase):
                     DataBus(object(), Reader(fields, history)).query(query)
 
     def test_date_only_request_covers_the_entire_end_date(self):
-        from protocal import _request
+        from protocal import parse_backtest_request
 
-        request = _request({
+        request = parse_backtest_request({
             "run_id": "one", "module": "strategy", "params": {}, "dataset_id": "fixture",
             "start": "2020-01-01", "end": "2020-01-03", "initial_cash": "100",
         })
@@ -495,49 +553,49 @@ class Task3ProtocolTests(unittest.TestCase):
         self.assertEqual(request.end.date(), date(2020, 1, 3))
         self.assertEqual(request.end.hour, 23)
         self.assertEqual(request.end.minute, 59)
-        benchmark = _request({**request_data(), "benchmark_id": "hs300"})
+        benchmark = parse_backtest_request({**request_data(), "benchmark_id": "hs300"})
         self.assertEqual(benchmark.benchmark_id, "hs300")
         with self.assertRaises(Exception):
-            _request({**request_data(), "history": 1.5})
+            parse_backtest_request({**request_data(), "history": 1.5})
         with self.assertRaises(Exception):
-            _request({**request_data(), "limits": {"lot_size": 1.5}})
+            parse_backtest_request({**request_data(), "limits": {"lot_size": 1.5}})
         with self.assertRaises(Exception):
-            _request({**request_data(), "limits": {"lot_size": True}})
+            parse_backtest_request({**request_data(), "limits": {"lot_size": True}})
 
     def test_request_rejects_unknown_fields_and_invalid_decimal_limits(self):
-        from protocal import _request
+        from protocal import parse_backtest_request
 
         with self.assertRaises(Exception):
-            _request({**request_data(), "limtis": {"lot_size": 10}})
+            parse_backtest_request({**request_data(), "limtis": {"lot_size": 10}})
         with self.assertRaises(Exception):
-            _request({**request_data(), "limits": {"stock_weight": "not-a-number"}})
+            parse_backtest_request({**request_data(), "limits": {"stock_weight": "not-a-number"}})
         with self.assertRaises(Exception):
-            _request({**request_data(), "limits": {"adv_fraction": "NaN"}})
+            parse_backtest_request({**request_data(), "limits": {"adv_fraction": "NaN"}})
 
     def test_preflight_request_keeps_scope_and_benchmark_inputs(self):
-        from workbench.models import BacktestRequest
+        from protocal import parse_backtest_request
 
-        request = BacktestRequest.model_validate({
+        request = parse_backtest_request({
             **{key: value for key, value in request_data().items() if key != "run_id"},
             "symbols": ["600036"],
             "fields": ["signal_close"], "history": 60,
             "benchmark_id": "hs300",
         })
 
-        self.assertEqual(request.symbols, ["600036"])
-        self.assertEqual(request.fields, ["signal_close"])
+        self.assertEqual(request.symbols, ("600036",))
+        self.assertEqual(request.fields, ("signal_close",))
         self.assertEqual(request.history, 60)
         self.assertEqual(request.benchmark_id, "hs300")
 
     def test_config_plugin_params_merge_with_request_overrides(self):
         from account_allocation import AllocationLimits
-        from protocal import _load_plugin, _request
+        from protocal import _load_plugin, parse_backtest_request
 
         plugin = _load_plugin({"settlement": {
             "module": "tests.test_task3_protocol:ConfigSettlement",
             "params": {"mode": "configured", "limits": {"lot_size": 10}},
         }}, "settlement")
-        request = _request({**request_data(), "limits": {"lot_size": 20}})
+        request = parse_backtest_request({**request_data(), "limits": {"lot_size": 20}})
         value = plugin(100, object(), object(), **dict(request.settlement_parameters))
         self.assertEqual(value.mode, "configured")
         self.assertIsInstance(value.limits, AllocationLimits)
@@ -551,10 +609,10 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_backend_build_has_no_factory_parameter_and_factory_is_removed(self):
         from protocal import build_backend
-        from core import interfaces
+        import importlib.util
 
         self.assertEqual(list(inspect.signature(build_backend).parameters), ["root"])
-        self.assertFalse(hasattr(interfaces, "RunFactory"))
+        self.assertIsNone(importlib.util.find_spec("core.interfaces"))
         self.assertIsNotNone(build_backend(Path(__file__).resolve().parents[1]))
 
     def test_kernel_port_uses_the_explicitly_injected_settlement_plugin(self):
@@ -572,11 +630,11 @@ class Task3ProtocolTests(unittest.TestCase):
         from decimal import Decimal
         from history_data import HistoricalLake
         from plugins.data import Settlement
-        from plugins.recorders.jsonl import _json_value
+        from protocal import _json_value
         from protocal import DataBus, _query
         from storage import DataStore
         from strategy import canonical_hash, load_strategy
-        from core.backtest import BacktestRequest
+        from protocal import BacktestRequest
         from core.kernel import Kernel
         from tests.history_fixture import make_snapshot
 

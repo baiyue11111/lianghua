@@ -7,7 +7,7 @@ from math import ceil
 import numpy as np
 
 from core.calculation import Calculation
-from core.contracts import AccountSnapshot, DataRequest, MarketFrame, TargetSet
+from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from panel_features import own_day_lagged_return, own_day_rolling_mean, valid_mask
 

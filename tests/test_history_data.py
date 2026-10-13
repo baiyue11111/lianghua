@@ -25,7 +25,7 @@ def data_bus_check(root, adapter, config, request, requirements):
 def kernel_result(root, config, request, strategy, loader=None):
     from datetime import datetime, timezone, time
     from decimal import Decimal
-    from core.backtest import BacktestRequest
+    from protocal import BacktestRequest
     from core.kernel import Kernel
     from history_data import HistoricalLake
     from plugins.data import Settlement
@@ -43,7 +43,7 @@ class HistoricalDataTests(unittest.TestCase):
     def test_preflight_effective_fields_match_resolved_dataset_fields(self):
         from application import prepare_backtest
         from history_data import HistoricalLake
-        from protocal import DataBus
+        from protocal import DataBus, parse_backtest_request
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -53,14 +53,15 @@ class HistoricalDataTests(unittest.TestCase):
             bus = DataBus(DataStore(root))
             adapter = HistoricalLake(bus, config)
             bus.configure_reader(adapter)
-            plan = prepare_backtest({
+            request = parse_backtest_request({
                 'module': 'plugins.strategies.moving_average_cross',
                 'params': {'fast_window': 2, 'slow_window': 3},
-                'initial_cash': 100000, 'start': '2020-01-31',
+                'initial_cash': '100000', 'start': '2020-01-31',
                 'end': '2020-02-04', 'dataset_id': 'fixture',
                 'symbols': ['600000'], 'fields': ['signal_close'],
                 'history': 3,
-            }, root, adapter=adapter, data=bus)
+            })
+            plan = prepare_backtest(request, root, adapter=adapter, data=bus)
 
             self.assertFalse(plan.issues)
             self.assertEqual(plan.values['fields'], plan.values['requirements']['fields'])
@@ -105,7 +106,7 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_unknown_dataset_is_explicit_failure(self):
         from history_data import HistoricalLake
-        from core.contracts import DataRequest
+        from protocal import DataRequest
         with tempfile.TemporaryDirectory() as temp:
             from storage import DataStore
             bus = DataBus(DataStore(Path(temp)))
@@ -201,7 +202,7 @@ class HistoricalDataTests(unittest.TestCase):
     def test_unseen_strategy_requests_subset_and_only_declared_fields(self):
         from datetime import date
         from history_data import HistoricalLake
-        from core.contracts import DataRequest, TargetSet
+        from protocal import DataRequest, TargetSet
         from tests.history_fixture import make_snapshot
         class UnseenStrategy:
             strategy_id='unseen'
@@ -226,7 +227,7 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_declared_arbitrary_numeric_field_is_aligned_and_not_substituted(self):
         from history_data import HistoricalLake
-        from core.contracts import DataRequest
+        from protocal import DataRequest
         from tests.history_fixture import make_snapshot
         import pyarrow as pa
         import pyarrow.parquet as pq
@@ -251,7 +252,7 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_market_universe_requirement_rejects_fixed_dataset_and_reserved_fields(self):
         from history_data import HistoricalLake
-        from core.contracts import DataRequest
+        from protocal import DataRequest
         from tests.history_fixture import make_snapshot
         import json
         with tempfile.TemporaryDirectory() as temp:
@@ -272,7 +273,7 @@ class HistoricalDataTests(unittest.TestCase):
     def test_execution_history_requirement_is_checked_before_short_strategy_run(self):
         from datetime import date
         from history_data import HistoricalLake
-        from core.contracts import DataRequest
+        from protocal import DataRequest
         from tests.history_fixture import make_snapshot
         with tempfile.TemporaryDirectory() as temp:
             from storage import DataStore

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
 from pathlib import Path
 
 from .backtests import Backtests
 from .benchmark import Benchmarks
-from .models import BacktestRequest
 from .research import Research
+from protocal import parse_backtest_request
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from protocal import DataPort
@@ -50,8 +49,7 @@ class WorkbenchPort:
         return self.backtests.catalog()
 
     def _preflight(self, value):
-        request = BacktestRequest.model_validate(value).model_dump()
-        request["initial_cash"] = float(Decimal(request["initial_cash"]))
+        request = parse_backtest_request(value)
         return self.backtests.preflight(request)
 
     def _runs(self, _):

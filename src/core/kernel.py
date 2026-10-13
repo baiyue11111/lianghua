@@ -3,21 +3,13 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, field, is_dataclass, replace
-from datetime import datetime
+from dataclasses import asdict, is_dataclass, replace
 from decimal import Decimal
 from math import isfinite
 from threading import Lock
-from typing import Literal
 
-from .backtest import BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Trial
+from protocal import BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Trial
 from .calculation import Calculation, _candidate_parameters
-from .contracts import AccountSnapshot, ExecutionResult, MarketFrame, OrderRequest, StepResult, TargetSet
-from .interfaces import Components
-
-
-class ContractViolation(ValueError):
-    pass
 
 
 def _config_value(value):
@@ -30,108 +22,6 @@ def _config_value(value):
     if isinstance(value, (tuple, list)):
         return [_config_value(item) for item in value]
     return value
-
-
-@dataclass
-class Run:
-    """One offline run owns all mutable plug-ins and its audit trail."""
-
-    components: Components
-    _pending_orders: tuple[OrderRequest, ...] = field(default=(), init=False, repr=False)
-    _state: Literal["ready", "active", "failed", "closed"] = field(default="ready", init=False, repr=False)
-    _last_at: datetime | None = field(default=None, init=False, repr=False)
-    _lock: Lock = field(default_factory=Lock, init=False, repr=False, compare=False)
-
-    def claim(self) -> None:
-        with self._lock:
-            if self._state != "ready":
-                raise BacktestError("run_reused", "each request requires a fresh run")
-            self._state = "active"
-
-    def close(self) -> None:
-        self._state = "closed"
-
-    @property
-    def pending_orders(self):
-        return self._pending_orders
-
-    def step(self, frame: MarketFrame) -> StepResult:
-        if self._state == "closed":
-            raise BacktestError("run_closed", "a closed run cannot continue")
-        if self._state == "failed":
-            raise BacktestError("run_failed", "a failed run cannot continue")
-        self._state = "active"
-        try:
-            result = self._step(frame)
-        except BaseException:
-            self._state = "failed"
-            raise
-        self._last_at = frame.at
-        return result
-
-    def _step(self, frame):
-        if not isinstance(frame, MarketFrame):
-            raise TypeError("data source must yield MarketFrame")
-        if self._last_at is not None and frame.at <= self._last_at:
-            raise ContractViolation("market timestamps must be strictly increasing")
-        before = self.components.account.snapshot()
-        if not isinstance(before, AccountSnapshot):
-            raise TypeError("account snapshot must be AccountSnapshot")
-        execution = self.components.execution.execute(self._pending_orders, frame, before)
-        if not isinstance(execution, ExecutionResult):
-            raise TypeError("execution model must return ExecutionResult")
-        if execution.as_of != frame.at:
-            raise ContractViolation("execution timestamp must equal market timestamp")
-        if execution.orders != self._pending_orders:
-            raise ContractViolation("execution model changed pending orders")
-        after = self.components.account.apply(execution, frame)
-        if not isinstance(after, AccountSnapshot):
-            raise TypeError("account must return AccountSnapshot")
-        if after.as_of != frame.at:
-            raise ContractViolation("account timestamp must equal market timestamp")
-        decision = self.components.strategy.generate(frame, after)
-        if decision is None:
-            risked = None
-            orders = execution.remaining
-        else:
-            self._target(decision, frame.at, self.components.strategy.strategy_id, "strategy")
-            risked = self.components.risk.apply(decision, after)
-            self._target(risked, frame.at, self.components.strategy.strategy_id, "risk model")
-            changed = {
-                symbol for symbol in set(risked.weights) | set(decision.weights)
-                if risked.weights.get(symbol) != decision.weights.get(symbol)
-            }
-            if any(not risked.reasons.get(symbol)
-                   or risked.reasons.get(symbol) == decision.reasons.get(symbol)
-                   for symbol in changed):
-                raise ContractViolation("risk changes require an explicit reason for each changed target")
-            orders = self.components.market.plan(risked, frame, after, execution.remaining)
-        if not isinstance(orders, tuple) or any(not isinstance(order, OrderRequest) for order in orders):
-            raise TypeError("market adapter must return tuple[OrderRequest, ...]")
-        retained = set(execution.remaining)
-        if any(order.created_at != frame.at and order not in retained for order in orders):
-            raise ContractViolation("market adapter introduced a stale order")
-        self._pending_orders = orders
-        result = StepResult(frame, execution, after, decision, risked, orders)
-        self.components.recorder.record(result)
-        return result
-
-    def run(self) -> tuple[StepResult, ...]:
-        """Replay the source and collect its detailed audit trail."""
-        self.claim()
-        try:
-            return tuple(self.step(frame) for frame in self.components.source)
-        finally:
-            self.close()
-
-    @staticmethod
-    def _target(target, at, source_id, plugin):
-        if not isinstance(target, TargetSet):
-            raise TypeError(f"{plugin} must return TargetSet")
-        if target.as_of != at:
-            raise ContractViolation(f"{plugin} target timestamp changed")
-        if target.source_id != source_id:
-            raise ContractViolation(f"{plugin} target source changed")
 
 
 class Kernel:

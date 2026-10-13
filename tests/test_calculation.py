@@ -4,7 +4,7 @@ import json
 import unittest
 
 from application import save_backtest
-from core.backtest import BacktestError, BacktestRequest
+from protocal import BacktestError, BacktestRequest
 from core.calculation import Calculation
 
 
