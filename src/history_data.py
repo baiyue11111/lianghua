@@ -14,18 +14,14 @@ from zoneinfo import ZoneInfo
 from decimal import Decimal
 from hashlib import sha256
 import json
-import csv
 from collections import deque
 from pathlib import Path
 import numpy as np
 
 from account_allocation import AllocationLimits
-from account_history import HistoryDay, RegistrationAction, run_account_history
 from adjusted_panel import load_adjusted_lake_panel, _bs_code
-from contracts import Bar
-from core.contracts import HistoryBar, MarketFrame
+from protocal import Bar, DataPort, Dataset, HistoryBar, HistoryDay, MarketFrame, RegistrationAction
 from corporate_actions import normalize_dividend_records, reconcile_corporate_actions
-from evaluator import evaluate_equity
 from panel_features import own_day_rolling_mean
 from strategy import canonical_hash, code_hash
 from provider_cache import validate_cache
@@ -42,17 +38,54 @@ EXECUTION = {
 }
 
 
-def _digest(path): return sha256(path.read_bytes()).hexdigest()
-
-
 class HistoricalLake:
-    def __init__(self,root:Path,config:dict):
-        self.root=root.resolve(); self.config=config
+    def __init__(self,data:DataPort,config:dict):
+        self.data=data; self.config=config
         self.entries={entry['id']:entry for entry in config['datasets']}
         if len(self.entries)!=len(config['datasets']): raise ValueError('duplicate historical dataset id')
 
     def datasets(self):
         return [{key:entry[key] for key in ('id','name')} for entry in self.entries.values()]
+
+    def query(self, query):
+        from types import SimpleNamespace
+        config = {
+            'dataset_id': query.dataset,
+            'start': query.start.isoformat(),
+            'end': query.end.isoformat(),
+            'as_of': None if query.as_of is None else query.as_of.isoformat(),
+        }
+        requirements = SimpleNamespace(
+            frequency=query.frequency, price_basis=query.price_basis,
+            universe=query.universe, symbols=query.symbols,
+            fields=query.fields, history_bars=query.history,
+        )
+        return self._prepare_dataset(config, requirements)
+
+    def build_query(self, config, requirements):
+        from protocal import DataQuery, required_fields
+        fields = tuple(config.get('fields') or requirements.fields)
+        if not set(requirements.fields) <= set(fields):
+            raise ValueError('custom fields omit strategy requirements')
+        history = requirements.history_bars if config.get('history', 0) == 0 else config['history']
+        if history < requirements.history_bars:
+            raise ValueError('custom history is shorter than strategy requirements')
+        symbols = config.get('symbols') if config.get('symbols') is not None else requirements.symbols
+        if requirements.symbols is not None and tuple(symbols or ()) != tuple(requirements.symbols):
+            raise ValueError('custom symbols conflict with strategy scope')
+        universe = config.get('universe', 'dataset')
+        if requirements.universe != 'dataset' and universe != 'dataset' and universe != requirements.universe:
+            raise ValueError('custom universe cannot lower or replace strategy universe')
+        universe = requirements.universe if universe == 'dataset' else universe
+        return DataQuery(
+            dataset=config['dataset_id'],
+            start=date.fromisoformat(config['start']), end=date.fromisoformat(config['end']),
+            fields=required_fields(fields), history=history,
+            price_basis=config.get('price_basis', getattr(requirements, 'price_basis', 'adjusted')),
+            as_of=None if config.get('as_of') is None else date.fromisoformat(config['as_of']),
+            symbols=None if symbols is None else tuple(symbols), universe=universe,
+            frequency=requirements.frequency,
+        )
 
     def _path(self,root,name):
         path=(root/name).resolve()
@@ -64,9 +97,12 @@ class HistoricalLake:
         provided={'open','high','low','close','volume','amount','signal_close'}
         if requirements.frequency!='daily' or requirements.price_basis!='adjusted':
             raise ValueError('historical adapter supports daily adjusted signal data only')
-        folder=self._path(self.root,self.entries[config['dataset_id']]['path'])
-        manifest_path=folder/'manifest.json'; manifest=json.loads(manifest_path.read_bytes())
-        if manifest.get('schema')!=2: raise ValueError('unsupported historical snapshot schema')
+        dataset_id=config['dataset_id']
+        folder=self.data.path('sources',dataset_id,'manifest.json').parent
+        def read(name):
+            path=self._path(folder,name)
+            return self.data.read('sources',dataset_id,path.relative_to(folder).as_posix())
+        manifest=self.data.snapshot(dataset_id)
         overlap=set(manifest.get('fields',{}))&provided
         if overlap: raise ValueError('reserved price fields cannot be redefined: '+', '.join(sorted(overlap)))
         scope=manifest['scope']
@@ -89,7 +125,7 @@ class HistoricalLake:
         account_files={}
         for ref in refs:
             path=self._path(folder,ref['file'])
-            digest=_digest(path)
+            digest=sha256(read(ref['file'])).hexdigest()
             if digest!=ref['sha256']: raise ValueError(f'historical evidence hash mismatch: {ref["file"]}')
             if ref['role'] not in ('market','account'): raise ValueError('evidence role must be market or account')
             if str(path) in hashes: raise ValueError('duplicate historical evidence file')
@@ -105,10 +141,22 @@ class HistoricalLake:
             if roles[str(path)]!='market': raise ValueError(f'market source incorrectly marked as account: {name}')
             market_files[str(path)]=hashes[str(path)]
             return path
-        calendar_payload=json.loads(market_evidence(manifest['calendar']).read_bytes())
+        market_evidence(manifest['calendar'])
+        calendar_payload=json.loads(read(manifest['calendar']))
         calendar=tuple(date.fromisoformat(value) for value in calendar_payload['sessions'])
         # Calendar evidence is mandatory even if OHLC happens to omit a session.
-        market_evidence(calendar_payload['source_file'])
+        calendar_source_name = calendar_payload['source_file']
+        market_evidence(calendar_source_name)
+        calendar_source = json.loads(read(calendar_source_name))
+        coverage_request = calendar_source.get('request')
+        if not isinstance(coverage_request, dict) or not isinstance(coverage_request.get('start'), str):
+            raise ValueError('calendar source must declare its requested start')
+        try:
+            calendar_start = date.fromisoformat(coverage_request['start'])
+        except ValueError as error:
+            raise ValueError('calendar source requested start is invalid') from error
+        if calendar_start > calendar[0]:
+            raise ValueError('calendar source coverage starts after its first session')
         if len(calendar)<2 or tuple(sorted(set(calendar)))!=calendar: raise ValueError('ordered calendar and next-session sentinel required')
         price=manifest['price']
         for directory in ('daily_dir','cache_dir','stock_basic_dir'):
@@ -119,20 +167,56 @@ class HistoricalLake:
             self._path(folder,price['daily_dir']),self._path(folder,price['cache_dir']),
             factor_start=date.fromisoformat(price['factor_start']),factor_end=date.fromisoformat(price['factor_end']),
             code_changes_path=market_evidence(price['code_changes']),stock_basic_dir=self._path(folder,price['stock_basic_dir']))
-        declared=tuple(manifest['scope']['symbols'])
+        declared=tuple(scope['symbols'])
         if requirements.universe!='dataset':
-            universe_source=market_evidence(scope['universe_source'])
-            universe=json.loads(universe_source.read_bytes())
-            if universe['universe']!=requirements.universe or tuple(universe['symbols'])!=declared:
-                raise ValueError('universe source security list differs from dataset scope')
+            if scope['universe']!=requirements.universe:
+                raise ValueError('universe_scope_mismatch: dataset scope does not satisfy the requested universe')
             if requirements.symbols is not None and requirements.symbols!=declared:
                 raise ValueError('universe_scope_mismatch: requested subset does not satisfy complete universe')
 
+        scope = dict(scope)
+        scope['calendar_start'] = calendar_start.isoformat()
+        scope['calendar_end'] = calendar[-2].isoformat()
         if tuple(sorted(set(declared)))!=declared or panel.symbols!=declared:
             raise ValueError('declared security scope differs from supplied historical lake')
         if tuple(calendar[:-1])!=panel.calendar:
             raise ValueError('price dates must exactly cover calendar, with explicit next-session sentinel')
         start,end=date.fromisoformat(config['start']),date.fromisoformat(config['end'])
+        as_of=None if config.get('as_of') is None else date.fromisoformat(config['as_of'])
+        if as_of is not None and as_of < end:
+            raise ValueError('data as_of precedes query end')
+        if as_of is not None:
+            availability = manifest.get('source_availability')
+            if not isinstance(availability, list) or not availability:
+                raise ValueError('point-in-time query requires unified source availability evidence')
+            by_file = {}
+            for item in availability:
+                if (not isinstance(item, dict) or set(item) != {'file', 'sha256', 'available_at'}
+                        or item['file'] in by_file):
+                    raise ValueError('invalid unified source availability evidence')
+                by_file[item['file']] = item
+            for absolute, digest in hashes.items():
+                name = str(Path(absolute).relative_to(folder))
+                item = by_file.get(name)
+                if item is None or item['sha256'] != digest:
+                    raise ValueError(f'point-in-time source availability is not bound: {name}')
+                try:
+                    available_day = date.fromisoformat(item['available_at'])
+                except (TypeError, ValueError) as error:
+                    raise ValueError(f'invalid source availability date: {name}') from error
+                if available_day > as_of:
+                    raise ValueError(f'source evidence became available after query cutoff: {name}')
+        if as_of is not None and date.fromisoformat(price['factor_end']) != as_of:
+            raise ValueError('point-in-time factor snapshot must end exactly at query cutoff')
+        if as_of is not None:
+            factor_files = [str(path.relative_to(folder)) for path in
+                            self._path(folder, price['cache_dir']).rglob('*') if path.is_file()]
+            if not factor_files:
+                raise ValueError('point-in-time query requires factor availability evidence')
+            for name in factor_files:
+                payload = json.loads(read(name))
+                if not isinstance(payload, dict):
+                    raise ValueError(f'invalid factor evidence: {name}')
         if not calendar[0]<=start<=end<=calendar[-2]: raise ValueError('requested interval is outside historical snapshot')
         warmup=max(requirements.history_bars,EXECUTION['liquidity_window'])
         if sum(day<start for day in calendar)<warmup:
@@ -141,7 +225,7 @@ class HistoricalLake:
         # results. A successful empty response is evidence; a missing file is not.
         coverage=manifest['corporate_action_sources']; source_events={}; query_keys=set()
         for item in coverage:
-            path=market_evidence(item['file']); payload=json.loads(path.read_bytes()); request=payload['request']
+            path=market_evidence(item['file']); payload=json.loads(read(item['file'])); request=payload['request']
             if request['kind']!='dividend': raise ValueError('dividend source request required')
             if request['start'] is not None or request['end'] is not None: raise ValueError('dividend source requires year request')
             validate_cache(payload,request)
@@ -164,7 +248,7 @@ class HistoricalLake:
         required={(code,year) for code in declared for year in range(calendar[0].year,end.year+1)}
         if not required<=query_keys: raise ValueError('corporate action per-security/year source coverage incomplete')
         policy_file=evidence(manifest['account_policy'])
-        policy=json.loads(policy_file.read_bytes())
+        policy=json.loads(read(manifest['account_policy']))
         if policy['schema']!=1 or policy['investor']!='domestic_individual_unrestricted_a_share':
             raise ValueError('unsupported investor account policy')
         for source in policy['sources']:
@@ -180,7 +264,7 @@ class HistoricalLake:
             if key not in source_events:
                 # Full snapshot facts remain bound when the requested interval is shorter.
                 path=market_evidence(item['source_file'])
-                payload=json.loads(path.read_bytes()); raw=payload['raw_response']
+                payload=json.loads(read(item['source_file'])); raw=payload['raw_response']
                 row=item['source_row']
                 if type(row) is not int or not 0<=row<len(raw['rows']): raise ValueError('invalid action source row')
                 event=replace(normalize_dividend_records([dict(zip(raw['fields'],raw['rows'][row]))])[0],code=payload['request']['code'].split('.')[-1])
@@ -265,29 +349,30 @@ class HistoricalLake:
         data_hash=canonical_hash({'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],'price_request':price,'price_basis':'BaoStock-back-factor-signal-index','fields':manifest.get('fields',{})})
         return panel,calendar,{day:tuple(actions) for day,actions in day_inputs.items()},hashes,data_hash,{'policy':policy,'source_hash':policy_hash},canonical_hash({'files':account_files,'facts':manifest['action_facts']}),field_data,scope
 
-    def context(self,config,requirements):
-        panel,calendar,_,_,data_hash,policy,account_hash,_,scope=self._load(config,requirements)
-        return {'data_scope':scope,'state_start':calendar[0].isoformat(),'price_basis':'BaoStock-back-factor-signal-index',
-                'execution':{**EXECUTION,'account_policy':policy},'data_hash':data_hash,'account_hash':account_hash}
+    def context(self, dataset):
+        scope = dict(dataset.scope)
+        if 'symbols' in scope:
+            scope['symbols'] = list(scope['symbols'])
+        return {'data_scope':scope,'state_start':dataset.calendar[0].isoformat(),
+                'price_basis':'BaoStock-back-factor-signal-index', 'execution':{**EXECUTION},
+                **dict(dataset.provenance)}
 
-    def check(self,config,requirements):
-        try:self._load(config,requirements)
-        except KeyError as exc:
-            code='historical_dataset_missing' if exc.args[0]=='historical_dataset_missing' else 'historical_input_missing'
-            message='尚未登记可用的历史快照；请先提供原始行情、复权来源、交易日历、公司行动及账户税费输入。' if code=='historical_dataset_missing' else f'历史快照缺少必需字段或证据：{exc.args[0]}'
-            return [{'code':code,'message':message}]
-        except Exception as exc:
-            return [{'code':'historical_input_invalid','message':f'{type(exc).__name__}: {exc}'}]
+    @staticmethod
+    def check(dataset):
+        if dataset is None:
+            return [{'code': 'historical_input_invalid', 'message': '历史查询没有返回 Dataset。'}]
         return []
 
-    def run(self,config,strategy,run_id):
-        panel,calendar,account_inputs,hashes,data_hash,policy,account_hash,field_data,scope=self._load(config,strategy.requirements())
+    def _prepare_dataset(self,config,requirements):
+        from protocal import Dataset
+        panel,calendar,account_inputs,hashes,data_hash,policy,account_hash,field_data,scope=self._load(config,requirements)
         start,end=date.fromisoformat(config['start']),date.fromisoformat(config['end'])
+        as_of=None if config.get('as_of') is None else date.fromisoformat(config['as_of'])
         end_index=max(index for index,day in enumerate(calendar[:-1]) if day<=end)
         run_calendar=calendar[:end_index+2]
         # Execution liquidity remains a separately declared 20-own-day rule.
         liquidity=own_day_rolling_mean(panel.amount,20,panel.traded_bar)
-        request=strategy.requirements()
+        request=requirements
         required_history=request.history_bars
         own_history={symbol:deque(maxlen=required_history) for symbol in panel.symbols}
         session_history={symbol:deque(maxlen=required_history) for symbol in panel.symbols}
@@ -322,43 +407,224 @@ class HistoricalLake:
             yield HistoryDay(day,frame,bars,previous,opening,closing,opening_adv,closing_adv,
                 calendar[j-1] if j else date.min,inputs)
             last_marks.clear(); last_marks.update({symbol:float(value) for symbol,value in closing.items()}); last_liquidity.clear(); last_liquidity.update(closing_adv)
-        result=run_account_history(strategy,calendar=run_calendar,days=records(),
-                                   initial_cash=Decimal(str(config['initial_cash'])),trade_start=start,
-                                   fees=FeePolicy.from_mapping(policy['policy']['fees'],policy['source_hash']),
-                                   tax_policy=TaxPolicy.from_mapping(policy['policy']['tax'],policy['source_hash']))
-        points=[(point.day,float(point.equity)) for point in result.equity if point.day>=start]
-        metrics=evaluate_equity(points)
-        from plugins.recorders.jsonl import _json_value
-        output=self.root/self.config['output']/run_id
-        if not output.resolve().is_relative_to(self.root): raise ValueError('historical output escapes project')
-        output.mkdir(parents=True,exist_ok=False)
-        execution_hash=canonical_hash({'rules':EXECUTION,'account_policy':policy,'account_hash':account_hash,'code_hash':code_hash()})
-        manifest={'run_id':run_id,'strategy_id':strategy.strategy_id,'status':'input_checked',
-            'scope':{'universe':scope['universe'],'symbols':list(panel.symbols),'start':points[0][0].isoformat(),'end':points[-1][0].isoformat()},
-            'limitations':['限定登记快照股票池；来源哈希与输入检查不证明供应商完整性。'],
-            'effective_config':config,'source_hashes':hashes,'data_hash':data_hash,'code_hash':code_hash(),
-            'execution_hash':execution_hash,'account_hash':account_hash,'state_start':calendar[0].isoformat(),
-            'parameters':asdict(strategy.params),'config_hash':canonical_hash(config)}
-        (output/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
-        (output/'metrics.json').write_text(json.dumps(metrics,allow_nan=False,indent=2))
-        (output/'trace.json').write_text(json.dumps(_json_value(result),ensure_ascii=False,allow_nan=False))
-        trades=_json_value(result.fills)
-        audit=output/'audit'; audit.mkdir()
-        with (audit/'equity.csv').open('w',newline='') as stream:
-            writer=csv.DictWriter(stream,fieldnames=('trade_date','equity')); writer.writeheader()
-            writer.writerows({'trade_date':day.isoformat(),'equity':value} for day,value in points)
-        with (audit/'fills.csv').open('w',newline='') as stream:
-            names=list(trades[0]) if trades else ['order_id','symbol','side','trade_date','shares','price','status']
-            writer=csv.DictWriter(stream,fieldnames=names); writer.writeheader(); writer.writerows(trades)
-        identity=sha256(str((output/'manifest.json').relative_to(self.root)).encode()).hexdigest()
+        prepared = tuple(records())
+        plugins = config.get('signal_plugins', self.config.get('signal_plugins', {}))
+        plugin_provenance = None
+        if plugins:
+            prepared, plugin_provenance = self._apply_signal_plugins(prepared, plugins, start, end)
+        provenance = {
+            'source_hashes': hashes, 'data_hash': data_hash, 'account_hash': account_hash,
+            'execution_hash': canonical_hash({'rules': EXECUTION, 'account_policy': policy,
+                                              'account_hash': account_hash, 'code_hash': code_hash()}),
+            'state_start': calendar[0].isoformat(),
+            'as_of': None if as_of is None else as_of.isoformat(),
+            'query_semantics': 'point_in_time' if as_of is not None else 'snapshot_replay',
+        }
+        if plugin_provenance is not None:
+            provenance['signal_plugins'] = plugin_provenance
+        return Dataset(
+            config['dataset_id'], prepared,
+            {'fees': FeePolicy.from_mapping(policy['policy']['fees'], policy['source_hash']),
+             'tax_policy': TaxPolicy.from_mapping(policy['policy']['tax'], policy['source_hash'])},
+            provenance,
+            {**scope, 'symbols': tuple(panel.symbols)}, tuple(run_calendar),
+            requirements.fields, requirements.history_bars,
+        )
 
-        evidence=[{'file':str(path.relative_to(self.root)),'sha256':_digest(path)} for path in sorted(output.rglob('*')) if path.is_file()]
-        return {'id':identity,'run_id':run_id,'strategy_id':strategy.strategy_id,'status':'input_checked',
-            'qualification':'unverified','limitations':manifest['limitations'],'metrics':metrics,
-            'manifest_file':str((output/'manifest.json').relative_to(self.root)),
-            'manifest_sha256':_digest(output/'manifest.json'),'metrics_sha256':_digest(output/'metrics.json'),
-            'source_hashes':hashes,'config_hash':manifest['config_hash'],'data_hash':data_hash,'code_hash':manifest['code_hash'],
-            'execution_hash':execution_hash,'note':'复权和逐笔账户输入已检查；限定股票池，来源完整性仍需审核。',
-            'manifest':manifest,'trades':trades[:50],'trades_total':len(trades),
-            'equity':[{'at':day.isoformat(),'equity':value} for day,value in points],
-            'equity_sampling':{'total':len(points),'stride':1},'evidence':evidence,'offset':0,'limit':50}
+    @staticmethod
+    def _apply_signal_plugins(records, plugins, start, end):
+        from dataclasses import replace
+        from protocal import HistoryBar, MarketFrame
+        from importlib import import_module
+        from plugins.data import Adapter
+        from strategy import canonical_hash
+
+        def names(value, label):
+            value = tuple(value)
+            if (not value or len(set(value)) != len(value)
+                    or any(not isinstance(field, str) or not field for field in value)):
+                raise ValueError(f'{label} must be unique non-empty names')
+            return value
+
+        def projection(record, selected):
+            fields = {}
+            for symbol, values in record.frame.fields.items():
+                if any(field not in values for field in selected):
+                    raise ValueError('signal plugin field is missing from strategy input')
+                fields[symbol] = {field: values[field] for field in selected}
+            history = {}
+            for symbol, rows in record.frame.history.items():
+                history[symbol] = tuple(
+                    HistoryBar(row.at, {field: row.fields[field] for field in selected})
+                    for row in rows
+                )
+            return replace(record.frame, fields=fields, history=history)
+
+        def checked_output(original, output, selected):
+            output = tuple(output)
+            if len(output) != len(original):
+                raise ValueError('signal plugin output length changed')
+            for before, after in zip(original, output):
+                if not isinstance(after, MarketFrame) or after.at != before.at:
+                    raise ValueError('signal plugin output timestamp changed')
+                if tuple(after.fields) != tuple(before.fields):
+                    raise ValueError('signal plugin output symbols changed')
+                for symbol in before.fields:
+                    if tuple(after.fields[symbol]) != selected:
+                        raise ValueError('signal plugin output fields changed')
+                if tuple(after.history) != tuple(before.history):
+                    raise ValueError('signal plugin output history symbols changed')
+                for symbol in before.history:
+                    before_times = tuple(row.at for row in before.history[symbol])
+                    after_times = tuple(row.at for row in after.history[symbol])
+                    if after_times != before_times:
+                        raise ValueError('signal plugin output history timestamps changed')
+                    current = next((row for row in after.history[symbol] if row.at == after.at), None)
+                    if current is not None and dict(current.fields) != dict(after.fields[symbol]):
+                        raise ValueError('signal plugin output current frame/history differs')
+            Adapter.validate(output, fields=selected)
+            return output
+
+        def merge(original, transformed, selected):
+            output = []
+            for record, frame in zip(original, transformed):
+                fields = {symbol: dict(values) for symbol, values in record.frame.fields.items()}
+                for symbol in fields:
+                    fields[symbol].update(frame.fields[symbol])
+                history = {}
+                for symbol, rows in record.frame.history.items():
+                    if tuple(row.at for row in rows) != tuple(row.at for row in frame.history[symbol]):
+                        raise ValueError('signal plugin merge would discard history rows')
+                    changed = {row.at: row for row in frame.history[symbol]}
+                    history[symbol] = tuple(replace(row, fields={**row.fields, **changed[row.at].fields})
+                                            for row in rows)
+                output.append(replace(record, frame=replace(record.frame, fields=fields, history=history)))
+            return tuple(output)
+
+        if not isinstance(plugins, dict) or set(plugins) - {'adapter', 'scaler'}:
+            raise ValueError('unsupported signal plugin declaration')
+        provenance = {}
+        adapter_spec = plugins.get('adapter')
+        if adapter_spec is not None:
+            if (not isinstance(adapter_spec, dict)
+                    or set(adapter_spec) - {'module', 'method', 'fields', 'params'}
+                    or adapter_spec.get('method') not in {'validate', 'align'}
+                    or not adapter_spec.get('fields')):
+                raise ValueError('signal adapter requires module, method, fields, and params')
+            module_name = adapter_spec.get('module')
+            if not isinstance(module_name, str) or ':' not in module_name:
+                raise ValueError('signal adapter module must be explicit')
+            module, name = adapter_spec['module'].split(':', 1)
+            adapter = getattr(import_module(module), name)
+            method = getattr(adapter, adapter_spec['method'], None)
+            if not callable(method):
+                raise ValueError('signal adapter method is not callable')
+            selected_fields = names(adapter_spec['fields'], 'signal adapter fields')
+            params = dict(adapter_spec.get('params', {}))
+            signal_frames = tuple(projection(record, selected_fields) for record in records)
+            if adapter_spec['method'] == 'align':
+                transformed = method(signal_frames, tuple(frame.at for frame in signal_frames), **params)
+            else:
+                transformed = method(signal_frames, **params)
+            transformed = checked_output(signal_frames, transformed, selected_fields)
+            records = merge(records, transformed, selected_fields)
+            provenance['adapter'] = {
+                'module': module_name, 'method': adapter_spec['method'],
+                'fields': list(selected_fields), 'params': params,
+                'output_hash': canonical_hash([
+                    {'at': frame.at.isoformat(), 'fields': {
+                        symbol: dict(values) for symbol, values in frame.fields.items()
+                    }} for frame in transformed
+                ]),
+            }
+        spec = plugins.get('scaler')
+        if spec is None:
+            return records, provenance
+        if (not isinstance(spec, dict)
+                or set(spec) - {'module', 'fields', 'fit_start', 'fit_end', 'params'}):
+            raise ValueError('invalid signal scaler declaration')
+        if (not isinstance(spec.get('module'), str) or ':' not in spec['module']
+                or not spec.get('fields') or 'fit_start' not in spec or 'fit_end' not in spec):
+            raise ValueError('signal scaler requires module, fields, fit_start, and fit_end')
+        selected_fields = names(spec['fields'], 'signal scaler fields')
+        fit_start = date.fromisoformat(spec['fit_start'])
+        fit_end = date.fromisoformat(spec['fit_end'])
+        if fit_start > fit_end or fit_end >= start:
+            raise ValueError('signal scaler training window must end before backtest start')
+        module, name = spec['module'].split(':', 1)
+        scaler_type = getattr(import_module(module), name)
+        scaler = scaler_type(**dict(spec.get('params', {})))
+        if not all(callable(getattr(scaler, name, None)) for name in ('fit', 'transform', 'statistics')):
+            raise ValueError('signal scaler must implement fit, transform, and statistics')
+        train = [record for record in records if fit_start <= record.trade_date <= fit_end]
+        if (not train or train[0].trade_date != fit_start
+                or train[-1].trade_date != fit_end):
+            raise ValueError('signal scaler training window is not fully covered by records')
+        symbols = tuple(train[0].frame.fields)
+        matrix = []
+        for record in train:
+            for symbol in symbols:
+                values = record.frame.fields[symbol]
+                if any(field not in values for field in selected_fields):
+                    raise ValueError('signal scaler field is missing from strategy input')
+                matrix.append([values[field] for field in selected_fields])
+        scaler.fit(matrix)
+        statistics = scaler.statistics()
+        if not isinstance(statistics, dict):
+            raise ValueError('signal scaler statistics must be a mapping')
+        statistics = {key: np.asarray(value).tolist() for key, value in statistics.items()}
+        flat_statistics = [item for value in statistics.values()
+                           for item in (value if isinstance(value, list) else [value])]
+        if not np.isfinite(np.asarray(flat_statistics, dtype=float)).all():
+            raise ValueError('signal scaler statistics must be finite')
+
+        def transform(values):
+            output = scaler.transform(values)
+            try:
+                raw = np.asarray(output, dtype=object)
+            except (TypeError, ValueError) as error:
+                raise ValueError('signal scaler transform must return a numeric matrix') from error
+            if raw.ndim != 2 or raw.shape != (len(values), len(selected_fields)):
+                raise ValueError('signal scaler transform shape does not match input')
+            result = []
+            for row in raw.tolist():
+                converted = []
+                for value in row:
+                    if isinstance(value, (bool, np.bool_)):
+                        raise ValueError('signal scaler transform must return real finite values')
+                    try:
+                        number = float(value)
+                    except (TypeError, ValueError, OverflowError) as error:
+                        raise ValueError('signal scaler transform must return real finite values') from error
+                    if not np.isfinite(number):
+                        raise ValueError('signal scaler transform must return real finite values')
+                    converted.append(number)
+                result.append(converted)
+            return result
+
+        output = []
+        for record in records:
+            fields = {symbol: dict(values) for symbol, values in record.frame.fields.items()}
+            history = {}
+            for symbol, rows in record.frame.history.items():
+                history[symbol] = tuple(
+                    replace(item, fields={
+                        **item.fields,
+                        **dict(zip(selected_fields, transform(
+                            [[item.fields[field] for field in selected_fields]]
+                        )[0]))
+                    })
+                    for item in rows)
+            for symbol in symbols:
+                fields[symbol].update(dict(zip(
+                    selected_fields,
+                    transform([[fields[symbol][field] for field in selected_fields]])[0],
+                )))
+            output.append(replace(record, frame=replace(record.frame, fields=fields, history=history)))
+        provenance['scaler'] = {
+            'module': spec['module'], 'fields': list(selected_fields),
+            'fit_start': fit_start.isoformat(), 'fit_end': fit_end.isoformat(),
+            'params': dict(spec.get('params', {})), 'statistics': statistics,
+            'statistics_hash': canonical_hash(statistics),
+        }
+        return tuple(output), provenance

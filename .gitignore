@@ -1,0 +1,40 @@
+# Local dependencies, caches and build products
+.venv/
+node_modules/
+dist/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.DS_Store
+*.log
+*.tmp
+# Machine-local tools and credentials
+.env
+.env.*
+!.env.example
+.aws/
+.codex/
+.agents/
+.workbuddy/
+.trae-html-share-packages/
+.idea/
+.vscode/
+# Raw market data, generated runs and backups remain on disk
+/data/
+/runs*/
+/backup/
+/charts/
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite3
+*.db
+*.parquet
+*.xlsx
+*.xls
+*.csv
+*.npy
+*.npz

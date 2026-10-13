@@ -1,2 +1,0 @@
-"""Pure target-weight strategies."""
-

@@ -7,8 +7,6 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from dataclasses import asdict
 
-from tests.test_core_backtest import Factory, request
-
 
 ui = importlib.import_module("frontend.ui-protocol")
 
@@ -187,18 +185,27 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(backtests.calls, [("workbench.backtest", request)])
 
     def test_backtest_port_is_the_only_protocol_owned_kernel_adapter(self):
+        from history_data import HistoricalLake
+        from plugins.data import Settlement
         from protocal import KernelBacktestPort, Modules, Protocol
+        from protocal import DataBus
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot
 
         with TemporaryDirectory() as root:
+            root = Path(root)
+            config = make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            bus.configure_reader(HistoricalLake(bus, config))
             protocol = Protocol(Modules(
-                backtests=KernelBacktestPort(Factory(root), __import__('storage').DataStore(Path(root))),
+                backtests=KernelBacktestPort(bus, Settlement),
                 research=Port({}), sources=Port({}), lake=Port({}), commands=Port({}),
             ))
             request = ui.UiRequest(
                 "request-2", "workbench.backtest", "urn:lianghua:ui:input:workbench.backtest:v1",
-                {"run_id": "one", "module": "breadth_low_amount_reversal",
-                 "params": {}, "dataset_id": "sample",
-                 "start": "2026-09-28T07:00:00+00:00", "end": "2026-10-01T07:00:00+00:00",
+                {"run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
+                 "params": {"positions": 4}, "dataset_id": "fixture",
+                 "start": "2020-01-31", "end": "2020-02-04",
                  "initial_cash": "100000"},
             )
 

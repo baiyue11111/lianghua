@@ -12,7 +12,7 @@ if TYPE_CHECKING:
 
 class Backtests:
     def __init__(self,root:Path,config:dict,data:DataPort):
-        self.root=root; self.config=config
+        self.root=root; self.config=config; self.data=data
         self.adapter=load_adapter(data,config)
 
     def availability(self):
@@ -29,6 +29,7 @@ class Backtests:
             self.root,
             adapter=self.adapter,
             missing_adapter_issues=self.availability()['issues'],
+            data=self.data,
         )
 
     def preflight(self,request):

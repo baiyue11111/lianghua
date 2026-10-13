@@ -1,7 +1,8 @@
 """Quality trend proxy using only the strategy-declared signal series."""
 from dataclasses import dataclass, field
 
-from core.contracts import AccountSnapshot, DataRequest, MarketFrame, TargetSet
+from core.calculation import Calculation
+from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from ._ranked_signal import histories, weights
 
@@ -33,8 +34,8 @@ class Strategy:
         p = self.params
         candidates = []
         for symbol, prices in histories(frame, p.slow_window).items():
-            fast = sum(prices[-p.fast_window:]) / p.fast_window
-            slow = sum(prices[-p.slow_window:]) / p.slow_window
+            fast = Calculation.sma(prices, p.fast_window)
+            slow = Calculation.sma(prices, p.slow_window)
             if fast > slow: candidates.append((fast / slow, symbol))
         selected = tuple(symbol for _, symbol in sorted(candidates, key=lambda x: (-x[0], x[1]))[:p.positions])
         if selected == self.selected: return None

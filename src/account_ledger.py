@@ -9,7 +9,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 import re
 
-from contracts import Fill, Order, Side
+from protocal import Fill, Order, Side
 
 
 def _money(value):

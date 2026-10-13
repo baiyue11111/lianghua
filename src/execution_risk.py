@@ -5,7 +5,7 @@ from decimal import Decimal
 from typing import Mapping
 
 from account_allocation import AllocationLimits
-from contracts import Fill, Order, Side
+from protocal import Fill, Order, Side
 
 
 @dataclass(frozen=True)

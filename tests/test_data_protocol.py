@@ -1,4 +1,5 @@
 import hashlib
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -54,3 +55,38 @@ class DataProtocolTests(unittest.TestCase):
             other.parent.mkdir(parents=True)
             other.symlink_to(Path(root) / 'outside')
             self.assertEqual(len(bus.list('sources', 'quotes')), 1)
+
+    def test_dataset_snapshot_and_publish_share_manifest_contract(self):
+        from protocal import DataError, build_data
+
+        with tempfile.TemporaryDirectory() as root:
+            bus = build_data(Path(root))
+            content = b'price'
+            ref = bus.write('sources', 'dataset', 'daily/bars.parquet', content)
+            manifest = {
+                'schema': 2,
+                'files': [{'file': 'daily/bars.parquet', 'sha256': ref.sha256, 'role': 'market'}],
+                'fields': {},
+                'scope': {'symbols': ['600001'], 'universe': 'fixed_symbols'},
+            }
+
+            published = bus.publish('dataset', manifest)
+
+            self.assertEqual(published.name, 'manifest.json')
+            self.assertEqual(bus.snapshot('dataset'), manifest)
+            bus.write('sources', 'dataset', 'daily/bars.parquet', b'changed')
+            with self.assertRaisesRegex(DataError, 'hash mismatch'):
+                bus.snapshot('dataset')
+
+    def test_publish_rejects_unbound_files_and_invalid_scope(self):
+        from protocal import DataError, build_data
+
+        with tempfile.TemporaryDirectory() as root:
+            bus = build_data(Path(root))
+            for manifest in (
+                {'schema': 2, 'files': [], 'fields': {}, 'scope': {'symbols': [], 'universe': 'fixed'}},
+                {'schema': 2, 'files': [{'file': 'missing.json', 'sha256': '0' * 64, 'role': 'market'}],
+                 'fields': {}, 'scope': {'symbols': ['600001'], 'universe': 'fixed'}},
+            ):
+                with self.subTest(manifest=manifest), self.assertRaises(DataError):
+                    bus.publish('dataset', manifest)

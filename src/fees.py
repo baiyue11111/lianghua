@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 import re
-from contracts import Side
+from protocal import Side
 
 @dataclass(frozen=True)
 class FeePolicy:

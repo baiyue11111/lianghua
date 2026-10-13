@@ -6,8 +6,8 @@ from datetime import date
 from math import ceil
 import numpy as np
 
-from core.contracts import AccountSnapshot, DataRequest, MarketFrame, TargetSet
-from ..allocators.equal_weight import equal_weights
+from core.calculation import Calculation
+from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from panel_features import own_day_lagged_return, own_day_rolling_mean, valid_mask
 
@@ -102,5 +102,7 @@ class Strategy:
         count=ceil(len(candidates)*p.amount_quantile)
         cold=sorted(candidates,key=lambda row:(row[1],row[0]))[:count]
         selected=sorted(cold,key=lambda row:(row[2],row[0]))[:p.positions]
-        return TargetSet(self.strategy_id,frame.at,equal_weights((symbol for symbol,_,_ in selected),p.positions),
+        symbols = tuple(symbol for symbol, _, _ in selected)
+        return TargetSet(self.strategy_id,frame.at,
+                         Calculation.equal_weights(symbols,p.positions) if symbols else {},
                          {symbol:'low_amount_then_lowest_return' for symbol,_,_ in selected})

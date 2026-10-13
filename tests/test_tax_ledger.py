@@ -1,0 +1,96 @@
+from datetime import date
+from decimal import Decimal as D
+import unittest
+from protocal import Fill, Side
+from corporate_actions import normalize_dividend_records
+
+
+def fill(identity,side,day,shares,symbol='A'):
+    return Fill(identity,symbol,side,date.fromisoformat(day),shares,10.,shares*10.,0.,0.,'filled')
+
+def event(identity,registration,payment,cash='1',stock='0'):
+    return normalize_dividend_records([{'code':identity,'dividRegistDate':registration,
+        'dividOperateDate':(date.fromisoformat(registration).replace(day=date.fromisoformat(registration).day+1)).isoformat(),
+        'dividPayDate':payment,'dividStockMarketDate':payment,'dividCashPsBeforeTax':cash,'dividStocksPs':stock}])[0]
+
+class DynamicTaxTests(unittest.TestCase):
+    def ledger(self):
+        from tax_ledger import TaxLedger, TaxPolicy
+        return TaxLedger(TaxPolicy.from_mapping({'effective':'2015-09-09','policy':'财税2015-101',
+            'payment_timing':'later_of_disposal_and_income','liability':'current_holding_period','rounding':'none',
+            'bonus_holding_period':'originating_lot','bonus_tax_allocation':'proportional_entitlement'},'a'*64))
+    def day(self,ledger,fills):
+        ledger.begin(fills[0].trade_date)
+        for item in fills: ledger.preview(item)
+        ledger.end(tuple(fills))
+    def test_fifo_partial_disposal_and_natural_month_boundaries(self):
+        ledger=self.ledger()
+        self.day(ledger,[fill('old',Side.BUY,'2020-01-31',100)])
+        self.day(ledger,[fill('new',Side.BUY,'2020-02-20',100)])
+        ledger.register('div',event('A','2020-02-21','2020-02-25'),D(1),D(0),'b'*64)
+        self.assertEqual(ledger.liability(date(2020,2,25)),D(40))
+        self.day(ledger,[fill('sell',Side.SELL,'2020-03-01',150)])
+        # January31 lot is older than one natural month; February20 lot is not.
+        payments=ledger.settle(date(2020,3,1))
+        self.assertEqual(sum(p.amount for p in payments),D(20))
+        self.assertEqual(ledger.liability(date(2020,3,1)),D(10))
+    def test_disposal_before_income_keeps_unpaid_tax_without_cash_debit(self):
+        ledger=self.ledger(); self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        ledger.register('div',event('A','2020-01-10','2020-01-20'),D(1),D(0),'b'*64)
+        self.day(ledger,[fill('sell',Side.SELL,'2020-01-13',100)])
+        self.assertEqual(ledger.liability(date(2020,1,13)),D(20))
+        self.assertEqual(ledger.settle(date(2020,1,13)),())
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2020,1,20))),D(20))
+        self.assertEqual(ledger.liability(date(2020,1,20)),D(0))
+        self.assertEqual(ledger.settle(date(2020,1,20)),())
+    def test_multiple_distributions_and_long_holding_exemption(self):
+        ledger=self.ledger(); self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        ledger.register('one',event('A','2020-01-10','2020-01-20'),D(1),D(0),'b'*64)
+        ledger.register('two',event('A','2020-02-10','2020-02-20',cash='2'),D(1),D(0),'c'*64)
+        self.assertEqual(ledger.liability(date(2021,1,2)),D(30))
+        self.assertEqual(ledger.liability(date(2021,1,3)),D(0))
+        self.day(ledger,[fill('sell',Side.SELL,'2021-01-04',100)])
+        self.assertEqual(ledger.settle(date(2021,1,4)),())
+    def test_daily_net_disposal_not_every_sell_fill(self):
+        ledger=self.ledger(); self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        ledger.register('div',event('A','2020-01-10','2020-01-20'),D(1),D(0),'b'*64)
+        self.day(ledger,[fill('sell',Side.SELL,'2020-01-21',100),fill('rebuy',Side.BUY,'2020-01-21',100)])
+        self.assertEqual(ledger.settle(date(2020,1,21)),())
+        self.assertEqual(ledger.liability(date(2020,1,21)),D(20))
+    def test_bonus_income_and_credited_shares_have_explicit_policy(self):
+        ledger=self.ledger(); self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        ledger.register('div',event('A','2020-01-10','2020-01-20',cash='1',stock='.1'),D(1),D(0),'b'*64,
+                        credit_date=date(2020,1,20))
+        ledger.credit('bonus','A',date(2020,1,2),10,date(2020,1,20))
+        self.assertEqual(ledger.liability(date(2020,1,20)),D(22))
+        self.day(ledger,[fill('sell',Side.SELL,'2020-01-21',110)])
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2020,1,21))),D(22))
+    def test_tax_reserve_updates_after_sell_before_buy_budget(self):
+        ledger=self.ledger(); self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        ledger.register('div',event('A','2020-01-10','2020-01-20'),D(1),D(0),'b'*64)
+        ledger.begin(date(2020,1,21)); ledger.preview(fill('sell',Side.SELL,'2020-01-21',100))
+        self.assertEqual(ledger.reserve(date(2020,1,21)),D(20))
+    def test_bonus_uses_net_tax_holding_date_after_same_day_rebuy(self):
+        ledger=self.ledger(); self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        self.day(ledger,[fill('sell',Side.SELL,'2020-03-02',100),fill('rebuy',Side.BUY,'2020-03-02',100)])
+        ledger.register('bonus',event('A','2020-03-03','2020-03-10',cash='0',stock='.1'),D(1),D(0),'b'*64,credit_date=date(2020,3,10))
+        ledger.advance(date(2020,3,10))
+        self.assertEqual(sum(l.shares for l in ledger.lots),110)
+        self.assertEqual({l.acquired for l in ledger.lots},{date(2020,1,2)})
+        self.assertAlmostEqual(ledger.liability(date(2020,3,10)),D(1),places=24)
+
+    def test_unsupported_bonus_policy_never_guesses_holding_date(self):
+        from tax_ledger import TaxLedger
+        from tests.fee_fixture import tax_policy
+        from dataclasses import replace
+        ledger=TaxLedger(replace(tax_policy(),bonus_holding_period=None))
+        self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
+        with self.assertRaisesRegex(ValueError,'bonus'):
+            ledger.register('div',event('A','2020-01-10','2020-01-20',stock='.1'),D(1),D(0),'b'*64,credit_date=date(2020,1,20))
+    def test_shared_holding_rate_has_exact_natural_month_year_boundaries(self):
+        from dividend_tax import holding_rate
+        self.assertEqual(holding_rate(date(2020,1,31),date(2020,2,29),D(0)),D('.2'))
+        self.assertEqual(holding_rate(date(2020,1,31),date(2020,3,1),D(0)),D('.1'))
+        self.assertEqual(holding_rate(date(2020,2,29),date(2021,2,28),D(0)),D('.1'))
+        self.assertEqual(holding_rate(date(2020,2,29),date(2021,3,1),D(0)),D(0))
+        self.assertEqual(holding_rate(date(2014,1,1),date(2016,1,1),D('.05')),D('.05'))
