@@ -1,21 +1,21 @@
-from tests.fee_fixture import fees
+from tests.fee_fixture import rules
 from datetime import date
 from decimal import Decimal as D
 from dataclasses import replace
 import unittest
 
-import distribution_ledger
-from account_ledger import AccountLedger
-from account_execution import AccountExecutionSession
+import core.calculation as distribution_ledger
+from core.calculation import AccountLedger
+from core.calculation import AccountExecutionSession
 from protocal import Bar, Order, Side
-from corporate_actions import calculate_entitlement, normalize_dividend_records
+from core.calculation import calculate_entitlement, normalize_dividend_records
 
 
 class AccountDistributionTests(unittest.TestCase):
     def setup_claim(self):
         self.assertTrue(hasattr(distribution_ledger,'AccountDistributionLedger'),
                         'distribution settlement must use authoritative account')
-        account=AccountLedger(D('10000')); session=AccountExecutionSession(account,fees())
+        account=AccountLedger(D('10000')); session=AccountExecutionSession(account,rules())
         session.submit(Order('buy','A',Side.BUY,100,date(2020,6,29),date(2020,6,30),'entry'))
         session.execute('buy',Bar('A',date(2020,6,30),11.3,12,11,11.3,1000000,11300000),previous_close=11.3)
         account.mark(date(2020,7,1),{'A':D('11.3')},D(0),D(0))

@@ -34,20 +34,13 @@ class RemoveOldContractsTests(unittest.TestCase):
     def test_public_contracts_are_defined_once_in_protocol(self):
         protocol = importlib.import_module("protocal")
         strategy = importlib.import_module("plugins.strategies.moving_average_cross")
-        account_execution = importlib.import_module("account_execution")
-        account_ledger = importlib.import_module("account_ledger")
-        execution = importlib.import_module("execution")
+        calculation = importlib.import_module("core.calculation")
 
         self.assertIs(strategy.DataRequest, protocol.DataRequest)
         self.assertIs(strategy.TargetSet, protocol.TargetSet)
-        self.assertIs(account_execution.Bar, protocol.Bar)
-        self.assertIs(account_execution.Order, protocol.Order)
-        self.assertIs(account_execution.Fill, protocol.Fill)
-        self.assertIs(account_ledger.Order, protocol.Order)
-        self.assertIs(account_ledger.Fill, protocol.Fill)
-        self.assertIs(execution.Bar, protocol.Bar)
-        self.assertIs(execution.Order, protocol.Order)
-        self.assertIs(execution.Fill, protocol.Fill)
+        self.assertIs(calculation.Bar, protocol.Bar)
+        self.assertIs(calculation.Order, protocol.Order)
+        self.assertIs(calculation.Fill, protocol.Fill)
 
     def test_data_port_declares_bus_operations(self):
         protocol = importlib.import_module("protocal")
@@ -78,7 +71,11 @@ class RemoveOldContractsTests(unittest.TestCase):
         self.assertFalse((Path(__file__).parents[1] / "tools/run_backtest.py").exists())
 
     def test_history_zero_records_dataset_history_in_effective_config(self):
-        from protocal import BacktestRequest, BacktestResponse, _result_data
+        from protocal import (
+            BacktestRequest, BacktestResponse, _result_data,
+            build_effective_config, required_fields,
+        )
+        from strategy import load_strategy
 
         request = BacktestRequest(
             run_id="history-zero",
@@ -96,6 +93,17 @@ class RemoveOldContractsTests(unittest.TestCase):
             provenance={},
             scope={"symbols": ("600036",), "universe": "fixed_symbols"},
         )
+        strategy = load_strategy(request.strategy_id, dict(request.parameters))
+        requirements = strategy.requirements()
+        dataset.fields = required_fields(requirements.fields)
+        effective_config, config_hash = build_effective_config(
+            request, strategy, requirements, dataset,
+            {"module": "plugins.data:Settlement", "params": {}},
+        )
+        dataset.provenance = {
+            "effective_config": effective_config,
+            "config_hash": config_hash,
+        }
         result = BacktestResponse(
             request.run_id,
             request.strategy_id,

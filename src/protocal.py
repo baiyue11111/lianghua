@@ -258,6 +258,7 @@ class HistoryDay:
     closing_amount20: Mapping[str, Decimal]
     liquidity_as_of: date
     registrations: tuple[RegistrationAction, ...]
+    opening_volume20: Mapping[str, Decimal] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -817,17 +818,154 @@ def export_operations() -> dict[str, JsonObject]:
     }
 
 
+class Benchmarks:
+    def __init__(self, store, specs):
+        from math import isfinite
+        self.store = store
+        self.specs = {item["id"]: item for item in specs}
+        if len(self.specs) != len(specs):
+            raise ValueError("duplicate benchmark identity")
+
+    def list(self):
+        return list(self.specs.values())
+
+    def series(self, identity, start, end, *, dates=None):
+        from math import isfinite
+        if identity not in self.specs:
+            raise KeyError(identity)
+        if start > end:
+            raise ValueError("起始日期不能晚于截止日期")
+        spec = self.specs[identity]
+        snapshot = self.store.latest(spec["source_id"])
+        if snapshot is None:
+            raise ValueError("基准未同步，请在数据同步页面采集")
+        points = []
+        seen = set()
+        for row in snapshot["records"]:
+            if row["code"] != spec["code"] or not start <= row["date"] <= end:
+                continue
+            value = float(row["close"])
+            if not isfinite(value) or value <= 0:
+                raise ValueError("基准收盘价必须为正数")
+            if row["date"] in seen:
+                raise ValueError("基准交易日期重复")
+            seen.add(row["date"])
+            points.append({"at": row["date"], "close": value})
+        points.sort(key=lambda item: item["at"])
+        if not points:
+            raise ValueError("基准快照在请求区间没有数据")
+        if dates is not None and tuple(item["at"] for item in points) != tuple(dates):
+            raise ValueError("基准日期不全或顺序不一致")
+        return {**spec, "snapshot_id": snapshot["snapshot_id"],
+                "collected_at": snapshot["collected_at"], "start": start,
+                "end": end, "points": points}
+
+
+class Research:
+    def __init__(self, data):
+        self.data = data
+
+    def _ids(self):
+        names = {}
+        for ref in self.data.list("runs"):
+            names.setdefault(ref.identity, set()).add(ref.name)
+        return tuple(sorted(identity for identity, files in names.items()
+                           if {"manifest.json", "metrics.json", "result.json", "trace.json"} <= files))
+
+    def _read(self, identity):
+        from hashlib import sha256
+        manifest_bytes = self.data.read("runs", identity, "manifest.json")
+        metrics_bytes = self.data.read("runs", identity, "metrics.json")
+        result_bytes = self.data.read("runs", identity, "result.json")
+        manifest = json.loads(manifest_bytes)
+        metrics = json.loads(metrics_bytes)
+        result = json.loads(result_bytes)
+        return {
+            "id": identity, "run_id": manifest["run_id"],
+            "strategy_id": manifest["strategy_id"], "status": manifest["status"],
+            "qualification": "unverified", "limitations": manifest.get("limitations", []),
+            "metrics": metrics, "manifest_file": f"data/runs/{identity}/manifest.json",
+            "manifest_sha256": sha256(manifest_bytes).hexdigest(),
+            "metrics_sha256": sha256(metrics_bytes).hexdigest(),
+            "source_hashes": manifest.get("source_hashes", {}),
+            "config_hash": manifest.get("config_hash"),
+            "note": manifest.get("note", "运行结果未经历史资格认定。"),
+            "parameters": manifest.get("parameters", {}),
+            "effective_config": manifest.get("effective_config", {}),
+            "code_hash": manifest.get("code_hash"), "data_hash": manifest.get("data_hash"),
+            "execution_hash": manifest.get("execution_hash"), "result": result,
+        }
+
+    def list(self):
+        return [self._read(identity) for identity in self._ids()]
+
+    def detail(self, identity, offset=0, limit=50):
+        if identity not in self._ids():
+            raise KeyError(identity)
+        value = self._read(identity)
+        manifest = json.loads(self.data.read("runs", identity, "manifest.json"))
+        refs = {(item.identity, item.name): item for item in self.data.list("runs")}
+        result = value.pop("result")
+        all_trades, all_equity = result.get("trades", []), result.get("equity", [])
+        trades = all_trades[offset:offset + limit]
+        stride = max(1, (len(all_equity) + 799) // 800)
+        equity = all_equity[::stride]
+        if all_equity and equity[-1] != all_equity[-1]:
+            equity.append(all_equity[-1])
+        value["trades_total"] = len(all_trades)
+        value["equity_sampling"] = {"total": len(all_equity), "stride": stride}
+        evidence = []
+        for name in ("manifest.json", "metrics.json", "result.json", "trace.json"):
+            ref = refs.get((identity, name))
+            if ref is not None:
+                evidence.append({"file": ref.file, "sha256": ref.sha256})
+        return {**value, "manifest": manifest, "trades": trades,
+                "trades_total": value["trades_total"], "equity": equity,
+                "evidence": evidence, "offset": offset, "limit": limit}
+
+
 def build_protocol(modules: Modules) -> Protocol:
     """用显式模块端口组装唯一协议入口。"""
 
     return Protocol(modules)
 
 
+def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, Any]) -> None:
+    metrics = value["metrics"]
+    effective_config = value["effective_config"]
+    manifest = {
+        "schema": 1, "run_id": request.run_id, "strategy_id": request.strategy_id,
+        "status": "succeeded", "dataset_id": request.dataset_id,
+        "parameters": dict(request.parameters),
+        "effective_config": effective_config,
+        "config_hash": value.get("config_hash"),
+        "source_hashes": value.get("provenance", {}).get("source_hashes", {}),
+        "data_hash": value.get("provenance", {}).get("data_hash"),
+        "execution_hash": value.get("provenance", {}).get("execution_hash"),
+        "limitations": ["运行结果未经历史资格认定。"],
+        "note": "运行结果未经历史资格认定。",
+    }
+    for name, item in (("metrics.json", metrics), ("result.json", value),
+                       ("trace.json", value.get("trace", {})), ("manifest.json", manifest)):
+        content = json.dumps(item, ensure_ascii=False, sort_keys=True,
+                             separators=(",", ":"), allow_nan=False).encode()
+        data.write("runs", request.run_id, name, content)
+
+
+def save_failed_backtest(data: DataPort, request: BacktestRequest, error: Exception,
+                         partial: object | None) -> str:
+    value = {"run_id": request.run_id, "status": "failed", "code": getattr(error, "code", "run_failed"),
+             "detail": str(error), "partial": _json_value(partial) if partial is not None else None}
+    name = "failed.json"
+    data.write("runs", request.run_id, name, json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode())
+    return f"data/runs/{request.run_id}/{name}"
+
+
 def build_backend(root: Path) -> Protocol:
     """Compose the project once; adapters receive only the returned backend port."""
 
     from collect.lake_display import LakePort
-    from workbench.port import WorkbenchPort
     from collect.display import CollectPort
     from collect.data import Store
 
@@ -845,28 +983,76 @@ def build_backend(root: Path) -> Protocol:
         for item in config['sources']
     }
     sources = CollectPort(config['sources'], store, providers)
-    workbench = WorkbenchPort(project, config, data, store=store)
-    backtests = BacktestModule(workbench, KernelBacktestPort(data, settlement_type, workbench.benchmarks))
+    benchmarks = Benchmarks(store, config.get("benchmarks", []))
+    backtests = KernelBacktestPort(
+        data, settlement_type, benchmarks,
+        config=config, research=Research(data),
+    )
     lake = LakePort(data)
     commands = CommandPort(project, backtests, data)
-    return Protocol(Modules(backtests, workbench, sources, lake, commands))
+    return Protocol(Modules(backtests, backtests, sources, lake, commands))
 
 
 class KernelBacktestPort:
     """把固定 Kernel 适配成统一协议中的一个端口。"""
 
-    def __init__(self, data: DataPort, settlement_type, benchmarks=None) -> None:
+    def __init__(self, data: DataPort, settlement_type, benchmarks=None, *, config=None, research=None) -> None:
         if not callable(settlement_type):
             raise TypeError("settlement plugin must be callable")
         from core.kernel import Kernel
         self._kernel = Kernel(data, _load_registered_strategy, _query, settlement_type)
         self._data = data
         self._benchmarks = benchmarks
+        self._config = {} if config is None else dict(config)
+        self._research = research if research is not None else Research(data)
 
-    def handle(self, operation: str, data: JsonValue) -> PortResult:
+    def handle(self, operation: str, data: JsonValue) -> PortResult | JsonValue:
+        if operation == "workbench.strategies":
+            from strategy import catalog
+            items = catalog()
+            requirements = {}
+            for item in items:
+                strategy = _load_registered_strategy(item["module"], item["defaults"])
+                requirements[item["module"]] = _config_value(strategy.requirements())
+            datasets = list(self._config.get("backtests", {}).get("datasets", []))
+            return {"items": items, "availability": {
+                "ready": bool(datasets), "datasets": datasets,
+                "requirements": requirements,
+                "issues": [] if datasets else [{
+                    "code": "historical_data_unavailable",
+                    "message": "尚无可用历史数据集。",
+                }],
+            }}
+        if operation == "workbench.preflight":
+            request = parse_backtest_request(data)
+            try:
+                prepared = self._kernel.prepare(request)
+            except (BacktestError, DataError, TypeError, ValueError) as error:
+                return {"ready": False,
+                        "effective_params": getattr(error, "effective_params", dict(request.parameters)),
+                        "requirements": getattr(error, "requirements", {}),
+                        "config_hash": None,
+                        "effective_config": getattr(error, "effective_config", {}),
+                        "issues": [{"code": getattr(error, "code", "invalid_input"),
+                                    "message": str(error)}]}
+            return {"ready": True, "effective_params": prepared.effective_config["params"],
+                    "requirements": prepared.effective_config["requirements"],
+                    "config_hash": prepared.config_hash,
+                    "effective_config": prepared.effective_config, "issues": []}
+        if operation == "workbench.runs":
+            return {"items": self._research.list()}
+        if operation == "workbench.run":
+            if not isinstance(data, dict):
+                raise TypeError("operation data must be an object")
+            return self._research.detail(data["id"], data.get("offset", 0), data.get("limit", 50))
+        if operation == "workbench.benchmarks":
+            return self._benchmarks.list()
+        if operation == "workbench.benchmark":
+            if not isinstance(data, dict):
+                raise TypeError("operation data must be an object")
+            return self._benchmarks.series(data["id"], data["start"], data["end"])
         if operation != "workbench.backtest":
             raise BacktestError("unsupported_operation", operation)
-        from application import save_backtest, save_failed_backtest
         request = parse_backtest_request(data)
         search = _search(data, request)
         try:
@@ -883,8 +1069,7 @@ class KernelBacktestPort:
                 raise
             if search is None:
                 partial = getattr(error, "partial_result", None)
-                if partial is not None:
-                    error.evidence_ref = save_failed_backtest(self._data, request, error, partial)
+                error.evidence_ref = save_failed_backtest(self._data, request, error, partial)
             else:
                 error.evidence_ref = self._save_search_failure(request, error)
             raise
@@ -899,7 +1084,6 @@ class KernelBacktestPort:
         )
 
     def _save_search_failure(self, request: BacktestRequest, error: BacktestError) -> str:
-        from application import save_backtest, save_failed_backtest
         completed = getattr(error, "completed_trials", ())
         for trial in completed:
             save_backtest(self._data, trial.request, _result_data(trial.response, trial.request, self._benchmarks))
@@ -919,7 +1103,6 @@ class KernelBacktestPort:
         return save_failed_backtest(self._data, request, error, evidence)
 
     def _save_search(self, request: BacktestRequest, spec: SearchSpec, result) -> JsonObject:
-        from application import save_backtest
         from strategy import canonical_hash
 
         trials = []
@@ -950,11 +1133,7 @@ class KernelBacktestPort:
             "run_id": request.run_id,
             "parameters": dict(best.request.parameters),
             "effective_config": effective_config,
-            "config_hash": canonical_hash({
-                "strategy_id": request.strategy_id,
-                "parameters": dict(best.request.parameters),
-                **effective_config,
-            }),
+            "config_hash": canonical_hash(effective_config),
             "search": {
                 "metric": spec.metric,
                 "direction": spec.direction,
@@ -967,21 +1146,6 @@ class KernelBacktestPort:
         summary_request = replace(request, parameters=dict(best.request.parameters))
         save_backtest(self._data, summary_request, value)
         return value
-
-
-class BacktestModule:
-    """Catalog and preflight share a port; execution always enters Kernel."""
-
-    def __init__(self, workbench: ModulePort, kernel: KernelBacktestPort) -> None:
-        self._workbench = workbench
-        self._kernel = kernel
-
-    def handle(self, operation: str, data: JsonValue) -> PortResult | JsonValue:
-        if operation == "workbench.backtest":
-            return self._kernel.handle(operation, data)
-        if operation in {"workbench.strategies", "workbench.preflight"}:
-            return self._workbench.handle(operation, data)
-        raise ValueError(f"unsupported backtest operation: {operation}")
 
 
 class CommandPort:
@@ -1104,13 +1268,15 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
     try:
         allowed = {"run_id", "module", "params", "dataset_id", "start", "end", "initial_cash",
                    "fields", "history", "price_basis", "as_of", "symbols", "universe", "limits", "evaluation", "benchmark_id",
-                   "search"}
+                   "execution", "search"}
         unknown = set(data) - allowed
         if unknown:
             raise ValueError(f"unsupported request fields: {', '.join(sorted(unknown))}")
         settlement_parameters = {}
         if data.get("limits") is not None:
             settlement_parameters["limits"] = _limits(data["limits"])
+        if data.get("execution") is not None:
+            settlement_parameters["execution"] = validate_execution(data["execution"])
         return BacktestRequest(
             run_id=_text(data, "run_id") if "run_id" in data else uuid4().hex,
             strategy_id=_text(data, "module"), parameters=_object(data, "params"),
@@ -1131,6 +1297,92 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
         raise
     except (KeyError, TypeError, ValueError) as error:
         raise BacktestError("invalid_request", str(error)) from error
+
+
+def validate_execution(value: JsonValue) -> dict[str, dict[str, object]]:
+    if not isinstance(value, dict) or set(value) != {"price", "quantity", "fees", "tax", "check"}:
+        raise ValueError("execution must declare price, quantity, fees, tax and check")
+
+    def action(name, models, required, optional=()):
+        item = value[name]
+        if not isinstance(item, dict) or set(item) != {"model", "params"}:
+            raise ValueError(f"{name} model and params are required")
+        model, params = item["model"], item["params"]
+        if model not in models or not isinstance(params, dict):
+            raise ValueError(f"unsupported {name} model")
+        keys = set(params)
+        if not set(required) <= keys or keys - set(required) - set(optional):
+            raise ValueError(f"invalid {name} parameters")
+        return {"model": model, "params": dict(params)}
+
+    def number(value, name, positive=False):
+        if isinstance(value, bool):
+            raise ValueError(f"{name} must be a number")
+        try:
+            result = Decimal(str(value))
+        except (ArithmeticError, TypeError, ValueError) as error:
+            raise ValueError(f"{name} must be a number") from error
+        if not result.is_finite() or (positive and result <= 0) or (not positive and result < 0):
+            raise ValueError(f"{name} must be finite and valid")
+        return result
+
+    price = action("price", {"ratio", "tick", "volume_share"}, (),
+                   {"rate", "ticks", "tick", "impact", "capacity_basis"})
+    if price["model"] == "ratio" and set(price["params"]) != {"rate", "tick"}:
+        raise ValueError("ratio requires rate and tick")
+    if price["model"] == "ratio":
+        rate = number(price["params"]["rate"], "rate")
+        if rate >= 1:
+            raise ValueError("rate must be less than one")
+        number(price["params"]["tick"], "tick", positive=True)
+    if price["model"] == "tick" and set(price["params"]) != {"ticks", "tick"}:
+        raise ValueError("tick requires ticks and tick")
+    if price["model"] == "tick":
+        if type(price["params"]["ticks"]) is not int or price["params"]["ticks"] < 0:
+            raise ValueError("ticks must be a nonnegative integer")
+        number(price["params"]["tick"], "tick", positive=True)
+    if price["model"] == "volume_share" and set(price["params"]) != {"impact", "tick", "capacity_basis"}:
+        raise ValueError("volume_share requires impact, tick and capacity_basis")
+    if price["model"] == "volume_share" and price["params"]["capacity_basis"] != "prior20":
+        raise ValueError("volume_share requires prior20 capacity_basis")
+    if price["model"] == "volume_share":
+        number(price["params"]["impact"], "impact")
+        number(price["params"]["tick"], "tick", positive=True)
+
+    quantity = action("quantity", {"capacity", "participation"}, (),
+                      {"participation", "capacity_basis"})
+    if quantity["model"] == "capacity" and quantity["params"]:
+        raise ValueError("capacity does not accept parameters")
+    if quantity["model"] == "participation" and set(quantity["params"]) != {"participation", "capacity_basis"}:
+        raise ValueError("participation requires participation and capacity_basis")
+    if quantity["model"] == "participation" and quantity["params"]["capacity_basis"] != "prior20":
+        raise ValueError("participation requires prior20 capacity_basis")
+    if quantity["model"] == "participation":
+        participation = number(quantity["params"]["participation"], "participation", positive=True)
+        if participation > 1:
+            raise ValueError("participation must not exceed one")
+
+    fees = action("fees", {"dated"}, {"rounding"})
+    if fees["params"]["rounding"] not in {"none", "half_up"}:
+        raise ValueError("fees rounding must be none or half_up")
+    tax = action("tax", {"fifo"}, ())
+    check = action("check", {"cn_a_share"}, {"tick", "min_qty", "step"},
+                   {"limit_up", "limit_down", "limit_source"})
+    number(check["params"]["tick"], "tick", positive=True)
+    if any(type(check["params"][name]) is not int or check["params"][name] <= 0
+           for name in ("min_qty", "step")):
+        raise ValueError("min_qty and step must be positive integers")
+    bounds = {"limit_up", "limit_down", "limit_source"} & set(check["params"])
+    if bounds and bounds != {"limit_up", "limit_down", "limit_source"}:
+        raise ValueError("price bounds require limit_up, limit_down and limit_source")
+    if bounds:
+        lower = number(check["params"]["limit_down"], "limit_down", positive=True)
+        upper = number(check["params"]["limit_up"], "limit_up", positive=True)
+        if lower > upper or not isinstance(check["params"]["limit_source"], str) or not check["params"]["limit_source"].strip():
+            raise ValueError("price bounds require ordered values and a source")
+    if number(price["params"]["tick"], "price tick", positive=True) != number(check["params"]["tick"], "check tick", positive=True):
+        raise ValueError("price and check ticks must match")
+    return {"price": price, "quantity": quantity, "fees": fees, "tax": tax, "check": check}
 
 
 def _search(data: JsonValue, request: BacktestRequest) -> SearchSpec | None:
@@ -1246,7 +1498,7 @@ def _names(value, name: str) -> tuple[str, ...]:
 
 
 def _limits(value):
-    from account_allocation import AllocationLimits
+    from core.calculation import AllocationLimits
     if not isinstance(value, dict) or set(value) - {"lot_size", "stock_weight", "adv_fraction"}:
         raise ValueError("unsupported settlement limits")
     defaults = AllocationLimits()
@@ -1327,6 +1579,8 @@ def _load_plugin(settings, key):
         raise ValueError(f"invalid {key} plugin declaration")
     plugin = getattr(import_module(module), symbol)
     params = dict(spec["params"])
+    if "execution" in params:
+        params["execution"] = validate_execution(params["execution"])
     parameters = signature(plugin).parameters
     accepted = {name for name, parameter in parameters.items()
                 if name not in {"self", "initial_cash", "fees", "tax_policy"}
@@ -1349,7 +1603,18 @@ def _load_plugin(settings, key):
         merged.update(overrides)
         if "limits" in merged and isinstance(merged["limits"], dict):
             merged["limits"] = _limits(merged["limits"])
+        if "execution" in merged:
+            merged["execution"] = validate_execution(merged["execution"])
         return merged
+
+    validate_dataset = getattr(plugin, "validate_dataset", None)
+    if callable(validate_dataset):
+        def configured_validate_dataset(dataset, request, **overrides):
+            settlement_parameters = dict(request.settlement_parameters)
+            settlement_parameters.update(overrides)
+            return validate_dataset(dataset, request, **merge(settlement_parameters))
+
+        configured.validate_dataset = configured_validate_dataset
 
     def describe(overrides):
         return {"module": name, "params": _config_value(merge(overrides))}
@@ -1370,6 +1635,44 @@ def _config_value(value):
     return value
 
 
+def _strategy_params(strategy, request):
+    params = getattr(strategy, "params", None)
+    return (_config_value(params) if is_dataclass(params)
+            else _config_value(dict(request.parameters)))
+
+
+def build_effective_config(request, strategy, requirements, dataset, settlement):
+    """Build the one serializable config used by preflight, runs and manifests."""
+    if is_dataclass(requirements):
+        requirements_value = _config_value(asdict(requirements))
+    else:
+        requirements_value = _config_value(vars(requirements))
+    fields = (list(dataset.fields) if dataset is not None
+              else list(required_fields(requirements.fields)))
+    history = (dataset.history if dataset is not None
+               else requirements.history_bars)
+    value = {
+        "module": request.strategy_id,
+        "params": _strategy_params(strategy, request),
+        "dataset_id": request.dataset_id,
+        "start": request.start.isoformat(),
+        "end": request.end.isoformat(),
+        "initial_cash": str(request.initial_cash),
+        "fields": fields,
+        "history": history,
+        "price_basis": request.price_basis,
+        "as_of": request.as_of.isoformat() if request.as_of else None,
+        "symbols": list(request.symbols) if request.symbols else None,
+        "universe": request.universe,
+        "requirements": requirements_value,
+        "settlement": _config_value(settlement),
+        "evaluation": dict(request.evaluation_parameters),
+        "benchmark_id": request.benchmark_id,
+    }
+    from strategy import canonical_hash
+    return value, canonical_hash(value)
+
+
 def _json_value(value):
     """Serialize protocol and settlement dataclasses without a recorder module."""
     from datetime import date as date_type, datetime as datetime_type
@@ -1388,6 +1691,15 @@ def _json_value(value):
     if isinstance(value, Enum):
         return value.value
     return value
+
+
+def build_execution_hash(provenance: Mapping[str, object], settlement: object) -> str:
+    """Hash source/code evidence together with the actual selected settlement."""
+    from strategy import canonical_hash
+    return canonical_hash({
+        "input": _json_value(provenance),
+        "settlement": _config_value(settlement),
+    })
 
 
 def _object(data: Mapping[str, JsonValue], name: str) -> Mapping[str, object]:
@@ -1433,34 +1745,16 @@ def _result_data(result: BacktestResponse, request: BacktestRequest | None = Non
             "return_type": series["return_type"], "points": values,
         }
     if request is not None:
-        from strategy import canonical_hash
-        plugin_config = {
-            key: result.dataset.provenance[key]
-            for key in ("settlement", "signal_plugins")
-            if key in result.dataset.provenance
-        }
-        effective_config = {
-            "dataset_id": request.dataset_id, "start": request.start.isoformat(),
-            "end": request.end.isoformat(), "initial_cash": str(request.initial_cash),
-            "fields": list(result.dataset.fields) if result.dataset is not None else list(request.fields),
-            "history": result.dataset.history if result.dataset is not None else request.history,
-            "price_basis": request.price_basis, "as_of": request.as_of.isoformat() if request.as_of else None,
-            "symbols": list(request.symbols) if request.symbols else None,
-            "universe": request.universe, "evaluation": dict(request.evaluation_parameters), **plugin_config,
-        }
-        effective_config["benchmark_id"] = request.benchmark_id
-        if benchmark is not None:
-            effective_config["benchmark"] = {
-                key: benchmark[key] for key in ("id", "snapshot_id", "data_hash", "start", "end", "return_type")
-            }
+        if result.dataset is None:
+            raise BacktestError("run_failed", "result dataset is required for effective config")
+        provenance = result.dataset.provenance
+        if "effective_config" not in provenance or "config_hash" not in provenance:
+            raise BacktestError("run_failed", "prepared config evidence is missing")
+        effective_config = dict(provenance["effective_config"])
         value.update({
-            "parameters": dict(request.parameters),
+            "parameters": effective_config["params"],
             "effective_config": effective_config,
-            "config_hash": canonical_hash({
-                "strategy_id": request.strategy_id,
-                "parameters": dict(request.parameters),
-                **effective_config,
-            }),
+            "config_hash": provenance["config_hash"],
         })
         if benchmark is not None:
             value["benchmark"] = benchmark
@@ -1477,15 +1771,24 @@ def _result_data(result: BacktestResponse, request: BacktestRequest | None = Non
         "scope": _json_value(result.dataset.scope),
     })
     value.update(_json_value(result.dataset.provenance))
+    if benchmark is not None:
+        value["provenance"] = {
+            **value["provenance"],
+            "benchmark": {
+                key: benchmark[key]
+                for key in ("id", "snapshot_id", "data_hash", "start", "end", "return_type")
+            },
+        }
     return value
 
 
 __all__ = [
-    "BacktestError", "BacktestModule", "CommandPort", "KernelBacktestPort", "Modules", "OperationSpec", "PortResult",
+    "BacktestError", "Benchmarks", "CommandPort", "KernelBacktestPort", "Modules", "OperationSpec", "PortResult",
     "Protocol", "PROTOCOL_NAME", "PROTOCOL_VERSION", "export_operations",
     "build_backend", "build_protocol", "build_data", "DataBus", "DataPort", "DataRef", "DataError",
     "Scalar", "Side", "Bar", "Order", "Fill", "DataRequest", "HistoryBar", "MarketFrame", "TargetSet",
     "AccountSnapshot", "RegistrationAction", "HistoryDay", "RegistrationRecord", "HistoryResult",
-    "BacktestRequest", "BacktestResponse", "Trial", "SearchResponse", "parse_backtest_request", "DataQuery", "Dataset",
+    "BacktestRequest", "BacktestResponse", "Research", "Trial", "SearchResponse", "parse_backtest_request", "DataQuery", "Dataset",
+    "validate_execution", "build_execution_hash",
     "EXECUTION_FIELDS", "required_fields",
 ]

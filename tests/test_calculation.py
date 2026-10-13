@@ -3,8 +3,7 @@ from decimal import Decimal
 import json
 import unittest
 
-from application import save_backtest
-from protocal import BacktestError, BacktestRequest
+from protocal import BacktestError, BacktestRequest, save_backtest
 from core.calculation import Calculation
 
 

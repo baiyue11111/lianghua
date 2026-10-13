@@ -1,19 +1,19 @@
-from tests.fee_fixture import fees
+from tests.fee_fixture import rules
 from datetime import date
 from decimal import Decimal as D
 import unittest
 
-import account_execution
-from account_ledger import AccountLedger
+import core.calculation as account_execution
+from core.calculation import AccountLedger
 from protocal import Bar, Order, Side
 
 
 class OpeningRiskTests(unittest.TestCase):
     def run_order(self, shares, price, adv):
-        import execution_risk
+        import core.calculation as execution_risk
         self.assertTrue(hasattr(execution_risk,'OpeningRiskSnapshot'),'missing opening risk contract')
         account=AccountLedger(D('100000'))
-        session=account_execution.AccountExecutionSession(account,fees())
+        session=account_execution.AccountExecutionSession(account,rules())
         session.submit(Order('buy','A',Side.BUY,shares,date(2020,1,2),date(2020,1,3),'entry'))
         day=date(2020,1,3)
         risk=execution_risk.OpeningRiskSnapshot(date(2020,1,2),{'A':D(str(price))},
@@ -48,11 +48,11 @@ class OpeningRiskTests(unittest.TestCase):
         self.assertEqual(len(session.fills),1)
 
     def test_missing_risk_inputs_or_current_day_liquidity_stop_before_any_fill(self):
-        from execution_risk import OpeningRiskSnapshot
+        from core.calculation import OpeningRiskSnapshot
         day=date(2020,1,3)
         for defect in ('missing_mark','missing_adv','future_adv','negative_claim'):
             with self.subTest(defect=defect):
-                account=AccountLedger(D('100000')); session=account_execution.AccountExecutionSession(account,fees())
+                account=AccountLedger(D('100000')); session=account_execution.AccountExecutionSession(account,rules())
                 for symbol in ('A','B'):
                     session.submit(Order(symbol,symbol,Side.BUY,100,date(2020,1,2),day,'entry'))
                 marks={'A':D(10),'B':D(10)}; adv={'A':D('50000000'),'B':D('50000000')}

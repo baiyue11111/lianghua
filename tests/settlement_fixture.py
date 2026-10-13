@@ -3,7 +3,7 @@ from decimal import Decimal as D
 
 from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
 from protocal import Bar, HistoryBar, HistoryDay, MarketFrame
-from tests.fee_fixture import fees, tax_policy
+from tests.fee_fixture import settlement as make_settlement
 
 
 class SettlementFixture:
@@ -43,7 +43,7 @@ class SettlementFixture:
     def run_settlement(self, records, calendar=None, *, strategy=None, trade_start=None):
         from plugins.data import Settlement
 
-        settlement = Settlement(D("100000"), fees(), tax_policy())
+        settlement = make_settlement(D("100000"))
         strategy = strategy or Strategy(Params(breadth_window=1))
         calendar = self.calendar if calendar is None else calendar
         if len(calendar) != len(records) + 1:

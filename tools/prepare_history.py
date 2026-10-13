@@ -14,7 +14,7 @@ import duckdb
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from corporate_actions import normalize_dividend_records
+from core.calculation import normalize_dividend_records
 from protocal import DataError, DataRef, build_data
 
 

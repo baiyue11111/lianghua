@@ -7,7 +7,7 @@ from datetime import date
 from numbers import Real
 
 import numpy as np
-from account_allocation import AllocationLimits
+from core.calculation import AllocationLimits
 from protocal import HistoryResult, RegistrationRecord
 
 
@@ -347,17 +347,16 @@ class Adapter:
 class Settlement:
     """Stateful account settlement extracted from the historical runner."""
 
-    def __init__(self, initial_cash, fees, tax_policy, limits: AllocationLimits = AllocationLimits()):
-        from account_execution import AccountExecutionSession
-        from account_ledger import AccountLedger
-        from distribution_ledger import AccountDistributionLedger
-        from tax_ledger import TaxLedger
+    def __init__(self, initial_cash, fees, tax_policy, *, limits, execution):
+        from core.calculation import (AccountExecutionSession, AccountLedger,
+                                      AccountDistributionLedger, TradeRules)
 
         self.limits = limits
+        self.trade_rules = TradeRules(execution, fees, tax_policy)
         self.account = AccountLedger(initial_cash)
-        self.execution = AccountExecutionSession(self.account, fees)
+        self.execution = AccountExecutionSession(self.account, self.trade_rules)
         self.distributions = AccountDistributionLedger(self.account)
-        self.taxes = TaxLedger(tax_policy)
+        self.taxes = self.trade_rules._tax_ledger
         self.tax_liabilities = []
         self.frames = []
         self.targets = []
@@ -372,6 +371,13 @@ class Settlement:
         self._failed = False
         self._failure = None
         self._sealed = False
+
+    @staticmethod
+    def validate_dataset(dataset, request, *, limits, execution):
+        from core.calculation import TradeRules
+
+        rules = TradeRules(execution, dataset.policies['fees'], dataset.policies['tax_policy'])
+        return rules.check(phase='dataset', dataset=dataset, start=request.start.date())
 
     @property
     def cash(self):
@@ -421,8 +427,7 @@ class Settlement:
 
     def _register(self, action):
         from decimal import Decimal
-        from corporate_actions import calculate_entitlement
-        from distribution_ledger import ShareDelivery
+        from core.calculation import calculate_entitlement, ShareDelivery
 
         lots = tuple(lot for lot in self.account.lots if lot.symbol == action.event.code)
         claim = calculate_entitlement(action.event, action.event.registration_date,
@@ -443,7 +448,7 @@ class Settlement:
         from dataclasses import replace
         from decimal import Decimal
         from protocal import AccountSnapshot
-        from execution_risk import OpeningRiskSnapshot
+        from core.calculation import OpeningRiskSnapshot
 
         if self._pending is not None:
             raise ValueError("plan is required before the next apply")
@@ -464,7 +469,7 @@ class Settlement:
             self.taxes.advance(when)
             for payment in self.taxes.settle(when):
                 self.account.record_cash(payment.event_id, payment.due, "dividend_tax", -payment.amount, payment.source_sha256)
-        self.taxes.begin(day)
+        self.trade_rules.tax(day, phase='begin')
         claims = self.distributions.receivable_value(day, record.opening_marks)
         new_fills = self.execution.execute_open(
             day,
@@ -475,18 +480,18 @@ class Settlement:
                 record.opening_marks,
                 record.opening_amount20,
                 claims,
-                self.taxes.liability(day),
+                self.trade_rules.tax(day, phase='liability'),
                 self.limits,
             ),
-            cash_reserve=lambda: self.taxes.reserve(day),
-            on_fill=self.taxes.preview,
+            volume20=record.opening_volume20,
+            cash_reserve=Decimal(0),
         )
-        self.taxes.end(new_fills)
+        self.trade_rules.tax(day, new_fills, phase='end')
         for payment in self.taxes.settle(day):
             self.account.record_cash(payment.event_id, day, "dividend_tax", -payment.amount, payment.source_sha256)
         claims = self.distributions.receivable_value(day, record.closing_marks)
-        point = self.account.mark(day, record.closing_marks, claims, self.taxes.liability(day))
-        self.tax_liabilities.append((day, self.taxes.liability(day)))
+        point = self.account.mark(day, record.closing_marks, claims, self.trade_rules.tax(day, phase='liability'))
+        self.tax_liabilities.append((day, self.trade_rules.tax(day, phase='liability')))
         for action in record.registrations:
             self.registrations.append(self._register(action))
             self.taxes.register(

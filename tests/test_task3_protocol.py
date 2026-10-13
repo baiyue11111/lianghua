@@ -5,12 +5,18 @@ import inspect
 import unittest
 from types import SimpleNamespace
 
+from tests.fee_fixture import execution
+
 
 class ConfigSettlement:
     def __init__(self, initial_cash, fees, tax_policy, *, limits=None, mode="default"):
         self.initial_cash = initial_cash
         self.limits = limits
         self.mode = mode
+
+
+def settlement_payload():
+    return {"limits": {"lot_size": 100}, "execution": execution()}
 
 
 class ShiftSignalAdapter:
@@ -282,10 +288,8 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_result_and_research_use_saved_json_trace_contract(self):
         from protocal import DataBus
-        from application import save_backtest
-        from protocal import BacktestRequest
+        from protocal import BacktestRequest, Research, save_backtest
         from storage import DataStore
-        from workbench.research import Research
         from decimal import Decimal
 
         with TemporaryDirectory() as root:
@@ -342,6 +346,7 @@ class Task3ProtocolTests(unittest.TestCase):
                     "run_id": "real-signal", "module": "plugins.strategies.breadth_low_amount_reversal",
                     "params": {"positions": 4}, "dataset_id": "fixture",
                     "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+                    **settlement_payload(),
                 }).data
             self.assertEqual(result["dataset_id"], "fixture")
 
@@ -468,7 +473,8 @@ class Task3ProtocolTests(unittest.TestCase):
             port = KernelBacktestPort(bus, FailOnce)
             payload = {"run_id": "retry", "module": "plugins.strategies.breadth_low_amount_reversal",
                        "params": {"positions": 4}, "dataset_id": "fixture",
-                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000"}
+                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+                       **settlement_payload()}
             with self.assertRaises(Exception):
                 port.handle("workbench.backtest", payload)
             self.assertTrue(bus.path("runs", "retry", "failed.json").is_file())
@@ -497,7 +503,8 @@ class Task3ProtocolTests(unittest.TestCase):
             port._kernel._calculation = BadCalculation()
             payload = {"run_id": "bad-metrics", "module": "plugins.strategies.breadth_low_amount_reversal",
                        "params": {"positions": 4}, "dataset_id": "fixture",
-                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000"}
+                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+                       **settlement_payload()}
             with self.assertRaises(Exception) as caught:
                 port.handle("workbench.backtest", payload)
             self.assertEqual(caught.exception.code, "run_failed")
@@ -588,7 +595,7 @@ class Task3ProtocolTests(unittest.TestCase):
         self.assertEqual(request.benchmark_id, "hs300")
 
     def test_config_plugin_params_merge_with_request_overrides(self):
-        from account_allocation import AllocationLimits
+        from core.calculation import AllocationLimits
         from protocal import _load_plugin, parse_backtest_request
 
         plugin = _load_plugin({"settlement": {
@@ -650,6 +657,10 @@ class Task3ProtocolTests(unittest.TestCase):
                 "frozen", "plugins.strategies.breadth_low_amount_reversal", asdict(strategy.params), "fixture",
                 datetime(2020, 1, 31, tzinfo=timezone.utc),
                 datetime(2020, 2, 4, 23, 59, 59, tzinfo=timezone.utc), Decimal("100000"),
+                settlement_parameters={
+                    "limits": __import__("core.calculation", fromlist=["AllocationLimits"]).AllocationLimits(),
+                    "execution": execution(),
+                },
             )
             response = kernel.run(request)
             result = response.account_result
@@ -679,6 +690,7 @@ class Task3ProtocolTests(unittest.TestCase):
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                 "evaluation": {"periods": 12, "baseline": .01},
+                **settlement_payload(),
             }).data
             manifest = json.loads(bus.read("runs", "saved", "manifest.json"))
             saved = json.loads(bus.read("runs", "saved", "result.json"))
@@ -698,6 +710,7 @@ class Task3ProtocolTests(unittest.TestCase):
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                 "limits": {"lot_size": 300},
+                "execution": execution(),
             }).data
             self.assertNotEqual(value["config_hash"], changed["config_hash"])
             self.assertEqual(changed["effective_config"]["settlement"]["params"]["limits"]["lot_size"], 300)
@@ -707,6 +720,7 @@ class Task3ProtocolTests(unittest.TestCase):
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                 "evaluation": {"periods": 252, "baseline": 0},
+                **settlement_payload(),
             }).data
             self.assertEqual(changed_evaluation["equity"], value["equity"])
             self.assertEqual(changed_evaluation["trades"], value["trades"])

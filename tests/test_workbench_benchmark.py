@@ -2,7 +2,7 @@ import unittest,tempfile
 from pathlib import Path
 from protocal import build_data
 from collect.data import Store
-from workbench.benchmark import Benchmarks
+from protocal import Benchmarks, KernelBacktestPort, Research
 
 class BenchmarkTests(unittest.TestCase):
     def test_configured_index_reads_evidence_without_supplier_coupling(self):
@@ -34,25 +34,47 @@ class BenchmarkTests(unittest.TestCase):
                 service.series('i','2026-09-29','2026-10-01',dates=('2026-09-29','2026-09-30','2026-10-01'))
 
 class BenchmarkPortTests(unittest.TestCase):
+    def test_preflight_and_run_keep_config_hash_when_benchmark_is_added(self):
+        from protocal import _result_data
+        from tests.test_core_backtest import BacktestTests, request
+
+        kernel = BacktestTests().make_kernel()
+        request_value = request(run_id="benchmark", benchmark_id="hs300")
+        prepared = kernel.prepare(request_value)
+        result = kernel.run(request_value)
+
+        class Benchmark:
+            def series(self, identity, start, end, *, dates):
+                return {
+                    "id": identity, "snapshot_id": "snapshot-hash",
+                    "return_type": "price",
+                    "points": [{"at": dates[0], "close": 100.0}],
+                }
+
+        value = _result_data(result, request_value, Benchmark())
+        self.assertEqual(value["config_hash"], prepared.config_hash)
+        self.assertNotIn("benchmark", value["effective_config"])
+        self.assertEqual(value["benchmark"]["snapshot_id"], "snapshot-hash")
+        self.assertEqual(value["provenance"]["benchmark"]["data_hash"], "snapshot-hash")
+
     def test_benchmark_protocol_port_and_missing_data(self):
-        from workbench.port import WorkbenchPort
-        class Research:
-            def list(self):return []
         with tempfile.TemporaryDirectory() as d:
             spec={'id':'hs300','name':'沪深300','source_id':'index','code':'sh.000300','provider':'BaoStock','currency':'CNY','return_type':'price'}
             config={'storage':'data','sources':[{'id':'index','name':'指数','frequency':'日','defaults':{}}],'research':{},'benchmarks':[spec]}
             data=build_data(Path(d))
-            port=WorkbenchPort(Path(d),config,data,store=Store(data),research=Research())
+            store=Store(data)
+            port=KernelBacktestPort(data, lambda *args, **kwargs: object(),
+                                    Benchmarks(store, [spec]), config=config,
+                                    research=Research(data))
             self.assertEqual(port.handle('workbench.benchmarks',{}),[spec])
             request={'id':'hs300','start':'2026-09-29','end':'2026-09-30'}
             with self.assertRaises(ValueError):port.handle('workbench.benchmark',request)
-            port.store.snapshot('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'}],'raw':[{}],'scope':{},'data_as_of':'2026-09-29'},{})
+            store.snapshot('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'}],'raw':[{}],'scope':{},'data_as_of':'2026-09-29'},{})
             series=port.handle('workbench.benchmark',request);self.assertEqual(series['points'][0]['close'],4000)
             with self.assertRaises(ValueError):port.handle('workbench.benchmark',{**request,'start':'not-a-date'})
 
 class ResearchEndpointTests(unittest.TestCase):
     def test_plot_sampling_keeps_final_observation(self):
-        from workbench.research import Research
         import json,csv
         from datetime import date,timedelta
         with tempfile.TemporaryDirectory() as d:

@@ -186,11 +186,11 @@ class ProtocolBoundaryTests(unittest.TestCase):
 
     def test_backtest_port_is_the_only_protocol_owned_kernel_adapter(self):
         from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import KernelBacktestPort, Modules, Protocol
         from protocal import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
+        from tests.fee_fixture import configured_settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
@@ -198,7 +198,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
             bus = DataBus(DataStore(root))
             bus.configure_reader(HistoricalLake(bus, config))
             protocol = Protocol(Modules(
-                backtests=KernelBacktestPort(bus, Settlement),
+                backtests=KernelBacktestPort(bus, configured_settlement()),
                 research=Port({}), sources=Port({}), lake=Port({}), commands=Port({}),
             ))
             request = ui.UiRequest(

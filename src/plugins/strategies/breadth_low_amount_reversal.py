@@ -9,7 +9,6 @@ import numpy as np
 from core.calculation import Calculation
 from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
-from panel_features import own_day_lagged_return, own_day_rolling_mean, valid_mask
 
 NAME = '市场宽度 · 低成交额反转'
 
@@ -60,11 +59,11 @@ class Strategy:
                     value=row.fields[name]
                     if value is not None and type(value) not in (int,float): raise ValueError(f'invalid historical field {symbol}.{name}')
                     arrays[name][i,index[row.at]]=np.nan if value is None else value
-        mask=valid_mask(*arrays.values())
+        mask=Calculation.valid_mask(*arrays.values())
         p=self.params
-        amounts=own_day_rolling_mean(arrays['amount'],p.amount_window,mask)
-        trend=own_day_rolling_mean(arrays['signal_close'],p.trend_window,mask)
-        returns=own_day_lagged_return(arrays['signal_close'],p.return_window,mask)
+        amounts=Calculation.own_day_rolling_mean(arrays['amount'],p.amount_window,mask)
+        trend=Calculation.own_day_rolling_mean(arrays['signal_close'],p.trend_window,mask)
+        returns=Calculation.own_day_lagged_return(arrays['signal_close'],p.return_window,mask)
         eligible=np.isfinite(amounts)&(amounts>=p.amount_floor)
         denominator=eligible.sum(axis=0)
         numerator=(eligible&np.isfinite(trend)&(arrays['signal_close']>trend)).sum(axis=0)

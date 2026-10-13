@@ -4,11 +4,11 @@ from decimal import Decimal
 import unittest
 from zoneinfo import ZoneInfo
 
-from account_execution import AccountExecutionSession
-from account_ledger import AccountLedger
+from core.calculation import AccountExecutionSession
+from core.calculation import AccountLedger
 from protocal import AccountSnapshot, HistoryBar, MarketFrame
 from strategy import catalog, load_strategy
-from tests.fee_fixture import fees
+from tests.fee_fixture import rules
 
 
 MODULE = "plugins.strategies.moving_average_cross"
@@ -43,7 +43,7 @@ class StrategyPortTests(unittest.TestCase):
     def test_none_decision_keeps_pending_orders(self):
         strategy = load_strategy(MODULE, {"fast_window": 2, "slow_window": 3, "exposure": .4})
         target = self.generate(strategy, {"x": [1, 2, 3]})
-        session = AccountExecutionSession(AccountLedger(Decimal("100000")), fees())
+        session = AccountExecutionSession(AccountLedger(Decimal("100000")), rules())
         session.apply_target(
             target,
             next_session=target.as_of.date().replace(day=target.as_of.day + 1),

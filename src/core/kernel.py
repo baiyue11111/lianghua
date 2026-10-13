@@ -3,25 +3,33 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from dataclasses import asdict, is_dataclass, replace
-from decimal import Decimal
+from dataclasses import dataclass, replace
 from math import isfinite
 from threading import Lock
 
-from protocal import BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Trial
+from protocal import (
+    BacktestError,
+    BacktestRequest,
+    BacktestResponse,
+    SearchResponse,
+    Trial,
+    _config_value,
+    _strategy_params,
+    build_effective_config,
+    build_execution_hash,
+)
 from .calculation import Calculation, _candidate_parameters
 
 
-def _config_value(value):
-    if is_dataclass(value):
-        return {key: _config_value(item) for key, item in asdict(value).items()}
-    if isinstance(value, Decimal):
-        return str(value)
-    if isinstance(value, dict):
-        return {str(key): _config_value(item) for key, item in value.items()}
-    if isinstance(value, (tuple, list)):
-        return [_config_value(item) for item in value]
-    return value
+@dataclass(frozen=True)
+class Preparation:
+    request: BacktestRequest
+    strategy: object
+    requirements: object
+    query: object
+    dataset: object
+    effective_config: dict
+    config_hash: str
 
 
 class Kernel:
@@ -42,6 +50,53 @@ class Kernel:
             return self._run(request)
         finally:
             self._lock.release()
+
+    def prepare(self, request: BacktestRequest) -> Preparation:
+        self._check_request(request)
+        strategy = self._load_strategy(request.strategy_id, dict(request.parameters))
+        requirements = strategy.requirements()
+        query = self._build_query(request, requirements)
+        describe = getattr(self._settlement_type, "describe", None)
+        if callable(describe):
+            settlement_config = describe(dict(request.settlement_parameters))
+        else:
+            settlement_config = {
+                "module": f"{self._settlement_type.__module__}:{self._settlement_type.__name__}",
+                "params": _config_value(dict(request.settlement_parameters)),
+            }
+        try:
+            dataset = self._data.query(query)
+        except Exception as error:
+            error.effective_params = _strategy_params(strategy, request)
+            error.requirements = _config_value(requirements)
+            error.effective_config = build_effective_config(
+                request, strategy, requirements, None, settlement_config,
+            )[0]
+            raise
+        if dataset.dataset != query.dataset:
+            raise ValueError("dataset identity changed across the query boundary")
+        if query.symbols is not None and tuple(dataset.scope.get("symbols", ())) != query.symbols:
+            raise ValueError("dataset symbols do not satisfy the strategy query")
+        validate_dataset = getattr(self._settlement_type, "validate_dataset", None)
+        if callable(validate_dataset):
+            validate_dataset(dataset, request, **dict(request.settlement_parameters))
+        if not dataset.records[-1].trade_date <= query.end < dataset.calendar[-1]:
+            raise ValueError("dataset does not cover query end before following-session sentinel")
+        if (requirements.universe != "dataset" and request.universe != "dataset"
+                and request.universe != requirements.universe):
+            raise ValueError("custom universe cannot lower or replace strategy universe")
+        effective_config, config_hash = build_effective_config(
+            request, strategy, requirements, dataset, settlement_config,
+        )
+        dataset = replace(dataset, provenance={
+            **dict(dataset.provenance),
+            "execution_hash": build_execution_hash(dataset.provenance, settlement_config),
+            "settlement": settlement_config,
+            "effective_config": effective_config,
+            "config_hash": config_hash,
+        })
+        return Preparation(request, strategy, requirements, query, dataset,
+                           effective_config, config_hash)
 
     def search(
         self,
@@ -134,30 +189,10 @@ class Kernel:
     def _run(self, request: BacktestRequest) -> BacktestResponse:
         settlement = None
         try:
-            strategy = self._load_strategy(request.strategy_id, dict(request.parameters))
-            requirements = strategy.requirements()
-            query = self._build_query(request, requirements)
-            dataset = self._data.query(query)
-            if dataset.dataset != query.dataset:
-                raise ValueError("dataset identity changed across the query boundary")
-            if query.symbols is not None and tuple(dataset.scope.get("symbols", ())) != query.symbols:
-                raise ValueError("dataset symbols do not satisfy the strategy query")
-            if not dataset.records[-1].trade_date <= query.end < dataset.calendar[-1]:
-                raise ValueError("dataset does not cover query end before following-session sentinel")
-            if (requirements.universe != "dataset" and request.universe != "dataset"
-                    and request.universe != requirements.universe):
-                raise ValueError("custom universe cannot lower or replace strategy universe")
-            describe = getattr(self._settlement_type, "describe", None)
-            if callable(describe):
-                settlement_config = describe(dict(request.settlement_parameters))
-            else:
-                settlement_config = {
-                    "module": f"{self._settlement_type.__module__}:{self._settlement_type.__name__}",
-                    "params": _config_value(dict(request.settlement_parameters)),
-                }
-            dataset = replace(dataset, provenance={
-                **dict(dataset.provenance), "settlement": settlement_config,
-            })
+            prepared = self.prepare(request)
+            strategy = prepared.strategy
+            requirements = prepared.requirements
+            dataset = prepared.dataset
             policies = dataset.policies
             settlement = self._settlement_type(
                 request.initial_cash, policies["fees"], policies["tax_policy"],

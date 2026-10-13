@@ -1,12 +1,12 @@
-from tests.fee_fixture import fees
+from tests.fee_fixture import rules
 from datetime import UTC, date, datetime
 from decimal import Decimal as D
 import unittest
 
-import account_execution
-from account_ledger import AccountLedger
+import core.calculation as account_execution
+from core.calculation import AccountLedger
 from protocal import Side, TargetSet
-from execution_risk import OpeningRiskSnapshot
+from core.calculation import OpeningRiskSnapshot
 
 
 class AccountAllocationTests(unittest.TestCase):
@@ -15,9 +15,7 @@ class AccountAllocationTests(unittest.TestCase):
                          {s:'monthly-selection' for s in weights})
 
     def allocate(self, target, holdings, prices, amounts):
-        import account_allocation
-        self.assertTrue(hasattr(account_allocation,'allocate_target'),'missing pure target allocation')
-        return account_allocation.allocate_target(target,next_session=date(2020,2,3),
+        return rules().allocate(target,next_session=date(2020,2,3),
                    equity=D('100000'),holdings=holdings,raw_closes=prices,amount20=amounts,
                    rebalance=True)
 
@@ -60,7 +58,7 @@ class AccountAllocationTests(unittest.TestCase):
     def test_observation_only_target_does_not_cancel_pending(self):
         self.assertTrue(hasattr(account_execution.AccountExecutionSession,'apply_target'),
                         'missing target to account orchestration')
-        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),fees())
+        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),rules())
         first=session.apply_target(self.target({'A':.125}),next_session=date(2020,2,3),
                                    equity=D('100000'),raw_closes={'A':D('10')},amount20={'A':D('50000000')})
         self.assertEqual(len(session.pending),1)
@@ -77,7 +75,7 @@ class AccountAllocationTests(unittest.TestCase):
         self.assertEqual(session.account.order_cancellations[0].order_id,first.orders[0].order_id)
 
     def test_bad_replacement_preserves_old_order_and_replay_cannot_mutate_target(self):
-        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),fees())
+        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),rules())
         weights={'A':.125}; target=self.target(weights)
         kwargs=dict(next_session=date(2020,2,3),equity=D('100000'),
                     raw_closes={'A':D('10')},amount20={'A':D('50000000')})

@@ -6,9 +6,9 @@ from zoneinfo import ZoneInfo
 
 from plugins.data import Adapter, Settlement
 from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
-from tests.fee_fixture import fees, tax_policy
+from tests.fee_fixture import settlement as make_settlement
 from tests.settlement_fixture import SettlementFixture
-from corporate_actions import normalize_dividend_records
+from core.calculation import normalize_dividend_records
 from protocal import HistoryBar, MarketFrame, RegistrationAction
 
 
@@ -166,7 +166,7 @@ class DataPluginSettlementTests(unittest.TestCase):
         expected = case.run_settlement(records)
 
         strategy = Strategy(Params(breadth_window=1))
-        settlement = Settlement(D("100000"), fees(), tax_policy())
+        settlement = make_settlement(D("100000"))
         for index, record in enumerate(records):
             frame, account = settlement.apply(record, case.calendar[index + 1])
             target = strategy.generate(frame, account)
@@ -182,9 +182,9 @@ class DataPluginSettlementTests(unittest.TestCase):
     def test_settlement_rejects_double_apply_and_missing_plan(self):
         case = SettlementFixture()
         record = case.inputs()[0]
-        settlement = Settlement(D("100000"), fees(), tax_policy())
+        settlement = make_settlement(D("100000"))
         settlement.apply(record, case.calendar[1])
         with self.assertRaises(ValueError):
             settlement.apply(record, case.calendar[1])
         with self.assertRaises(ValueError):
-            Settlement(D("100000"), fees(), tax_policy()).plan(None, "strategy")
+            make_settlement(D("100000")).plan(None, "strategy")

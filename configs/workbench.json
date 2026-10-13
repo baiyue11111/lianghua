@@ -77,7 +77,20 @@
     "adapter": "history_data:HistoricalLake",
     "settlement": {
       "module": "plugins.data:Settlement",
-      "params": {}
+      "params": {
+        "limits": {
+          "lot_size": 100,
+          "stock_weight": "0.4",
+          "adv_fraction": "0.01"
+        },
+        "execution": {
+          "price": {"model": "ratio", "params": {"rate": "0.001", "tick": "0.01"}},
+          "quantity": {"model": "capacity", "params": {}},
+          "fees": {"model": "dated", "params": {"rounding": "none"}},
+          "tax": {"model": "fifo", "params": {}},
+          "check": {"model": "cn_a_share", "params": {"tick": "0.01", "min_qty": 100, "step": 100}}
+        }
+      }
     },
     "datasets": [
       {

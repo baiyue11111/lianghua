@@ -23,22 +23,19 @@ def await_protocol(protocol, operation, data):
 
 class SearchProtocolTests(unittest.TestCase):
     def _fixture_protocol(self, root):
-        from collect.data import Store
         from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from workbench.port import WorkbenchPort
+        from tests.fee_fixture import configured_settlement
 
         root = Path(root)
         config = make_snapshot(root)
         bus = DataBus(DataStore(root))
         bus.configure_reader(HistoricalLake(bus, config))
-        backtests = KernelBacktestPort(bus, Settlement)
-        workbench = WorkbenchPort(root, {"backtests": {}, "benchmarks": []}, bus, store=Store(bus))
+        backtests = KernelBacktestPort(bus, configured_settlement())
         empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
-        return bus, Protocol(Modules(backtests, workbench, empty, empty, empty))
+        return bus, Protocol(Modules(backtests, backtests, empty, empty, empty))
 
     def _search_payload(self, run_id, candidates):
         return {
@@ -124,22 +121,19 @@ class SearchProtocolTests(unittest.TestCase):
 
     def test_protocol_search_saves_each_trial_and_base_summary(self):
         from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol, _DIRECTORY
         from storage import DataStore
         from tests.history_fixture import make_snapshot
+        from tests.fee_fixture import configured_settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
             bus.configure_reader(HistoricalLake(bus, config))
-            backtests = KernelBacktestPort(bus, Settlement)
-            from collect.data import Store
-            from workbench.port import WorkbenchPort
-            workbench = WorkbenchPort(root, {"backtests": {}, "benchmarks": []}, bus, store=Store(bus))
+            backtests = KernelBacktestPort(bus, configured_settlement())
             empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
-            protocol = Protocol(Modules(backtests, workbench, empty, empty, empty))
+            protocol = Protocol(Modules(backtests, backtests, empty, empty, empty))
             request = ui.UiRequest(
                 "search-request", "workbench.backtest",
                 "urn:lianghua:ui:input:workbench.backtest:v1",
@@ -274,10 +268,10 @@ class SearchProtocolTests(unittest.TestCase):
 
     def test_failed_second_trial_keeps_first_trial_and_failure_evidence(self):
         from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
+        from tests.fee_fixture import configured_settlement
         from protocal import BacktestError
 
         with TemporaryDirectory() as root:
@@ -285,7 +279,7 @@ class SearchProtocolTests(unittest.TestCase):
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
             bus.configure_reader(HistoricalLake(bus, config))
-            port = KernelBacktestPort(bus, Settlement)
+            port = KernelBacktestPort(bus, configured_settlement())
             payload = {
                 "run_id": "failed-search", "module": "plugins.strategies.moving_average_cross",
                 "params": {"fast_window": 1, "slow_window": 3}, "dataset_id": "fixture",

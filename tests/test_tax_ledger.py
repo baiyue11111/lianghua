@@ -2,7 +2,7 @@ from datetime import date
 from decimal import Decimal as D
 import unittest
 from protocal import Fill, Side
-from corporate_actions import normalize_dividend_records
+from core.calculation import normalize_dividend_records
 
 
 def fill(identity,side,day,shares,symbol='A'):
@@ -15,10 +15,18 @@ def event(identity,registration,payment,cash='1',stock='0'):
 
 class DynamicTaxTests(unittest.TestCase):
     def ledger(self):
-        from tax_ledger import TaxLedger, TaxPolicy
-        return TaxLedger(TaxPolicy.from_mapping({'effective':'2015-09-09','policy':'财税2015-101',
+        from core.calculation import TradeRules, TaxPolicy
+        policy=TaxPolicy.from_mapping({'effective':'2015-09-09','policy':'财税2015-101',
             'payment_timing':'later_of_disposal_and_income','liability':'current_holding_period','rounding':'none',
-            'bonus_holding_period':'originating_lot','bonus_tax_allocation':'proportional_entitlement'},'a'*64))
+            'bonus_holding_period':'originating_lot','bonus_tax_allocation':'proportional_entitlement'},'a'*64)
+        from tests.fee_fixture import fees
+        return TaxHarness(TradeRules({
+            'price': {'model':'ratio','params':{'rate':'0','tick':'0.01'}},
+            'quantity': {'model':'capacity','params':{}},
+            'fees': {'model':'dated','params':{'rounding':'none'}},
+            'tax': {'model':'fifo','params':{}},
+            'check': {'model':'cn_a_share','params':{'tick':'0.01','min_qty':100,'step':100}},
+        }, fees(), policy))
     def day(self,ledger,fills):
         ledger.begin(fills[0].trade_date)
         for item in fills: ledger.preview(item)
@@ -80,17 +88,40 @@ class DynamicTaxTests(unittest.TestCase):
         self.assertAlmostEqual(ledger.liability(date(2020,3,10)),D(1),places=24)
 
     def test_unsupported_bonus_policy_never_guesses_holding_date(self):
-        from tax_ledger import TaxLedger
         from tests.fee_fixture import tax_policy
+        ledger=self.ledger()
         from dataclasses import replace
-        ledger=TaxLedger(replace(tax_policy(),bonus_holding_period=None))
+        ledger.ledger.policy=replace(tax_policy(),bonus_holding_period=None)
         self.day(ledger,[fill('buy',Side.BUY,'2020-01-02',100)])
         with self.assertRaisesRegex(ValueError,'bonus'):
             ledger.register('div',event('A','2020-01-10','2020-01-20',stock='.1'),D(1),D(0),'b'*64,credit_date=date(2020,1,20))
     def test_shared_holding_rate_has_exact_natural_month_year_boundaries(self):
-        from dividend_tax import holding_rate
-        self.assertEqual(holding_rate(date(2020,1,31),date(2020,2,29),D(0)),D('.2'))
-        self.assertEqual(holding_rate(date(2020,1,31),date(2020,3,1),D(0)),D('.1'))
-        self.assertEqual(holding_rate(date(2020,2,29),date(2021,2,28),D(0)),D('.1'))
-        self.assertEqual(holding_rate(date(2020,2,29),date(2021,3,1),D(0)),D(0))
-        self.assertEqual(holding_rate(date(2014,1,1),date(2016,1,1),D('.05')),D('.05'))
+        rules = self.ledger().rules
+        amount = lambda acquired, disposed, long_rate: rules.tax(
+            None, phase='rate', acquired=acquired, disposed=disposed, long_rate=long_rate)
+        self.assertEqual(amount(date(2020,1,31),date(2020,2,29),D(0)),D('.2'))
+        self.assertEqual(amount(date(2020,1,31),date(2020,3,1),D(0)),D('.1'))
+        self.assertEqual(amount(date(2020,2,29),date(2021,2,28),D(0)),D('.1'))
+        self.assertEqual(amount(date(2020,2,29),date(2021,3,1),D(0)),D(0))
+        self.assertEqual(amount(date(2014,1,1),date(2016,1,1),D('.05')),D('.05'))
+
+
+class TaxHarness:
+    def __init__(self, rules):
+        self.rules=rules
+        self.ledger=rules._tax_ledger
+
+    def begin(self, day):
+        return self.rules.tax(day, phase='begin')
+
+    def preview(self, fill):
+        return self.rules.tax(fill.trade_date, (fill,), phase='preview')
+
+    def end(self, fills):
+        return self.rules.tax(fills[0].trade_date, fills, phase='end')
+
+    def liability(self, day):
+        return self.rules.tax(day, phase='liability')
+
+    def __getattr__(self, name):
+        return getattr(self.ledger, name)

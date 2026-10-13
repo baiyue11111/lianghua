@@ -4,16 +4,16 @@ from decimal import Decimal as D
 from pathlib import Path
 import unittest
 
-from account_allocation import AllocationLimits
-from account_execution import AccountExecutionSession
-from account_ledger import AccountLedger
-from corporate_actions import normalize_dividend_records
-from execution_risk import OpeningRiskSnapshot
+from core.calculation import AllocationLimits
+from core.calculation import AccountExecutionSession
+from core.calculation import AccountLedger
+from core.calculation import normalize_dividend_records
+from core.calculation import OpeningRiskSnapshot
 from plugins.data import Settlement
 from plugins.strategies.moving_average_cross import Params as CrossParams, Strategy as Cross
 from protocal import Bar, Fill, HistoryDay, MarketFrame, Order, RegistrationAction, Side, TargetSet
-from tax_ledger import TaxLedger
-from tests.fee_fixture import fees, tax_policy
+from core.calculation import TaxLedger
+from tests.fee_fixture import rules, tax_policy, settlement as make_settlement
 from tests.settlement_fixture import SettlementFixture
 
 
@@ -63,7 +63,7 @@ class SettlementFlowTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.case.run_settlement((bad, *records[1:]))
         bad_trade = replace(records[1], trade_date=date(2020, 2, 4), frame=replace(records[1].frame, at=datetime(2020, 2, 4, tzinfo=UTC)))
-        settlement = Settlement(D('100000'), fees(), tax_policy())
+        settlement = make_settlement(D('100000'))
         settlement.apply(records[0], self.case.calendar[1])
         settlement.plan(None, 'breadth_low_amount_reversal')
         with self.assertRaises(ValueError):
@@ -71,7 +71,7 @@ class SettlementFlowTests(unittest.TestCase):
 
     def test_failed_settlement_keeps_partial_evidence_and_is_terminal(self):
         records = self.case.inputs()
-        settlement = Settlement(D('100000'), fees(), tax_policy())
+        settlement = make_settlement(D('100000'))
         settlement.apply(records[0], self.case.calendar[1])
         settlement.plan(None, 'breadth_low_amount_reversal')
         bad = replace(records[1], frame=replace(records[1].frame, at=datetime(2020, 2, 4, tzinfo=UTC)))
@@ -95,10 +95,10 @@ class SettlementFlowTests(unittest.TestCase):
         import json
         from tempfile import TemporaryDirectory
 
-        from application import save_failed_backtest
+        from protocal import save_failed_backtest
         from protocal import BacktestError, BacktestRequest, build_data
 
-        settlement = Settlement(D('100000'), fees(), tax_policy())
+        settlement = make_settlement(D('100000'))
         settlement.apply(self.case.inputs()[0], self.case.calendar[1])
         settlement.plan(None, 'breadth_low_amount_reversal')
         partial = settlement.result()
@@ -121,7 +121,7 @@ class SettlementFlowTests(unittest.TestCase):
 
     def test_previous_following_session_is_required_and_window_end_does_not_liquidate(self):
         records = self.case.inputs()
-        settlement = Settlement(D('100000'), fees(), tax_policy())
+        settlement = make_settlement(D('100000'))
         settlement.apply(records[0], self.case.calendar[1])
         settlement.plan(None, 'breadth_low_amount_reversal')
         with self.assertRaises(ValueError):
@@ -133,7 +133,7 @@ class SettlementFlowTests(unittest.TestCase):
         self.assertIsNone(result.targets[-1])
 
     def test_plan_failure_has_no_success_result(self):
-        settlement = Settlement(D('100000'), fees(), tax_policy())
+        settlement = make_settlement(D('100000'))
         settlement.apply(self.case.inputs()[0], self.case.calendar[1])
         with self.assertRaises(ValueError):
             settlement.plan(None, '')
@@ -156,26 +156,28 @@ class SettlementFlowTests(unittest.TestCase):
 
     def test_tax_reserve_limits_same_open_buy_budget(self):
         account = AccountLedger(D(1000))
-        session = AccountExecutionSession(account, fees())
-        taxes = TaxLedger(tax_policy())
+        trade_rules = rules()
+        session = AccountExecutionSession(account, trade_rules)
+        taxes = trade_rules._tax_ledger
         buy = Order('initial', 'A', Side.BUY, 100, date(2020, 1, 1), date(2020, 1, 2), 'entry')
         account.register_order(buy)
         first = Fill('initial', 'A', Side.BUY, date(2020, 1, 2), 100, 10, 1000, 0, 0, 'filled')
         account.record_fill('first', first)
-        taxes.begin(first.trade_date)
-        taxes.preview(first)
-        taxes.end((first,))
+        trade_rules.tax(first.trade_date, phase='begin')
+        trade_rules.tax(first.trade_date, (first,), phase='preview')
+        trade_rules.tax(first.trade_date, (first,), phase='end')
         event = normalize_dividend_records([{'code': 'A', 'dividRegistDate': '2020-01-10', 'dividOperateDate': '2020-01-13', 'dividPayDate': '2020-01-20', 'dividCashPsBeforeTax': '1'}])[0]
         taxes.register('div', event, D(1), D(0), 'a' * 64)
         day = date(2020, 1, 21)
-        taxes.begin(day)
+        trade_rules.tax(day, phase='begin')
         session.submit(Order('sell', 'A', Side.SELL, 100, date(2020, 1, 20), day, 'exit'))
         session.submit(Order('buy', 'B', Side.BUY, 100, date(2020, 1, 20), day, 'entry'))
         bars = {'A': Bar('A', day, 10, 11, 9, 10, 1000000, 10000000), 'B': Bar('B', day, 9.7, 11, 9, 10, 1000000, 10000000)}
         risk = OpeningRiskSnapshot(date(2020, 1, 20), {'A': D(10), 'B': D('9.7')}, {'A': D(10000000), 'B': D(10000000)}, D(0), D(20), AllocationLimits(stock_weight=D(1)))
-        fills = session.execute_open(day, bars, {'A': 10., 'B': 10.}, risk=risk, cash_reserve=lambda: taxes.reserve(day), on_fill=taxes.preview)
+        fills = session.execute_open(day, bars, {'A': 10., 'B': 10.}, risk=risk,
+                                     cash_reserve=D(0))
         self.assertEqual([item.status for item in fills], ['filled', 'rejected'])
-        taxes.end(fills)
+        trade_rules.tax(day, fills, phase='end')
         for payment in taxes.settle(day):
             account.record_cash(payment.event_id, day, 'dividend_tax', -payment.amount, payment.source_sha256)
         self.assertEqual(account.cash, D('973.001'))
@@ -198,7 +200,7 @@ class SettlementFlowTests(unittest.TestCase):
         for index, day in enumerate(calendar[:-1]):
             frame = MarketFrame(datetime.combine(day, datetime.min.time(), tzinfo=UTC), 'CN_EQUITY', {})
             records.append(HistoryDay(day, frame, {'A': Bar('A', day, 10, 11, 9, 10, 1000000, 10000000)}, {'A': 10.}, {'A': D(10)}, {'A': D(10)}, {'A': D(100000000)}, {'A': D(100000000)}, date(2020, 6, 30) if index == 0 else calendar[index - 1], (action,) if day == date(2020, 7, 2) else ()))
-        settlement = Settlement(D(10000), fees(), tax_policy())
+        settlement = make_settlement(D(10000))
         for index, record in enumerate(records):
             frame, account = settlement.apply(record, calendar[index + 1])
             settlement.plan(Plan().generate(frame, account), 'weekend')

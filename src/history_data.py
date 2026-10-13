@@ -18,25 +18,18 @@ from collections import deque
 from pathlib import Path
 import numpy as np
 
-from account_allocation import AllocationLimits
-from adjusted_panel import load_adjusted_lake_panel, _bs_code
+from core.calculation import AllocationLimits
+from collect.data import load_adjusted_lake_panel, _bs_code
 from protocal import Bar, DataPort, Dataset, HistoryBar, HistoryDay, MarketFrame, RegistrationAction
-from corporate_actions import normalize_dividend_records, reconcile_corporate_actions
-from panel_features import own_day_rolling_mean
-from strategy import canonical_hash, code_hash
+from core.calculation import normalize_dividend_records, reconcile_corporate_actions
+from core.calculation import Calculation
+from strategy import canonical_hash
 from provider_cache import validate_cache
-from fees import FeePolicy
-from tax_ledger import TaxPolicy, TaxLedger
+from core.calculation import FeePolicy
+from core.calculation import TaxPolicy, TaxLedger
 
 
-EXECUTION = {
-    'model':'account_history', 'lot_size':100, 'stock_weight':.4,
-    'adv_fraction':.01,'liquidity_window':20,'execution':'next_session_open',
-    'fees':'execution.ExecutionEngine','account':'account_ledger.AccountLedger',
-    'corporate_actions':'distribution_ledger.AccountDistributionLedger',
-    'taxes':'actual_daily_net_FIFO_dividend_tax',
-}
-
+LIQUIDITY_WINDOW = 20
 
 class HistoricalLake:
     def __init__(self,data:DataPort,config:dict):
@@ -102,6 +95,10 @@ class HistoricalLake:
         def read(name):
             path=self._path(folder,name)
             return self.data.read('sources',dataset_id,path.relative_to(folder).as_posix())
+        def refs_under(directory):
+            prefix=directory.rstrip('/')+'/'
+            return tuple(ref for ref in self.data.list('sources',dataset_id)
+                         if ref.name.startswith(prefix))
         manifest=self.data.snapshot(dataset_id)
         overlap=set(manifest.get('fields',{}))&provided
         if overlap: raise ValueError('reserved price fields cannot be redefined: '+', '.join(sorted(overlap)))
@@ -160,13 +157,18 @@ class HistoricalLake:
         if len(calendar)<2 or tuple(sorted(set(calendar)))!=calendar: raise ValueError('ordered calendar and next-session sentinel required')
         price=manifest['price']
         for directory in ('daily_dir','cache_dir','stock_basic_dir'):
-            path=self._path(folder,price[directory])
-            for file in path.iterdir():
-                if file.is_file(): market_evidence(str(file.relative_to(folder)))
+            for ref in refs_under(price[directory]):
+                market_evidence(ref.name)
         panel=load_adjusted_lake_panel(
             self._path(folder,price['daily_dir']),self._path(folder,price['cache_dir']),
             factor_start=date.fromisoformat(price['factor_start']),factor_end=date.fromisoformat(price['factor_end']),
-            code_changes_path=market_evidence(price['code_changes']),stock_basic_dir=self._path(folder,price['stock_basic_dir']))
+            code_changes_path=market_evidence(price['code_changes']),stock_basic_dir=self._path(folder,price['stock_basic_dir']),
+            read=lambda path: read(path.relative_to(folder).as_posix()),
+            list_files=lambda directory, pattern: tuple(
+                self.data.path('sources', dataset_id, ref.name)
+                for ref in self.data.list('sources', dataset_id)
+                if ref.name.startswith(directory.relative_to(folder).as_posix().rstrip('/') + '/')
+                and ref.name.endswith(pattern.removeprefix('*'))))
         declared=tuple(scope['symbols'])
         if requirements.universe!='dataset':
             if scope['universe']!=requirements.universe:
@@ -209,8 +211,7 @@ class HistoricalLake:
         if as_of is not None and date.fromisoformat(price['factor_end']) != as_of:
             raise ValueError('point-in-time factor snapshot must end exactly at query cutoff')
         if as_of is not None:
-            factor_files = [str(path.relative_to(folder)) for path in
-                            self._path(folder, price['cache_dir']).rglob('*') if path.is_file()]
+            factor_files = [ref.name for ref in refs_under(price['cache_dir'])]
             if not factor_files:
                 raise ValueError('point-in-time query requires factor availability evidence')
             for name in factor_files:
@@ -218,7 +219,7 @@ class HistoricalLake:
                 if not isinstance(payload, dict):
                     raise ValueError(f'invalid factor evidence: {name}')
         if not calendar[0]<=start<=end<=calendar[-2]: raise ValueError('requested interval is outside historical snapshot')
-        warmup=max(requirements.history_bars,EXECUTION['liquidity_window'])
+        warmup=max(requirements.history_bars,LIQUIDITY_WINDOW)
         if sum(day<start for day in calendar)<warmup:
             raise ValueError(f'insufficient pre-start history: requires {warmup} sessions (strategy and execution)')
         # Each explicit code/year request must be source-backed, including empty
@@ -299,19 +300,20 @@ class HistoricalLake:
         if extra:
             import pyarrow as pa
             import pyarrow.parquet as pq
-            paths=sorted(self._path(folder,price['daily_dir']).rglob('*.parquet'))
+            refs=tuple(ref for ref in refs_under(price['daily_dir']) if ref.name.endswith('.parquet'))
             columns=['code','date',*sorted({spec['column'] for spec in extra.values()})]
             tables=[]
-            for path in paths:
-                market_evidence(str(path.relative_to(folder)))
-                schema=pq.ParquetFile(path).schema_arrow
+            for ref in refs:
+                market_evidence(ref.name)
+                parquet=pq.ParquetFile(pa.BufferReader(self.data.read_ref(ref)))
+                schema=parquet.schema_arrow
                 for name,spec in extra.items():
                     if spec['column'] not in schema.names:
                         raise ValueError('declared field column missing: '+name)
                     kind=schema.field(spec['column']).type
                     if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
                         raise ValueError('declared field column must be numeric: '+name)
-                tables.append(pq.ParquetFile(path).read(columns=columns))
+                tables.append(parquet.read(columns=columns))
             table=pa.concat_tables(tables)
             codes={symbol:i for i,symbol in enumerate(declared)}
             dates={day:j for j,day in enumerate(panel.calendar)}
@@ -354,7 +356,8 @@ class HistoricalLake:
         if 'symbols' in scope:
             scope['symbols'] = list(scope['symbols'])
         return {'data_scope':scope,'state_start':dataset.calendar[0].isoformat(),
-                'price_basis':'BaoStock-back-factor-signal-index', 'execution':{**EXECUTION},
+                'price_basis':'BaoStock-back-factor-signal-index',
+                'liquidity_window': LIQUIDITY_WINDOW,
                 **dict(dataset.provenance)}
 
     @staticmethod
@@ -371,17 +374,19 @@ class HistoricalLake:
         end_index=max(index for index,day in enumerate(calendar[:-1]) if day<=end)
         run_calendar=calendar[:end_index+2]
         # Execution liquidity remains a separately declared 20-own-day rule.
-        liquidity=own_day_rolling_mean(panel.amount,20,panel.traded_bar)
+        amount_liquidity=Calculation.own_day_rolling_mean(panel.amount,LIQUIDITY_WINDOW,panel.traded_bar)
+        volume_liquidity=Calculation.own_day_rolling_mean(panel.volume,LIQUIDITY_WINDOW,panel.traded_bar)
         request=requirements
         required_history=request.history_bars
         own_history={symbol:deque(maxlen=required_history) for symbol in panel.symbols}
         session_history={symbol:deque(maxlen=required_history) for symbol in panel.symbols}
         last_marks={}
         last_liquidity={}
+        last_volume={}
         def records():
           for j,day in enumerate(run_calendar[:-1]):
             at=datetime.combine(day,time(15),tzinfo=ZoneInfo('Asia/Shanghai'))
-            fields={}; bars={}; opening={}; closing={}; previous={}; opening_adv={}; closing_adv={}
+            fields={}; bars={}; opening={}; closing={}; previous={}; opening_adv={}; closing_adv={}; opening_volume20={}; closing_volume20={}
             for i,symbol in enumerate(panel.symbols):
                 values={name:float(array[i,j]) if np.isfinite(array[i,j]) else None for name,array in (
                     ('open',panel.raw_open),('high',panel.raw_high),('low',panel.raw_low),('close',panel.raw_close),
@@ -400,13 +405,17 @@ class HistoricalLake:
                 opening[symbol]=Decimal(str(values['open'])); closing[symbol]=Decimal(str(values['close']))
                 previous[symbol]=last_marks.get(symbol)
                 if symbol in last_liquidity: opening_adv[symbol]=last_liquidity[symbol]
-                if np.isfinite(liquidity[i,j]): closing_adv[symbol]=Decimal(str(liquidity[i,j]))
+                if symbol in last_volume: opening_volume20[symbol]=last_volume[symbol]
+                if np.isfinite(amount_liquidity[i,j]): closing_adv[symbol]=Decimal(str(amount_liquidity[i,j]))
+                if np.isfinite(volume_liquidity[i,j]): closing_volume20[symbol]=Decimal(str(volume_liquidity[i,j]))
             inputs=account_inputs[day]
             frame=MarketFrame(at,'CN_EQUITY',fields,{'next_session':calendar[j+1].isoformat()},
                               {symbol:tuple(sorted({row.at:row for row in (*own_history[symbol],*session_history[symbol])}.values(),key=lambda row:row.at)) for symbol in panel.symbols})
             yield HistoryDay(day,frame,bars,previous,opening,closing,opening_adv,closing_adv,
-                calendar[j-1] if j else date.min,inputs)
-            last_marks.clear(); last_marks.update({symbol:float(value) for symbol,value in closing.items()}); last_liquidity.clear(); last_liquidity.update(closing_adv)
+                calendar[j-1] if j else date.min,inputs,opening_volume20)
+            last_marks.clear(); last_marks.update({symbol:float(value) for symbol,value in closing.items()})
+            last_liquidity.update(closing_adv)
+            last_volume.update(closing_volume20)
         prepared = tuple(records())
         plugins = config.get('signal_plugins', self.config.get('signal_plugins', {}))
         plugin_provenance = None
@@ -414,8 +423,6 @@ class HistoricalLake:
             prepared, plugin_provenance = self._apply_signal_plugins(prepared, plugins, start, end)
         provenance = {
             'source_hashes': hashes, 'data_hash': data_hash, 'account_hash': account_hash,
-            'execution_hash': canonical_hash({'rules': EXECUTION, 'account_policy': policy,
-                                              'account_hash': account_hash, 'code_hash': code_hash()}),
             'state_start': calendar[0].isoformat(),
             'as_of': None if as_of is None else as_of.isoformat(),
             'query_semantics': 'point_in_time' if as_of is not None else 'snapshot_replay',

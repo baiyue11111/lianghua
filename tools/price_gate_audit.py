@@ -16,7 +16,7 @@ import duckdb
 import numpy as np
 
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from adjusted_panel import AdjustmentCoverageError, load_adjusted_lake_panel
+from collect.data import AdjustmentCoverageError, load_adjusted_lake_panel
 
 
 def _hash(path):
@@ -45,7 +45,9 @@ def main(argv=None):
     issues=[]; checked=None; loader_passed=False
     try:
         panel=load_adjusted_lake_panel(args.daily,args.cache,factor_start=args.factor_start,
-            factor_end=args.factor_end,code_changes_path=args.code_changes,stock_basic_dir=args.stock_basic)
+            factor_end=args.factor_end,code_changes_path=args.code_changes,stock_basic_dir=args.stock_basic,
+            read=lambda path: path.read_bytes(),
+            list_files=lambda directory, pattern: tuple(directory.glob(pattern)))
         checked=rows; loader_passed=True
         del panel
     except AdjustmentCoverageError as error:
@@ -58,7 +60,8 @@ def main(argv=None):
     duplicate_master=len(masters)-len(set(masters))
     config={key:(str(value.resolve()) if isinstance(value,Path) else value.isoformat())
             for key,value in vars(args).items() if key!='output'}
-    code_paths=(Path(__file__).resolve(),Path(__file__).resolve().parents[1]/'src/adjusted_panel.py')
+    code_paths=(Path(__file__).resolve(),
+                Path(__file__).resolve().parents[1]/'src/collect/data.py')
     report={'schema':1,'config':config,'inputs':inputs,
         'code':[{'path':str(p),'sha256':_hash(p)} for p in code_paths],
         'runtime':{'python':sys.version,'duckdb':duckdb.__version__,'numpy':np.__version__},

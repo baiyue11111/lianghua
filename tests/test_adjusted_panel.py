@@ -13,7 +13,7 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from adjusted_panel import AdjustmentCoverageError, load_adjusted_lake_panel
+from collect.data import AdjustmentCoverageError, load_adjusted_lake_panel
 
 
 FACTOR_START = date(1990, 1, 1)
@@ -131,7 +131,9 @@ class AdjustedPanelTests(unittest.TestCase):
     def load(self):
         return load_adjusted_lake_panel(
             self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
-            stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes)
+            stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
+            read=lambda path: path.read_bytes(),
+            list_files=lambda directory, pattern: tuple(directory.glob(pattern)))
 
     def test_factor_is_effective_on_event_day_for_signals_only(self):
         # Regressions caught: future factor leaks into yesterday, or execution

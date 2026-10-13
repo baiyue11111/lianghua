@@ -2,9 +2,9 @@ from datetime import date
 from dataclasses import replace
 from decimal import Decimal
 import unittest
-import corporate_actions as actions
+import core.calculation as actions
 
-from corporate_actions import (
+from core.calculation import (
     InvalidCorporateAction,
     adjustment_factor_asof,
     normalize_dividend_records,
