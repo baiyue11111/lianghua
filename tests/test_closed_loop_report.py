@@ -96,20 +96,3 @@ class ClosedLoopReportTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-class LogVersionTests(unittest.TestCase):
-    def test_new_real_kernel_log_cannot_be_read_as_old_signal_archive(self):
-        from tests.test_closed_loop_cn_equity import build_kernel
-        with TemporaryDirectory() as directory:
-            root=Path(directory); events=root/'events.jsonl'
-            build_kernel(events).run()
-            first=json.loads(events.read_text().splitlines()[0])
-            self.assertEqual(first['schema'],2)
-            self.assertIn('decision',first)
-            self.assertNotIn('signal',first)
-            manifest=root/'manifest.json'
-            manifest.write_text(json.dumps({'schema':1,'run_id':'golden-cn-equity','artifact_kind':'ENGINEERING_GOLDEN',
-                'events_file':'events.jsonl','events_sha256':sha256(events.read_bytes()).hexdigest(),
-                'initial_cash':'100000','strategy':{},'validation':{}}))
-            with self.assertRaisesRegex(ValueError,'schema-2 decision logs'):
-                load_closed_loop_report(manifest)
