@@ -37,6 +37,32 @@ def _bar(day: str, *, close: float, open_: float, high: float, low: float,
 
 
 class AdjustedPanelTests(unittest.TestCase):
+    def test_code_change_graph_rejects_ambiguous_cyclic_reverse_and_self_events(self):
+        self.write_bars([_bar('2020-01-02', close=10, open_=10, high=11, low=9)])
+        for code in ('sh.600000', 'sh.600001', 'sh.600002'):
+            self.write_cache([[code, '2018-01-01', '1', '1', '1'],
+                              [code, '2019-01-02', '1', '1', '1'],
+                              [code, '2020-01-02', '1', '1', '1']], code=code)
+        def event(old, new, day):
+            return {'old_code': old, 'new_code': new, 'effective_date': day,
+                    'factor_basis_continuity_verified': True}
+        cases = {
+            'outgoing_branch': [event('600001', '600000', '2020-01-02'),
+                                event('600001', '600002', '2020-01-02')],
+            'incoming_branch': [event('600001', '600000', '2020-01-02'),
+                                event('600002', '600000', '2020-01-02')],
+            'cycle': [event('600001', '600000', '2020-01-02'),
+                      event('600000', '600001', '2019-01-02')],
+            'reverse_dates': [event('600002', '600001', '2020-01-02'),
+                              event('600001', '600000', '2019-01-02')],
+            'self_transition': [event('600000', '600000', '2020-01-02')],
+        }
+        for name, events in cases.items():
+            with self.subTest(case=name):
+                self.code_changes.write_text(json.dumps({'schema': 1, 'events': events}))
+                with self.assertRaises(AdjustmentCoverageError):
+                    self.load()
+
     def test_factor_failure_does_not_hide_independent_raw_bar_failures(self):
         bad_price=_bar('2020-01-02',close=-10,open_=10,high=11,low=9)
         bad_status=_bar('2020-01-02',close=10,open_=10,high=11,low=9,tradestatus=0)
