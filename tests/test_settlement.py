@@ -124,16 +124,19 @@ class DataPluginSettlementTests(unittest.TestCase):
         from pathlib import Path
         from strategy import canonical_hash, load_strategy
         from tests.history_fixture import make_snapshot
-        from tests.test_history_data import kernel_result
+        from protocal import DataBus, KernelBacktestPort
+        from storage import DataStore
+        from plugins.data import Settlement
         frozen = json.loads(Path("tests/fixtures/kernel-history-ab.json").read_text())
         request = {"module": "plugins.strategies.breadth_low_amount_reversal", "params": {"positions": 4},
-                   "initial_cash": 100000, "dataset_id": "fixture", "start": "2020-01-31", "end": "2020-02-04"}
+                   "initial_cash": "100000", "dataset_id": "fixture", "start": "2020-01-31", "end": "2020-02-04"}
         strategy = load_strategy(request["module"], request["params"])
         request = {**request, "params": asdict(strategy.params)}
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            result = kernel_result(root, make_snapshot(root), {**request, "run_id": "frozen-ab"}, strategy,
-                                   loader=lambda _name, _params: strategy)
+            make_snapshot(root)
+            result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle(
+                "workbench.backtest", {**request, "run_id": "frozen-ab"}).data
         hashes = {key: canonical_hash(result["trace"][key]) for key in frozen["trace_hashes"]}
         self.assertEqual(result["equity"], frozen["equity"])
         self.assertEqual(result["metrics"], frozen["metrics"])

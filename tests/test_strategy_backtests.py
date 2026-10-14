@@ -22,9 +22,8 @@ class BacktestPortTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
-        config = {"sources": [], "backtests": {}}
         data = build_data(self.root)
-        self.port = KernelBacktestPort(data, lambda *args, **kwargs: object(), config=config,
+        self.port = KernelBacktestPort(data, lambda *args, **kwargs: object(), datasets=(),
                                        research=EmptyResearch())
         self.request = {
             "module": "plugins.strategies.breadth_low_amount_reversal",

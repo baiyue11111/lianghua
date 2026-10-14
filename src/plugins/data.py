@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 from numbers import Real
+from types import MappingProxyType
 
 import numpy as np
 from core.calculation import AllocationLimits
@@ -347,9 +348,51 @@ class Adapter:
 class Settlement:
     """Stateful account settlement extracted from the historical runner."""
 
-    def __init__(self, initial_cash, fees, tax_policy, *, limits, execution):
+    DEFAULT_EXECUTION = MappingProxyType({
+        "price": MappingProxyType({"model": "ratio", "params": MappingProxyType({"rate": "0.001", "tick": "0.01"})}),
+        "quantity": MappingProxyType({"model": "capacity", "params": MappingProxyType({})}),
+        "fees": MappingProxyType({"model": "dated", "params": MappingProxyType({"rounding": "none"})}),
+        "tax": MappingProxyType({"model": "fifo", "params": MappingProxyType({})}),
+        "check": MappingProxyType({"model": "cn_a_share", "params": MappingProxyType({"tick": "0.01", "min_qty": 100, "step": 100})}),
+    })
+
+    @classmethod
+    def _copy(cls, value):
+        return {key: cls._copy(item) if isinstance(item, Mapping) else item
+                for key, item in value.items()} if isinstance(value, Mapping) else value
+
+    @classmethod
+    def resolve(cls, *, limits=None, execution=None):
+        from core.calculation import AllocationLimits
+        from protocal import _limits, validate_execution
+
+        if limits is None:
+            limits = AllocationLimits()
+        elif isinstance(limits, dict):
+            limits = _limits(limits)
+        if execution is None:
+            execution = cls._copy(cls.DEFAULT_EXECUTION)
+        execution = validate_execution(execution)
+        return limits, execution
+
+    @classmethod
+    def describe(cls, overrides):
+        limits, execution = cls.resolve(**dict(overrides))
+        return {
+            "module": f"{cls.__module__}:{cls.__name__}",
+            "params": {
+                "limits": {"lot_size": limits.lot_size,
+                            "stock_weight": str(limits.stock_weight),
+                            "adv_fraction": str(limits.adv_fraction)},
+                "execution": execution,
+            },
+        }
+
+    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, execution=None):
         from core.calculation import (AccountExecutionSession, AccountLedger,
-                                      AccountDistributionLedger, TradeRules)
+                                      AccountDistributionLedger, AllocationLimits, TradeRules)
+
+        limits, execution = self.resolve(limits=limits, execution=execution)
 
         self.limits = limits
         self.trade_rules = TradeRules(execution, fees, tax_policy)
@@ -373,9 +416,10 @@ class Settlement:
         self._sealed = False
 
     @staticmethod
-    def validate_dataset(dataset, request, *, limits, execution):
+    def validate_dataset(dataset, request, *, limits=None, execution=None):
         from core.calculation import TradeRules
 
+        limits, execution = Settlement.resolve(limits=limits, execution=execution)
         rules = TradeRules(execution, dataset.policies['fees'], dataset.policies['tax_policy'])
         return rules.check(phase='dataset', dataset=dataset, start=request.start.date())
 

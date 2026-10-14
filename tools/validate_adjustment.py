@@ -35,7 +35,7 @@ MATCH_TOL = 0.05        # relative tolerance when comparing step magnitudes
                          # (ex-date market moves of a few % are normal)
 MY_STEP_EPS = 1.0005    # ignore floating-point noise in our own factor series
 
-from collect.quotes import fetch_sina_factors
+from collect.methods import fetch_sina_factors
 
 def steps_from_series(pairs: list[tuple[str, float]]) -> dict[str, float]:
     """Convert a cumulative factor series into {ex_date: step_ratio}."""

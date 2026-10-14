@@ -13,7 +13,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from collect.data import AdjustmentCoverageError, load_adjusted_lake_panel
+from core.calculation import AdjustmentCoverageError
+from protocal import _load_adjusted_lake_panel
 
 
 FACTOR_START = date(1990, 1, 1)
@@ -129,7 +130,7 @@ class AdjustedPanelTests(unittest.TestCase):
         return path
 
     def load(self):
-        return load_adjusted_lake_panel(
+        return _load_adjusted_lake_panel(
             self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
             stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
             read=lambda path: path.read_bytes(),

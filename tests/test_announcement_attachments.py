@@ -1,4 +1,3 @@
-import importlib.util
 import json
 from pathlib import Path
 import tempfile
@@ -8,10 +7,8 @@ from protocal import build_data
 
 class AttachmentCaptureTests(unittest.TestCase):
     def capture(self, plan, fetcher):
-        if importlib.util.find_spec('collect.documents') is None:
-            self.fail('uniform attachment capture is not implemented')
-        from collect.documents import capture
-        return capture(plan, self.data, fetcher=fetcher)
+        from collect.methods import capture_attachments
+        return capture_attachments(plan, self.data, fetcher=fetcher)
 
     def plan(self):
         return {'origin': 'https://static.cninfo.com.cn/', 'index_complete': False,

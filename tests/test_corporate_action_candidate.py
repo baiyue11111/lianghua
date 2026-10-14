@@ -5,7 +5,7 @@ from tempfile import TemporaryDirectory
 import unittest
 
 from tools.corporate_action_candidate import load_records, build_candidate
-from collect.factors import _sha256
+from collect.methods import _sha256
 
 
 class CorporateActionCandidateTests(unittest.TestCase):
@@ -42,7 +42,7 @@ class CorporateActionCandidateTests(unittest.TestCase):
             self.assertEqual(len(audit['changes']),2)
             self.assertEqual(path.read_bytes(),before)
             first=build_candidate(cache,reviews,root/'first')
-            self.assertIn('factors.py',first['code_sha256'])
+            self.assertIn('methods.py',first['code_sha256'])
             second=build_candidate(cache,reviews,root/'second')
             self.assertEqual(first,second)
             events=json.loads((root/'first'/'events.json').read_text())

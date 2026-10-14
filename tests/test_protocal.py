@@ -191,7 +191,6 @@ class ProtocolTests(unittest.TestCase):
             parse_backtest_request(malformed)
 
     def test_kernel_result_is_saved_once_in_the_shared_data_store(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
         from tests.fee_fixture import configured_settlement
@@ -200,7 +199,6 @@ class ProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             port = KernelBacktestPort(bus, configured_settlement())
             result = port.handle("workbench.backtest", {
                 "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
@@ -215,7 +213,6 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(saved["equity"], result.data["equity"])
 
     def test_protocol_routes_backtest_to_the_injected_port(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.fee_fixture import configured_settlement
@@ -224,7 +221,6 @@ class ProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             backend = Protocol(Modules(
                 KernelBacktestPort(bus, configured_settlement()), *[EmptyPort() for _ in range(4)]))
             message = send(backend, ui.UiRequest(

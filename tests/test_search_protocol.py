@@ -23,7 +23,6 @@ def await_protocol(protocol, operation, data):
 
 class SearchProtocolTests(unittest.TestCase):
     def _fixture_protocol(self, root):
-        from history_data import HistoricalLake
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.history_fixture import make_snapshot
@@ -32,7 +31,6 @@ class SearchProtocolTests(unittest.TestCase):
         root = Path(root)
         config = make_snapshot(root)
         bus = DataBus(DataStore(root))
-        bus.configure_reader(HistoricalLake(bus, config))
         backtests = KernelBacktestPort(bus, configured_settlement())
         empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
         return bus, Protocol(Modules(backtests, backtests, empty, empty, empty))
@@ -120,7 +118,6 @@ class SearchProtocolTests(unittest.TestCase):
         self.assertIsInstance(value, BacktestRequest)
 
     def test_protocol_search_saves_each_trial_and_base_summary(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol, _DIRECTORY
         from storage import DataStore
         from tests.history_fixture import make_snapshot
@@ -130,7 +127,6 @@ class SearchProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             backtests = KernelBacktestPort(bus, configured_settlement())
             empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
             protocol = Protocol(Modules(backtests, backtests, empty, empty, empty))
@@ -267,7 +263,6 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertEqual(bus.list("runs"), ())
 
     def test_failed_second_trial_keeps_first_trial_and_failure_evidence(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
@@ -278,7 +273,6 @@ class SearchProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             port = KernelBacktestPort(bus, configured_settlement())
             payload = {
                 "run_id": "failed-search", "module": "plugins.strategies.moving_average_cross",

@@ -134,7 +134,7 @@ class RemoveOldContractsTests(unittest.TestCase):
             root = Path(folder)
             with self.assertRaisesRegex(ValueError, "account policy source"):
                 module.prepare(root, {"dataset_id": "out"})
-            self.assertFalse((root / "data/sources/out").exists())
+            self.assertFalse((root / "data/source/out").exists())
 
 
 if __name__ == "__main__":

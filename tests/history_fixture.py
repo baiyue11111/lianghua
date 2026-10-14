@@ -9,7 +9,7 @@ from strategy import load_strategy, canonical_hash
 
 
 def make_snapshot(root:Path, history_start=date(2019,7,1)):
-    folder=root/'data'/'sources'/'fixture'; folder.mkdir(parents=True)
+    folder=root/'data'/'source'/'fixture'; folder.mkdir(parents=True)
     (folder/'daily').mkdir(); (folder/'factors').mkdir(); (folder/'basic').mkdir()
     days=[]; day=history_start
     while day<=date(2020,2,5):
@@ -64,4 +64,12 @@ def make_snapshot(root:Path, history_start=date(2019,7,1)):
     (folder/'manifest.json').write_text(json.dumps({'schema':2,'files':files,'fields':{},'calendar':'calendar.json',
         'scope':{'symbols':symbols,'universe':'CN_A_SHARE'},'price':{'daily_dir':'daily','cache_dir':'factors','stock_basic_dir':'basic','code_changes':'code_changes.json','factor_start':factor_start,'factor_end':factor_end},
         'corporate_action_sources':corp,'action_facts':[],'account_policy':'account_policy.json'}))
-    return {'adapter':'history_data:HistoricalLake','datasets':[{'id':'fixture','name':'工程输入'}]}
+    return {'dataset': 'fixture'}
+
+
+def update_manifest(root: Path, **changes):
+    path = Path(root) / 'data' / 'source' / 'fixture' / 'manifest.json'
+    manifest = json.loads(path.read_text())
+    manifest.update(changes)
+    path.write_text(json.dumps(manifest, ensure_ascii=False))
+    return manifest

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import duckdb
 
-from collect.factors import Request, _validate_cache
+from collect.methods import Request, _validate_cache
 
 
 def main():

@@ -59,8 +59,9 @@ def _source_in_identity(data, refs, parent, name, label):
 def prepare(root, config, *, data=None):
     root=Path(root).resolve()
     data = build_data(root) if data is None else data
-    refs = data.list('sources')
     dataset_id=config['dataset_id']
+    data.begin_publish(dataset_id)
+    refs = data.list('sources')
     policy_ref = _ref(config.get('account_policy_ref'), 'account policy')
     if policy_ref.kind == 'sources' and policy_ref.identity == dataset_id:
         raise ValueError('account policy source identity must be independent from dataset output')

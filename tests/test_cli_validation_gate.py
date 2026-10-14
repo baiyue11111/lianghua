@@ -28,10 +28,10 @@ class PluginCliTests(unittest.TestCase):
     def test_configured_empty_history_gate_creates_no_output(self):
         import json
         with TemporaryDirectory() as folder:
-            root=Path(folder); config=root/'run.json'; output=root/'data/runs'
+            root=Path(folder); config=root/'run.json'; output=root/'data/result'
             config.write_text(json.dumps({'request':{'module':'plugins.strategies.breadth_low_amount_reversal',
                 'params':{'positions':12},'initial_cash':100000,'start':'2020-01-01','end':'2020-12-31','dataset_id':''},
-                'backtests':{'adapter':'history_data:HistoricalLake','datasets':[]}}))
+                'backtests':{'datasets':[]}}))
             result=subprocess.run([sys.executable,'-m','frontend.cli','run','--config',str(config),'--root',str(root)],capture_output=True,text=True)
             self.assertEqual(result.returncode,2)
             self.assertFalse(output.exists())

@@ -6,7 +6,7 @@ import unittest
 import json
 from protocal import build_data
 
-from collect.basic import (
+from collect.methods import (
     StockBasicEvidenceError,
     collect_stock_basic,
     read_stock_basic,

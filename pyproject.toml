@@ -38,18 +38,7 @@ packages = [
   "frontend",
 ]
 py-modules = [
-  "comparison",
-  "closed_loop_report",
-  "document_text",
-  "dynamic_selection",
-  "factor_candidates",
-  "history_data",
   "protocal",
-  "provider_cache",
-  "raw_bar_evidence",
-  "raw_candidate",
-  "research_registry",
-  "security_identity",
   "storage",
   "strategy",
 ]

@@ -109,7 +109,7 @@ class SettlementFlowTests(unittest.TestCase):
         error = BacktestError('run_failed', 'bad historical day')
         with TemporaryDirectory() as root:
             value = save_failed_backtest(build_data(Path(root)), request, error, partial)
-            self.assertEqual(value, 'data/runs/failed-trace/failed.json')
+            self.assertEqual(value, 'data/result/failed-trace/failed.json')
             saved = json.loads((Path(root) / value).read_text())
         self.assertEqual(saved['status'], 'failed')
         self.assertEqual(saved['partial']['equity'][0]['day'], '2020-01-31')

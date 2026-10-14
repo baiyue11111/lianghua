@@ -1,35 +1,59 @@
 import unittest,tempfile
 from pathlib import Path
 from protocal import build_data
-from collect.data import Store
 from protocal import Benchmarks, KernelBacktestPort, Research
 
 class BenchmarkTests(unittest.TestCase):
+    def test_daily_benchmark_reads_the_canonical_query_not_collection_snapshot(self):
+        import pyarrow.parquet as pq
+        from tests.history_fixture import make_snapshot
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d); make_snapshot(root)
+            path = root / "data/source/fixture/daily/bars.parquet"
+            table = pq.read_table(path); rows = table.to_pylist()
+            for row in rows:
+                if row["code"] == "600003" and row["date"] == "2020-01-31":
+                    row["close"] = row["open"] = row["high"] = row["low"] = 200.0
+                    row["amount"] = row["volume"] * 200.0
+            pq.write_table(table.from_pylist(rows, schema=table.schema), path)
+            data = build_data(root)
+            data.publish_collection("legacy", {"records": [
+                {"date": "2020-01-31", "code": "sh.600003", "close": 100},
+            ], "raw": [], "scope": {}, "data_as_of": "2020-01-31"})
+            service = Benchmarks(data, [{
+                "id": "canonical", "name": "canonical", "source_id": "legacy",
+                "dataset_id": "fixture", "code": "sh.600003", "provider": "test",
+                "currency": "CNY", "return_type": "price",
+            }])
+            result = service.series("canonical", "2020-01-31", "2020-01-31")
+            self.assertEqual(result["points"], [{"at": "2020-01-31", "close": 200.0}])
+
     def test_configured_index_reads_evidence_without_supplier_coupling(self):
         with tempfile.TemporaryDirectory() as d:
-            store=Store(build_data(Path(d))); snapshot=store.snapshot('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'},{'date':'2026-09-30','code':'sh.000300','close':'4040'}],'raw':[{'response':'original'}],'scope':{},'data_as_of':'2026-09-30'},{})
-            service=Benchmarks(store,[{'id':'hs300','name':'沪深300','source_id':'index','code':'sh.000300','provider':'BaoStock','currency':'CNY','return_type':'price'}])
+            data=build_data(Path(d)); snapshot=data.publish_collection('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'},{'date':'2026-09-30','code':'sh.000300','close':'4040'}],'raw':[{'response':'original'}],'scope':{},'data_as_of':'2026-09-30'})
+            service=Benchmarks(data,[{'id':'hs300','name':'沪深300','source_id':'index','code':'sh.000300','provider':'BaoStock','currency':'CNY','return_type':'price'}])
             result=service.series('hs300','2026-09-29','2026-09-30')
             self.assertEqual(result['points'],[{'at':'2026-09-29','close':4000.0},{'at':'2026-09-30','close':4040.0}])
-            self.assertEqual(result['snapshot_id'],snapshot['snapshot_id'])
+            self.assertEqual(result['snapshot_id'],data.latest_collection('index')['snapshot_id'])
             with self.assertRaises(KeyError):service.series('unknown','2026-09-29','2026-09-30')
     def test_no_snapshot_and_bad_prices_fail_explicitly(self):
         with tempfile.TemporaryDirectory() as d:
-            store=Store(build_data(Path(d))); spec={'id':'i','name':'指数','source_id':'s','code':'x','provider':'test','currency':'CNY','return_type':'price'}
-            service=Benchmarks(store,[spec])
+            data=build_data(Path(d)); spec={'id':'i','name':'指数','source_id':'s','code':'x','provider':'test','currency':'CNY','return_type':'price'}
+            service=Benchmarks(data,[spec])
             with self.assertRaisesRegex(ValueError,'未同步'):service.series('i','2026-09-29','2026-09-30')
-            store.snapshot('s',{'records':[{'date':'2026-09-29','code':'x','close':'0'}],'raw':[],'scope':{},'data_as_of':'2026-09-29'},{})
+            data.publish_collection('s',{'records':[{'date':'2026-09-29','code':'x','close':'0'}],'raw':[],'scope':{},'data_as_of':'2026-09-29'})
             with self.assertRaisesRegex(ValueError,'收盘价'):service.series('i','2026-09-29','2026-09-30')
 
     def test_requested_account_dates_must_be_fully_covered(self):
         with tempfile.TemporaryDirectory() as d:
-            store=Store(build_data(Path(d)))
+            data=build_data(Path(d))
             spec={'id':'i','name':'指数','source_id':'s','code':'x','provider':'test','currency':'CNY','return_type':'price'}
-            store.snapshot('s',{'records':[
+            data.publish_collection('s',{'records':[
                 {'date':'2026-09-29','code':'x','close':'100'},
                 {'date':'2026-10-01','code':'x','close':'110'},
-            ],'raw':[],'scope':{},'data_as_of':'2026-10-01'}, {})
-            service=Benchmarks(store,[spec])
+            ],'raw':[],'scope':{},'data_as_of':'2026-10-01'})
+            service=Benchmarks(data,[spec])
             with self.assertRaisesRegex(ValueError,'日期不全'):
                 service.series('i','2026-09-29','2026-10-01',dates=('2026-09-29','2026-09-30','2026-10-01'))
 
@@ -60,16 +84,14 @@ class BenchmarkPortTests(unittest.TestCase):
     def test_benchmark_protocol_port_and_missing_data(self):
         with tempfile.TemporaryDirectory() as d:
             spec={'id':'hs300','name':'沪深300','source_id':'index','code':'sh.000300','provider':'BaoStock','currency':'CNY','return_type':'price'}
-            config={'storage':'data','sources':[{'id':'index','name':'指数','frequency':'日','defaults':{}}],'research':{},'benchmarks':[spec]}
             data=build_data(Path(d))
-            store=Store(data)
             port=KernelBacktestPort(data, lambda *args, **kwargs: object(),
-                                    Benchmarks(store, [spec]), config=config,
+                                    Benchmarks(data, [spec]), datasets=(),
                                     research=Research(data))
             self.assertEqual(port.handle('workbench.benchmarks',{}),[spec])
             request={'id':'hs300','start':'2026-09-29','end':'2026-09-30'}
             with self.assertRaises(ValueError):port.handle('workbench.benchmark',request)
-            store.snapshot('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'}],'raw':[{}],'scope':{},'data_as_of':'2026-09-29'},{})
+            data.publish_collection('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'}],'raw':[{}],'scope':{},'data_as_of':'2026-09-29'})
             series=port.handle('workbench.benchmark',request);self.assertEqual(series['points'][0]['close'],4000)
             with self.assertRaises(ValueError):port.handle('workbench.benchmark',{**request,'start':'not-a-date'})
 

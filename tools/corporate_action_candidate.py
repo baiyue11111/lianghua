@@ -13,7 +13,7 @@ import json
 from pathlib import Path
 
 from core.calculation import normalize_dividend_records, InvalidCorporateAction
-from collect.factors import Request, _validate_cache
+from collect.methods import Request, _validate_cache
 
 
 def digest(path):

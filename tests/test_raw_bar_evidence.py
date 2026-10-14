@@ -3,22 +3,26 @@ from pathlib import Path
 import tempfile
 import unittest
 
-import duckdb
-
-from raw_bar_evidence import discrepancy_requests, validate_response
+from collect.methods import discrepancy_requests, validate_response
 
 
 class RawBarEvidenceTests(unittest.TestCase):
     def test_requests_come_from_anomalies_not_stock_allowlist(self):
-        with tempfile.TemporaryDirectory() as folder:
-            c = duckdb.connect()
-            c.execute("CREATE TABLE bars(code VARCHAR,date VARCHAR,open DOUBLE,high DOUBLE,low DOUBLE,close DOUBLE,volume DOUBLE,amount DOUBLE,tradestatus DOUBLE)")
-            c.execute("INSERT INTO bars VALUES ('600111','2025-01-02',10,11,9,10,100,1000,1),('600222','2025-01-02',1,1.1,.9,1,100,1000,1),('600222','2025-01-03',1,1.1,.9,1,100,1000,1),('300555','2025-01-03',10,10,10,10,0,0,NULL)")
-            c.execute("COPY bars TO ? (FORMAT PARQUET)", [str(Path(folder) / '2025.parquet')])
-            result = discrepancy_requests(Path(folder))
-            self.assertEqual([(r['code'],r['start_date'],r['end_date']) for r in result], [('sz.300555','2025-01-03','2025-01-03'),('sh.600222','2025-01-02','2025-01-03')])
-            self.assertEqual([r['affected_rows'] for r in result], [1,2])
-            c.close()
+        rows = [
+            {'code': '600111', 'date': '2025-01-02', 'open': 10, 'high': 11, 'low': 9,
+             'close': 10, 'volume': 100, 'amount': 1000, 'tradestatus': 1},
+            {'code': '600222', 'date': '2025-01-02', 'open': 1, 'high': 1.1, 'low': .9,
+             'close': 1, 'volume': 100, 'amount': 1000, 'tradestatus': 1},
+            {'code': '600222', 'date': '2025-01-03', 'open': 1, 'high': 1.1, 'low': .9,
+             'close': 1, 'volume': 100, 'amount': 1000, 'tradestatus': 1},
+            {'code': '300555', 'date': '2025-01-03', 'open': 10, 'high': 10, 'low': 10,
+             'close': 10, 'volume': 0, 'amount': 0, 'tradestatus': None},
+        ]
+        result = discrepancy_requests(rows)
+        self.assertEqual([(r['code'],r['start_date'],r['end_date']) for r in result],
+                         [('sh.600222','2025-01-02','2025-01-03'),
+                          ('sz.300555','2025-01-03','2025-01-03')])
+        self.assertEqual([r['affected_rows'] for r in result], [2, 1])
 
     def test_wrong_code_and_duplicate_provider_rows_fail(self):
         request = {'code':'sh.600111','start_date':'2025-01-02','end_date':'2025-01-03'}

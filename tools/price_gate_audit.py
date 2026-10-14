@@ -1,86 +1,51 @@
-"""Read-only all-partition price audit; no repair, source fallback or backtest.
+"""Read-only price coverage check through the standard DataBus query."""
+from __future__ import annotations
 
-Master membership is only the supplied catalogue, not a certification of the
-historical A-share universe. Even a passing price gate does not authorize NAV
-publication without corporate-action, tax, execution and evaluation evidence.
-"""
 import argparse
-from dataclasses import asdict
-from datetime import date
-import hashlib
 import json
+from datetime import date
 from pathlib import Path
-import sys
-
-import duckdb
-import numpy as np
-
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'src'))
-from collect.data import AdjustmentCoverageError, load_adjusted_lake_panel
-
-
-def _hash(path):
-    with path.open('rb') as handle: return hashlib.file_digest(handle,'sha256').hexdigest()
 
 
 def main(argv=None):
-    parser=argparse.ArgumentParser(description=__doc__)
-    for name in ('daily','cache','stock-basic','master','code-changes','output'):
-        parser.add_argument('--'+name,type=Path,required=True)
-    for name in ('factor-start','factor-end'):
-        parser.add_argument('--'+name,type=date.fromisoformat,required=True)
-    args=parser.parse_args(argv)
-    if args.output.exists(): raise FileExistsError('audit output already exists; immutable reports are not overwritten')
-    partitions=sorted(args.daily.glob('*.parquet'))
-    sources=sorted({p.resolve() for p in [*partitions,*args.cache.glob('adjust_*.json'),
-        *args.stock_basic.glob('stock_basic_*.json'),args.master,args.code_changes]})
-    inputs=[{'path':str(path),'sha256':_hash(path)} for path in sources]
-    with duckdb.connect() as connection:
-        masters=[str(row[0]) for row in connection.execute('SELECT code FROM read_parquet(?)',[str(args.master)]).fetchall()]
-        rows,codes=connection.execute('SELECT count(*), count(DISTINCT code) FROM read_parquet(?)',
-                                     [[str(p) for p in partitions]]).fetchone()
-        priced={str(row[0]) for row in connection.execute('SELECT DISTINCT code FROM read_parquet(?)',
-                                             [[str(p) for p in partitions]]).fetchall()}
-    print(f'Checking all {rows} raw rows / {codes} codes; no security filter',flush=True)
-    issues=[]; checked=None; loader_passed=False
-    try:
-        panel=load_adjusted_lake_panel(args.daily,args.cache,factor_start=args.factor_start,
-            factor_end=args.factor_end,code_changes_path=args.code_changes,stock_basic_dir=args.stock_basic,
-            read=lambda path: path.read_bytes(),
-            list_files=lambda directory, pattern: tuple(directory.glob(pattern)))
-        checked=rows; loader_passed=True
-        del panel
-    except AdjustmentCoverageError as error:
-        issues=[asdict(issue) for issue in error.issues]; checked=error.checked_bars
-    except Exception as error:
-        issues=[{'code':'*','reason':'loader_failed','detail':f'{type(error).__name__}: {error}'}]
-    changed=[entry['path'] for entry in inputs
-             if not Path(entry['path']).exists() or _hash(Path(entry['path']))!=entry['sha256']]
-    missing=sorted(set(masters)-priced); unexpected=sorted(priced-set(masters))
-    duplicate_master=len(masters)-len(set(masters))
-    config={key:(str(value.resolve()) if isinstance(value,Path) else value.isoformat())
-            for key,value in vars(args).items() if key!='output'}
-    code_paths=(Path(__file__).resolve(),
-                Path(__file__).resolve().parents[1]/'src/collect/data.py')
-    report={'schema':1,'config':config,'inputs':inputs,
-        'code':[{'path':str(p),'sha256':_hash(p)} for p in code_paths],
-        'runtime':{'python':sys.version,'duckdb':duckdb.__version__,'numpy':np.__version__},
-        'raw_rows':rows,'raw_codes':codes,'raw_rows_checked':checked,
-        'master_rows':len(masters),'duplicate_master_rows':duplicate_master,
-        'missing_master_histories':missing,'unexpected_price_codes':unexpected,'issues':issues,
-        'inputs_unchanged':not changed,'changed_inputs':changed,
-        'price_gate_passed':loader_passed and not any((missing,unexpected,duplicate_master,changed)),
-        'adjusted_panel_released':False,'backtest_started':False,'release_status':'NOT_RELEASED',
-        'scope_limits':['Supplied master does not prove complete historical security identities.',
-                        'Price checks do not validate corporate actions, investor taxes or performance.',
-                        'Turnover/OHLC scope remains an upstream source-evidence requirement.']}
-    canonical=json.dumps(report,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()
-    report['run_id']=hashlib.sha256(canonical).hexdigest()
-    args.output.parent.mkdir(parents=True,exist_ok=True)
-    with args.output.open('x',encoding='utf-8') as handle:
-        json.dump(report,handle,ensure_ascii=False,sort_keys=True,indent=2); handle.write('\n')
-    print(f'raw rows checked={checked}; issues={len(issues)}; missing histories={len(missing)}; NOT_RELEASED',flush=True)
-    return 0 if report['price_gate_passed'] else 1
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--root", type=Path, required=True,
+                        help="project root used to compose the standard DataBus")
+    parser.add_argument("--dataset", required=True)
+    parser.add_argument("--start", type=date.fromisoformat, required=True)
+    parser.add_argument("--end", type=date.fromisoformat, required=True)
+    parser.add_argument("--symbols", default="",
+                        help="comma-separated canonical symbols; empty means dataset scope")
+    args = parser.parse_args(argv)
+    if args.start > args.end:
+        raise ValueError("start must not exceed end")
+
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+    from protocal import DataQuery, build_data
+
+    symbols = tuple(item for item in args.symbols.split(",") if item) or None
+    fields = ("open", "high", "low", "close", "volume", "amount")
+    data = build_data(args.root.resolve())
+    result = data.query(DataQuery(
+        args.dataset, args.start, args.end, fields, 1, "adjusted",
+        symbols=symbols, universe="dataset"))
+    rows = sum(len(frame.fields) for record in result.records
+               for frame in (record.frame,))
+    output = {
+        "dataset": result.dataset,
+        "start": args.start.isoformat(),
+        "end": args.end.isoformat(),
+        "calendar": [day.isoformat() for day in result.calendar[:-1]],
+        "symbols": list(result.scope.get("symbols", ())),
+        "rows": rows,
+        "fields": list(result.fields),
+        "price_basis": "adjusted",
+        "status": "NOT_RELEASED",
+    }
+    print(json.dumps(output, ensure_ascii=False, sort_keys=True, indent=2))
+    return 0
 
 
-if __name__=='__main__': raise SystemExit(main())
+if __name__ == "__main__":
+    raise SystemExit(main())

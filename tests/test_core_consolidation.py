@@ -40,7 +40,7 @@ class CoreConsolidationTests(unittest.TestCase):
         self.assertTrue(callable(getattr(Kernel, "prepare", None)))
 
     def test_moved_history_reader_does_not_bypass_data_port(self):
-        path = ROOT / "src" / "collect" / "data.py"
+        path = ROOT / "src" / "collect" / "methods.py"
         forbidden = {"read_bytes", "read_text", "write_bytes", "write_text", "open"}
         found = []
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
@@ -49,15 +49,8 @@ class CoreConsolidationTests(unittest.TestCase):
                     found.append((node.lineno, node.func.attr))
         self.assertEqual(found, [])
 
-    def test_history_assembly_discovers_files_through_data_port(self):
-        path = ROOT / "src" / "history_data.py"
-        forbidden = {"iterdir", "glob", "rglob", "read_bytes", "read_text"}
-        found = []
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-                    and node.func.attr in forbidden):
-                found.append((node.lineno, node.func.attr))
-        self.assertEqual(found, [])
+    def test_history_assembly_is_now_owned_by_the_data_bus(self):
+        self.assertFalse((ROOT / "src" / "history_data.py").exists())
 
     def test_prepare_does_not_trade_and_run_uses_its_config(self):
         from core.kernel import Kernel

@@ -78,7 +78,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         forbidden = {
             "application", "core", "history_data", "lake", "protocal",
-            "research_registry", "strategy", "tools",
+            "strategy", "tools",
         }
         for relative in ("frontend/web.py", "frontend/cli.py"):
             path = root / relative
@@ -131,15 +131,14 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(set(operations), {
             "workbench.strategies", "workbench.preflight", "workbench.backtest",
             "cli.run", "workbench.runs", "workbench.run", "workbench.benchmarks",
-            "workbench.benchmark", "lake.researchDaily", "lake.researchInputs",
-            "lake.closedLoop", "workbench.sources", "workbench.sync",
+            "workbench.benchmark", "lake.researchInputs", "workbench.sources", "workbench.sync",
             "workbench.schedule", "workbench.job", "workbench.snapshot",
             "workbench.evidence", "workbench.failedEvidence", "workbench.reviews",
             "workbench.review", "lake.status", "lake.query", "lake.kline",
             "lake.startFetch", "lake.fetchJob", "lake.stopFetch",
             "lake.continuousFetch", "lake.setContinuousFetch", "lake.startMerge",
             "lake.mergeJob", "lake.doctor", "lake.doctorFix", "lake.doctorJob",
-            "cli.ingest", "cli.report",
+            "cli.ingest",
         })
         self.assertEqual(operations["workbench.backtest"]["mode"], "write")
         self.assertEqual(operations["lake.status"]["mode"], "read")
@@ -185,7 +184,6 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(backtests.calls, [("workbench.backtest", request)])
 
     def test_backtest_port_is_the_only_protocol_owned_kernel_adapter(self):
-        from history_data import HistoricalLake
         from protocal import KernelBacktestPort, Modules, Protocol
         from protocal import DataBus
         from storage import DataStore
@@ -196,7 +194,6 @@ class ProtocolBoundaryTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             protocol = Protocol(Modules(
                 backtests=KernelBacktestPort(bus, configured_settlement()),
                 research=Port({}), sources=Port({}), lake=Port({}), commands=Port({}),
