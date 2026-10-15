@@ -13,7 +13,8 @@ import numpy as np
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from adjusted_panel import AdjustmentCoverageError, load_adjusted_lake_panel
+from core.calculation import AdjustmentCoverageError
+from protocal import _load_adjusted_lake_panel
 
 
 FACTOR_START = date(1990, 1, 1)
@@ -36,6 +37,36 @@ def _bar(day: str, *, close: float, open_: float, high: float, low: float,
 
 
 class AdjustedPanelTests(unittest.TestCase):
+    def test_code_change_graph_rejects_ambiguous_cyclic_reverse_and_self_events(self):
+        self.write_bars([_bar('2020-01-02', close=10, open_=10, high=11, low=9)])
+        for code in ('sh.600000', 'sh.600001', 'sh.600002'):
+            self.write_cache([[code, '2018-01-01', '1', '1', '1'],
+                              [code, '2019-01-02', '1', '1', '1'],
+                              [code, '2020-01-02', '1', '1', '1']], code=code)
+        def event(old, new, day):
+            return {'old_code': old, 'new_code': new, 'effective_date': day,
+                    'factor_basis_continuity_verified': True}
+        cases = {
+            'outgoing_branch': [event('600001', '600000', '2020-01-02'),
+                                event('600001', '600002', '2020-01-02')],
+            'incoming_branch': [event('600001', '600000', '2020-01-02'),
+                                event('600002', '600000', '2020-01-02')],
+            'cycle': [event('600001', '600000', '2020-01-02'),
+                      event('600000', '600001', '2019-01-02')],
+            'reverse_dates': [event('600002', '600001', '2020-01-02'),
+                              event('600001', '600000', '2019-01-02')],
+            'self_transition': [event('600000', '600000', '2020-01-02')],
+            'unrelated_cycle': [event('600020', '600021', '2020-01-02'),
+                                event('600021', '600020', '2020-01-03')],
+            'same_date_chain': [event('600020', '600021', '2020-01-02'),
+                                event('600021', '600022', '2020-01-02')],
+        }
+        for name, events in cases.items():
+            with self.subTest(case=name):
+                self.code_changes.write_text(json.dumps({'schema': 1, 'events': events}))
+                with self.assertRaises(AdjustmentCoverageError):
+                    self.load()
+
     def test_factor_failure_does_not_hide_independent_raw_bar_failures(self):
         bad_price=_bar('2020-01-02',close=-10,open_=10,high=11,low=9)
         bad_status=_bar('2020-01-02',close=10,open_=10,high=11,low=9,tradestatus=0)
@@ -62,6 +93,44 @@ class AdjustedPanelTests(unittest.TestCase):
         np.testing.assert_allclose(panel.back_factor[0],[2,2])
         np.testing.assert_allclose(panel.signal_close[0],[20,22])
         self.assertTrue(any('adjust_600001_' in h.path for h in panel.source_hashes))
+
+    def test_verified_multi_rename_chain_matches_final_code_factor_history(self):
+        self.write_bars([
+            _bar('2020-01-02', close=10, open_=10, high=11, low=9),
+            _bar('2020-01-03', close=11, open_=11, high=12, low=10),
+            _bar('2020-01-06', close=12, open_=12, high=13, low=11),
+        ])
+        self.write_cache([
+            ['sh.600002', '2020-01-01', '1', '1', '1'],
+            ['sh.600002', '2020-01-02', '1', '2', '2'],
+        ], code='sh.600002')
+        self.write_cache([
+            ['sh.600001', '2020-01-03', '1', '2', '2'],
+            ['sh.600001', '2020-01-06', '1', '2', '2'],
+        ], code='sh.600001')
+        self.write_cache([
+            ['sh.600000', '2020-01-06', '1', '2', '2'],
+        ])
+        self.code_changes.write_text(json.dumps({'schema': 1, 'events': [
+            {'old_code': '600002', 'new_code': '600001',
+             'effective_date': '2020-01-03', 'factor_basis_continuity_verified': True},
+            {'old_code': '600001', 'new_code': '600000',
+             'effective_date': '2020-01-06', 'factor_basis_continuity_verified': True},
+        ][::-1]}))
+
+        renamed = self.load()
+
+        self.write_cache([
+            ['sh.600000', '2020-01-01', '1', '1', '1'],
+            ['sh.600000', '2020-01-02', '1', '2', '2'],
+            ['sh.600000', '2020-01-06', '1', '2', '2'],
+        ])
+        self.code_changes.write_text(json.dumps({'schema': 1, 'events': []}))
+        direct = self.load()
+
+        np.testing.assert_allclose(renamed.back_factor, direct.back_factor)
+        np.testing.assert_allclose(renamed.signal_close, direct.signal_close)
+        np.testing.assert_allclose(renamed.signal_close[0], [20, 22, 24])
 
     def test_rename_boolean_cannot_authorize_a_contradictory_factor(self):
         self.write_bars([_bar('2019-12-30',close=10,open_=10,high=11,low=9),
@@ -129,9 +198,11 @@ class AdjustedPanelTests(unittest.TestCase):
         return path
 
     def load(self):
-        return load_adjusted_lake_panel(
+        return _load_adjusted_lake_panel(
             self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
-            stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes)
+            stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
+            read=lambda path: path.read_bytes(),
+            list_files=lambda directory, pattern: tuple(directory.glob(pattern)))
 
     def test_factor_is_effective_on_event_day_for_signals_only(self):
         # Regressions caught: future factor leaks into yesterday, or execution

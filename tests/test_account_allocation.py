@@ -1,12 +1,12 @@
-from tests.fee_fixture import fees
+from tests.fee_fixture import rules
 from datetime import UTC, date, datetime
 from decimal import Decimal as D
 import unittest
 
-import account_execution
-from account_ledger import AccountLedger
+import core.calculation as account_execution
+from core.calculation import AccountLedger
 from protocal import Side, TargetSet
-from execution_risk import OpeningRiskSnapshot
+from core.calculation import AllocationLimits, OpeningRiskSnapshot
 
 
 class AccountAllocationTests(unittest.TestCase):
@@ -14,12 +14,10 @@ class AccountAllocationTests(unittest.TestCase):
         return TargetSet('strategy',datetime(2020,1,31,tzinfo=UTC),weights,
                          {s:'monthly-selection' for s in weights})
 
-    def allocate(self, target, holdings, prices, amounts):
-        import account_allocation
-        self.assertTrue(hasattr(account_allocation,'allocate_target'),'missing pure target allocation')
-        return account_allocation.allocate_target(target,next_session=date(2020,2,3),
+    def allocate(self, target, holdings, prices, amounts, *, limits=None):
+        return rules().allocate(target,next_session=date(2020,2,3),
                    equity=D('100000'),holdings=holdings,raw_closes=prices,amount20=amounts,
-                   rebalance=True)
+                   rebalance=True, limits=limits or AllocationLimits())
 
     def test_monthly_target_sizes_raw_prices_and_records_every_difference(self):
         plan=self.allocate(self.target({'B':.125}),{'A':150},
@@ -34,10 +32,15 @@ class AccountAllocationTests(unittest.TestCase):
     def test_cap_and_unaffordable_lot_skip_with_explicit_reasons_not_resize(self):
         plan=self.allocate(self.target({'A':.125,'B':.125,'C':.5}),{},
                            {'A':D('1000'),'B':D('10'),'C':D('10')},
-                           {'A':D('50000000'),'B':D('100000'),'C':D('50000000')})
+                           {'A':D('50000000'),'B':D('100000'),'C':D('50000000')},
+                           limits=AllocationLimits(stock_weight=D('.4'), adv_fraction=D('.01')))
         self.assertEqual(plan.orders,())
         self.assertEqual([(d.symbol,d.reason) for d in plan.decisions],
                          [('A','below_one_lot'),('B','order_above_adv_limit'),('C','weight_above_stock_limit')])
+
+    def test_default_unlimited_limits_do_not_reject_for_missing_caps(self):
+        plan=self.allocate(self.target({'A':.125}),{}, {'A':D('10')}, {'A':D('100000')})
+        self.assertEqual(plan.orders[0].requested_shares, 1200)
 
     def test_odd_holdings_do_not_create_an_unfillable_odd_buy_order(self):
         plan=self.allocate(self.target({'A':.125}),{'A':150},
@@ -60,7 +63,7 @@ class AccountAllocationTests(unittest.TestCase):
     def test_observation_only_target_does_not_cancel_pending(self):
         self.assertTrue(hasattr(account_execution.AccountExecutionSession,'apply_target'),
                         'missing target to account orchestration')
-        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),fees())
+        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),rules())
         first=session.apply_target(self.target({'A':.125}),next_session=date(2020,2,3),
                                    equity=D('100000'),raw_closes={'A':D('10')},amount20={'A':D('50000000')})
         self.assertEqual(len(session.pending),1)
@@ -77,7 +80,7 @@ class AccountAllocationTests(unittest.TestCase):
         self.assertEqual(session.account.order_cancellations[0].order_id,first.orders[0].order_id)
 
     def test_bad_replacement_preserves_old_order_and_replay_cannot_mutate_target(self):
-        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),fees())
+        session=account_execution.AccountExecutionSession(AccountLedger(D('100000')),rules())
         weights={'A':.125}; target=self.target(weights)
         kwargs=dict(next_session=date(2020,2,3),equity=D('100000'),
                     raw_closes={'A':D('10')},amount20={'A':D('50000000')})

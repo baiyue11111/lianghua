@@ -17,7 +17,7 @@ def cache(request, directory):
 
 
 ROOT = Path(__file__).resolve().parents[1]
-spec = importlib.util.spec_from_file_location("research_fetch_under_test", ROOT / "src" / "collect" / "factors.py")
+spec = importlib.util.spec_from_file_location("research_fetch_under_test", ROOT / "src" / "collect" / "methods.py")
 fetch = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = fetch
 spec.loader.exec_module(fetch)

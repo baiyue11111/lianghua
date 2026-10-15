@@ -8,15 +8,17 @@ import pyarrow.parquet as pq
 from strategy import load_strategy, canonical_hash
 
 
-def make_snapshot(root:Path, history_start=date(2019,7,1)):
-    folder=root/'data'/'sources'/'fixture'; folder.mkdir(parents=True)
+def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
+    from protocal import normalize_security_id
+    folder=root/'data'/'source'/'fixture'; folder.mkdir(parents=True)
     (folder/'daily').mkdir(); (folder/'factors').mkdir(); (folder/'basic').mkdir()
     days=[]; day=history_start
     while day<=date(2020,2,5):
         if day.weekday()<5: days.append(day)
         day+=timedelta(days=1)
     sessions=days; days=days[:-1]
-    symbols=tuple(f'600{i:03d}' for i in range(20)); rows=[]
+    symbols=tuple(f'600{i:03d}' for i in range(20)) if symbols is None else tuple(symbols)
+    rows=[]
     for symbol in symbols:
         for day in days:
             price=9.
@@ -44,12 +46,13 @@ def make_snapshot(root:Path, history_start=date(2019,7,1)):
             'raw_response':raw,'raw_response_sha256':canonical_hash(raw),
             'request_fields_sha256':hashlib.sha256(','.join(fields).encode()).hexdigest(),'status':'ok' if rows else 'empty'})
     for symbol in symbols:
-        request={'kind':'adjust','code':'sh.'+symbol,'start':factor_start,'end':factor_end,'year':None}
+        identity=normalize_security_id(symbol)
+        request={'kind':'adjust','code':identity,'start':factor_start,'end':factor_end,'year':None}
         cache(f'factors/adjust_{symbol}_{factor_start}_{factor_end}.json',request,
-            ['code','dividOperateDate','foreAdjustFactor','backAdjustFactor','adjustFactor'],[['sh.'+symbol,'1990-01-01','1','1','1']])
+            ['code','dividOperateDate','foreAdjustFactor','backAdjustFactor','adjustFactor'],[[identity,'1990-01-01','1','1','1']])
         for year in map(str,range(history_start.year,2021)):
             name=f'corp/dividend_{symbol}_{year}.json'
-            cache(name,{'kind':'dividend','code':'sh.'+symbol,'start':None,'end':None,'year':year},
+            cache(name,{'kind':'dividend','code':identity,'start':None,'end':None,'year':year},
                 ['code','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate','dividCashPsBeforeTax','dividStocksPs','dividReserveToStockPs'],[])
             corp.append({'file':name})
     write('policy_source.json',{'type':'engineering_fee_and_tax_policy'},'account')
@@ -64,4 +67,12 @@ def make_snapshot(root:Path, history_start=date(2019,7,1)):
     (folder/'manifest.json').write_text(json.dumps({'schema':2,'files':files,'fields':{},'calendar':'calendar.json',
         'scope':{'symbols':symbols,'universe':'CN_A_SHARE'},'price':{'daily_dir':'daily','cache_dir':'factors','stock_basic_dir':'basic','code_changes':'code_changes.json','factor_start':factor_start,'factor_end':factor_end},
         'corporate_action_sources':corp,'action_facts':[],'account_policy':'account_policy.json'}))
-    return {'adapter':'history_data:HistoricalLake','datasets':[{'id':'fixture','name':'工程输入'}]}
+    return {'dataset': 'fixture'}
+
+
+def update_manifest(root: Path, **changes):
+    path = Path(root) / 'data' / 'source' / 'fixture' / 'manifest.json'
+    manifest = json.loads(path.read_text())
+    manifest.update(changes)
+    path.write_text(json.dumps(manifest, ensure_ascii=False))
+    return manifest

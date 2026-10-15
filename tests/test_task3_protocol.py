@@ -5,12 +5,18 @@ import inspect
 import unittest
 from types import SimpleNamespace
 
+from tests.fee_fixture import execution
+
 
 class ConfigSettlement:
     def __init__(self, initial_cash, fees, tax_policy, *, limits=None, mode="default"):
         self.initial_cash = initial_cash
         self.limits = limits
         self.mode = mode
+
+
+def settlement_payload():
+    return {"limits": {}, "execution": execution()}
 
 
 class ShiftSignalAdapter:
@@ -67,116 +73,111 @@ class InvalidScaler:
 
 
 class Task3ProtocolTests(unittest.TestCase):
+    def test_no_search_runs_independent_validation_and_oos_accounts(self):
+        import json
+        from protocal import DataBus, KernelBacktestPort
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot
+        from plugins.data import Settlement
+
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            port = KernelBacktestPort(bus, Settlement)
+            value = port.handle("workbench.backtest", {
+                "run_id": "three-segments", "module": "plugins.strategies.breadth_low_amount_reversal",
+                "params": {"positions": 4}, "dataset_id": "fixture",
+                "start": "2020-01-31", "end": "2020-01-31", "initial_cash": 1000000,
+                "validation": {"start": "2020-02-03", "end": "2020-02-03"},
+                "out_of_sample": {"start": "2020-02-04", "end": "2020-02-04"},
+                **settlement_payload(),
+            }).data
+            self.assertEqual(value["effective_config"]["initial_cash"], "1000000")
+            self.assertEqual(set(value["segments"]), {"validation", "out_of_sample"})
+            self.assertNotEqual(value["config_hash"], value["segments"]["validation"]["config_hash"])
+            self.assertNotEqual(value["config_hash"], value["segments"]["out_of_sample"]["config_hash"])
+            saved = port.handle("workbench.run", {"id": value["run_id"]})
+            self.assertEqual(saved["segments"], value["segments"])
+            for segment in value["segments"].values():
+                manifest = json.loads(bus.read("runs", segment["run_id"], "manifest.json"))
+                self.assertEqual(manifest["effective_config"]["initial_cash"], "1000000")
     def test_data_query_declares_scope_and_bus_uses_one_reader(self):
-        from protocal import DataBus, DataQuery, Dataset
-        from protocal import MarketFrame
+        from protocal import DataBus, DataQuery
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot, update_manifest
 
-        seen = []
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
+                              ("close",), 20, "adjusted")
+            dataset = bus.query(query)
+            self.assertEqual(dataset.dataset, "fixture")
+            self.assertEqual(dataset.scope["universe"], "CN_A_SHARE")
+            self.assertEqual(dataset.fields, ("close",))
 
-        class Store:
-            pass
-
-        day = date(2020, 1, 1)
-        record = SimpleNamespace(trade_date=day, frame=MarketFrame(datetime(2020, 1, 1, 15, tzinfo=timezone.utc), "TEST", {}))
-        dataset = Dataset("fixture", (record,), {"fees": object(), "tax_policy": object()},
-                          {"source": "test"}, {"universe": "fixture", "symbols": (),
-                                                   "calendar_start": day.isoformat()},
-                          (day, date(2020, 1, 2)), ("close",), 20)
-        class Reader:
-            def query(self, query):
-                seen.append(query)
-                return dataset
-
-        bus = DataBus(Store(), reader=Reader())
         query = DataQuery(
-            dataset="fixture", start=date(2020, 1, 1), end=date(2020, 1, 1),
-            fields=("close",), history=20, price_basis="adjusted",
-            symbols=None,
+            dataset="fixture", start=date(2020, 1, 31), end=date(2020, 2, 4),
+            fields=("close",), history=20, price_basis="adjusted", symbols=None,
         )
-        self.assertIs(bus.query(query), dataset)
-        self.assertEqual(seen, [query])
         self.assertIsNone(query.symbols)
 
     def test_data_bus_rejects_truncated_query_and_accepts_full_coverage(self):
-        from protocal import DataBus, DataQuery, Dataset
-        from protocal import MarketFrame
+        from protocal import DataBus, DataError, DataQuery
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot, update_manifest
 
-        day = date(2020, 1, 1)
-        record = SimpleNamespace(trade_date=day, frame=MarketFrame(
-            datetime(2020, 1, 1, 15, tzinfo=timezone.utc), "TEST", {}))
-        dataset = Dataset("fixture", (record,), {"fees": object(), "tax_policy": object()},
-                          {"source": "test"}, {"universe": "fixture", "symbols": (),
-                                                   "calendar_start": day.isoformat()},
-                          (day, date(2020, 1, 2)), ("close",), 20)
-        class Reader:
-            def query(self, query):
-                return dataset
-        bus = DataBus(object(), reader=Reader())
-        with self.assertRaises(Exception):
-            bus.query(DataQuery("fixture", day, date(2020, 1, 3), ("close",), 20, "adjusted"))
-        self.assertIs(bus.query(DataQuery("fixture", day, day, ("close",), 20, "adjusted")), dataset)
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            with self.assertRaisesRegex(DataError, "outside historical snapshot"):
+                bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 6),
+                                    ("close",), 20, "adjusted"))
+            dataset = bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
+                                          ("close",), 20, "adjusted"))
+            self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
 
     def test_data_bus_rejects_start_truncation_using_calendar_coverage(self):
-        from protocal import DataBus, DataError, DataQuery, Dataset, MarketFrame
+        from protocal import DataBus, DataError, DataQuery
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot, update_manifest
 
-        first_session = date(2020, 1, 10)
-        record = SimpleNamespace(
-            trade_date=first_session,
-            frame=MarketFrame(datetime(2020, 1, 10, 15, tzinfo=timezone.utc), "TEST", {}),
-        )
-        dataset = Dataset(
-            "fixture", (record,), {"fees": object(), "tax_policy": object()},
-            {"source": "test"}, {"universe": "fixture", "symbols": (),
-                                  "calendar_start": first_session.isoformat()},
-            (first_session, date(2020, 1, 11)), ("close",), 20,
-        )
-
-        class Reader:
-            def query(self, query):
-                return dataset
-
-        bus = DataBus(object(), reader=Reader())
-        with self.assertRaisesRegex(DataError, "calendar does not cover query start"):
-            bus.query(DataQuery("fixture", date(2020, 1, 1), first_session,
-                                ("close",), 20, "adjusted"))
-
-        dataset = Dataset(
-            "fixture", (record,), {"fees": object(), "tax_policy": object()},
-            {"source": "test"}, {"universe": "fixture", "symbols": (),
-                                  "calendar_start": "2020-01-01"},
-            (first_session, date(2020, 1, 11)), ("close",), 20,
-        )
-        self.assertIs(bus.query(DataQuery("fixture", date(2020, 1, 6), first_session,
-                                          ("close",), 20, "adjusted")), dataset)
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            first_session = date(2019, 7, 1)
+            with self.assertRaisesRegex(DataError, "outside historical snapshot"):
+                bus.query(DataQuery("fixture", date(2019, 6, 28), first_session,
+                                    ("close",), 20, "adjusted"))
 
     def test_data_bus_requires_explicit_calendar_coverage(self):
-        from protocal import DataBus, DataError, DataQuery, Dataset, MarketFrame
+        import json
+        from protocal import DataBus, DataError, DataQuery
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot
 
-        day = date(2020, 1, 3)
-        record = SimpleNamespace(
-            trade_date=day,
-            frame=MarketFrame(datetime(2020, 1, 3, 15, tzinfo=timezone.utc), "TEST", {}),
-        )
-        dataset = Dataset(
-            "fixture", (record,), {"fees": object(), "tax_policy": object()},
-            {"source": "test"}, {"universe": "fixture", "symbols": ()},
-            (day, date(2020, 1, 6)), ("close",), 20,
-        )
-        class Reader:
-            def query(self, _query):
-                return dataset
-
-        with self.assertRaisesRegex(DataError, "calendar_start"):
-            DataBus(object(), reader=Reader()).query(
-                DataQuery("fixture", date(2020, 1, 1), day, ("close",), 20, "adjusted")
-            )
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            path = root / "data/source/fixture/manifest.json"
+            manifest = json.loads(path.read_text())
+            del manifest["calendar"]
+            path.write_text(json.dumps(manifest))
+            with self.assertRaisesRegex(DataError, "calendar"):
+                DataBus(DataStore(root)).query(
+                    DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
+                              ("close",), 20, "adjusted")
+                )
 
     def test_query_cannot_lower_strategy_universe_or_claim_unproven_pit(self):
         from protocal import _query, DataQuery, DataBus
         from protocal import BacktestRequest
         from datetime import datetime
         from decimal import Decimal
-        from history_data import HistoricalLake
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -196,7 +197,6 @@ class Task3ProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                               20, "adjusted", date(2020, 2, 5), universe="CN_A_SHARE")
@@ -226,7 +226,6 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_pit_requires_calendar_file_binding_not_only_calendar_source(self):
         import json
-        from history_data import HistoricalLake
         from protocal import DataBus, DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot
@@ -234,7 +233,7 @@ class Task3ProtocolTests(unittest.TestCase):
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
-            manifest_path = root / "data" / "sources" / "fixture" / "manifest.json"
+            manifest_path = root / "data" / "source" / "fixture" / "manifest.json"
             manifest = json.loads(manifest_path.read_text())
             manifest["source_availability"] = [
                 {"file": item["file"], "sha256": item["sha256"], "available_at": "2020-02-05"}
@@ -243,7 +242,6 @@ class Task3ProtocolTests(unittest.TestCase):
             manifest["files"] = [item for item in manifest["files"] if item["file"] != "calendar.json"]
             manifest_path.write_text(json.dumps(manifest))
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             with self.assertRaisesRegex(Exception, "unbound historical evidence|availability"):
                 bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                                     ("open", "high", "low", "close", "volume", "amount", "signal_close"),
@@ -282,10 +280,8 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_result_and_research_use_saved_json_trace_contract(self):
         from protocal import DataBus
-        from application import save_backtest
-        from protocal import BacktestRequest
+        from protocal import BacktestRequest, Research, save_backtest
         from storage import DataStore
-        from workbench.research import Research
         from decimal import Decimal
 
         with TemporaryDirectory() as root:
@@ -309,22 +305,20 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertTrue(any(item["file"].endswith("result.json") for item in detail["evidence"]))
 
     def test_signal_plugins_are_explicit_and_keep_execution_bars_unchanged(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, DataQuery
         from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from tests.history_fixture import make_snapshot, update_manifest
 
         with TemporaryDirectory() as root:
             root = Path(root)
-            config = make_snapshot(root)
-            config["signal_plugins"] = {
+            make_snapshot(root)
+            update_manifest(root, signal_plugins={
                 "adapter": {"module": "plugins.data:Adapter", "method": "validate",
                             "fields": ("signal_close",)},
                 "scaler": {"module": "plugins.data:Scaler", "fields": ("signal_close",), "fit_start": "2020-01-02",
                             "fit_end": "2020-01-30", "params": {"method": "standard"}},
-            }
+            })
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                               20, "adjusted")
@@ -342,74 +336,71 @@ class Task3ProtocolTests(unittest.TestCase):
                     "run_id": "real-signal", "module": "plugins.strategies.breadth_low_amount_reversal",
                     "params": {"positions": 4}, "dataset_id": "fixture",
                     "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+                    **settlement_payload(),
                 }).data
             self.assertEqual(result["dataset_id"], "fixture")
 
     def test_signal_scaler_rejects_validation_window_and_missing_training_coverage(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, DataQuery
         from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from tests.history_fixture import make_snapshot, update_manifest
 
         with TemporaryDirectory() as root:
             root = Path(root)
-            config = make_snapshot(root)
-            config["signal_plugins"] = {
+            make_snapshot(root)
+            plugins = {
                 "scaler": {"module": "plugins.data:Scaler", "fields": ("signal_close",), "fit_start": "2020-01-02",
                            "fit_end": "2020-01-31", "params": {"method": "standard"}},
             }
+            update_manifest(root, signal_plugins=plugins)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                               20, "adjusted")
             with self.assertRaisesRegex(ValueError, "end before backtest start"):
                 bus.query(query)
 
-            config["signal_plugins"]["scaler"]["fit_end"] = "2020-01-30"
-            config["signal_plugins"]["scaler"]["fit_start"] = "2020-01-04"
+            plugins["scaler"]["fit_end"] = "2020-01-30"
+            plugins["scaler"]["fit_start"] = "2020-01-04"
+            update_manifest(root, signal_plugins=plugins)
             with self.assertRaisesRegex(ValueError, "fully covered"):
                 bus.query(query)
 
     def test_signal_scaler_rejects_short_and_nonfinite_custom_output(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, DataQuery
         from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from tests.history_fixture import make_snapshot, update_manifest
 
         for mode in ("short", "nan"):
             with self.subTest(mode=mode), TemporaryDirectory() as root:
                 root = Path(root)
-                config = make_snapshot(root)
-                config["signal_plugins"] = {"scaler": {
+                make_snapshot(root)
+                update_manifest(root, signal_plugins={"scaler": {
                     "module": "tests.test_task3_protocol:InvalidScaler", "fields": ("signal_close",),
                     "fit_start": "2020-01-02", "fit_end": "2020-01-30", "params": {"mode": mode},
-                }}
+                }})
                 bus = DataBus(DataStore(root))
-                bus.configure_reader(HistoricalLake(bus, config))
                 with self.assertRaisesRegex(ValueError, "signal scaler transform"):
                     bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                                         ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                                         20, "adjusted"))
 
     def test_signal_plugin_replacement_is_explicit_and_merged(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, DataQuery
         from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from tests.history_fixture import make_snapshot, update_manifest
 
         with TemporaryDirectory() as root:
             root = Path(root)
-            config = make_snapshot(root)
-            config["signal_plugins"] = {
+            make_snapshot(root)
+            update_manifest(root, signal_plugins={
                 "adapter": {
                     "module": "tests.test_task3_protocol:ShiftSignalAdapter",
                     "method": "validate", "fields": ("signal_close",),
                     "params": {"amount": 3.0},
                 },
-            }
+            })
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             dataset = bus.query(DataQuery(
                 "fixture", date(2020, 1, 31), date(2020, 2, 4),
                 ("open", "high", "low", "close", "volume", "amount", "signal_close"),
@@ -424,27 +415,24 @@ class Task3ProtocolTests(unittest.TestCase):
                              "tests.test_task3_protocol:ShiftSignalAdapter")
 
     def test_signal_adapter_rejects_history_row_addition(self):
-        from history_data import HistoricalLake
         from protocal import DataBus, DataQuery
         from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from tests.history_fixture import make_snapshot, update_manifest
 
         with TemporaryDirectory() as root:
             root = Path(root)
-            config = make_snapshot(root)
-            config["signal_plugins"] = {"adapter": {
+            make_snapshot(root)
+            update_manifest(root, signal_plugins={"adapter": {
                 "module": "tests.test_task3_protocol:ExtraHistoryAdapter", "method": "validate",
                 "fields": ("signal_close",), "params": {},
-            }}
+            }})
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             with self.assertRaisesRegex(ValueError, "history timestamps"):
                 bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                                     ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                                     20, "adjusted"))
 
     def test_failed_run_writes_evidence_without_success_manifest_and_retry_works(self):
-        from history_data import HistoricalLake
         from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
@@ -464,11 +452,11 @@ class Task3ProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             port = KernelBacktestPort(bus, FailOnce)
             payload = {"run_id": "retry", "module": "plugins.strategies.breadth_low_amount_reversal",
                        "params": {"positions": 4}, "dataset_id": "fixture",
-                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000"}
+                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+                       **settlement_payload()}
             with self.assertRaises(Exception):
                 port.handle("workbench.backtest", payload)
             self.assertTrue(bus.path("runs", "retry", "failed.json").is_file())
@@ -478,7 +466,6 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_invalid_injected_metrics_write_failure_evidence(self):
         import json
-        from history_data import HistoricalLake
         from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
@@ -492,12 +479,12 @@ class Task3ProtocolTests(unittest.TestCase):
         with TemporaryDirectory() as root:
             root = Path(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, make_snapshot(root)))
             port = KernelBacktestPort(bus, Settlement)
             port._kernel._calculation = BadCalculation()
             payload = {"run_id": "bad-metrics", "module": "plugins.strategies.breadth_low_amount_reversal",
                        "params": {"positions": 4}, "dataset_id": "fixture",
-                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000"}
+                       "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+                       **settlement_payload()}
             with self.assertRaises(Exception) as caught:
                 port.handle("workbench.backtest", payload)
             self.assertEqual(caught.exception.code, "run_failed")
@@ -588,18 +575,18 @@ class Task3ProtocolTests(unittest.TestCase):
         self.assertEqual(request.benchmark_id, "hs300")
 
     def test_config_plugin_params_merge_with_request_overrides(self):
-        from account_allocation import AllocationLimits
+        from core.calculation import AllocationLimits
         from protocal import _load_plugin, parse_backtest_request
 
         plugin = _load_plugin({"settlement": {
             "module": "tests.test_task3_protocol:ConfigSettlement",
-            "params": {"mode": "configured", "limits": {"lot_size": 10}},
+            "params": {"mode": "configured", "limits": {}},
         }}, "settlement")
-        request = parse_backtest_request({**request_data(), "limits": {"lot_size": 20}})
+        request = parse_backtest_request({**request_data(), "limits": {}})
         value = plugin(100, object(), object(), **dict(request.settlement_parameters))
         self.assertEqual(value.mode, "configured")
         self.assertIsInstance(value.limits, AllocationLimits)
-        self.assertEqual(value.limits.lot_size, 20)
+        self.assertEqual(value.limits.lot_size, 100)
 
         with self.assertRaises(ValueError):
             _load_plugin({"settlement": {
@@ -608,12 +595,37 @@ class Task3ProtocolTests(unittest.TestCase):
             }}, "settlement")
 
     def test_backend_build_has_no_factory_parameter_and_factory_is_removed(self):
-        from protocal import build_backend
+        import asyncio
+        import json
+        from protocal import build_backend, build_data
         import importlib.util
+        ui = importlib.import_module("frontend.ui-protocol")
 
         self.assertEqual(list(inspect.signature(build_backend).parameters), ["root"])
         self.assertIsNone(importlib.util.find_spec("core.interfaces"))
-        self.assertIsNotNone(build_backend(Path(__file__).resolve().parents[1]))
+        backend = build_backend(Path(__file__).resolve().parents[1])
+        try:
+            request = ui.UiRequest(
+                "sources", "workbench.sources",
+                "urn:lianghua:ui:input:workbench.sources:v1", {},
+            )
+            messages = asyncio.run(backend.send(request))
+            self.assertEqual(messages[0].kind, "collection")
+            self.assertIsInstance(messages[0].data, list)
+            registry = json.loads(build_data(Path(__file__).resolve().parents[1]).read(
+                "sources", "registry", "sources.json"))
+            declared_ids = {item["id"] for item in registry["sources"]}
+            returned_ids = [item["id"] for item in messages[0].data]
+            self.assertEqual(len(returned_ids), len(set(returned_ids)))
+            self.assertEqual(set(returned_ids), declared_ids)
+            shape = {"id", "name", "frequency", "defaults", "job", "schedule",
+                     "integrity_error", "snapshot", "records"}
+            for item in messages[0].data:
+                self.assertEqual(set(item), shape)
+                self.assertIsInstance(item["defaults"], dict)
+                self.assertIsInstance(item["records"], int)
+        finally:
+            backend.close()
 
     def test_kernel_port_uses_the_explicitly_injected_settlement_plugin(self):
         from protocal import KernelBacktestPort
@@ -628,7 +640,6 @@ class Task3ProtocolTests(unittest.TestCase):
         import json
         from dataclasses import asdict
         from decimal import Decimal
-        from history_data import HistoricalLake
         from plugins.data import Settlement
         from protocal import _json_value
         from protocal import DataBus, _query
@@ -643,13 +654,16 @@ class Task3ProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             kernel = Kernel(bus, load_strategy, _query, Settlement)
             strategy = load_strategy("plugins.strategies.breadth_low_amount_reversal", {"positions": 4})
             request = BacktestRequest(
                 "frozen", "plugins.strategies.breadth_low_amount_reversal", asdict(strategy.params), "fixture",
                 datetime(2020, 1, 31, tzinfo=timezone.utc),
                 datetime(2020, 2, 4, 23, 59, 59, tzinfo=timezone.utc), Decimal("100000"),
+                settlement_parameters={
+                    "limits": __import__("core.calculation", fromlist=["AllocationLimits"]).AllocationLimits(),
+                    "execution": execution(),
+                },
             )
             response = kernel.run(request)
             result = response.account_result
@@ -663,7 +677,6 @@ class Task3ProtocolTests(unittest.TestCase):
         import json
         from pathlib import Path
         from tests.history_fixture import make_snapshot
-        from history_data import HistoricalLake
         from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
@@ -672,13 +685,13 @@ class Task3ProtocolTests(unittest.TestCase):
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             port = KernelBacktestPort(bus, Settlement)
             value = port.handle("workbench.backtest", {
                 "run_id": "saved", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
-                "evaluation": {"periods": 12, "baseline": .01},
+                "evaluation": {"periods": 12, "risk_free_rate": .01},
+                **settlement_payload(),
             }).data
             manifest = json.loads(bus.read("runs", "saved", "manifest.json"))
             saved = json.loads(bus.read("runs", "saved", "result.json"))
@@ -689,7 +702,7 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(value["provenance"]["query_semantics"], "snapshot_replay")
             self.assertEqual(saved["trace"], value["trace"])
             self.assertEqual(saved["equity"], value["equity"])
-            self.assertEqual(value["effective_config"]["evaluation"], {"periods": 12, "baseline": .01})
+            self.assertEqual(value["effective_config"]["evaluation"], {"periods": 12, "risk_free_rate": .01})
             self.assertEqual(manifest["effective_config"], value["effective_config"])
             self.assertEqual(manifest["config_hash"], value["config_hash"])
 
@@ -697,16 +710,19 @@ class Task3ProtocolTests(unittest.TestCase):
                 "run_id": "saved-lot", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
-                "limits": {"lot_size": 300},
+                "limits": {},
+                "execution": {**execution(), "check": {"model": "cn_a_share",
+                    "params": {"tick": "0.01", "min_qty": 200, "step": 1}}},
             }).data
             self.assertNotEqual(value["config_hash"], changed["config_hash"])
-            self.assertEqual(changed["effective_config"]["settlement"]["params"]["limits"]["lot_size"], 300)
+            self.assertEqual(changed["effective_config"]["settlement"]["params"]["limits"]["lot_size"], 1)
 
             changed_evaluation = port.handle("workbench.backtest", {
                 "run_id": "saved-evaluation", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
-                "evaluation": {"periods": 252, "baseline": 0},
+                "evaluation": {"periods": 252, "risk_free_rate": 0},
+                **settlement_payload(),
             }).data
             self.assertEqual(changed_evaluation["equity"], value["equity"])
             self.assertEqual(changed_evaluation["trades"], value["trades"])

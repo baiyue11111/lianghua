@@ -1,13 +1,13 @@
-from tests.fee_fixture import fees
+from tests.fee_fixture import rules
 from dataclasses import replace
 from datetime import date
 from decimal import Decimal as D
 import unittest
 
-from account_ledger import AccountLedger
+from core.calculation import AccountLedger
 from protocal import Bar, Fill, Order, Side
-from account_execution import AccountExecutionSession
-from execution_risk import OpeningRiskSnapshot
+from core.calculation import AccountExecutionSession
+from core.calculation import OpeningRiskSnapshot
 
 
 class AccountExecutionTests(unittest.TestCase):
@@ -15,7 +15,7 @@ class AccountExecutionTests(unittest.TestCase):
         return Bar('600000',day,price,price+1,price-1,price,100000,1000000)
 
     def test_open_batch_sells_before_buying_with_released_cash(self):
-        account=AccountLedger(D('1007')); session=AccountExecutionSession(account,fees())
+        account=AccountLedger(D('1007')); session=AccountExecutionSession(account,rules())
         session.submit(Order('seed','600000',Side.BUY,100,date(2020,1,2),date(2020,1,3),'entry'))
         session.execute('seed',self.bar(date(2020,1,3)),previous_close=10)
         self.assertEqual(account.cash,D('1'))
@@ -39,7 +39,7 @@ class AccountExecutionTests(unittest.TestCase):
     def test_open_batch_validates_all_inputs_before_any_posting(self):
         for defect in ('missing_bar','wrong_day','wrong_symbol','missing_previous'):
             with self.subTest(defect=defect):
-                account=AccountLedger(D('100000')); session=AccountExecutionSession(account,fees())
+                account=AccountLedger(D('100000')); session=AccountExecutionSession(account,rules())
                 day=date(2020,1,3)
                 for symbol in ('600000','600001'):
                     session.submit(Order(symbol,symbol,Side.BUY,100,date(2020,1,2),day,'entry'))
@@ -59,7 +59,7 @@ class AccountExecutionTests(unittest.TestCase):
                 self.assertEqual(len(session.pending),2)
 
     def test_fills_post_to_one_account_and_replay_does_not_post_twice(self):
-        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,fees())
+        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,rules())
         order=Order('buy','600000',Side.BUY,200,date(2020,1,2),date(2020,1,3),'entry')
         session.submit(order)
         bar=self.bar(date(2020,1,3))
@@ -87,7 +87,7 @@ class AccountExecutionTests(unittest.TestCase):
         self.assertEqual(point.unrealized_pnl,D('196.5'))
 
     def test_credited_but_locked_shares_remain_pending_until_tradable(self):
-        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,fees())
+        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,rules())
         session.submit(Order('buy','600000',Side.BUY,100,date(2020,1,2),date(2020,1,3),'entry'))
         session.execute('buy',self.bar(date(2020,1,3)),previous_close=10)
         account.record_share_credit('bonus',date(2020,1,6),'600000',50,date(2020,1,3),
@@ -109,7 +109,7 @@ class AccountExecutionTests(unittest.TestCase):
         self.assertEqual(session.pending,())
 
     def test_new_signal_cancellation_blocks_remaining_fills_and_is_audited(self):
-        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,fees())
+        account=AccountLedger(D('100000')); session=AccountExecutionSession(account,rules())
         session.submit(Order('buy','600000',Side.BUY,100,date(2020,1,2),date(2020,1,3),'entry'))
         session.execute('buy',self.bar(date(2020,1,3)),previous_close=10)
         account.record_share_credit('bonus',date(2020,1,6),'600000',50,date(2020,1,3),

@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-lianghua-backtest = "frontend.cli:main"
+lianghua = "frontend.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -36,38 +36,11 @@ packages = [
   "plugins",
   "plugins.strategies",
   "frontend",
-  "workbench",
 ]
 py-modules = [
-  "account_allocation",
-  "account_execution",
-  "account_ledger",
-  "adjusted_panel",
-  "application",
-  "comparison",
-  "config",
-  "closed_loop_report",
-  "corporate_actions",
-  "distribution_ledger",
-  "dividend_tax",
-  "document_text",
-  "dynamic_selection",
-  "execution",
-  "execution_risk",
-  "factor_candidates",
-  "features",
-  "fees",
-  "history_data",
-  "panel_features",
   "protocal",
-  "provider_cache",
-  "raw_bar_evidence",
-  "raw_candidate",
-  "research_registry",
-  "security_identity",
   "storage",
   "strategy",
-  "tax_ledger",
 ]
 
 [tool.setuptools.package-data]

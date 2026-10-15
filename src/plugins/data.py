@@ -5,9 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 from numbers import Real
+from types import MappingProxyType
 
 import numpy as np
-from account_allocation import AllocationLimits
+from core.calculation import AllocationLimits
 from protocal import HistoryResult, RegistrationRecord
 
 
@@ -347,17 +348,67 @@ class Adapter:
 class Settlement:
     """Stateful account settlement extracted from the historical runner."""
 
-    def __init__(self, initial_cash, fees, tax_policy, limits: AllocationLimits = AllocationLimits()):
-        from account_execution import AccountExecutionSession
-        from account_ledger import AccountLedger
-        from distribution_ledger import AccountDistributionLedger
-        from tax_ledger import TaxLedger
+    DEFAULT_EXECUTION = MappingProxyType({
+        "price": MappingProxyType({"model": "ratio", "params": MappingProxyType({"rate": "0.001", "tick": "0.01"})}),
+        "quantity": MappingProxyType({"model": "capacity", "params": MappingProxyType({})}),
+        "fees": MappingProxyType({"model": "dated", "params": MappingProxyType({"rounding": "none"})}),
+        "tax": MappingProxyType({"model": "fifo", "params": MappingProxyType({})}),
+        "check": MappingProxyType({"model": "cn_a_share", "params": MappingProxyType({"tick": "0.01", "min_qty": 100, "step": 100})}),
+    })
+
+    @classmethod
+    def _copy(cls, value):
+        return {key: cls._copy(item) if isinstance(item, Mapping) else item
+                for key, item in value.items()} if isinstance(value, Mapping) else value
+
+    @classmethod
+    def resolve(cls, *, limits=None, execution=None):
+        from core.calculation import AllocationLimits
+        from protocal import _limits, validate_execution
+
+        if execution is None:
+            execution = cls._copy(cls.DEFAULT_EXECUTION)
+        execution = validate_execution(execution)
+        step = execution["check"]["params"]["step"]
+        if limits is None:
+            limits = AllocationLimits(lot_size=step)
+        elif isinstance(limits, dict):
+            limits = _limits(limits, lot_size=step)
+        elif isinstance(limits, AllocationLimits):
+            limits = AllocationLimits(
+                lot_size=step,
+                stock_weight=limits.stock_weight,
+                adv_fraction=limits.adv_fraction,
+            )
+        else:
+            raise TypeError("limits must be AllocationLimits or a mapping")
+        return limits, execution
+
+    @classmethod
+    def describe(cls, overrides):
+        limits, execution = cls.resolve(**dict(overrides))
+        return {
+            "module": f"{cls.__module__}:{cls.__name__}",
+            "params": {
+                "limits": {"lot_size": limits.lot_size,
+                            "stock_weight": limits.stock_weight,
+                            "adv_fraction": limits.adv_fraction},
+                "execution": execution,
+            },
+        }
+
+    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, execution=None):
+        from core.calculation import (AccountExecutionSession, AccountLedger,
+                                      AccountDistributionLedger, AllocationLimits, TradeRules)
+
+        limits, execution = self.resolve(limits=limits, execution=execution)
 
         self.limits = limits
+        self.trade_rules = TradeRules(execution, fees, tax_policy)
         self.account = AccountLedger(initial_cash)
-        self.execution = AccountExecutionSession(self.account, fees)
+        self.execution = AccountExecutionSession(self.account, self.trade_rules)
         self.distributions = AccountDistributionLedger(self.account)
-        self.taxes = TaxLedger(tax_policy)
+        self.taxes = self.trade_rules._tax_ledger
         self.tax_liabilities = []
         self.frames = []
         self.targets = []
@@ -372,6 +423,14 @@ class Settlement:
         self._failed = False
         self._failure = None
         self._sealed = False
+
+    @staticmethod
+    def validate_dataset(dataset, request, *, limits=None, execution=None):
+        from core.calculation import TradeRules
+
+        limits, execution = Settlement.resolve(limits=limits, execution=execution)
+        rules = TradeRules(execution, dataset.policies['fees'], dataset.policies['tax_policy'])
+        return rules.check(phase='dataset', dataset=dataset, start=request.start.date())
 
     @property
     def cash(self):
@@ -421,8 +480,7 @@ class Settlement:
 
     def _register(self, action):
         from decimal import Decimal
-        from corporate_actions import calculate_entitlement
-        from distribution_ledger import ShareDelivery
+        from core.calculation import calculate_entitlement, ShareDelivery
 
         lots = tuple(lot for lot in self.account.lots if lot.symbol == action.event.code)
         claim = calculate_entitlement(action.event, action.event.registration_date,
@@ -443,7 +501,7 @@ class Settlement:
         from dataclasses import replace
         from decimal import Decimal
         from protocal import AccountSnapshot
-        from execution_risk import OpeningRiskSnapshot
+        from core.calculation import OpeningRiskSnapshot
 
         if self._pending is not None:
             raise ValueError("plan is required before the next apply")
@@ -464,7 +522,7 @@ class Settlement:
             self.taxes.advance(when)
             for payment in self.taxes.settle(when):
                 self.account.record_cash(payment.event_id, payment.due, "dividend_tax", -payment.amount, payment.source_sha256)
-        self.taxes.begin(day)
+        self.trade_rules.tax(day, phase='begin')
         claims = self.distributions.receivable_value(day, record.opening_marks)
         new_fills = self.execution.execute_open(
             day,
@@ -475,18 +533,18 @@ class Settlement:
                 record.opening_marks,
                 record.opening_amount20,
                 claims,
-                self.taxes.liability(day),
+                self.trade_rules.tax(day, phase='liability'),
                 self.limits,
             ),
-            cash_reserve=lambda: self.taxes.reserve(day),
-            on_fill=self.taxes.preview,
+            volume20=record.opening_volume20,
+            cash_reserve=Decimal(0),
         )
-        self.taxes.end(new_fills)
+        self.trade_rules.tax(day, new_fills, phase='end')
         for payment in self.taxes.settle(day):
             self.account.record_cash(payment.event_id, day, "dividend_tax", -payment.amount, payment.source_sha256)
         claims = self.distributions.receivable_value(day, record.closing_marks)
-        point = self.account.mark(day, record.closing_marks, claims, self.taxes.liability(day))
-        self.tax_liabilities.append((day, self.taxes.liability(day)))
+        point = self.account.mark(day, record.closing_marks, claims, self.trade_rules.tax(day, phase='liability'))
+        self.tax_liabilities.append((day, self.trade_rules.tax(day, phase='liability')))
         for action in record.registrations:
             self.registrations.append(self._register(action))
             self.taxes.register(

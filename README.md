@@ -4,39 +4,20 @@
 
 ## 启动
 
-安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。Web 的 `npm run dev` 只启动 React。浏览器和 CLI 都通过 `frontend/ui-protocol.py` 连接 `src/protocal.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。运行时装配要显式提供 `RunFactory`，不会回退到旧回测执行器。见[接线状态与验证](docs/interaction-entrypoints.md)。既有后端配置仍在 `configs/workbench.json`。
+安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。Web 的 `npm run dev` 只启动 React。浏览器和 CLI 都通过 `frontend/ui-protocol.py` 连接 `src/protocal.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，由 `DataBus` 读取数据并交给固定 `Kernel` 执行。见[接线状态与验证](docs/interaction-entrypoints.md)。
 
 ## 命令行入口
 
-先运行 `lianghua-backtest --help` 查看命令地图。常用命令有：
+先运行下面的命令查看当前 CLI 参数，不把旧配置文件当作后端装配入口：
 
 ```text
-lianghua-backtest ingest ...   整理原始研究数据
-lianghua-backtest run ...      检查输入并运行已配置回测
-lianghua-backtest report ...   生成报告文件
+lianghua-backtest --help
+lianghua-backtest run --help
 ```
 
-成功结果写入标准输出，错误写入标准错误，并用非零退出码表示失败。`run` 只接受配置文件和项目根目录；策略、数据快照和回测适配器由配置装配。
+业务请求通过 `src/protocal.py` 的现有操作目录验证，例如 `workbench.strategies`、`workbench.preflight` 和 `workbench.backtest`。数据由 `DataBus` 查询，`Kernel` 执行。
 
-`run.json` 的外层结构如下：
-
-```json
-{
-  "request": {
-    "module": "plugins.strategies.breadth_low_amount_reversal",
-    "params": {},
-    "initial_cash": 100000,
-    "start": "2020-01-01",
-    "end": "2020-12-31",
-    "dataset_id": "verified-snapshot"
-  },
-  "backtests": {
-    "adapter": "history_data:HistoricalLake"
-  }
-}
-```
-
-`request` 的参数由策略和数据快照验收；示例中的日期、策略和快照名称需要替换成当前可用配置。`HistoricalLake` 当前只负责目录与预检。真实执行必须由装配层提供符合 `core.interfaces.RunFactory` 的组件工厂。
+成功结果写入标准输出，错误写入标准错误，并用非零退出码表示失败。策略、数据集和基准由 registry 与现有插件登记，不复制旧的万能配置结构。
 
 ## 说明
 

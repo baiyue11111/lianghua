@@ -78,7 +78,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         root = Path(__file__).resolve().parents[1]
         forbidden = {
             "application", "core", "history_data", "lake", "protocal",
-            "research_registry", "strategy", "tools",
+            "strategy", "tools",
         }
         for relative in ("frontend/web.py", "frontend/cli.py"):
             path = root / relative
@@ -130,16 +130,15 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "workbench.strategies", "workbench.preflight", "workbench.backtest",
-            "cli.run", "workbench.runs", "workbench.run", "workbench.benchmarks",
-            "workbench.benchmark", "lake.researchDaily", "lake.researchInputs",
-            "lake.closedLoop", "workbench.sources", "workbench.sync",
+            "cli.backtest", "cli.ingest", "workbench.runs", "workbench.run", "workbench.benchmarks",
+            "workbench.benchmark", "lake.researchInputs", "workbench.sources", "workbench.sync",
             "workbench.schedule", "workbench.job", "workbench.snapshot",
             "workbench.evidence", "workbench.failedEvidence", "workbench.reviews",
             "workbench.review", "lake.status", "lake.query", "lake.kline",
             "lake.startFetch", "lake.fetchJob", "lake.stopFetch",
             "lake.continuousFetch", "lake.setContinuousFetch", "lake.startMerge",
             "lake.mergeJob", "lake.doctor", "lake.doctorFix", "lake.doctorJob",
-            "cli.ingest", "cli.report",
+            "cli.ingest",
         })
         self.assertEqual(operations["workbench.backtest"]["mode"], "write")
         self.assertEqual(operations["lake.status"]["mode"], "read")
@@ -164,7 +163,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(messages[0].data, value)
         self.assertEqual(source.calls, [("workbench.sources", {})])
 
-    def test_cli_run_uses_the_same_backtest_module(self):
+    def test_cli_backtest_uses_the_same_backtest_module_without_request_wrapper(self):
         from protocal import CommandPort
 
         backtests = Port({"run_id": "shared"})
@@ -175,30 +174,28 @@ class ProtocolBoundaryTests(unittest.TestCase):
                 "dataset_id": "history", "start": "2020-01-01", "end": "2020-12-31",
                 "initial_cash": "100000.00",
             }
-            path.write_text(json.dumps({"request": request}))
+            path.write_text(json.dumps(request))
 
             result = CommandPort(Path(root), backtests, __import__('storage').DataStore(Path(root))).handle(
-                "cli.run", {"config": str(path), "root": root}
+                "cli.backtest", {"config": str(path), "root": str(root)}
             )
 
         self.assertEqual(result, {"run_id": "shared"})
         self.assertEqual(backtests.calls, [("workbench.backtest", request)])
 
     def test_backtest_port_is_the_only_protocol_owned_kernel_adapter(self):
-        from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import KernelBacktestPort, Modules, Protocol
         from protocal import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
+        from tests.fee_fixture import configured_settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
             protocol = Protocol(Modules(
-                backtests=KernelBacktestPort(bus, Settlement),
+                backtests=KernelBacktestPort(bus, configured_settlement()),
                 research=Port({}), sources=Port({}), lake=Port({}), commands=Port({}),
             ))
             request = ui.UiRequest(

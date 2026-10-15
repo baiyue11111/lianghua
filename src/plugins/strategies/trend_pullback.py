@@ -16,6 +16,8 @@ class Params:
     pullback_window: int = field(default=20, metadata={'label': '回调窗口', 'minimum': 2, 'maximum': 500, 'unit': '交易日'})
     drawdown: float = field(default=.08, metadata={'label': '回调幅度', 'minimum': 0, 'maximum': 1})
     exposure: float = field(default=1., metadata={'label': '总仓位', 'minimum': 0, 'maximum': 1})
+    sort_by: str = field(default='drawdown', metadata={'label': '排序指标', 'options': ['drawdown', 'recovery']})
+    sort_desc: bool = field(default=True, metadata={'label': '降序'})
 
     def __post_init__(self):
         validate_params(self)
@@ -46,8 +48,11 @@ class Strategy:
             peak = max(prices[-p.trend_window:])
             drawdown = 1 - recent[-1] / peak
             if recent[-1] > trend and drawdown >= p.drawdown:
-                candidates.append((drawdown, recent[-1] / recent[0], symbol))
-        selected = tuple(symbol for _, _, symbol in sorted(candidates, key=lambda x: (-x[0], -x[1], x[2]))[:p.positions])
+                recovery = recent[-1] / recent[0]
+                candidates.append((drawdown, recovery, symbol))
+        score_index = {'drawdown': 0, 'recovery': 1}[p.sort_by]
+        score = (lambda row: (row[0], row[1])) if p.sort_by == 'drawdown' else (lambda row: row[score_index])
+        selected = Calculation.select(candidates, p.positions, score, p.sort_desc)
         if selected == self.selected:
             return None
         self.selected = selected

@@ -9059,7 +9059,7 @@ var defs = {
   "lake.doctorFix": { input: object2({ id: text }), mode: "write" },
   "lake.doctorJob": { input: object2(), poll: 1e3 },
   "cli.ingest": { input: object2({ price: text, fundamentals: text, valuations: text, output: text, max_symbols: { anyOf: [integer, { type: "null" }] }, price_part: { anyOf: [{ type: "array", items: integer }, { type: "null" }] } }), mode: "write" },
-  "cli.run": { input: object2({ config: text, root: text }), mode: "write" },
+  "cli.backtest": { input: object2({ config: text }), mode: "write" },
   "cli.report": { input: object2({ artifact: text, output: text, builder: text, ready_timeout_ms: integer, timeout_ms: integer }), mode: "write" }
 };
 var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;

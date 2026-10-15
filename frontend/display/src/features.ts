@@ -27,7 +27,7 @@ const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Opera
  'lake.startMerge':{input:object({dryRun:boolean}),mode:'write'},'lake.mergeJob':{input:object(),poll:1000},
  'lake.doctor':{input:object(),poll:3000},'lake.doctorFix':{input:object({id:text}),mode:'write'},'lake.doctorJob':{input:object(),poll:1000},
  'cli.ingest':{input:object({price:text,fundamentals:text,valuations:text,output:text,max_symbols:{anyOf:[integer,{type:'null'}]},price_part:{anyOf:[{type:'array',items:integer},{type:'null'}]}}),mode:'write'},
- 'cli.run':{input:object({config:text,root:text}),mode:'write'},
+ 'cli.backtest':{input:object({config:text}),mode:'write'},
  'cli.report':{input:object({artifact:text,output:text,builder:text,ready_timeout_ms:integer,timeout_ms:integer}),mode:'write'},
 };
 export const inputSchema=(operation:string)=>`urn:lianghua:ui:input:${operation}:v1`;

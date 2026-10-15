@@ -6,7 +6,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from protocal import build_data, DataError
-from collect import factors
+from collect import methods as factors
 
 
 class FactorStorageTests(unittest.TestCase):

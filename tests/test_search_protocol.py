@@ -23,22 +23,17 @@ def await_protocol(protocol, operation, data):
 
 class SearchProtocolTests(unittest.TestCase):
     def _fixture_protocol(self, root):
-        from collect.data import Store
-        from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from workbench.port import WorkbenchPort
+        from tests.fee_fixture import configured_settlement
 
         root = Path(root)
         config = make_snapshot(root)
         bus = DataBus(DataStore(root))
-        bus.configure_reader(HistoricalLake(bus, config))
-        backtests = KernelBacktestPort(bus, Settlement)
-        workbench = WorkbenchPort(root, {"backtests": {}, "benchmarks": []}, bus, store=Store(bus))
+        backtests = KernelBacktestPort(bus, configured_settlement())
         empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
-        return bus, Protocol(Modules(backtests, workbench, empty, empty, empty))
+        return bus, Protocol(Modules(backtests, backtests, empty, empty, empty))
 
     def _search_payload(self, run_id, candidates):
         return {
@@ -114,8 +109,8 @@ class SearchProtocolTests(unittest.TestCase):
                     "params": {"candidates": [{"fast_window": 1}, {"fast_window": 2}]},
                 },
                 "max_trials": 2, "metric": "total_return", "direction": "max",
-                "validation": {"start": "2020-02-04", "end": "2020-02-04"},
             },
+            "validation": {"start": "2020-02-04", "end": "2020-02-04"},
         })
 
         from protocal import BacktestRequest
@@ -123,23 +118,18 @@ class SearchProtocolTests(unittest.TestCase):
         self.assertIsInstance(value, BacktestRequest)
 
     def test_protocol_search_saves_each_trial_and_base_summary(self):
-        from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort, Modules, Protocol, _DIRECTORY
         from storage import DataStore
         from tests.history_fixture import make_snapshot
+        from tests.fee_fixture import configured_settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
-            backtests = KernelBacktestPort(bus, Settlement)
-            from collect.data import Store
-            from workbench.port import WorkbenchPort
-            workbench = WorkbenchPort(root, {"backtests": {}, "benchmarks": []}, bus, store=Store(bus))
+            backtests = KernelBacktestPort(bus, configured_settlement())
             empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
-            protocol = Protocol(Modules(backtests, workbench, empty, empty, empty))
+            protocol = Protocol(Modules(backtests, backtests, empty, empty, empty))
             request = ui.UiRequest(
                 "search-request", "workbench.backtest",
                 "urn:lianghua:ui:input:workbench.backtest:v1",
@@ -158,8 +148,8 @@ class SearchProtocolTests(unittest.TestCase):
                             ]},
                         },
                         "max_trials": 2, "metric": "total_return", "direction": "max",
-                        "validation": {"start": "2020-02-04", "end": "2020-02-04"},
                     },
+                    "validation": {"start": "2020-02-04", "end": "2020-02-04"},
                 },
             )
 
@@ -202,7 +192,7 @@ class SearchProtocolTests(unittest.TestCase):
                 "method": "pick",
                 "params": {"candidates": candidates},
             }
-            payload["search"]["validation"] = {"start": "2020-02-04", "end": "2020-02-04"}
+            payload["validation"] = {"start": "2020-02-04", "end": "2020-02-04"}
 
             with patch.object(plugin_data, "ProbeUpdater", ProbeUpdater, create=True):
                 message = asyncio.run(protocol.send(ui.UiRequest(
@@ -222,10 +212,23 @@ class SearchProtocolTests(unittest.TestCase):
                 "plugin-search-validation",
             } <= identities)
             summary_manifest = json.loads(bus.read("runs", "plugin-search", "manifest.json"))
+            saved_summary = json.loads(bus.read("runs", "plugin-search", "result.json"))
             validation_manifest = json.loads(bus.read("runs", "plugin-search-validation", "manifest.json"))
+            from strategy import canonical_hash
             self.assertEqual(summary_manifest["parameters"], value["parameters"])
             self.assertEqual(summary_manifest["config_hash"], value["config_hash"])
+            self.assertEqual(value["provenance"]["config_hash"], value["config_hash"])
+            self.assertEqual(
+                canonical_hash(value["provenance"]["effective_config"]),
+                value["provenance"]["config_hash"],
+            )
+            self.assertEqual(
+                canonical_hash(saved_summary["provenance"]["effective_config"]),
+                saved_summary["provenance"]["config_hash"],
+            )
             self.assertEqual(validation_manifest["parameters"], value["parameters"])
+            self.assertEqual(value["search"]["trials"][0]["trial_config_hash"],
+                             json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"])
             self.assertNotEqual(
                 json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"],
                 summary_manifest["config_hash"],
@@ -235,6 +238,63 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertIn("plugin-search", {item["id"] for item in runs["items"]})
             self.assertEqual(detail["parameters"], value["parameters"])
             self.assertGreaterEqual(len(detail["evidence"]), 4)
+
+    def test_search_oos_failure_saves_main_stage_evidence_and_completed_runs(self):
+        with TemporaryDirectory() as root:
+            bus, protocol = self._fixture_protocol(root)
+            payload = self._search_payload("oos-failure", [
+                {"fast_window": 1, "slow_window": 3},
+            ])
+            payload["validation"] = {"start": "2020-02-04", "end": "2020-02-04"}
+            payload["out_of_sample"] = {"start": "2020-02-06", "end": "2020-02-06"}
+            message = asyncio.run(protocol.send(ui.UiRequest(
+                "oos-failure-request", "workbench.backtest",
+                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+            )))[0]
+
+            self.assertEqual(message.kind, "problem")
+            self.assertEqual(message.data["code"], "out_of_sample_failed")
+            failed = json.loads(bus.read("runs", "oos-failure", "failed.json"))
+            self.assertEqual(failed["code"], "out_of_sample_failed")
+            self.assertEqual(failed["partial"]["stage"], "out_of_sample")
+            self.assertEqual(
+                failed["partial"]["completed_runs"],
+                [
+                    {"run_id": "oos-failure-trial-0001", "stage": "search"},
+                    {"run_id": "oos-failure-validation", "stage": "validation"},
+                ],
+            )
+            self.assertEqual(failed["partial"]["validation_run_id"], "oos-failure-validation")
+            self.assertTrue(bus.path("runs", "oos-failure-trial-0001", "manifest.json").exists())
+            self.assertTrue(bus.path("runs", "oos-failure-validation", "manifest.json").exists())
+
+    def test_search_oos_result_conversion_failure_has_stage_evidence(self):
+        with TemporaryDirectory() as root:
+            bus, protocol = self._fixture_protocol(root)
+            payload = self._search_payload("oos-conversion-failure", [
+                {"fast_window": 1, "slow_window": 3},
+            ])
+            payload["out_of_sample"] = {"start": "2020-02-04", "end": "2020-02-04"}
+            from unittest.mock import patch
+            from protocal import _result_data
+            original = _result_data
+
+            def fail_oos(result, request=None, benchmarks=None):
+                if request is not None and request.run_id.endswith("-out_of_sample"):
+                    raise ValueError("benchmark unavailable in OOS")
+                return original(result, request, benchmarks)
+
+            with patch("protocal._result_data", side_effect=fail_oos):
+                message = asyncio.run(protocol.send(ui.UiRequest(
+                    "oos-conversion-failure-request", "workbench.backtest",
+                    "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                )))[0]
+
+            self.assertEqual(message.kind, "problem")
+            self.assertEqual(message.data["code"], "out_of_sample_failed")
+            failed = json.loads(bus.read("runs", "oos-conversion-failure", "failed.json"))
+            self.assertEqual(failed["partial"]["stage"], "out_of_sample")
+            self.assertEqual(failed["partial"]["completed_runs"][0]["stage"], "search")
 
     def test_invalid_search_declaration_has_no_run_evidence(self):
         with TemporaryDirectory() as root:
@@ -273,19 +333,17 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertEqual(bus.list("runs"), ())
 
     def test_failed_second_trial_keeps_first_trial_and_failure_evidence(self):
-        from history_data import HistoricalLake
-        from plugins.data import Settlement
         from protocal import DataBus, KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
+        from tests.fee_fixture import configured_settlement
         from protocal import BacktestError
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            bus.configure_reader(HistoricalLake(bus, config))
-            port = KernelBacktestPort(bus, Settlement)
+            port = KernelBacktestPort(bus, configured_settlement())
             payload = {
                 "run_id": "failed-search", "module": "plugins.strategies.moving_average_cross",
                 "params": {"fast_window": 1, "slow_window": 3}, "dataset_id": "fixture",

@@ -5,10 +5,7 @@ import tempfile
 import unittest
 from protocal import build_data
 
-try:
-    from collect.index import collect
-except ImportError:
-    collect = None
+from collect.methods import collect_announcements as collect
 
 
 def page(total, identifiers, more):

@@ -10,7 +10,7 @@ from unittest.mock import patch
 import pandas as pd
 from protocal import build_data
 
-from collect.bars import canonical, digest, capture, make_request, parse_bars, snapshot, validate_snapshot
+from collect.methods import canonical, digest, capture, make_request, parse_bars, snapshot, validate_snapshot
 
 
 class EastmoneyEvidenceTests(unittest.TestCase):

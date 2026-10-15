@@ -1,6 +1,7 @@
 """Momentum leadership strategy with tunable lookback and portfolio size."""
 from dataclasses import dataclass, field
 
+from core.calculation import Calculation
 from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from ._ranked_signal import histories, weights
@@ -13,6 +14,7 @@ class Params:
     positions: int = field(default=3, metadata={'label': '持股数量', 'minimum': 1, 'maximum': 100})
     momentum_window: int = field(default=120, metadata={'label': '动量窗口', 'minimum': 20, 'maximum': 2000, 'unit': '交易日'})
     exposure: float = field(default=1., metadata={'label': '总仓位', 'minimum': 0, 'maximum': 1})
+    sort_desc: bool = field(default=True, metadata={'label': '降序'})
 
     def __post_init__(self): validate_params(self)
 
@@ -32,7 +34,8 @@ class Strategy:
         for symbol, prices in histories(frame, p.momentum_window).items():
             base, last = prices[-p.momentum_window], prices[-1]
             if last > base: candidates.append((last / base, symbol))
-        selected = tuple(symbol for _, symbol in sorted(candidates, key=lambda x: (-x[0], x[1]))[:p.positions])
+        selected = Calculation.select(candidates, p.positions, lambda row: row[0], p.sort_desc)
         if selected == self.selected: return None
         self.selected = selected
-        return TargetSet(self.strategy_id, frame.at, weights(selected, p.exposure), {s: 'highest_momentum' for s in selected})
+        reason = 'highest_momentum' if p.sort_desc else 'lowest_momentum'
+        return TargetSet(self.strategy_id, frame.at, weights(selected, p.exposure), {s: reason for s in selected})
