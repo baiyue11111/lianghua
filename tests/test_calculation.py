@@ -36,27 +36,38 @@ class CalculationTests(unittest.TestCase):
         self.assertAlmostEqual(metrics["total_return"], -.1)
         self.assertAlmostEqual(metrics["max_drawdown"], -.25)
 
-    def test_evaluate_baseline_changes_only_excess_return_sharpe(self):
+    def test_evaluate_risk_free_rate_changes_only_excess_return_sharpe(self):
         points = [
             (date(2024, 1, 1), 100.0),
             (date(2024, 1, 2), 110.0),
             (date(2024, 1, 3), 99.0),
         ]
-        base = Calculation.evaluate(points, periods=12, baseline=0)
+        base = Calculation.evaluate(points, periods=12, risk_free_rate=0)
         adjusted = Calculation.evaluate(
             points,
             periods=12,
-            baseline=.02,
+            risk_free_rate=.02,
         )
         self.assertEqual(adjusted["total_return"], base["total_return"])
         self.assertEqual(adjusted["cagr"], base["cagr"])
         self.assertEqual(adjusted["annualized_volatility"], base["annualized_volatility"])
         self.assertNotEqual(adjusted["sharpe"], base["sharpe"])
 
+    def test_annual_risk_free_rate_is_converted_to_period_rate(self):
+        points = [
+            (date(2024, 1, 1), 100.0),
+            (date(2024, 1, 2), 110.0),
+            (date(2024, 1, 3), 99.0),
+        ]
+        per_period = 1.05 ** (1 / 12) - 1
+        expected = (((0.1 - per_period) + (-0.1 - per_period)) / 2) / (0.02 ** 0.5) * (12 ** 0.5)
+        result = Calculation.evaluate(points, periods=12, risk_free_rate=0.05)
+        self.assertAlmostEqual(result["sharpe"], expected, places=12)
+
     def test_evaluate_periods_changes_annualized_metrics(self):
         points = [(date(2024, 1, 1), 100.0), (date(2024, 1, 2), 110.0), (date(2024, 1, 3), 99.0)]
-        short = Calculation.evaluate(points, periods=12, baseline=.02)
-        long = Calculation.evaluate(points, periods=24, baseline=.02)
+        short = Calculation.evaluate(points, periods=12, risk_free_rate=.02)
+        long = Calculation.evaluate(points, periods=24, risk_free_rate=.02)
         self.assertNotEqual(short["cagr"], long["cagr"])
         self.assertNotEqual(short["annualized_volatility"], long["annualized_volatility"])
 
@@ -68,7 +79,7 @@ class CalculationTests(unittest.TestCase):
             lambda: Calculation.evaluate([(date(2024, 1, 2), 100.0), (date(2024, 1, 1), 101.0)]),
             lambda: Calculation.evaluate([(date(2024, 1, 1), 0.0)]),
             lambda: Calculation.evaluate([(date(2024, 1, 1), 100.0), (date(2024, 1, 2), 101.0)], periods=True),
-            lambda: Calculation.evaluate([(date(2024, 1, 1), 100.0), (date(2024, 1, 2), 101.0)], baseline=True),
+            lambda: Calculation.evaluate([(date(2024, 1, 1), 100.0), (date(2024, 1, 2), 101.0)], risk_free_rate=True),
         )
         for case in cases:
             with self.subTest(case=case):
@@ -87,9 +98,9 @@ class CalculationTests(unittest.TestCase):
             "run", "strategy", {}, "dataset",
             datetime(2024, 1, 1, tzinfo=timezone.utc),
             datetime(2024, 1, 2, tzinfo=timezone.utc),
-            Decimal("100"), evaluation_parameters={"periods": 12, "baseline": .01},
+            Decimal("100"), evaluation_parameters={"periods": 12, "risk_free_rate": .01},
         )
-        self.assertEqual(dict(request.evaluation_parameters), {"periods": 12, "baseline": .01})
+        self.assertEqual(dict(request.evaluation_parameters), {"periods": 12, "risk_free_rate": .01})
         with self.assertRaises(BacktestError):
             BacktestRequest(
                 "run", "strategy", {}, "dataset",
@@ -111,13 +122,13 @@ class CalculationTests(unittest.TestCase):
             "run", "strategy", {}, "dataset",
             datetime(2024, 1, 1, tzinfo=timezone.utc),
             datetime(2024, 1, 2, tzinfo=timezone.utc),
-            Decimal("100"), evaluation_parameters={"periods": 12, "baseline": .01},
+            Decimal("100"), evaluation_parameters={"periods": 12, "risk_free_rate": .01},
         )
         value = {
             "metrics": {"total_return": .1},
             "effective_config": {
-                "dataset_id": "dataset", "evaluation": {"periods": 12, "baseline": .01},
-                "settlement": {"module": "plugins.data:Settlement", "params": {"limits": {"lot_size": 100}}},
+                "dataset_id": "dataset", "evaluation": {"periods": 12, "risk_free_rate": .01},
+                "settlement": {"module": "plugins.data:Settlement", "params": {"limits": {}}},
                 "signal_plugins": {"scaler": {"method": "standard"}},
             },
             "config_hash": "hash", "provenance": {}, "trace": {},

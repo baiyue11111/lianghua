@@ -38,6 +38,6 @@ def configured_settlement():
     from protocal import _load_plugin
     return _load_plugin({"settlement": {
         "module": "tests.fee_fixture:configuredSettlement",
-        "params": {"limits": {"lot_size": 100, "stock_weight": "0.4", "adv_fraction": "0.01"},
+        "params": {"limits": {"stock_weight": "0.4", "adv_fraction": "0.01"},
                     "execution": execution()},
     }}, "settlement")

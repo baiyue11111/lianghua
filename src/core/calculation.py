@@ -39,6 +39,13 @@ def _candidate_parameters(candidate: Mapping[str, object]) -> dict[str, object]:
 
 class Calculation:
     @staticmethod
+    def select(candidates, positions, score, descending=True, symbol=lambda row: row[-1]):
+        """Sort strategy candidates by a declared score and take the first N."""
+        ordered = sorted(candidates, key=symbol)
+        ordered = sorted(ordered, key=score, reverse=descending)
+        return tuple(symbol(row) for row in ordered[:positions])
+
+    @staticmethod
     def propose(trials: tuple[Trial, ...], *, candidates: Sequence[Mapping[str, object]]):
         if not isinstance(trials, tuple) or any(not isinstance(trial, Trial) for trial in trials):
             raise TypeError("trials must be a tuple of Trial values")
@@ -98,16 +105,18 @@ class Calculation:
     @staticmethod
     def evaluate(
         points: Sequence[tuple[date, int | float]], *,
-        periods: int = 252, baseline: int | float = 0.0,
+        periods: int = 252, risk_free_rate: int | float = 0.0,
     ) -> dict[str, float | int | None]:
         points = tuple(points)
         if not points:
             raise ValueError("equity points are required")
         if type(periods) is not int or periods < 1:
             raise ValueError("periods must be a positive integer")
-        if type(baseline) not in (int, float):
-            raise ValueError("baseline must be a finite number")
-        Calculation._finite(baseline, "baseline")
+        if type(risk_free_rate) not in (int, float):
+            raise ValueError("risk_free_rate must be a finite annual number")
+        Calculation._finite(risk_free_rate, "risk_free_rate")
+        if risk_free_rate <= -1:
+            raise ValueError("risk_free_rate must be greater than -1")
         previous_day = None
         equity = []
         for point in points:
@@ -155,7 +164,8 @@ class Calculation:
                 volatility = None
             else:
                 volatility = deviation * sqrt(periods)
-                excess = [value - baseline for value in returns]
+                period_rate = (1 + risk_free_rate) ** (1 / periods) - 1
+                excess = [value - period_rate for value in returns]
                 for value in excess:
                     Calculation._finite(value, "excess return")
                 try:
@@ -286,8 +296,8 @@ risk validation by the caller. It does not certify a backtest for release.
 @dataclass(frozen=True)
 class AllocationLimits:
     lot_size: int = 100
-    stock_weight: Decimal = Decimal('0.4')
-    adv_fraction: Decimal = Decimal('0.01')
+    stock_weight: Decimal | None = None
+    adv_fraction: Decimal | None = None
 
 
 @dataclass(frozen=True)
@@ -798,9 +808,9 @@ class TradeRules:
         equity = _positive(equity)
         if type(limits.lot_size) is not int or limits.lot_size <= 0:
             raise ValueError('positive integer lot size required')
-        weight_cap = _positive(limits.stock_weight)
-        adv_cap = _positive(limits.adv_fraction)
-        if max(weight_cap, adv_cap) > 1:
+        weight_cap = None if limits.stock_weight is None else _positive(limits.stock_weight)
+        adv_cap = None if limits.adv_fraction is None else _positive(limits.adv_fraction)
+        if any(cap is not None and cap > 1 for cap in (weight_cap, adv_cap)):
             raise ValueError('risk fractions cannot exceed one')
         weights = {symbol: Decimal(str(weight)) for symbol, weight in target.weights.items()}
         exposure = sum(weights.values(), Decimal(0))
@@ -824,11 +834,11 @@ class TradeRules:
             delta = desired - existing
             requested = delta // limits.lot_size * limits.lot_size if delta > 0 else abs(delta)
             reason = None
-            if weight > weight_cap:
+            if weight_cap is not None and weight > weight_cap:
                 reason = 'weight_above_stock_limit'
             elif (weight > 0 and desired == 0 and existing == 0) or (delta > 0 and requested == 0):
                 reason = 'below_one_lot'
-            elif requested * price > adv * adv_cap:
+            elif adv_cap is not None and requested * price > adv * adv_cap:
                 reason = 'order_above_adv_limit'
             if reason:
                 decisions.append(AllocationDecision(symbol, desired, delta, 'skipped', reason))
@@ -1155,7 +1165,7 @@ class TradeRules:
             for value in (snapshot.receivables, snapshot.liabilities):
                 nonnegative(value)
             for value in (snapshot.limits.stock_weight, snapshot.limits.adv_fraction):
-                if not 0 < nonnegative(value) <= 1:
+                if value is not None and not 0 < nonnegative(value) <= 1:
                     raise ValueError('opening risk fractions must be in (0,1]')
             return None
         if phase == 'opening_equity':
@@ -1165,7 +1175,8 @@ class TradeRules:
         if phase == 'opening_rejection':
             if fill.status != 'filled':
                 return None
-            if (Decimal(str(fill.price)) * fill.shares
+            if (snapshot.limits.adv_fraction is not None
+                    and Decimal(str(fill.price)) * fill.shares
                     > nonnegative(snapshot.amount20[order.symbol])
                     * nonnegative(snapshot.limits.adv_fraction)):
                 return 'order_above_adv_limit'
@@ -1176,7 +1187,9 @@ class TradeRules:
                                 - Decimal(str(fill.stamp_duty))
                                 - Decimal(str(fill.transfer_fee)) + fill.shares * mark)
                 post_value = (holdings.get(order.symbol, 0) + fill.shares) * mark
-                if post_equity <= 0 or post_value > post_equity * nonnegative(snapshot.limits.stock_weight):
+                if (post_equity <= 0 or
+                        (snapshot.limits.stock_weight is not None
+                         and post_value > post_equity * nonnegative(snapshot.limits.stock_weight))):
                     return 'position_above_stock_limit'
             return None
         if phase == 'dataset':

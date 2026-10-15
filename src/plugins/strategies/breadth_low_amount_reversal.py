@@ -25,6 +25,8 @@ class Params:
     amount_window: int = field(default=20,metadata={'label':'成交额窗口','minimum':1,'maximum':2000,'unit':'交易日'})
     breadth_window: int = field(default=5,metadata={'label':'宽度平滑窗口','minimum':1,'maximum':200,'unit':'交易日'})
     entry_cadence: str = field(default='month_end',metadata={'label':'首次入场','options':['month_end','on_qualification']})
+    sort_by: str = field(default='return',metadata={'label':'候选排序','options':['return','amount']})
+    sort_desc: bool = field(default=False,metadata={'label':'降序'})
 
     def __post_init__(self):
         validate_params(self)
@@ -100,8 +102,10 @@ class Strategy:
         if not month_end and not entry_due: return None
         count=ceil(len(candidates)*p.amount_quantile)
         cold=sorted(candidates,key=lambda row:(row[1],row[0]))[:count]
-        selected=sorted(cold,key=lambda row:(row[2],row[0]))[:p.positions]
-        symbols = tuple(symbol for symbol, _, _ in selected)
+        score_index = {'amount': 1, 'return': 2}[p.sort_by]
+        symbols = Calculation.select(cold, p.positions, lambda row: row[score_index], p.sort_desc,
+                                     symbol=lambda row: row[0])
+        reason = 'low_amount_then_lowest_return' if p.sort_by == 'return' and not p.sort_desc else f'low_amount_then_{p.sort_by}'
         return TargetSet(self.strategy_id,frame.at,
                          Calculation.equal_weights(symbols,p.positions) if symbols else {},
-                         {symbol:'low_amount_then_lowest_return' for symbol,_,_ in selected})
+                         {symbol:reason for symbol in symbols})

@@ -16,7 +16,7 @@ class ConfigSettlement:
 
 
 def settlement_payload():
-    return {"limits": {"lot_size": 100}, "execution": execution()}
+    return {"limits": {}, "execution": execution()}
 
 
 class ShiftSignalAdapter:
@@ -73,6 +73,35 @@ class InvalidScaler:
 
 
 class Task3ProtocolTests(unittest.TestCase):
+    def test_no_search_runs_independent_validation_and_oos_accounts(self):
+        import json
+        from protocal import DataBus, KernelBacktestPort
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot
+        from plugins.data import Settlement
+
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            port = KernelBacktestPort(bus, Settlement)
+            value = port.handle("workbench.backtest", {
+                "run_id": "three-segments", "module": "plugins.strategies.breadth_low_amount_reversal",
+                "params": {"positions": 4}, "dataset_id": "fixture",
+                "start": "2020-01-31", "end": "2020-01-31", "initial_cash": 1000000,
+                "validation": {"start": "2020-02-03", "end": "2020-02-03"},
+                "out_of_sample": {"start": "2020-02-04", "end": "2020-02-04"},
+                **settlement_payload(),
+            }).data
+            self.assertEqual(value["effective_config"]["initial_cash"], "1000000")
+            self.assertEqual(set(value["segments"]), {"validation", "out_of_sample"})
+            self.assertNotEqual(value["config_hash"], value["segments"]["validation"]["config_hash"])
+            self.assertNotEqual(value["config_hash"], value["segments"]["out_of_sample"]["config_hash"])
+            saved = port.handle("workbench.run", {"id": value["run_id"]})
+            self.assertEqual(saved["segments"], value["segments"])
+            for segment in value["segments"].values():
+                manifest = json.loads(bus.read("runs", segment["run_id"], "manifest.json"))
+                self.assertEqual(manifest["effective_config"]["initial_cash"], "1000000")
     def test_data_query_declares_scope_and_bus_uses_one_reader(self):
         from protocal import DataBus, DataQuery
         from storage import DataStore
@@ -551,13 +580,13 @@ class Task3ProtocolTests(unittest.TestCase):
 
         plugin = _load_plugin({"settlement": {
             "module": "tests.test_task3_protocol:ConfigSettlement",
-            "params": {"mode": "configured", "limits": {"lot_size": 10}},
+            "params": {"mode": "configured", "limits": {}},
         }}, "settlement")
-        request = parse_backtest_request({**request_data(), "limits": {"lot_size": 20}})
+        request = parse_backtest_request({**request_data(), "limits": {}})
         value = plugin(100, object(), object(), **dict(request.settlement_parameters))
         self.assertEqual(value.mode, "configured")
         self.assertIsInstance(value.limits, AllocationLimits)
-        self.assertEqual(value.limits.lot_size, 20)
+        self.assertEqual(value.limits.lot_size, 100)
 
         with self.assertRaises(ValueError):
             _load_plugin({"settlement": {
@@ -661,7 +690,7 @@ class Task3ProtocolTests(unittest.TestCase):
                 "run_id": "saved", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
-                "evaluation": {"periods": 12, "baseline": .01},
+                "evaluation": {"periods": 12, "risk_free_rate": .01},
                 **settlement_payload(),
             }).data
             manifest = json.loads(bus.read("runs", "saved", "manifest.json"))
@@ -673,7 +702,7 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(value["provenance"]["query_semantics"], "snapshot_replay")
             self.assertEqual(saved["trace"], value["trace"])
             self.assertEqual(saved["equity"], value["equity"])
-            self.assertEqual(value["effective_config"]["evaluation"], {"periods": 12, "baseline": .01})
+            self.assertEqual(value["effective_config"]["evaluation"], {"periods": 12, "risk_free_rate": .01})
             self.assertEqual(manifest["effective_config"], value["effective_config"])
             self.assertEqual(manifest["config_hash"], value["config_hash"])
 
@@ -681,17 +710,18 @@ class Task3ProtocolTests(unittest.TestCase):
                 "run_id": "saved-lot", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
-                "limits": {"lot_size": 300},
-                "execution": execution(),
+                "limits": {},
+                "execution": {**execution(), "check": {"model": "cn_a_share",
+                    "params": {"tick": "0.01", "min_qty": 200, "step": 1}}},
             }).data
             self.assertNotEqual(value["config_hash"], changed["config_hash"])
-            self.assertEqual(changed["effective_config"]["settlement"]["params"]["limits"]["lot_size"], 300)
+            self.assertEqual(changed["effective_config"]["settlement"]["params"]["limits"]["lot_size"], 1)
 
             changed_evaluation = port.handle("workbench.backtest", {
                 "run_id": "saved-evaluation", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
-                "evaluation": {"periods": 252, "baseline": 0},
+                "evaluation": {"periods": 252, "risk_free_rate": 0},
                 **settlement_payload(),
             }).data
             self.assertEqual(changed_evaluation["equity"], value["equity"])

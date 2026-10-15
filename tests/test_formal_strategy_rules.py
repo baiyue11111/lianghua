@@ -39,6 +39,32 @@ class FormalStrategyRuleTests(unittest.TestCase):
         self.assertEqual(dict(target.weights), {"A": .25, "C": .25})
         self.assertEqual(set(target.reasons.values()), {"highest_momentum"})
 
+    def test_ranked_strategy_declares_sort_and_direction(self):
+        strategy = load_strategy(
+            "plugins.strategies.era_leadership",
+            {"positions": 1, "momentum_window": 20, "sort_desc": False},
+        )
+        frame = self.frame({"A": [1] * 19 + [4], "B": [1] * 19 + [2]})
+        target = strategy.generate(frame, self.account(frame))
+        self.assertEqual(dict(target.weights), {"B": 1.0})
+        self.assertEqual(dict(target.reasons), {"B": "lowest_momentum"})
+
+        with self.assertRaises((TypeError, ValueError)):
+            load_strategy("plugins.strategies.era_leadership", {"sort_by": "momentum"})
+
+    def test_trend_pullback_default_uses_recovery_as_drawdown_tiebreak(self):
+        strategy = load_strategy(
+            "plugins.strategies.trend_pullback",
+            {"positions": 1, "trend_window": 20, "pullback_window": 3,
+             "drawdown": .2, "exposure": 1.0},
+        )
+        frame = self.frame({
+            "A": [20] + [10] * 16 + [18, 17, 15],
+            "B": [20] + [10] * 16 + [20, 10, 15],
+        })
+        target = strategy.generate(frame, self.account(frame))
+        self.assertEqual(dict(target.weights), {"A": 1.0})
+
     def test_quality_trend_uses_fast_over_slow_sort_and_slots(self):
         strategy = load_strategy(
             "plugins.strategies.quality_trend",

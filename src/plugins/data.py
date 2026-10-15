@@ -366,13 +366,22 @@ class Settlement:
         from core.calculation import AllocationLimits
         from protocal import _limits, validate_execution
 
-        if limits is None:
-            limits = AllocationLimits()
-        elif isinstance(limits, dict):
-            limits = _limits(limits)
         if execution is None:
             execution = cls._copy(cls.DEFAULT_EXECUTION)
         execution = validate_execution(execution)
+        step = execution["check"]["params"]["step"]
+        if limits is None:
+            limits = AllocationLimits(lot_size=step)
+        elif isinstance(limits, dict):
+            limits = _limits(limits, lot_size=step)
+        elif isinstance(limits, AllocationLimits):
+            limits = AllocationLimits(
+                lot_size=step,
+                stock_weight=limits.stock_weight,
+                adv_fraction=limits.adv_fraction,
+            )
+        else:
+            raise TypeError("limits must be AllocationLimits or a mapping")
         return limits, execution
 
     @classmethod
@@ -382,8 +391,8 @@ class Settlement:
             "module": f"{cls.__module__}:{cls.__name__}",
             "params": {
                 "limits": {"lot_size": limits.lot_size,
-                            "stock_weight": str(limits.stock_weight),
-                            "adv_fraction": str(limits.adv_fraction)},
+                            "stock_weight": limits.stock_weight,
+                            "adv_fraction": limits.adv_fraction},
                 "execution": execution,
             },
         }

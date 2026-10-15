@@ -4,12 +4,121 @@ import importlib
 import json
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 protocol = importlib.import_module("frontend.ui-protocol")
 
 
 class UiProtocolTest(unittest.TestCase):
+    def test_exchange_closes_backend_when_node_cannot_start(self):
+        class Backend:
+            def __init__(self):
+                self.closed = False
+            def close(self):
+                self.closed = True
+
+        backend = Backend()
+        action = protocol.UiAction("a1", "invoke", "cli", {}, "example.read")
+        with patch("protocal.build_backend", return_value=backend), \
+             patch.object(protocol.subprocess, "Popen", side_effect=OSError("node missing")):
+            with self.assertRaises(OSError):
+                protocol.exchange(action)
+        self.assertTrue(backend.closed)
+
+    def test_exchange_refreshes_transport_deadline_after_backend_processing(self):
+        class Clock:
+            value = 0
+
+        class Stream:
+            def __init__(self, lines=()):
+                self.lines = list(lines)
+                self.writes = []
+
+            def write(self, value):
+                self.writes.append(value)
+
+            def flush(self):
+                return None
+
+            def readline(self):
+                return self.lines.pop(0) if self.lines else ""
+
+            def read(self):
+                return ""
+
+            def close(self):
+                return None
+
+        state = protocol.UiState(targets={"cli": protocol.UiSlot()})
+        request = protocol.UiRequest(
+            "r1", "example.read", "urn:example:input", {},
+        )
+        lines = [
+            json.dumps({"kind": "request", "request": request.to_dict(), "messages": []}) + "\n",
+            json.dumps({"kind": "state", "state": {
+                "revision": 0,
+                "targets": {"cli": {"revision": 0, "values": {}, "selection": None,
+                                     "query": {}, "messages": [], "problems": [], "operations": {}}},
+            }}) + "\n",
+        ]
+        stdout = Stream(lines)
+        process = type("Process", (), {
+            "stdin": Stream(), "stdout": stdout, "stderr": Stream(),
+            "wait": lambda self, timeout=None: None,
+        })()
+        class Backend:
+            async def send(self, request):
+                return []
+            def close(self):
+                return None
+
+        backend = Backend()
+        class Selector:
+            timeouts = []
+            def __enter__(self): return self
+            def __exit__(self, *args): return None
+            def register(self, stream, event): return None
+            def select(self, timeout):
+                self.timeouts.append(timeout)
+                return [(stdout, 1)]
+
+        action = protocol.UiAction("a1", "invoke", "cli", {}, "example.read")
+        def run_backend(awaitable):
+            awaitable.close()
+            Clock.value = 31
+            return []
+
+        with patch("protocal.build_backend", return_value=backend), \
+             patch.object(protocol.subprocess, "Popen", return_value=process), \
+             patch.object(protocol.selectors, "DefaultSelector", Selector), \
+             patch.object(protocol.asyncio, "run", side_effect=run_backend), \
+             patch.object(protocol.time, "monotonic", side_effect=lambda: Clock.value):
+            result = protocol.exchange(action)
+
+        self.assertEqual(result, state)
+        self.assertGreater(Selector.timeouts[1], 0)
+
+    def test_exchange_kills_a_core_process_that_ignores_terminate(self):
+        class Process:
+            def __init__(self):
+                self.terminated = False
+                self.killed = False
+                self.waits = 0
+            def wait(self, timeout=None):
+                self.waits += 1
+                if self.waits < 3:
+                    raise protocol.subprocess.TimeoutExpired("node", timeout)
+                return -9
+            def terminate(self): self.terminated = True
+            def kill(self): self.killed = True
+
+        process = Process()
+        protocol._close_process(process)
+        self.assertTrue(process.terminated)
+        self.assertTrue(process.killed)
+        self.assertEqual(process.waits, 3)
+
     def test_frontend_actions_and_backend_requests_have_distinct_ports(self):
         action = protocol.UiAction(action_id='a1', kind='invoke', target='form',
                                    operation='example.save', data={'amount': '12.50'})

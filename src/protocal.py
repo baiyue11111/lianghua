@@ -316,6 +316,7 @@ class DataQuery:
     symbols: tuple[str, ...] | None = None
     universe: str = "dataset"
     frequency: str = "daily"
+    purpose: str = "trade"
 
     def __post_init__(self):
         if not isinstance(self.dataset, str) or not self.dataset.strip():
@@ -333,6 +334,8 @@ class DataQuery:
             raise ValueError("history must be a positive integer")
         if self.price_basis not in {"adjusted", "raw"}:
             raise ValueError("unsupported query price basis")
+        if self.purpose not in {"trade", "compare"}:
+            raise ValueError("unsupported query purpose")
         if not isinstance(self.universe, str) or not self.universe.strip():
             raise ValueError("universe is required")
         if self.symbols is not None:
@@ -1206,6 +1209,8 @@ class BacktestRequest:
     settlement_parameters: Mapping[str, object] | None = None
     evaluation_parameters: Mapping[str, object] | None = None
     benchmark_id: str | None = None
+    validation_window: tuple[datetime, datetime] | None = None
+    out_of_sample_window: tuple[datetime, datetime] | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -1236,6 +1241,16 @@ class BacktestRequest:
             _name(self.universe, "universe")
             if self.benchmark_id is not None:
                 _name(self.benchmark_id, "benchmark_id")
+            for name in ("validation_window", "out_of_sample_window"):
+                window = getattr(self, name)
+                if window is not None:
+                    if (not isinstance(window, tuple) or len(window) != 2
+                            or any(not isinstance(item, datetime) for item in window)):
+                        raise ValueError(f"{name} must contain two datetimes")
+                    _aware(window[0], f"{name} start")
+                    _aware(window[1], f"{name} end")
+                    if window[0] > window[1]:
+                        raise ValueError(f"{name} start must not exceed end")
             for name in ("settlement_parameters", "evaluation_parameters"):
                 value = getattr(self, name)
                 if value is None:
@@ -1245,14 +1260,22 @@ class BacktestRequest:
                 else:
                     object.__setattr__(self, name, MappingProxyType(dict(value)))
             evaluation = dict(self.evaluation_parameters)
-            if set(evaluation) - {"periods", "baseline"}:
+            if set(evaluation) - {"periods", "risk_free_rate"}:
                 raise ValueError("unsupported evaluation parameters")
             if "periods" in evaluation and (type(evaluation["periods"]) is not int
                                               or evaluation["periods"] < 1):
                 raise ValueError("evaluation periods must be a positive integer")
-            if "baseline" in evaluation and (type(evaluation["baseline"]) not in (int, float)
-                                               or not isfinite(evaluation["baseline"])):
-                raise ValueError("evaluation baseline must be a finite number")
+            if "risk_free_rate" in evaluation:
+                raw = evaluation["risk_free_rate"]
+                if type(raw) not in (int, float):
+                    raise ValueError("risk_free_rate must be numeric")
+                try:
+                    finite = isfinite(raw)
+                except OverflowError as error:
+                    raise ValueError("risk_free_rate must be a finite annual rate greater than -1") from error
+                if not finite or raw <= -1:
+                    raise ValueError("risk_free_rate must be a finite annual rate greater than -1")
+                evaluation["risk_free_rate"] = float(raw)
             object.__setattr__(self, "evaluation_parameters", MappingProxyType(evaluation))
             if not isinstance(self.parameters, Mapping):
                 raise TypeError("parameters must be a mapping")
@@ -2243,7 +2266,8 @@ def _load_dataset(data, query):
 def _prepare_raw_dataset(data, query):
     import pyarrow as pa
     import pyarrow.parquet as pq
-    required = {"open", "high", "low", "close", "volume", "amount"}
+    compare_only = query.purpose == "compare"
+    required = set(query.fields) if compare_only else {"open", "high", "low", "close", "volume", "amount"}
     if query.frequency != "daily" or query.price_basis != "raw":
         raise ValueError("raw market queries require daily frequency")
     if not set(query.fields) <= required:
@@ -2352,10 +2376,13 @@ def _prepare_raw_dataset(data, query):
                                          str(day), positive=False)
                     for field, value in values.items()
                 }
-                prices = tuple(numbers[field] for field in
-                               ("open", "high", "low", "close"))
-                traded = _traded_bar(row.get("tradestatus"), prices,
-                                     numbers["volume"], numbers["amount"])
+                if compare_only:
+                    traded = False
+                else:
+                    prices = tuple(numbers[field] for field in
+                                   ("open", "high", "low", "close"))
+                    traded = _traded_bar(row.get("tradestatus"), prices,
+                                         numbers["volume"], numbers["amount"])
             except _BarEvidenceError as exc:
                 raise ValueError(f"{exc.reason}: {exc}") from exc
             except (TypeError, ValueError, OverflowError) as exc:
@@ -2367,7 +2394,7 @@ def _prepare_raw_dataset(data, query):
             fields[symbol] = selected
             if traded and all(values[field] is not None for field in EXECUTION_FIELDS):
                 bars[symbol] = Bar(symbol, day, *(float(values[field]) for field in EXECUTION_FIELDS))
-            if all(math.isfinite(numbers[field]) for field in ("open", "close")):
+            if not compare_only and all(math.isfinite(numbers[field]) for field in ("open", "close")):
                 opening[symbol] = Decimal(str(values["open"]))
                 closing[symbol] = Decimal(str(values["close"]))
         next_session = sessions[first_index + column + 1]
@@ -2708,7 +2735,8 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("workbench.strategies", "read", "strategies", "strategies", "collection", "backtests"),
     OperationSpec("workbench.preflight", "read", "preflight", "preflight", "document", "backtests"),
     OperationSpec("workbench.backtest", "write", "backtest", "backtest-result", "resource", "backtests"),
-    OperationSpec("cli.run", "write", "cli-run", "cli-run", "operation", "commands"),
+    OperationSpec("cli.backtest", "write", "cli-backtest", "cli-backtest", "operation", "commands"),
+    OperationSpec("cli.ingest", "write", "cli-ingest", "cli-ingest", "operation", "commands"),
     OperationSpec("workbench.runs", "read", "runs", "runs", "collection", "research"),
     OperationSpec("workbench.run", "read", "run", "run", "resource", "research"),
     OperationSpec("workbench.benchmarks", "read", "benchmarks", "benchmarks", "collection", "research"),
@@ -2780,7 +2808,7 @@ class Benchmarks:
             first, last = date.fromisoformat(str(start)), date.fromisoformat(str(end))
             result = self.store.query(DataQuery(
                 dataset_id, first, last, ("close",), 1, "raw",
-                symbols=(requested_code,), universe="dataset"))
+                symbols=(requested_code,), universe="dataset", purpose="compare"))
             points = []
             for record in result.records:
                 values = record.frame.fields.get(requested_code)
@@ -2830,6 +2858,7 @@ class Research:
             "note": manifest.get("note", "运行结果未经历史资格认定。"),
             "parameters": manifest.get("parameters", {}),
             "effective_config": manifest.get("effective_config", {}),
+            "segments": manifest.get("segments", {}),
             "code_hash": manifest.get("code_hash"), "data_hash": manifest.get("data_hash"),
             "execution_hash": manifest.get("execution_hash"), "result": result,
         }
@@ -2877,6 +2906,7 @@ def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, 
         "parameters": dict(request.parameters),
         "effective_config": effective_config,
         "config_hash": value.get("config_hash"),
+        "segments": value.get("segments", {}),
         "source_hashes": value.get("provenance", {}).get("source_hashes", {}),
         "data_hash": value.get("provenance", {}).get("data_hash"),
         "execution_hash": value.get("provenance", {}).get("execution_hash"),
@@ -3013,9 +3043,46 @@ class KernelBacktestPort:
             raise
         if search is None:
             value = _result_data(result, request, self._benchmarks)
+            segments = {}
+            for name, window in (("validation", request.validation_window),
+                                 ("out_of_sample", request.out_of_sample_window)):
+                if window is None:
+                    continue
+                segment_request = replace(
+                    request, run_id=f"{request.run_id}-{name}",
+                    start=window[0], end=window[1],
+                    validation_window=None, out_of_sample_window=None,
+                )
+                try:
+                    segment_result = self._kernel.run(segment_request)
+                    segment_value = _result_data(segment_result, segment_request, self._benchmarks)
+                except Exception as error:
+                    failure = error if isinstance(error, BacktestError) else BacktestError(
+                        f"{name}_failed", str(error))
+                    failure.code = f"{name}_failed"
+                    failure.evidence_ref = save_failed_backtest(
+                        self._data, request, failure,
+                        {"stage": name, "completed": segments, "main": value},
+                    )
+                    raise failure from error
+                save_backtest(self._data, segment_request, segment_value)
+                segments[name] = {
+                    "run_id": segment_request.run_id,
+                    "config_hash": segment_value["config_hash"],
+                    "result": f"data/result/{segment_request.run_id}/result.json",
+                }
+            if segments:
+                value["segments"] = segments
             save_backtest(self._data, request, value)
         else:
-            value = self._save_search(request, search, result)
+            try:
+                value = self._save_search(request, search, result)
+            except BacktestError as error:
+                if error.code == "busy":
+                    raise
+                if not getattr(error, "evidence_ref", None):
+                    error.evidence_ref = self._save_search_failure(request, error)
+                raise
         return PortResult(
             "resource", "lianghua:backtest-result",
             "urn:lianghua:ui:output:workbench.backtest:v1", value,
@@ -3034,6 +3101,8 @@ class KernelBacktestPort:
             "failed_request": _json_value(failed_request),
             "partial": _json_value(partial) if partial is not None else None,
         }
+        if isinstance(partial, Mapping):
+            evidence.update(_json_value(partial))
         if hasattr(error, "failed_values"):
             evidence["failed_values"] = _json_value(error.failed_values)
         if hasattr(error, "trial_index"):
@@ -3049,6 +3118,7 @@ class KernelBacktestPort:
             value["score"] = trial.score
             trials.append(value)
             save_backtest(self._data, trial.request, value)
+            value["trial_config_hash"] = value.pop("config_hash")
         best = result.trials[result.best_index]
         value = dict(_result_data(best.response, best.request, self._benchmarks))
         validation_value = None
@@ -3062,16 +3132,58 @@ class KernelBacktestPort:
             )
             validation_value = _result_data(result.validation, validation_request, self._benchmarks)
             save_backtest(self._data, validation_request, validation_value)
+        out_of_sample_value = None
+        if request.out_of_sample_window is not None:
+            out_start, out_end = request.out_of_sample_window
+            out_request = replace(
+                request, run_id=f"{request.run_id}-out_of_sample",
+                start=out_start, end=out_end,
+                parameters=dict(best.request.parameters),
+                validation_window=None, out_of_sample_window=None,
+            )
+            try:
+                out_result = self._kernel.run(out_request)
+                out_of_sample_value = _result_data(out_result, out_request, self._benchmarks)
+                save_backtest(self._data, out_request, out_of_sample_value)
+            except Exception as error:
+                failure = error if isinstance(error, BacktestError) else BacktestError(
+                    "out_of_sample_failed", str(error))
+                failure.code = "out_of_sample_failed"
+                failure.failed_request = out_request
+                failure.completed_trials = result.trials
+                completed_runs = [
+                    {"run_id": trial.request.run_id, "stage": "search"}
+                    for trial in result.trials
+                ]
+                if result.validation is not None:
+                    completed_runs.append({
+                        "run_id": validation_request.run_id,
+                        "stage": "validation",
+                    })
+                failure.partial_result = {
+                    "stage": "out_of_sample",
+                    "completed_runs": completed_runs,
+                    "validation_run_id": (
+                        validation_request.run_id if result.validation is not None else None
+                    ),
+                }
+                failure.evidence_ref = self._save_search_failure(request, failure)
+                raise failure from error
         effective_config = dict(value["effective_config"])
         declaration = dict(spec.declaration)
         declaration["base_parameters"] = dict(request.parameters)
         effective_config["search"] = declaration
+        summary_hash = canonical_hash(effective_config)
+        provenance = dict(value.get("provenance", {}))
+        provenance["effective_config"] = effective_config
+        provenance["config_hash"] = summary_hash
         value.update({
             "id": request.run_id,
             "run_id": request.run_id,
             "parameters": dict(best.request.parameters),
             "effective_config": effective_config,
-            "config_hash": canonical_hash(effective_config),
+            "config_hash": summary_hash,
+            "provenance": provenance,
             "search": {
                 "metric": spec.metric,
                 "direction": spec.direction,
@@ -3079,6 +3191,7 @@ class KernelBacktestPort:
                 "best_index": result.best_index,
                 "trials": trials,
                 "validation": validation_value,
+                "out_of_sample": out_of_sample_value,
             },
         })
         summary_request = replace(request, parameters=dict(best.request.parameters))
@@ -3097,9 +3210,17 @@ class CommandPort:
     def handle(self, operation: str, data: JsonValue) -> JsonValue:
         if not isinstance(data, dict):
             raise TypeError("operation data must be an object")
-        if operation == "cli.run":
-            config = json.loads(Path(_text(data, "config")).read_bytes())
-            return self._backtests.handle("workbench.backtest", config["request"])
+        if operation == "cli.backtest":
+            config = _decode_backtest_config(Path(_text(data, "config")).read_bytes())
+            if not isinstance(config, dict) or "request" in config:
+                raise ValueError("backtest config must be the request object without request wrapper")
+            result = self._backtests.handle("workbench.backtest", config)
+            if isinstance(result, PortResult):
+                return PortResult(
+                    result.kind, result.type,
+                    "urn:lianghua:ui:output:cli.backtest:v1", result.data,
+                )
+            return result
         if operation == "cli.ingest":
             from data.ingest import ingest_exploratory
 
@@ -3197,7 +3318,7 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
     try:
         allowed = {"run_id", "module", "params", "dataset_id", "start", "end", "initial_cash",
                    "fields", "history", "price_basis", "as_of", "symbols", "universe", "limits", "evaluation", "benchmark_id",
-                   "execution", "search"}
+                   "execution", "search", "validation", "out_of_sample"}
         unknown = set(data) - allowed
         if unknown:
             raise ValueError(f"unsupported request fields: {', '.join(sorted(unknown))}")
@@ -3206,13 +3327,24 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
             settlement_parameters["limits"] = _limits(data["limits"])
         if data.get("execution") is not None:
             settlement_parameters["execution"] = validate_execution(data["execution"])
-        return BacktestRequest(
+        if "execution" in settlement_parameters:
+            check = settlement_parameters["execution"]["check"]["params"]
+            current = settlement_parameters.get("limits")
+            if current is None:
+                current = _limits({}, lot_size=check["step"])
+            else:
+                current = _limits({
+                    "stock_weight": current.stock_weight,
+                    "adv_fraction": current.adv_fraction,
+                }, lot_size=check["step"])
+            settlement_parameters["limits"] = current
+        request = BacktestRequest(
             run_id=_text(data, "run_id") if "run_id" in data else uuid4().hex,
             strategy_id=_text(data, "module"), parameters=_object(data, "params"),
             dataset_id=_text(data, "dataset_id"),
             start=_instant(data, "start", end=False),
             end=_instant(data, "end", end=True),
-            initial_cash=Decimal(_text(data, "initial_cash")),
+            initial_cash=_decimal_input(data, "initial_cash"),
             fields=_names(data.get("fields", ()), "fields"), history=data.get("history", 0),
             price_basis=data.get("price_basis", "adjusted"),
             as_of=date.fromisoformat(data["as_of"]) if data.get("as_of") else None,
@@ -3222,6 +3354,19 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
             evaluation_parameters=_object(data, "evaluation") if "evaluation" in data else {},
             benchmark_id=data.get("benchmark_id"),
         )
+        windows = {}
+        for name in ("validation", "out_of_sample"):
+            if name in data:
+                windows[name] = _window(data[name], name)
+        if "validation" in windows and windows["validation"][0].date() <= request.end.date():
+            raise ValueError("validation must start after training end")
+        if "out_of_sample" in windows:
+            previous = windows.get("validation", (request.end, request.end))[1]
+            if windows["out_of_sample"][0].date() <= previous.date():
+                raise ValueError("out_of_sample must start after validation")
+        return replace(request,
+                       validation_window=windows.get("validation"),
+                       out_of_sample_window=windows.get("out_of_sample"))
     except BacktestError:
         raise
     except (KeyError, TypeError, ValueError) as error:
@@ -3320,7 +3465,7 @@ def _search(data: JsonValue, request: BacktestRequest) -> SearchSpec | None:
     value = data["search"]
     if not isinstance(value, dict):
         raise BacktestError("invalid_search", "search must be an object")
-    allowed = {"updater", "max_trials", "metric", "direction", "validation"}
+    allowed = {"updater", "max_trials", "metric", "direction"}
     unknown = set(value) - allowed
     if unknown:
         raise BacktestError("invalid_search", f"unsupported search fields: {', '.join(sorted(unknown))}")
@@ -3336,19 +3481,15 @@ def _search(data: JsonValue, request: BacktestRequest) -> SearchSpec | None:
     direction = value["direction"]
     if not isinstance(direction, str) or direction not in {"max", "min"}:
         raise BacktestError("invalid_search", "direction must be max or min")
-    validation = None
-    if "validation" in value:
-        raw = value["validation"]
-        if not isinstance(raw, dict) or set(raw) != {"start", "end"}:
-            raise BacktestError("invalid_search", "validation must contain only start and end")
-        validation = _validation_request(request, raw, request.parameters)
     updater = _updater(value["updater"])
     declaration = {
         "updater": value["updater"], "max_trials": max_trials,
         "metric": metric, "direction": direction,
     }
-    if "validation" in value:
-        declaration["validation"] = dict(value["validation"])
+    validation = None
+    if "validation" in data:
+        raw = data["validation"]
+        validation = _validation_request(request, raw, request.parameters)
     return SearchSpec(updater, max_trials, metric, direction, validation, declaration)
 
 
@@ -3406,11 +3547,22 @@ def _validation_request(request: BacktestRequest, value: Mapping, parameters: Ma
             price_basis=request.price_basis, as_of=request.as_of, symbols=request.symbols,
             universe=request.universe, settlement_parameters=request.settlement_parameters,
             evaluation_parameters=request.evaluation_parameters, benchmark_id=request.benchmark_id,
+            validation_window=None, out_of_sample_window=None,
         )
     except BacktestError:
         raise
     except (KeyError, TypeError, ValueError) as error:
         raise BacktestError("invalid_search", str(error)) from error
+
+
+def _window(value, name: str) -> tuple[datetime, datetime]:
+    if not isinstance(value, Mapping) or set(value) != {"start", "end"}:
+        raise ValueError(f"{name} must contain only start and end")
+    start = _instant(value, "start", end=False)
+    end = _instant(value, "end", end=True)
+    if start > end:
+        raise ValueError(f"{name} start must not exceed end")
+    return start, end
 
 
 def _text(data: Mapping[str, JsonValue], name: str) -> str:
@@ -3426,17 +3578,19 @@ def _names(value, name: str) -> tuple[str, ...]:
     return tuple(value)
 
 
-def _limits(value):
+def _limits(value, *, lot_size=100):
     from core.calculation import AllocationLimits
-    if not isinstance(value, dict) or set(value) - {"lot_size", "stock_weight", "adv_fraction"}:
+    if not isinstance(value, dict) or set(value) - {"stock_weight", "adv_fraction"}:
         raise ValueError("unsupported settlement limits")
     defaults = AllocationLimits()
-    lot_size = value.get("lot_size", defaults.lot_size)
     if type(lot_size) is not int or lot_size <= 0:
-        raise ValueError("lot_size must be a positive integer")
+        raise ValueError("execution.check step must be a positive integer")
     parsed = {"lot_size": lot_size}
     for name in ("stock_weight", "adv_fraction"):
         raw = value.get(name, getattr(defaults, name))
+        if raw is None:
+            parsed[name] = None
+            continue
         if isinstance(raw, bool):
             raise ValueError(f"{name} must be numeric")
         try:
@@ -3447,6 +3601,40 @@ def _limits(value):
             raise ValueError(f"{name} must be a finite number in (0, 1]")
         parsed[name] = number
     return AllocationLimits(**parsed)
+
+
+def _decimal_input(data: Mapping[str, JsonValue], name: str) -> Decimal:
+    value = data[name]
+    if isinstance(value, bool) or value is None:
+        raise ValueError(f"{name} must be a finite positive number")
+    try:
+        result = Decimal(str(value))
+    except (ArithmeticError, TypeError, ValueError) as error:
+        raise ValueError(f"{name} must be a finite positive number") from error
+    if not result.is_finite() or result <= 0:
+        raise ValueError(f"{name} must be a finite positive number")
+    return result
+
+
+def _decode_backtest_config(raw: bytes) -> JsonObject:
+    """Keep the monetary JSON token exact while preserving ordinary number types."""
+    decoded = json.loads(raw, parse_float=Decimal)
+
+    def normalize(value, key=None):
+        if isinstance(value, Decimal):
+            if key == "initial_cash":
+                return value
+            try:
+                return float(value)
+            except OverflowError as error:
+                raise ValueError("JSON number is outside the supported range") from error
+        if isinstance(value, dict):
+            return {name: normalize(item, name) for name, item in value.items()}
+        if isinstance(value, list):
+            return [normalize(item) for item in value]
+        return value
+
+    return normalize(decoded)
 
 
 def _identity(data: Mapping[str, JsonValue], name: str) -> str:
@@ -3564,6 +3752,12 @@ def _config_value(value):
     return value
 
 
+def _window_value(window):
+    if window is None:
+        return None
+    return {"start": window[0].isoformat(), "end": window[1].isoformat()}
+
+
 def _strategy_params(strategy, request):
     params = getattr(strategy, "params", None)
     return (_config_value(params) if is_dataclass(params)
@@ -3597,6 +3791,8 @@ def build_effective_config(request, strategy, requirements, dataset, settlement)
         "settlement": _config_value(settlement),
         "evaluation": dict(request.evaluation_parameters),
         "benchmark_id": request.benchmark_id,
+        "validation": _window_value(request.validation_window),
+        "out_of_sample": _window_value(request.out_of_sample_window),
     }
     from strategy import canonical_hash
     return value, canonical_hash(value)

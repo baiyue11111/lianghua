@@ -9,7 +9,7 @@ const root=new URL('../../../',import.meta.url).pathname;
 await build({entryPoints:[new URL('../../web/src/interaction/action.ts',import.meta.url).pathname],outfile:new URL('../dist/web-action.mjs',import.meta.url).pathname,bundle:true,platform:'node',format:'esm'});
 const {action}=await import('../dist/web-action.mjs');
 test('Python CLI and Web actions use the same core, requests and state sequence',async()=>{
- const pythonAction=JSON.parse(execFileSync(root+'.venv/bin/python',['-c',"from frontend.cli import build_parser,to_action; import json; print(json.dumps(to_action(build_parser().parse_args(['run','--config','x.json'])).to_dict()))"],{cwd:root}));
+ const pythonAction=JSON.parse(execFileSync(root+'.venv/bin/python',['-c',"from frontend.cli import build_parser,to_action; import json; print(json.dumps(to_action(build_parser().parse_args(['--backtest','x.json'])).to_dict()))"],{cwd:root}));
  const data=pythonAction.data;
  const requests=[];
  const reply=r=>[{protocol:'lianghua.ui',version:1,message_id:r.request_id+'-m',kind:'resource',type:'urn:test',schema:outputSchema(r.operation),correlation_id:r.request_id,data:{amount:'9007199254740993.10',input:r.data}}];
@@ -17,7 +17,7 @@ test('Python CLI and Web actions use the same core, requests and state sequence'
  const child=spawn('node',[root+'frontend/display/runtime/cli.mjs','--connected'],{stdio:['pipe','pipe','pipe']});
  const lines=createInterface({input:child.stdout})[Symbol.asyncIterator]();
  const send=frame=>child.stdin.write(JSON.stringify(frame)+'\n');
- const expectedActions=[action('edit','cli',{note:'测试'}),action('invoke','cli',data,'cli.run'),action('reset','cli',{})];
+ const expectedActions=[action('edit','cli',{note:'测试'}),action('invoke','cli',data,'cli.backtest'),action('reset','cli',{})];
  const incomingActions=[{...expectedActions[0],action_id:'cli-edit'},pythonAction,{...expectedActions[2],action_id:'cli-reset'}];
  try {
   for(let i=0;i<expectedActions.length;i++){

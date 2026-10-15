@@ -15,6 +15,7 @@ class Params:
     fast_window: int = field(default=20, metadata={'label': '快线窗口', 'minimum': 2, 'maximum': 500, 'unit': '交易日'})
     slow_window: int = field(default=120, metadata={'label': '慢线窗口', 'minimum': 20, 'maximum': 2000, 'unit': '交易日'})
     exposure: float = field(default=1., metadata={'label': '总仓位', 'minimum': 0, 'maximum': 1})
+    sort_desc: bool = field(default=True, metadata={'label': '降序'})
 
     def __post_init__(self):
         validate_params(self)
@@ -37,7 +38,7 @@ class Strategy:
             fast = Calculation.sma(prices, p.fast_window)
             slow = Calculation.sma(prices, p.slow_window)
             if fast > slow: candidates.append((fast / slow, symbol))
-        selected = tuple(symbol for _, symbol in sorted(candidates, key=lambda x: (-x[0], x[1]))[:p.positions])
+        selected = Calculation.select(candidates, p.positions, lambda row: row[0], p.sort_desc)
         if selected == self.selected: return None
         self.selected = selected
         return TargetSet(self.strategy_id, frame.at, weights(selected, p.exposure), {s: 'fast_above_slow' for s in selected})

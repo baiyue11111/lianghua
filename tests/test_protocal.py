@@ -1,6 +1,7 @@
 import asyncio
 import importlib
 import json
+from datetime import date
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -24,7 +25,7 @@ EXECUTION = {
 
 
 def settlement_payload():
-    return {"limits": {"lot_size": 100, "stock_weight": "0.4", "adv_fraction": "0.01"},
+    return {"limits": {"stock_weight": "0.4", "adv_fraction": "0.01"},
             "execution": EXECUTION}
 
 
@@ -49,6 +50,126 @@ class EmptyPort:
 
 
 class ProtocolTests(unittest.TestCase):
+    def test_extra_limits_are_unlimited_and_lot_size_comes_from_execution(self):
+        from core.calculation import AllocationLimits
+        from protocal import _limits
+
+        limits = _limits({})
+        self.assertEqual(limits.lot_size, 100)
+        self.assertIsNone(limits.stock_weight)
+        self.assertIsNone(limits.adv_fraction)
+        self.assertIsNone(AllocationLimits().stock_weight)
+
+    def test_annual_risk_free_rate_is_explicit_and_quantity_sources_cannot_conflict(self):
+        from protocal import BacktestError, parse_backtest_request
+
+        base = {
+            "module": "plugins.strategies.moving_average_cross", "params": {},
+            "dataset_id": "fixture", "start": "2020-01-01", "end": "2020-01-02",
+            "initial_cash": "100000",
+        }
+        request = parse_backtest_request({**base, "evaluation": {"risk_free_rate": 0.03}})
+        self.assertEqual(request.evaluation_parameters["risk_free_rate"], 0.03)
+        from core.calculation import Calculation
+        metrics = Calculation.evaluate(
+            [(date(2020, 1, 1), 100.0), (date(2020, 1, 2), 101.0)],
+            **dict(request.evaluation_parameters),
+        )
+        self.assertIn("sharpe", metrics)
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base, "evaluation": {"baseline": "0.03"}})
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base, "evaluation": {"risk_free_rate": "3%"}})
+        request = parse_backtest_request({**base, "execution": {
+            **EXECUTION, "check": {"model": "cn_a_share", "params": {"tick": "0.01", "min_qty": 200, "step": 1}}
+        }})
+        self.assertEqual(request.settlement_parameters["limits"].lot_size, 1)
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base, "limits": {"lot_size": 100}})
+
+    def test_huge_risk_free_rate_is_an_invalid_request(self):
+        from protocal import BacktestError, parse_backtest_request
+
+        with self.assertRaises(BacktestError) as caught:
+            parse_backtest_request({
+                "module": "plugins.strategies.moving_average_cross",
+                "params": {"fast_window": 1, "slow_window": 2},
+                "dataset_id": "fixture", "start": "2020-01-01", "end": "2020-01-02",
+                "initial_cash": "100", "evaluation": {"risk_free_rate": 10 ** 400},
+            })
+        self.assertEqual(caught.exception.code, "invalid_request")
+
+    def test_settlement_describe_uses_json_null_for_unlimited_limits(self):
+        from plugins.data import Settlement
+        from protocal import parse_backtest_request
+
+        limits = Settlement.describe({})["params"]["limits"]
+        self.assertIsNone(limits["stock_weight"])
+        self.assertIsNone(limits["adv_fraction"])
+
+    def test_execution_check_is_the_only_quantity_source_for_allocation(self):
+        from datetime import date, datetime, timezone
+        from decimal import Decimal
+        from plugins.data import Settlement
+        from protocal import Bar, TargetSet
+        from tests.fee_fixture import fees, tax_policy
+        from core.calculation import AccountExecutionSession, AccountLedger, AllocationLimits, TradeRules
+
+        execution = {**EXECUTION, "check": {
+            "model": "cn_a_share",
+            "params": {"tick": "0.01", "min_qty": 200, "step": 1},
+        }}
+        limits, normalized = Settlement.resolve(
+            limits=AllocationLimits(lot_size=100), execution=execution)
+        self.assertEqual(limits.lot_size, 1)
+        rules = TradeRules(normalized, fees(), tax_policy())
+        target = TargetSet(
+            "strategy", datetime(2024, 1, 1, tzinfo=timezone.utc),
+            {"600000": 0.1}, {"600000": "entry"},
+        )
+        plan = rules.allocate(
+            target, next_session=date(2024, 1, 2), equity=Decimal("1000000"),
+            holdings={}, raw_closes={"600000": Decimal("10")},
+            amount20={"600000": Decimal("100000000")}, limits=limits,
+        )
+        self.assertEqual(plan.orders[0].requested_shares, 10000)
+        session = AccountExecutionSession(AccountLedger(Decimal("1000000")), rules)
+        order = plan.orders[0]
+        session.submit(order)
+        fill = session.execute(
+            order.order_id,
+            Bar("600000", date(2024, 1, 2), 10, 10, 10, 10, 1000000, 10000000),
+            previous_close=10,
+        )
+        self.assertEqual(fill.status, "filled")
+        self.assertEqual(fill.shares, 10000)
+
+    def test_evaluation_windows_are_daily_disjoint_and_reject_nested_shapes(self):
+        from protocal import BacktestError, parse_backtest_request
+
+        base = {
+            "module": "plugins.strategies.moving_average_cross", "params": {},
+            "dataset_id": "fixture", "start": "2020-01-01T09:00:00+00:00",
+            "end": "2020-01-03T09:00:00+00:00", "initial_cash": 1000000,
+        }
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base, "validation": {
+                "start": "2020-01-03T10:00:00+00:00", "end": "2020-01-04T10:00:00+00:00",
+            }})
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base, "validation": {
+                "start": "2020-01-04", "end": "2020-01-03",
+            }})
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base, "validation": {
+                "start": "2020-01-04", "end": "2020-01-05", "extra": 1,
+            }})
+        with self.assertRaises(BacktestError):
+            parse_backtest_request({**base,
+                "validation": {"start": "2020-01-04", "end": "2020-01-05"},
+                "out_of_sample": {"start": "2020-01-05T12:00:00+00:00", "end": "2020-01-06"},
+            })
+
     def test_execution_and_config_hashes_change_with_selected_execution(self):
         from datetime import datetime, timezone
         from decimal import Decimal
@@ -89,11 +210,11 @@ class ProtocolTests(unittest.TestCase):
 
         with self.assertRaises(ValueError):
             _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
-                "limits": {"lot_size": 100}, "execution": invalid,
+            "limits": {}, "execution": invalid,
             }}}, "settlement")
 
         configured = _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
-            "limits": {"lot_size": 100}, "execution": EXECUTION,
+            "limits": {}, "execution": EXECUTION,
         }}}, "settlement")
         self.assertEqual(configured.describe({})["params"]["execution"]["quantity"]["params"], {})
 
@@ -103,20 +224,20 @@ class ProtocolTests(unittest.TestCase):
 
         DATASET_VALIDATION_CALLS.clear()
         configured = _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
-            "limits": {"lot_size": 100}, "execution": EXECUTION,
+            "limits": {}, "execution": EXECUTION,
         }}}, "settlement")
         dataset = object()
         request = SimpleNamespace(settlement_parameters={
-            "limits": {"lot_size": 200}, "execution": EXECUTION,
+            "limits": {}, "execution": EXECUTION,
         })
 
-        configured.validate_dataset(dataset, request, limits={"lot_size": 300})
+        configured.validate_dataset(dataset, request, limits={"stock_weight": "0.2"})
 
         self.assertEqual(len(DATASET_VALIDATION_CALLS), 1)
         actual_dataset, actual_request, limits, execution = DATASET_VALIDATION_CALLS[0]
         self.assertIs(actual_dataset, dataset)
         self.assertIs(actual_request, request)
-        self.assertEqual(limits.lot_size, 300)
+        self.assertEqual(limits.lot_size, 100)
         self.assertEqual(execution["quantity"]["params"], {})
 
     def test_execution_rules_reject_invalid_bounds_and_mismatched_ticks(self):

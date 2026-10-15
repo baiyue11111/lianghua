@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.scripts]
-lianghua-backtest = "frontend.cli:main"
+lianghua = "frontend.cli:main"
 
 [build-system]
 requires = ["setuptools>=68"]

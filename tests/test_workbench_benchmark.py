@@ -4,6 +4,37 @@ from protocal import build_data
 from protocal import Benchmarks, KernelBacktestPort, Research
 
 class BenchmarkTests(unittest.TestCase):
+    def test_compare_benchmark_does_not_require_trade_bar_fields(self):
+        """An index comparison series may publish close without stock turnover fields."""
+        import hashlib
+        import json
+        import pyarrow.parquet as pq
+        from tests.history_fixture import make_snapshot, update_manifest
+
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            make_snapshot(root)
+            path = root / "data/source/fixture/daily/bars.parquet"
+            table = pq.read_table(path).select(["code", "date", "close"])
+            pq.write_table(table, path)
+            manifest = json.loads((root / "data/source/fixture/manifest.json").read_text())
+            for item in manifest["files"]:
+                if item["file"] == "daily/bars.parquet":
+                    item["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
+            update_manifest(root, files=manifest["files"])
+
+            data = build_data(root)
+            service = Benchmarks(data, [{
+                "id": "hs300", "name": "沪深300", "source_id": "index",
+                "dataset_id": "fixture", "code": "sh.600003", "provider": "test",
+                "currency": "CNY", "return_type": "price",
+            }])
+            result = service.series("hs300", "2020-01-31", "2020-02-03")
+            self.assertEqual(result["points"], [
+                {"at": "2020-01-31", "close": 11.0},
+                {"at": "2020-02-03", "close": 11.0},
+            ])
+
     def test_daily_benchmark_reads_the_canonical_query_not_collection_snapshot(self):
         import pyarrow.parquet as pq
         from tests.history_fixture import make_snapshot

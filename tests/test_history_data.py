@@ -24,7 +24,7 @@ def payload(**changes):
         "run_id": "history-test", "module": "plugins.strategies.breadth_low_amount_reversal",
         "params": {"positions": 4}, "initial_cash": "100000", "dataset_id": "fixture",
         "start": "2020-01-31", "end": "2020-02-04",
-        "limits": {"lot_size": 100, "stock_weight": "0.4", "adv_fraction": "0.01"},
+        "limits": {"stock_weight": "0.4", "adv_fraction": "0.01"},
         "execution": {
             "price": {"model": "ratio", "params": {"rate": ".001", "tick": ".01"}},
             "quantity": {"model": "capacity", "params": {}},

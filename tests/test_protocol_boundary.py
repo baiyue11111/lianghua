@@ -130,7 +130,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "workbench.strategies", "workbench.preflight", "workbench.backtest",
-            "cli.run", "workbench.runs", "workbench.run", "workbench.benchmarks",
+            "cli.backtest", "cli.ingest", "workbench.runs", "workbench.run", "workbench.benchmarks",
             "workbench.benchmark", "lake.researchInputs", "workbench.sources", "workbench.sync",
             "workbench.schedule", "workbench.job", "workbench.snapshot",
             "workbench.evidence", "workbench.failedEvidence", "workbench.reviews",
@@ -163,7 +163,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(messages[0].data, value)
         self.assertEqual(source.calls, [("workbench.sources", {})])
 
-    def test_cli_run_uses_the_same_backtest_module(self):
+    def test_cli_backtest_uses_the_same_backtest_module_without_request_wrapper(self):
         from protocal import CommandPort
 
         backtests = Port({"run_id": "shared"})
@@ -174,10 +174,10 @@ class ProtocolBoundaryTests(unittest.TestCase):
                 "dataset_id": "history", "start": "2020-01-01", "end": "2020-12-31",
                 "initial_cash": "100000.00",
             }
-            path.write_text(json.dumps({"request": request}))
+            path.write_text(json.dumps(request))
 
             result = CommandPort(Path(root), backtests, __import__('storage').DataStore(Path(root))).handle(
-                "cli.run", {"config": str(path), "root": root}
+                "cli.backtest", {"config": str(path), "root": str(root)}
             )
 
         self.assertEqual(result, {"run_id": "shared"})

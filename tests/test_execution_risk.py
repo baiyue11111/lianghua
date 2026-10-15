@@ -4,12 +4,12 @@ from decimal import Decimal as D
 import unittest
 
 import core.calculation as account_execution
-from core.calculation import AccountLedger
+from core.calculation import AccountLedger, AllocationLimits
 from protocal import Bar, Order, Side
 
 
 class OpeningRiskTests(unittest.TestCase):
-    def run_order(self, shares, price, adv):
+    def run_order(self, shares, price, adv, *, limits=None):
         import core.calculation as execution_risk
         self.assertTrue(hasattr(execution_risk,'OpeningRiskSnapshot'),'missing opening risk contract')
         account=AccountLedger(D('100000'))
@@ -18,12 +18,16 @@ class OpeningRiskTests(unittest.TestCase):
         day=date(2020,1,3)
         risk=execution_risk.OpeningRiskSnapshot(date(2020,1,2),{'A':D(str(price))},
                                               {'A':D(str(adv))},D(0),D(0))
+        risk = risk.__class__(risk.liquidity_as_of, risk.raw_marks, risk.amount20,
+                              risk.receivables, risk.liabilities,
+                              limits or AllocationLimits(), risk.opening_volume20)
         fill,=session.execute_open(day,{'A':Bar('A',day,price,price+1,price-1,price,1000000,10000000)},
                                   {'A':10},risk=risk)
         return account,session,fill,risk
 
     def test_open_gap_exceeding_adv_budget_is_rejected_not_resized(self):
-        account,session,fill,_=self.run_order(1200,12,1300000)
+        account,session,fill,_=self.run_order(1200,12,1300000,
+                                               limits=AllocationLimits(stock_weight=D('.4'), adv_fraction=D('.01')))
         self.assertEqual(fill.status,'rejected')
         self.assertEqual(fill.reason,'order_above_adv_limit')
         self.assertEqual(account.cash,D('100000'))
@@ -31,7 +35,8 @@ class OpeningRiskTests(unittest.TestCase):
         self.assertEqual(session.pending[0].requested_shares,1200)
 
     def test_open_gap_exceeding_stock_limit_is_rejected(self):
-        account,session,fill,_=self.run_order(3900,11,50000000)
+        account,session,fill,_=self.run_order(3900,11,50000000,
+                                               limits=AllocationLimits(stock_weight=D('.4'), adv_fraction=D('.01')))
         self.assertEqual(fill.status,'rejected')
         self.assertEqual(fill.reason,'position_above_stock_limit')
         self.assertEqual(account.cash,D('100000'))
@@ -39,6 +44,8 @@ class OpeningRiskTests(unittest.TestCase):
 
     def test_eligible_open_fills_once_and_fees_reconcile(self):
         account,session,fill,risk=self.run_order(1200,10,50000000)
+        self.assertIsNone(risk.limits.stock_weight)
+        self.assertIsNone(risk.limits.adv_fraction)
         self.assertEqual(fill.status,'filled')
         self.assertEqual(account.cash,D('87983'))
         day=date(2020,1,3)
