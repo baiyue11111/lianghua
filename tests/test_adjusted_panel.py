@@ -56,6 +56,10 @@ class AdjustedPanelTests(unittest.TestCase):
             'reverse_dates': [event('600002', '600001', '2020-01-02'),
                               event('600001', '600000', '2019-01-02')],
             'self_transition': [event('600000', '600000', '2020-01-02')],
+            'unrelated_cycle': [event('600020', '600021', '2020-01-02'),
+                                event('600021', '600020', '2020-01-03')],
+            'same_date_chain': [event('600020', '600021', '2020-01-02'),
+                                event('600021', '600022', '2020-01-02')],
         }
         for name, events in cases.items():
             with self.subTest(case=name):
@@ -89,6 +93,44 @@ class AdjustedPanelTests(unittest.TestCase):
         np.testing.assert_allclose(panel.back_factor[0],[2,2])
         np.testing.assert_allclose(panel.signal_close[0],[20,22])
         self.assertTrue(any('adjust_600001_' in h.path for h in panel.source_hashes))
+
+    def test_verified_multi_rename_chain_matches_final_code_factor_history(self):
+        self.write_bars([
+            _bar('2020-01-02', close=10, open_=10, high=11, low=9),
+            _bar('2020-01-03', close=11, open_=11, high=12, low=10),
+            _bar('2020-01-06', close=12, open_=12, high=13, low=11),
+        ])
+        self.write_cache([
+            ['sh.600002', '2020-01-01', '1', '1', '1'],
+            ['sh.600002', '2020-01-02', '1', '2', '2'],
+        ], code='sh.600002')
+        self.write_cache([
+            ['sh.600001', '2020-01-03', '1', '2', '2'],
+            ['sh.600001', '2020-01-06', '1', '2', '2'],
+        ], code='sh.600001')
+        self.write_cache([
+            ['sh.600000', '2020-01-06', '1', '2', '2'],
+        ])
+        self.code_changes.write_text(json.dumps({'schema': 1, 'events': [
+            {'old_code': '600002', 'new_code': '600001',
+             'effective_date': '2020-01-03', 'factor_basis_continuity_verified': True},
+            {'old_code': '600001', 'new_code': '600000',
+             'effective_date': '2020-01-06', 'factor_basis_continuity_verified': True},
+        ][::-1]}))
+
+        renamed = self.load()
+
+        self.write_cache([
+            ['sh.600000', '2020-01-01', '1', '1', '1'],
+            ['sh.600000', '2020-01-02', '1', '2', '2'],
+            ['sh.600000', '2020-01-06', '1', '2', '2'],
+        ])
+        self.code_changes.write_text(json.dumps({'schema': 1, 'events': []}))
+        direct = self.load()
+
+        np.testing.assert_allclose(renamed.back_factor, direct.back_factor)
+        np.testing.assert_allclose(renamed.signal_close, direct.signal_close)
+        np.testing.assert_allclose(renamed.signal_close[0], [20, 22, 24])
 
     def test_rename_boolean_cannot_authorize_a_contradictory_factor(self):
         self.write_bars([_bar('2019-12-30',close=10,open_=10,high=11,low=9),

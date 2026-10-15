@@ -1590,6 +1590,8 @@ def _load_code_changes(path: Path, read: Callable[[Path], bytes]) -> tuple[tuple
     if not isinstance(payload, dict) or payload.get("schema") != 1 or not isinstance(payload.get("events"), list):
         raise ValueError("unsupported code-change evidence schema")
     changes = []
+    outgoing = {}
+    incoming = set()
     for item in payload["events"]:
         if not isinstance(item, dict):
             raise ValueError("malformed code-change event")
@@ -1604,9 +1606,26 @@ def _load_code_changes(path: Path, read: Callable[[Path], bytes]) -> tuple[tuple
         verified = item.get("factor_basis_continuity_verified")
         if not isinstance(verified, bool):
             raise ValueError("code-change factor-basis verdict is missing")
-        changes.append({"old_code": item["old_code"], "new_code": item["new_code"],
-                        "effective_date": effective_date,
-                        "factor_basis_continuity_verified": verified})
+        old_code, new_code = item["old_code"], item["new_code"]
+        if old_code == new_code or old_code in outgoing or new_code in incoming:
+            raise ValueError("ambiguous code-change graph")
+        change = {"old_code": old_code, "new_code": new_code,
+                  "effective_date": effective_date,
+                  "factor_basis_continuity_verified": verified}
+        outgoing[old_code] = change
+        incoming.add(new_code)
+        changes.append(change)
+    for start in outgoing:
+        code, previous_date, visited = start, None, set()
+        while code in outgoing:
+            if code in visited:
+                raise ValueError("cyclic code-change graph")
+            visited.add(code)
+            change = outgoing[code]
+            if previous_date is not None and change["effective_date"] <= previous_date:
+                raise ValueError("reverse code-change dates")
+            previous_date = change["effective_date"]
+            code = change["new_code"]
     return tuple(changes), SourceHash(str(path), hashlib.sha256(file_bytes).hexdigest())
 
 

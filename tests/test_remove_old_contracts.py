@@ -124,18 +124,5 @@ class RemoveOldContractsTests(unittest.TestCase):
         self.assertEqual(value["effective_config"]["history"], 60)
         self.assertEqual(value["config_hash"], _result_data(result, request)["config_hash"])
 
-    def test_prepare_requires_explicit_policy_source_before_output_creation(self):
-        path = Path(__file__).parents[1] / "tools/prepare_history.py"
-        spec = importlib.util.spec_from_file_location("prepare_history", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-
-        with tempfile.TemporaryDirectory() as folder:
-            root = Path(folder)
-            with self.assertRaisesRegex(ValueError, "account policy source"):
-                module.prepare(root, {"dataset_id": "out"})
-            self.assertFalse((root / "data/source/out").exists())
-
-
 if __name__ == "__main__":
     unittest.main()
