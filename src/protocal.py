@@ -19,12 +19,14 @@ from hashlib import sha256
 import hashlib
 import re
 import json
+import os
 from threading import local
 from math import isfinite
 from types import MappingProxyType
 from typing import Any, Literal, Mapping, Protocol as TypingProtocol, TypeAlias
 from uuid import uuid4
 from collections import deque
+from contextlib import contextmanager
 import math
 from zoneinfo import ZoneInfo
 from typing import Callable
@@ -391,11 +393,8 @@ class _DataStore(TypingProtocol):
     def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]: ...
     def path(self, kind: str, identity: str, name: str) -> Path: ...
     def delete(self, kind: str, identity: str, name: str) -> None: ...
-    def snapshot(self, dataset: str) -> Mapping[str, object]: ...
+    def manifest(self, dataset: str) -> Mapping[str, object]: ...
     def publish(self, dataset: str, manifest: Mapping[str, object]) -> DataRef: ...
-    def publish_collection(self, source_id: str, packet: Mapping[str, object]) -> DataRef: ...
-    def publish_daily(self, storage_id: str, dataset_id: str, packet: Mapping[str, object]) -> DataRef: ...
-    def latest_collection(self, source_id: str) -> Mapping[str, object] | None: ...
     def update_registry(self, change) -> Mapping[str, object]: ...
     def source_lock(self): ...
     def publish_state(self, dataset: str) -> str | None: ...
@@ -414,43 +413,13 @@ class DataPort(TypingProtocol):
     def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]: ...
     def path(self, kind: str, identity: str, name: str) -> Path: ...
     def delete(self, kind: str, identity: str, name: str) -> None: ...
-    def snapshot(self, dataset: str) -> Mapping[str, object]: ...
+    def manifest(self, dataset: str) -> Mapping[str, object]: ...
     def publish(self, dataset: str, manifest: Mapping[str, object]) -> DataRef: ...
-    def daily_coverage(self, dataset: str, symbols: tuple[str, ...],
-                       start: date, end: date, fields: tuple[str, ...]) -> Mapping[str, object]: ...
-    def daily_collection_view(self, source_id: str, dataset_id: str) -> Mapping[str, object]: ...
-    def daily_collection_summary(self, source_id: str, dataset_id: str) -> Mapping[str, object]: ...
-    def daily_collection_page(self, source_id: str, dataset_id: str, *, offset: int = 0,
-                              limit: int = 50, start=None, end=None, symbols=None) -> Mapping[str, object]: ...
+    def transaction(self, namespace: str): ...
     def lake_facts(self) -> Mapping[str, object]: ...
     def profile_report(self) -> Mapping[str, object]: ...
     def research_report(self) -> Mapping[str, object]: ...
     def doctor_report(self) -> Mapping[str, object]: ...
-
-
-COLLECTION_GROUP_KINDS = {
-    "snapshots": "sources",
-    "failed_evidence": "sources",
-    "latest": "state",
-    "jobs": "state",
-    "source_jobs": "state",
-    "schedules": "state",
-    "reviews": "state",
-}
-
-
-def collection_snapshot_id(value: Mapping[str, object]) -> str:
-    payload = {key: item for key, item in value.items()
-               if key not in {"collected_at", "snapshot_id"}}
-    return sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True,
-                             separators=(",", ":"), allow_nan=False).encode()).hexdigest()
-
-
-def collection_kind(group: str) -> str:
-    try:
-        return COLLECTION_GROUP_KINDS[group]
-    except KeyError as error:
-        raise ValueError("invalid collection group") from error
 
 
 class DataBus:
@@ -460,8 +429,57 @@ class DataBus:
     def __init__(self, store: _DataStore):
         self._store = store
         self._publish_tokens = local()
+        self._transactions = local()
+        self._pid = os.getpid()
+
+    def _process(self):
+        if self._pid != os.getpid():
+            self._publish_tokens = local()
+            self._transactions = local()
+            self._pid = os.getpid()
+
+    @contextmanager
+    def transaction(self, namespace):
+        self._process()
+        if namespace not in self.kinds:
+            raise DataError('invalid_identity', 'invalid transaction namespace')
+        active = getattr(self._transactions, 'values', {})
+        self._transactions.values = active
+        if namespace in active:
+            try:
+                yield self
+            except BaseException:
+                active[namespace]['failed'] = True
+                raise
+            return
+        with self._store.namespace_lock(namespace):
+            if self._store.publish_states(namespace):
+                raise DataError('dataset_publishing', 'namespace publication is incomplete')
+            state = {'token': uuid4().hex, 'started': False, 'failed': False}
+            active[namespace] = state
+            try:
+                yield self
+            except BaseException:
+                raise
+            else:
+                if state['failed']:
+                    raise DataError('dataset_publishing', 'nested transaction failed')
+                if state['started']:
+                    self._store.finish_publish('_transaction', state['token'], namespace)
+            finally:
+                active.pop(namespace, None)
+                self._publish_owner().pop('_transaction', None)
+
+    def _transaction_write(self, namespace):
+        state = getattr(self._transactions, 'values', {}).get(namespace)
+        if state is not None and not state['started']:
+            self._store.begin_publish('_transaction', state['token'], namespace)
+            state['started'] = True
+            if namespace == 'sources':
+                self._publish_owner()['_transaction'] = state['token']
 
     def _publish_owner(self) -> dict[str, str]:
+        self._process()
         values = getattr(self._publish_tokens, "values", None)
         if values is None:
             values = {}
@@ -477,12 +495,42 @@ class DataBus:
     def _source_mutate(self, operation, identity, *args):
         with self._store.source_lock():
             self._source_owner_allowed()
-            return self._call(operation, "sources", identity, *args)
+            self._call('path', 'sources', identity, args[0])
+            if operation == 'write' and not isinstance(args[1], bytes):
+                raise DataError('invalid_identity', 'data value must be bytes')
+            self._transaction_write('sources')
+            try:
+                return self._call(operation, "sources", identity, *args)
+            except BaseException:
+                state = getattr(self._transactions, 'values', {}).get('sources')
+                if state is not None:
+                    state['failed'] = True
+                raise
 
     def _source_view(self, operation, identity, *args):
         with self._store.source_lock():
             self._source_owner_allowed()
             return self._call(operation, "sources", identity, *args)
+
+    def _namespace_access(self, operation, namespace, *args):
+        if namespace not in self.kinds:
+            raise DataError('invalid_identity', 'invalid data kind')
+        with self._store.namespace_lock(namespace):
+            states = self._store.publish_states(namespace)
+            state = getattr(self._transactions, 'values', {}).get(namespace)
+            if states and (state is None or state['token'] not in states):
+                raise DataError('dataset_publishing', 'namespace publication is incomplete')
+            if operation in ('write', 'delete'):
+                self._call('path', namespace, args[0], args[1])
+                if operation == 'write' and not isinstance(args[2], bytes):
+                    raise DataError('invalid_identity', 'data value must be bytes')
+                self._transaction_write(namespace)
+            try:
+                return self._call(operation, namespace, *args)
+            except BaseException:
+                if state is not None and operation in ('write', 'delete'):
+                    state['failed'] = True
+                raise
 
     @staticmethod
     def _sql_name(name: str) -> str:
@@ -949,74 +997,14 @@ class DataBus:
             raise DataError("date_coverage", "dataset must cover the query end before its following-session sentinel")
         return result
 
-    def daily_coverage(self, dataset: str, symbols: tuple[str, ...],
-                       start: date, end: date, fields: tuple[str, ...]) -> Mapping[str, object]:
-        """Return observed daily keys without assembling a backtest Dataset."""
-        if (not symbols or not fields or start > end or
-                any(not isinstance(value, str) or not value for value in (*symbols, *fields))):
-            raise DataError("invalid_query", "daily coverage arguments are invalid")
-        with self._store.source_lock():
-            if self._store.publish_states():
-                raise DataError("dataset_publishing", "dataset publication is incomplete")
-            manifest = self._snapshot_locked(dataset)
-            calendar_name = manifest.get("calendar")
-            calendar = json.loads(self.read("sources", dataset, calendar_name))
-            sessions = tuple(date.fromisoformat(str(value))
-                             for value in calendar.get("sessions", ()))
-            wanted_days = tuple(day for day in sessions if start <= day <= end)
-            wanted = {(symbol, day.isoformat()) for symbol in symbols for day in wanted_days}
-            found = set()
-            import pyarrow as pa
-            import pyarrow.parquet as pq
-            years = {str(day.year) for day in wanted_days}
-            columns = ["code", "date", *fields]
-            columns = list(dict.fromkeys(columns))
-            for ref in manifest.get("files", ()):
-                name = ref.get("file", "")
-                parts = Path(name).parts
-                if not name.endswith(".parquet") or "daily" not in parts:
-                    continue
-                stem = Path(parts[-1]).stem
-                if stem.isdigit() and len(stem) == 4 and stem not in years:
-                    continue
-                daily_index = parts.index("daily")
-                identity = parts[1] if parts[0] == "source" else dataset
-                relative = Path(*parts[daily_index:]).as_posix()
-                payload = self.read("sources", identity, relative)
-                parquet = pq.ParquetFile(pa.BufferReader(payload))
-                names = set(parquet.schema_arrow.names)
-                if not set(columns) <= names:
-                    continue
-                date_type = parquet.schema_arrow.field("date").type
-                lower = start if pa.types.is_date(date_type) else start.isoformat()
-                upper = end if pa.types.is_date(date_type) else end.isoformat()
-                table = pq.read_table(
-                    pa.BufferReader(payload), columns=columns,
-                    filters=[("code", "in", list(symbols)), ("date", ">=", lower),
-                             ("date", "<=", upper)],
-                )
-                for row in table.to_pylist():
-                    key = (str(row.get("code")), str(row.get("date")))
-                    if key in wanted and all(row.get(field) is not None for field in fields):
-                        found.add(key)
-            missing = {
-                symbol: [day.isoformat() for day in wanted_days
-                         if (symbol, day.isoformat()) not in found]
-                for symbol in symbols
-            }
-            return {"dataset": dataset, "start": start.isoformat(), "end": end.isoformat(),
-                    "fields": tuple(fields), "complete": not any(missing.values()),
-                    "missing": missing, "sessions": tuple(day.isoformat() for day in wanted_days)}
-
-    def snapshot(self, dataset: str) -> Mapping[str, object]:
+    def manifest(self, dataset: str) -> Mapping[str, object]:
         if not isinstance(dataset, str) or Path(dataset).name != dataset or not dataset:
             raise DataError("invalid_identity", "invalid dataset identity")
         with self._store.source_lock():
-            if self._store.publish_states():
-                raise DataError("dataset_publishing", "dataset publication is incomplete")
-            return self._snapshot_locked(dataset)
+            self._source_owner_allowed()
+            return self._manifest_locked(dataset)
 
-    def _snapshot_locked(self, dataset: str) -> Mapping[str, object]:
+    def _manifest_locked(self, dataset: str) -> Mapping[str, object]:
         """Read one registered dataset manifest after checking its evidence."""
         if not isinstance(dataset, str) or Path(dataset).name != dataset or not dataset:
             raise DataError("invalid_identity", "invalid dataset identity")
@@ -1078,415 +1066,6 @@ class DataBus:
             self._store.finish_publish(dataset, token)
             owners.pop(dataset, None)
             return result
-
-    def publish_collection(self, source_id: str, packet: Mapping[str, object]) -> DataRef:
-        """Publish a collection packet and its latest pointer under one source lock."""
-        if not isinstance(source_id, str) or not source_id or Path(source_id).name != source_id:
-            raise DataError("invalid_identity", "invalid source identity")
-        if not isinstance(packet, Mapping):
-            raise DataError("invalid_packet", "collection packet must be an object")
-        if not isinstance(packet.get("records"), list) or not isinstance(packet.get("raw"), list):
-            raise DataError("invalid_packet", "collection packet must contain records and raw lists")
-        if not isinstance(packet.get("scope"), Mapping):
-            raise DataError("invalid_packet", "collection packet scope is required")
-        value = json.loads(json.dumps(dict(packet), ensure_ascii=False, allow_nan=False))
-        value.setdefault("collected_at", datetime.now(timezone.utc).isoformat())
-        snapshot_id = collection_snapshot_id(value)
-        value["snapshot_id"] = snapshot_id
-        content = json.dumps(value, ensure_ascii=False, sort_keys=True,
-                             separators=(",", ":"), allow_nan=False).encode()
-        with self._store.source_lock():
-            self._source_owner_allowed()
-            snapshot = self._call("write", "sources", "snapshots", f"{snapshot_id}.json", content)
-            pointer = json.dumps({"snapshot_id": snapshot_id}, sort_keys=True,
-                                 separators=(",", ":")).encode()
-            self._call("write", "state", source_id, "latest.json", pointer)
-            return snapshot
-
-    def publish_packet(self, packet: Mapping[str, object]) -> DataRef | dict:
-        """Deliver any packet through the registered source target."""
-        source_id = packet.get("source_id") if isinstance(packet, Mapping) else None
-        if not isinstance(source_id, str) or not source_id:
-            raise DataError("invalid_packet", "data packet source_id is required")
-        try:
-            registry = json.loads(self._call("read", "sources", "registry", "sources.json"))
-        except DataError as error:
-            if error.code != "missing":
-                raise
-            registry = {"sources": []}
-        sources = registry.get("sources", []) if isinstance(registry, Mapping) else []
-        descriptor = next((row for row in sources if row.get("id") == source_id), None)
-        if ((isinstance(descriptor, Mapping) and descriptor.get("data_type") == "daily")
-                or packet.get("data_type") == "daily"):
-            storage_id = (descriptor or {}).get("storage_id") or packet.get("storage_id")
-            dataset_id = (descriptor or {}).get("dataset_id") or packet.get("dataset_id")
-            if not isinstance(storage_id, str) or not isinstance(dataset_id, str):
-                raise DataError("invalid_registry", "daily source target is not registered")
-            return self.publish_daily(storage_id, dataset_id, packet)
-        return self.publish_collection(source_id, packet)
-
-    def prepare_packet(self, packet: Mapping[str, object]) -> DataRef | dict:
-        """Prepare a packet with the same target and checks, without writing."""
-        source_id = packet.get("source_id") if isinstance(packet, Mapping) else None
-        if not isinstance(source_id, str) or not source_id:
-            raise DataError("invalid_packet", "data packet source_id is required")
-        registry = json.loads(self._call("read", "sources", "registry", "sources.json"))
-        descriptor = next((row for row in registry.get("sources", [])
-                           if row.get("id") == source_id), None)
-        if ((isinstance(descriptor, Mapping) and descriptor.get("data_type") == "daily")
-                or packet.get("data_type") == "daily"):
-            storage_id = (descriptor or {}).get("storage_id") or packet.get("storage_id")
-            dataset_id = (descriptor or {}).get("dataset_id") or packet.get("dataset_id")
-            if not isinstance(storage_id, str) or not isinstance(dataset_id, str):
-                raise DataError("invalid_registry", "daily source target is not registered")
-            return self.publish_daily(storage_id, dataset_id, packet, dry_run=True)
-        if not isinstance(packet.get("records"), list) or not isinstance(packet.get("raw"), list):
-            raise DataError("invalid_packet", "data packet must contain records and raw lists")
-        if not isinstance(packet.get("scope"), Mapping):
-            raise DataError("invalid_packet", "collection packet scope is required")
-        return {"records": len(packet["records"]), "incoming": len(packet["records"])}
-
-    def publish_daily(self, storage_id: str, dataset_id: str, packet: Mapping[str, object], *, dry_run: bool = False) -> DataRef | dict:
-        """Merge a typed daily packet into existing year-partitioned Parquet files."""
-        if (not isinstance(storage_id, str) or Path(storage_id).name != storage_id
-                or not isinstance(dataset_id, str) or Path(dataset_id).name != dataset_id):
-            raise DataError("invalid_identity", "invalid daily source or dataset identity")
-        self._validate_canonical_daily(packet)
-        rows = packet.get("records") if isinstance(packet, Mapping) else None
-        sessions = packet.get("calendar") if isinstance(packet, Mapping) else None
-        if not isinstance(rows, list) or not rows or not isinstance(sessions, list):
-            raise DataError("invalid_packet", "daily rows and calendar are required")
-        from datetime import date as _date
-        incoming, years = {}, set()
-        for row in rows:
-            if not isinstance(row, Mapping):
-                raise DataError("invalid_packet", "daily rows must be objects")
-            required = {"code", "date", "open", "high", "low", "close", "volume", "amount"}
-            if not required <= set(row):
-                raise DataError("invalid_packet", "daily row fields are incomplete")
-            try:
-                day = _date.fromisoformat(str(row["date"]))
-                _date.fromisoformat(str(row.get("available_at", row["date"]))[:10])
-            except (TypeError, ValueError) as error:
-                raise DataError("invalid_packet", "daily dates are invalid") from error
-            for field in ("open", "high", "low", "close", "volume", "amount"):
-                value = row[field]
-                if (isinstance(value, bool) or not isinstance(value, (int, float))
-                        or not isfinite(value) or value < 0
-                        or (field in {"open", "high", "low", "close"} and value <= 0)):
-                    raise DataError("invalid_packet", f"daily field is invalid: {field}")
-            identity = normalize_security_id(str(row["code"]))
-            key = (identity, day.isoformat())
-            value = dict(row)
-            incoming[key] = self._merge_daily_row(incoming[key], value, key) if key in incoming else value
-            years.add(str(day.year))
-        try:
-            sessions = sorted({_date.fromisoformat(str(value)) for value in sessions})
-        except (TypeError, ValueError) as error:
-            raise DataError("invalid_packet", "daily calendar is invalid") from error
-        if not sessions:
-            raise DataError("invalid_packet", "daily calendar is empty")
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        with self._store.source_lock():
-            if self._store.publish_states():
-                raise DataError("dataset_publishing", "another source publication is incomplete")
-            manifest = json.loads(self._call("read", "sources", dataset_id, "manifest.json"))
-            current_calendar = json.loads(self._call("read", "sources", dataset_id, manifest["calendar"]))
-            known_sessions = set(current_calendar.get("sessions", []))
-            known_sessions.update(day.isoformat() for day in sessions)
-            merged_by_year, payloads = {}, {}
-            for year in sorted(years):
-                name = f"daily/{year}.parquet"
-                old_rows, old_schema = [], None
-                try:
-                    old_bytes = self._call("read", "sources", storage_id, name)
-                except DataError as error:
-                    if error.code != "missing":
-                        raise
-                else:
-                    old_table = pq.read_table(pa.BufferReader(old_bytes))
-                    old_rows, old_schema = old_table.to_pylist(), old_table.schema
-                merged = {}
-                for old in old_rows:
-                    key = (normalize_security_id(str(old["code"])), str(old["date"]))
-                    merged[key] = self._merge_daily_row(merged[key], old, key) if key in merged else dict(old)
-                for key, row in incoming.items():
-                    if key[1][:4] == year:
-                        merged[key] = self._merge_daily_row(merged[key], row, key) if key in merged else row
-                merged_by_year[year] = (name, sorted(merged.values(),
-                    key=lambda item: (str(item["code"]), str(item["date"]))), old_schema)
-            calendar_name = manifest["calendar"]
-            calendar_payload = json.dumps(
-                {"sessions": sorted(known_sessions), "source_file": current_calendar.get("source_file")},
-                ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-            calendar_days = sorted(_date.fromisoformat(str(value)) for value in known_sessions)
-            for year, (name, values, old_schema) in merged_by_year.items():
-                fields = list(old_schema.names) if old_schema is not None else []
-                for row in values:
-                    for field in row:
-                        if field not in fields:
-                            fields.append(field)
-                arrays, schema_fields = [], []
-                for field in fields:
-                    if old_schema is not None and field in old_schema.names:
-                        arrow_type = old_schema.field(field).type
-                        arrays.append(pa.array([row.get(field) for row in values], type=arrow_type))
-                        schema_fields.append(pa.field(field, arrow_type))
-                    else:
-                        array = pa.array([row.get(field) for row in values])
-                        arrays.append(array)
-                        schema_fields.append(pa.field(field, array.type))
-                output = pa.BufferOutputStream()
-                pq.write_table(pa.Table.from_arrays(arrays, schema=pa.schema(schema_fields)), output)
-                payloads[name] = output.getvalue().to_pybytes()
-            if dry_run:
-                return {
-                    "years": sorted(merged_by_year),
-                    "records": sum(len(values) for _, values, _ in merged_by_year.values()),
-                    "incoming": len(incoming),
-                    "calendar": len(known_sessions),
-                }
-            token = uuid4().hex
-            self._store.begin_publish(dataset_id, token)
-            self._publish_owner()[dataset_id] = token
-            try:
-                calendar_ref = self._call("write", "sources", dataset_id, calendar_name, calendar_payload)
-                output_refs = {
-                    name: self._call("write", "sources", storage_id, name, payload)
-                    for name, payload in payloads.items()
-                }
-                files = []
-                for ref in manifest["files"]:
-                    name = ref["file"]
-                    if name == calendar_name:
-                        files.append({**ref, "sha256": calendar_ref.sha256})
-                    elif name.startswith(f"source/{storage_id}/daily/") and name.split("/")[-1].split(".")[0] in years:
-                        written = output_refs[f"daily/{name.split('/')[-1]}"]
-                        files.append({**ref, "sha256": written.sha256})
-                    else:
-                        files.append(ref)
-                known = {ref["file"] for ref in files}
-                for name, ref in output_refs.items():
-                    path = f"source/{storage_id}/{name}"
-                    if path not in known:
-                        files.append({"file": path, "sha256": ref.sha256, "role": "market"})
-                updated = dict(manifest)
-                updated["files"] = files
-                scope = dict(updated.get("scope", {}))
-                scope["symbols"] = self._merge_symbol_scope(
-                    scope.get("symbols", []), [row.get("code") for row in incoming.values()])
-                scope["calendar_start"] = calendar_days[0].isoformat()
-                scope["calendar_end"] = calendar_days[-1].isoformat()
-                updated["scope"] = scope
-                result = self._publish_locked(dataset_id, updated)
-                self._store.finish_publish(dataset_id, token)
-                self._publish_owner().pop(dataset_id, None)
-                return result
-            except Exception:
-                self._publish_owner().pop(dataset_id, None)
-                raise
-
-    @staticmethod
-    def _merge_daily_row(old, new, key):
-        value = dict(old)
-        for field in set(old) | set(new):
-            left, right = old.get(field), new.get(field)
-            if field == "code":
-                value[field] = left if left is not None else right
-                continue
-            if left is not None and right is not None and left != right:
-                raise DataError("data_conflict", f"daily field conflict: {key[0]} {key[1]} {field}")
-            value[field] = right if left is None else left
-        return value
-
-    @staticmethod
-    def _merge_symbol_scope(existing, incoming):
-        values = []
-        identities = set()
-        for symbol in [*existing, *incoming]:
-            identity = normalize_security_id(str(symbol))
-            if identity not in identities:
-                identities.add(identity)
-                values.append(str(symbol))
-        return sorted(values)
-
-    @staticmethod
-    def _validate_canonical_daily(packet: Mapping[str, object]) -> None:
-        request = packet.get("request") if isinstance(packet, Mapping) else None
-        request = request if isinstance(request, Mapping) else {}
-        frequency = packet.get("frequency", request.get("frequency", "daily"))
-        if frequency in {"d", "日"}:
-            frequency = "daily"
-        if frequency != "daily":
-            raise DataError("canonical_daily", "only unadjusted daily packets may enter the daily lake")
-        basis = packet.get("price_basis", request.get("price_basis", "raw"))
-        if basis in {"不复权", "unadjusted"}:
-            basis = "raw"
-        if basis != "raw":
-            raise DataError("canonical_daily", "adjusted prices cannot enter the raw daily lake")
-        adjustment = packet.get("adjustment", request.get("adjustment"))
-        if adjustment not in (None, "3", 3, "不复权", "unadjusted"):
-            raise DataError("canonical_daily", "adjusted frequency cannot enter the raw daily lake")
-        fields = packet.get("fields", request.get("fields"))
-        if fields is not None:
-            names = set(fields) if isinstance(fields, (list, tuple, set)) else set()
-            required = {"open", "high", "low", "close", "volume", "amount"}
-            if not required <= names:
-                raise DataError("canonical_daily", "daily lake packets require OHLCVA fields")
-
-
-    def latest_collection(self, source_id: str) -> Mapping[str, object] | None:
-        with self._store.source_lock():
-            self._source_owner_allowed()
-            try:
-                pointer = json.loads(self._call("read", "state", source_id, "latest.json"))
-                snapshot_id = pointer["snapshot_id"]
-                return json.loads(self._call(
-                    "read", "sources", "snapshots", f"{snapshot_id}.json"))
-            except DataError as error:
-                if error.code == "missing":
-                    return None
-                raise
-            except (KeyError, TypeError, ValueError, UnicodeDecodeError) as error:
-                raise DataError("invalid_snapshot", str(error)) from error
-
-    def daily_collection_view(self, source_id: str, dataset_id: str) -> Mapping[str, object]:
-        """Return only canonical metadata; rows are fetched by page."""
-        return self.daily_collection_page(source_id, dataset_id, offset=0, limit=0)
-
-    def _daily_view_context(self, source_id: str, dataset_id: str):
-        """Read daily metadata and current file references without bars."""
-        from datetime import date as _date
-        with self._store.source_lock():
-            self._source_owner_allowed()
-            manifest = self._snapshot_locked(dataset_id)
-            calendar_name = manifest.get("calendar")
-            calendar = json.loads(self._call("read", "sources", dataset_id, calendar_name))
-            sessions = tuple(_date.fromisoformat(str(item)) for item in calendar.get("sessions", ()))
-            if len(sessions) < 2:
-                raise DataError("invalid_dataset", "daily calendar requires a following session")
-            scope = dict(manifest.get("scope", {}))
-            dataset_symbols = tuple(scope.get("symbols", ()))
-            symbols = dataset_symbols
-            if not dataset_symbols:
-                raise DataError("invalid_dataset", "daily scope symbols are required")
-            try:
-                registry = json.loads(self._call("read", "sources", "registry", "sources.json"))
-                descriptor = next((item for item in registry.get("sources", [])
-                                   if item.get("id") == source_id), {})
-            except (DataError, TypeError, ValueError):
-                descriptor = {}
-            source_codes = descriptor.get("defaults", {}).get("codes")
-            if isinstance(source_codes, list) and source_codes:
-                requested_codes = tuple(str(item) for item in source_codes)
-                requested_ids = {normalize_security_id(item) for item in requested_codes}
-                available = {normalize_security_id(item) for item in dataset_symbols}
-                if not requested_ids <= available:
-                    raise DataError("scope_mismatch", "registered source symbols are outside the dataset")
-                symbols = requested_codes
-                scope["symbols"] = list(requested_codes)
-            daily_refs = [ref for ref in manifest.get("files", [])
-                          if isinstance(ref, Mapping) and "daily/" in str(ref.get("file", ""))]
-            generation = {"source_id": source_id, "dataset": dataset_id,
-                          "scope": scope, "calendar": [day.isoformat() for day in sessions],
-                          "files": sorted((ref["file"], ref["sha256"]) for ref in daily_refs)}
-            snapshot_id = sha256(json.dumps(generation, ensure_ascii=False,
-                                             sort_keys=True, separators=(",", ":")).encode()).hexdigest()
-            files = []
-            for ref in daily_refs:
-                parts = Path(str(ref["file"])).parts
-                if len(parts) >= 4 and parts[0] == "source":
-                    files.append((parts[1], Path(*parts[2:]).as_posix()))
-                elif parts and parts[0] == "daily":
-                    files.append((dataset_id, Path(*parts).as_posix()))
-            return manifest, sessions, scope, symbols, files, snapshot_id, dataset_symbols
-
-    def daily_collection_summary(self, source_id: str, dataset_id: str) -> Mapping[str, object]:
-        """Return SQL metadata only.  This never creates a Dataset or Bar."""
-        with self._store.source_lock():
-            self._source_owner_allowed()
-            manifest, sessions, scope, symbols, files, snapshot_id, dataset_symbols = self._daily_view_context(
-                source_id, dataset_id)
-            paths = [str(self._store.path("sources", identity, name)) for identity, name in files]
-            if not paths:
-                raise DataError("invalid_dataset", "daily Parquet files are required")
-            codes = sorted({str(item) for item in symbols} |
-                           {normalize_security_id(str(item)) for item in symbols} |
-                           {str(item) for item in dataset_symbols
-                            if normalize_security_id(str(item)) in {
-                                normalize_security_id(str(code)) for code in symbols}})
-            literal = ",".join("'" + item.replace("'", "''") + "'" for item in codes)
-            connection = duckdb.connect(":memory:")
-            try:
-                row = connection.execute(
-                    "SELECT count(*), count(DISTINCT code), min(date), max(date) "
-                    f"FROM read_parquet(?) WHERE code IN ({literal})", [paths]).fetchone()
-            finally:
-                connection.close()
-        return {"snapshot_id": snapshot_id, "source_id": source_id,
-                "collected_at": datetime.now(timezone.utc).isoformat(),
-                "request": {"dataset": dataset_id, "symbols": list(symbols)},
-                "data_as_of": str(row[3]) if row and row[3] is not None else sessions[-2].isoformat(),
-                "scope": scope, "records": [],
-                "records_count": int(row[0] or 0), "symbols_count": int(row[1] or 0),
-                "first_date": str(row[2]) if row and row[2] is not None else None,
-                "last_date": str(row[3]) if row and row[3] is not None else None}
-
-    def daily_collection_page(self, source_id: str, dataset_id: str, *, offset: int = 0,
-                              limit: int = 50, start=None, end=None, symbols=None) -> Mapping[str, object]:
-        """Read one canonical daily page with SQL filtering and pagination."""
-        if type(offset) is not int or offset < 0 or type(limit) is not int or limit < 0:
-            raise DataError("invalid_snapshot", "invalid snapshot page")
-        with self._store.source_lock():
-            self._source_owner_allowed()
-            manifest, sessions, scope, declared, files, snapshot_id, dataset_symbols = self._daily_view_context(
-                source_id, dataset_id)
-            start = sessions[0] if start is None else date.fromisoformat(str(start))
-            end = sessions[-2] if end is None else date.fromisoformat(str(end))
-            if not sessions[0] <= start <= end <= sessions[-2]:
-                raise DataError("invalid_snapshot", "snapshot dates are outside the daily calendar")
-            requested = declared if symbols is None else tuple(str(item) for item in symbols)
-            requested_ids = tuple(normalize_security_id(item) for item in requested)
-            declared_ids = {normalize_security_id(item) for item in declared}
-            if not set(requested_ids) <= declared_ids:
-                raise DataError("scope_mismatch", "snapshot symbols are outside the daily scope")
-            codes = sorted({str(item) for item in requested} | set(requested_ids) |
-                           {str(item) for item in dataset_symbols
-                            if normalize_security_id(str(item)) in set(requested_ids)})
-            literal = ",".join("'" + item.replace("'", "''") + "'" for item in codes)
-            paths = [str(self._store.path("sources", identity, name)) for identity, name in files]
-            connection = duckdb.connect(":memory:")
-            try:
-                where = f"code IN ({literal}) AND CAST(date AS DATE) BETWEEN ? AND ?"
-                total = connection.execute(
-                    f"SELECT count(*) FROM read_parquet(?) WHERE {where}",
-                    [paths, start.isoformat(), end.isoformat()]).fetchone()[0]
-                rows = [] if limit == 0 else connection.execute(
-                    f"SELECT * FROM read_parquet(?) WHERE {where} ORDER BY date, code LIMIT {limit} OFFSET {offset}",
-                    [paths, start.isoformat(), end.isoformat()]).fetch_arrow_table().to_pylist()
-            finally:
-                connection.close()
-        required = {"open", "high", "low", "close", "volume", "amount"}
-        records = []
-        for row in rows:
-            value = {}
-            for key, item in row.items():
-                if isinstance(item, float) and not math.isfinite(item):
-                    item = None
-                value[key] = item.isoformat() if isinstance(item, date) else item
-            for key in required:
-                item = value.get(key)
-                if item is None or (isinstance(item, float) and not math.isfinite(item)):
-                    raise DataError("invalid_dataset", f"required daily field is not finite: {key}")
-            records.append(value)
-        return {"snapshot_id": snapshot_id, "source_id": source_id,
-                "collected_at": datetime.now(timezone.utc).isoformat(),
-                "request": {"dataset": dataset_id, "symbols": list(requested),
-                            "start": start.isoformat(), "end": end.isoformat()},
-                "data_as_of": end.isoformat(), "scope": scope,
-                "records": records, "records_count": int(total),
-                "offset": offset, "limit": limit, "total": int(total)}
 
     def update_registry(self, change):
         with self._store.source_lock():
@@ -1577,28 +1156,28 @@ class DataBus:
     def read(self, kind, identity, name) -> bytes:
         if kind == "sources":
             return self._source_view('read', identity, name)
-        return self._call('read', kind, identity, name)
+        return self._namespace_access('read', kind, identity, name)
 
     def write(self, kind, identity, name, value: bytes) -> DataRef:
         if kind == "sources":
             return self._source_mutate('write', identity, name, value)
-        return self._call('write', kind, identity, name, value)
+        return self._namespace_access('write', kind, identity, name, value)
 
     def list(self, kind, identity=None) -> tuple[DataRef, ...]:
         if kind == "sources":
             return self._source_view('list', identity)
-        return self._call('list', kind, identity)
+        return self._namespace_access('list', kind, identity)
 
     def path(self, kind, identity, name) -> Path:
         if kind == "sources":
             return self._source_view('path', identity, name)
-        return self._call('path', kind, identity, name)
+        return self._namespace_access('path', kind, identity, name)
 
     def delete(self, kind, identity, name) -> None:
         if kind == "sources":
             self._source_mutate('delete', identity, name)
             return
-        self._call('delete', kind, identity, name)
+        self._namespace_access('delete', kind, identity, name)
 
 
 class BacktestError(ValueError):
@@ -2340,7 +1919,7 @@ def _load_dataset(data, query):
             identity,_=shared
             return f"source/{identity}/{Path(name).as_posix()}"
         return name
-    manifest=data.snapshot(dataset_id)
+    manifest=data.manifest(dataset_id)
     overlap=set(manifest.get('fields',{}))&provided
     if overlap: raise ValueError('reserved price fields cannot be redefined: '+', '.join(sorted(overlap)))
     scope=manifest['scope']
@@ -2475,8 +2054,7 @@ def _load_dataset(data, query):
     scope = dict(scope)
     scope['calendar_start'] = calendar_start.isoformat()
     scope['calendar_end'] = calendar[-2].isoformat()
-    if tuple(sorted(set(declared_ids)))!=declared_ids or tuple(
-            normalize_security_id(symbol) for symbol in panel.symbols) != declared_ids:
+    if tuple(normalize_security_id(symbol) for symbol in panel.symbols) != declared_ids:
         raise ValueError('declared security scope differs from supplied historical lake')
     if tuple(calendar[:-1])!=panel.calendar:
         raise ValueError('price dates must exactly cover calendar, with explicit next-session sentinel')
@@ -2670,7 +2248,7 @@ def _prepare_raw_dataset(data, query):
         raise ValueError("raw market queries require daily frequency")
     if not set(query.fields) <= required:
         raise ValueError("raw market fields must be OHLCVA")
-    manifest = data.snapshot(query.dataset)
+    manifest = data.manifest(query.dataset)
     calendar_name = manifest.get("calendar")
     if not isinstance(calendar_name, str):
         raise ValueError("daily dataset calendar is required")
@@ -2748,7 +2326,14 @@ def _prepare_raw_dataset(data, query):
             day = date.fromisoformat(key[1])
             value = dict(row)
             if key in rows:
-                rows[key] = data._merge_daily_row(rows[key], value, key)
+                previous = rows[key]
+                for field, item in value.items():
+                    if field == 'code':
+                        continue
+                    if previous.get(field) is not None and item is not None and previous[field] != item:
+                        raise ValueError(f'conflicting daily input: {key} {field}')
+                    if previous.get(field) is None:
+                        previous[field] = item
             else:
                 rows[key] = value
     if not source_hashes:
@@ -2801,7 +2386,9 @@ def _prepare_raw_dataset(data, query):
     scope["calendar_end"] = sessions[-2].isoformat()
     return Dataset(
         query.dataset, tuple(prepared), {"kind": "raw"},
-        {"source_hashes": source_hashes, "price_basis": "raw"},
+        {"source_hashes": source_hashes, "price_basis": "raw",
+         "data_hash": sha256(json.dumps(source_hashes, sort_keys=True,
+                                        separators=(',', ':')).encode()).hexdigest()},
         scope, tuple(run_days) + (sessions[end_index + 1],), query.fields, query.history,
     )
 
@@ -3210,32 +2797,7 @@ class Benchmarks:
             return {**spec, "snapshot_id": result.provenance.get("data_hash"),
                     "collected_at": None, "start": start, "end": end,
                     "points": points}
-        latest = getattr(self.store, "latest_collection", None)
-        snapshot = (latest(spec["source_id"]) if callable(latest)
-                    else self.store.latest(spec["source_id"]))
-        if snapshot is None:
-            raise ValueError("基准未同步，请在数据同步页面采集")
-        points = []
-        seen = set()
-        for row in snapshot["records"]:
-            if row["code"] != spec["code"] or not start <= row["date"] <= end:
-                continue
-            value = float(row["close"])
-            if not isfinite(value) or value <= 0:
-                raise ValueError("基准收盘价必须为正数")
-            if row["date"] in seen:
-                raise ValueError("基准交易日期重复")
-            seen.add(row["date"])
-            points.append({"at": row["date"], "close": value})
-        points.sort(key=lambda item: item["at"])
-        if not points:
-            raise ValueError("基准快照在请求区间没有数据")
-        if dates is not None and tuple(item["at"] for item in points) != tuple(dates):
-            raise ValueError("基准日期不全或顺序不一致")
-        return {**spec, "snapshot_id": snapshot["snapshot_id"],
-                "collected_at": snapshot["collected_at"], "start": start,
-                "end": end, "points": points}
-
+        raise ValueError('基准必须登记标准dataset_id')
 
 class Research:
     def __init__(self, data):

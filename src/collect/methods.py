@@ -5,6 +5,10 @@ from __future__ import annotations
 import json
 import argparse
 import math
+from math import isfinite
+import duckdb
+import warnings
+from protocal import DataError, normalize_security_id
 import re
 import calendar
 import hashlib
@@ -568,7 +572,9 @@ class Methods:
             value["codes"] = cls._request_items(value["codes"], "codes")
         if "fields" in value:
             fields = cls._request_items(value["fields"], "fields")
-            if len(fields) == 1 and fields[0] in cls.FIELDSETS:
+            if source.get('data_type') not in {'daily', 'daily_factors'} and source.get('method') != 'daily':
+                value['fields'] = fields
+            elif len(fields) == 1 and fields[0] in cls.FIELDSETS:
                 if fields[0] == "full":
                     declared = cls._request_items(source["fields"], "source fields") \
                         if "fields" in source else []
@@ -581,7 +587,8 @@ class Methods:
                     fields = list(cls.FIELDSETS[fields[0]])
             elif any(item in cls.FIELDSETS for item in fields):
                 raise ValueError("fields preset cannot be combined with field names")
-            value["fields"] = [field for field in fields if field not in {"date", "code"}]
+            if source.get('data_type') in {'daily', 'daily_factors'} or source.get('method') == 'daily':
+                value["fields"] = [field for field in fields if field not in {"date", "code"}]
         if "start" in value or "end" in value:
             if not isinstance(value.get("start"), str) or not isinstance(value.get("end"), str):
                 raise ValueError("start and end are required together")
@@ -600,6 +607,17 @@ class Methods:
             raise KeyError(method_id)
         frozen_source = deepcopy(dict(source))
         frozen_request = deepcopy(dict(request))
+        date_field = getattr(handler, 'date_field', None)
+        if date_field is not None and not request.get('force'):
+            try:
+                current = json.loads(self.data.read('sources', source['id'], 'records.json'))['records']
+            except DataError as error:
+                if error.code != 'missing':
+                    raise
+                current = []
+            for row in current:
+                handler.validate_record(row)
+            frozen_request['completed_dates'] = sorted({row[date_field] for row in current})
         if isinstance(handler, type):
             packet = handler(frozen_source).collect(frozen_request)
         elif callable(handler):
@@ -614,13 +632,15 @@ class Methods:
             raise ValueError("data packet scope is required")
         result = deepcopy(packet)
         result["source_id"] = source["id"]
+        result['request'] = {key: deepcopy(value) for key, value in frozen_request.items()
+                             if key != 'completed_dates'}
         for name in ("data_type", "storage_id", "dataset_id", "calendar"):
             if name in source and name not in result:
                 result[name] = deepcopy(source[name])
         for name in ("frequency", "price_basis", "adjustment", "fields"):
             if name in frozen_request and name not in result:
                 result[name] = deepcopy(frozen_request[name])
-        if result.get("data_type") == "daily":
+        if source.get('method') == 'daily' or result.get("data_type") == "daily":
             packet_calendar = result.get("calendar")
             stored_name = source.get("calendar")
             if not isinstance(stored_name, str) and isinstance(packet_calendar, str):
@@ -649,13 +669,73 @@ class Methods:
             symbols = tuple(request.get("codes", ()))
             fields = tuple(request.get("fields") or source.get("fields") or
                            ("open", "high", "low", "close", "volume", "amount"))
-            return self.data.daily_coverage(
+            return self.daily_coverage(
                 source.get("dataset_id", source["id"]), symbols,
                 date.fromisoformat(request["start"]), date.fromisoformat(request["end"]), fields)
         except DataError as error:
             if error.code == "missing":
                 return None
             raise
+
+    def daily_coverage(self, dataset: str, symbols: tuple[str, ...],
+                       start: date, end: date, fields: tuple[str, ...]) -> Mapping[str, object]:
+        """Return observed daily keys without assembling a backtest Dataset."""
+        if (not symbols or not fields or start > end or
+                any(not isinstance(value, str) or not value for value in (*symbols, *fields))):
+            raise DataError("invalid_query", "daily coverage arguments are invalid")
+        with self.data.transaction('sources'):
+            manifest = self.data.manifest(dataset)
+            calendar_name = manifest.get("calendar")
+            calendar = json.loads(self.data.read("sources", dataset, calendar_name))
+            sessions = tuple(date.fromisoformat(str(value))
+                             for value in calendar.get("sessions", ()))
+            wanted_days = tuple(day for day in sessions if start <= day <= end)
+            wanted = {(normalize_security_id(symbol), day.isoformat()) for symbol in symbols for day in wanted_days}
+            aliases = sorted(set(symbols) | {normalize_security_id(symbol) for symbol in symbols}
+                             | {symbol for symbol in manifest['scope']['symbols']
+                                if normalize_security_id(symbol) in {normalize_security_id(item) for item in symbols}})
+            found = set()
+            import pyarrow as pa
+            import pyarrow.parquet as pq
+            years = {str(day.year) for day in wanted_days}
+            columns = ["code", "date", *fields]
+            columns = list(dict.fromkeys(columns))
+            for ref in manifest.get("files", ()):
+                name = ref.get("file", "")
+                parts = Path(name).parts
+                if not name.endswith(".parquet") or "daily" not in parts:
+                    continue
+                stem = Path(parts[-1]).stem
+                if stem.isdigit() and len(stem) == 4 and stem not in years:
+                    continue
+                daily_index = parts.index("daily")
+                identity = parts[1] if parts[0] == "source" else dataset
+                relative = Path(*parts[daily_index:]).as_posix()
+                payload = self.data.read("sources", identity, relative)
+                parquet = pq.ParquetFile(pa.BufferReader(payload))
+                names = set(parquet.schema_arrow.names)
+                if not set(columns) <= names:
+                    continue
+                date_type = parquet.schema_arrow.field("date").type
+                lower = start if pa.types.is_date(date_type) else start.isoformat()
+                upper = end if pa.types.is_date(date_type) else end.isoformat()
+                table = pq.read_table(
+                    pa.BufferReader(payload), columns=columns,
+                    filters=[("code", "in", aliases), ("date", ">=", lower),
+                             ("date", "<=", upper)],
+                )
+                for row in table.to_pylist():
+                    key = (normalize_security_id(str(row.get("code"))), str(row.get("date")))
+                    if key in wanted and all(row.get(field) is not None for field in fields):
+                        found.add(key)
+            missing = {
+                symbol: [day.isoformat() for day in wanted_days
+                         if (normalize_security_id(symbol), day.isoformat()) not in found]
+                for symbol in symbols
+            }
+            return {"dataset": dataset, "start": start.isoformat(), "end": end.isoformat(),
+                    "fields": tuple(fields), "complete": bool(wanted_days) and sessions[0] <= start <= end < sessions[-1] and not any(missing.values()),
+                    "missing": missing, "sessions": tuple(day.isoformat() for day in wanted_days)}
 
     @staticmethod
     def missing_request(request: Mapping, coverage: Mapping) -> dict:
@@ -669,14 +749,456 @@ class Methods:
         value["start"], value["end"] = min(days), max(days)
         return value
 
-    def publish(self, packet: Mapping):
-        value = deepcopy(dict(packet))
-        return self.data.publish_packet(value)
+    def prepare(self, source: Mapping, packet: Mapping):
+        return self._deliver(source, packet, dry_run=True)
 
-    def prepare_publish(self, packet: Mapping):
-        """Validate the same merge candidate used by formal publication."""
-        value = deepcopy(dict(packet))
-        return self.data.prepare_packet(value)
+    def publish(self, source: Mapping, packet: Mapping):
+        result = self._deliver(source, packet, dry_run=False)
+        if not packet['records']:
+            return result
+        try:
+            view = self.records(source, 0, 0)
+            self.log({'source_id': source['id'], 'snapshot_id': view['snapshot_id'],
+                      'raw': packet['raw'], 'request': packet.get('request', {}),
+                      'scope': packet.get('scope', {}),
+                      'incoming': [{'record_hash': _sha256({key: value for key, value in row.items()
+                                                          if key != 'raw_page'}),
+                                    'raw_page': row.get('raw_page')}
+                                   for row in packet['records']],
+                      'collected_at': datetime.now(timezone.utc).isoformat()})
+        except Exception as error:
+            warnings.warn(f'published source evidence log failed: {error}', RuntimeWarning)
+        return result
+
+    def _deliver(self, source, packet, *, dry_run):
+        self.validate(packet)
+        handler = self.handlers.get(source.get('method'), DEFAULT_METHODS.get(source.get('method')))
+        validate_record = getattr(handler, 'validate_record', None)
+        if validate_record is not None:
+            for row in packet['records']:
+                validate_record(row)
+        if source.get('method') == 'daily' or source.get("data_type") == "daily":
+            return self._publish_daily(source["storage_id"], source["dataset_id"], packet, dry_run=dry_run)
+        handler = self.handlers.get(source.get('method'), DEFAULT_METHODS.get(source.get("method")))
+        declared = source.get('params', {}).get('key_fields', getattr(handler, 'keys', None))
+        if (not isinstance(declared, (list, tuple)) or not declared
+                or any(not isinstance(name, str) or not name for name in declared)
+                or len(set(declared)) != len(declared)):
+            raise DataError('identity_policy', 'source must declare business key_fields')
+        keys = tuple(declared)
+        incoming = packet["records"]
+        if keys and any(not isinstance(row, Mapping) or any(row.get(key) is None for key in keys)
+                        for row in incoming):
+            raise DataError("invalid_packet", "record identity fields are required")
+        def key(row):
+            return tuple(_canonical(row[name]) for name in keys)
+        with self.data.transaction("sources"):
+            try:
+                old = json.loads(self.data.read("sources", source["id"], "records.json"))["records"]
+            except DataError as error:
+                if error.code != "missing":
+                    raise
+                old = []
+            merged = {}
+            for row in [*old, *incoming]:
+                value = {name: deepcopy(item) for name, item in row.items() if name != "raw_page"}
+                identity = key(value)
+                if identity in merged:
+                    merged[identity] = self._merge_record(merged[identity], value, identity)
+                else:
+                    merged[identity] = value
+            records = [merged[identity] for identity in sorted(merged)]
+            content = json.dumps({"records": records}, ensure_ascii=False, sort_keys=True,
+                                 separators=(",", ":"), allow_nan=False).encode()
+            stats = {"records": len(records), "incoming": len(incoming)}
+            if dry_run:
+                return stats
+            return self.data.write("sources", source["id"], "records.json", content)
+
+    @staticmethod
+    def _merge_record(old, new, identity):
+        value = dict(old)
+        for name in set(old) | set(new):
+            left, right = old.get(name), new.get(name)
+            if left is not None and right is not None and left != right:
+                raise DataError("data_conflict", f"record conflict: {identity!r} {name}")
+            value[name] = right if left is None else left
+        return value
+
+    def records(self, source: Mapping, offset=0, limit=50, **scope):
+        if type(offset) is not int or offset < 0 or type(limit) is not int or not 0 <= limit <= 1000:
+            raise ValueError("invalid records page")
+        if source.get('method') == 'daily' or source.get("data_type") == "daily":
+            return self.daily_collection_page(source, source["dataset_id"], offset=offset,
+                                              limit=limit, **scope)
+        try:
+            content = self.data.read("sources", source["id"], "records.json")
+        except DataError as error:
+            if error.code == "missing":
+                return None
+            raise
+        rows = json.loads(content)["records"]
+        dates = [str(row[name]) for row in rows for name in ("date", "data_at", "published_at")
+                 if row.get(name) is not None]
+        version = hashlib.sha256(content).hexdigest()
+        evidence = self.evidence(version)
+        start, end, keyword = scope.get('start'), scope.get('end'), scope.get('keyword', '')
+        if start is not None and end is not None and date.fromisoformat(start) > date.fromisoformat(end):
+            raise ValueError('start must not exceed end')
+        def selected(row):
+            day = next((str(row[name])[:10] for name in ('date', 'published_at', 'data_at')
+                        if row.get(name) is not None), None)
+            if start is not None and (day is None or day < start):
+                return False
+            if end is not None and (day is None or day > end):
+                return False
+            return not keyword or keyword in json.dumps(row, ensure_ascii=False)
+        rows = [row for row in rows if selected(row)]
+        page = rows[offset:offset + limit]
+        raw = self.record_evidence(page[0]) if len(page) == 1 else []
+        fields = scope.get('fields')
+        if fields is not None:
+            fields = self._request_items(fields, 'fields')
+            page = [{key: value for key, value in row.items() if key in fields} for row in page]
+        return {"snapshot_id": version, "source_id": source["id"],
+                "collected_at": evidence.get('collected_at'), "request": evidence.get('request', {}),
+                "data_as_of": max(dates) if dates else None,
+                "scope": evidence.get('scope', {}), "records": page, "raw": raw, "reviews": [],
+                "records_count": len(rows), "offset": offset, "limit": limit, "total": len(rows)}
+
+    def record_evidence(self, record):
+        digest = _sha256(record)
+        for ref in self.data.list('state', 'collect'):
+            if '/' in ref.name:
+                continue
+            event = json.loads(self.data.read('state', 'collect', ref.name))
+            for binding in event.get('incoming', []):
+                index = binding.get('raw_page')
+                if (binding.get('record_hash') == digest and type(index) is int
+                        and 0 <= index < len(event.get('raw', []))):
+                    return [event['raw'][index]]
+        return []
+
+    def evidence(self, version):
+        for ref in self.data.list('state', 'collect'):
+            if '/' in ref.name:
+                continue
+            value = json.loads(self.data.read('state', 'collect', ref.name))
+            if value.get('snapshot_id') == version and isinstance(value.get('raw'), list):
+                return value
+        return {}
+
+    @staticmethod
+    def _sql_name(name):
+        return '"' + name.replace('"', '""') + '"'
+
+    def _publish_daily(self, storage_id: str, dataset_id: str, packet: Mapping[str, object], *, dry_run: bool = False) -> DataRef | dict:
+        """Merge a typed daily packet into existing year-partitioned Parquet files."""
+        if (not isinstance(storage_id, str) or Path(storage_id).name != storage_id
+                or not isinstance(dataset_id, str) or Path(dataset_id).name != dataset_id):
+            raise DataError("invalid_identity", "invalid daily source or dataset identity")
+        self._validate_canonical_daily(packet)
+        rows = packet.get("records") if isinstance(packet, Mapping) else None
+        sessions = packet.get("calendar") if isinstance(packet, Mapping) else None
+        if not isinstance(rows, list) or not rows or not isinstance(sessions, list):
+            raise DataError("invalid_packet", "daily rows and calendar are required")
+        from datetime import date as _date
+        incoming, years = {}, set()
+        for row in rows:
+            if not isinstance(row, Mapping):
+                raise DataError("invalid_packet", "daily rows must be objects")
+            required = {"code", "date", "open", "high", "low", "close", "volume", "amount"}
+            if not required <= set(row):
+                raise DataError("invalid_packet", "daily row fields are incomplete")
+            try:
+                day = _date.fromisoformat(str(row["date"]))
+                _date.fromisoformat(str(row.get("available_at", row["date"]))[:10])
+            except (TypeError, ValueError) as error:
+                raise DataError("invalid_packet", "daily dates are invalid") from error
+            for field in ("open", "high", "low", "close", "volume", "amount"):
+                value = row[field]
+                if (isinstance(value, bool) or not isinstance(value, (int, float))
+                        or not isfinite(value) or value < 0
+                        or (field in {"open", "high", "low", "close"} and value <= 0)):
+                    raise DataError("invalid_packet", f"daily field is invalid: {field}")
+            identity = normalize_security_id(str(row["code"]))
+            key = (identity, day.isoformat())
+            value = {name: item for name, item in row.items() if name != "raw_page"}
+            incoming[key] = self._merge_daily_row(incoming[key], value, key) if key in incoming else value
+            years.add(str(day.year))
+        try:
+            sessions = sorted({_date.fromisoformat(str(value)) for value in sessions})
+        except (TypeError, ValueError) as error:
+            raise DataError("invalid_packet", "daily calendar is invalid") from error
+        if not sessions:
+            raise DataError("invalid_packet", "daily calendar is empty")
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        with self.data.transaction('sources'):
+            manifest = self.data.manifest(dataset_id)
+            current_calendar = json.loads(self.data.read( "sources", dataset_id, manifest["calendar"]))
+            known_sessions = set(current_calendar.get("sessions", []))
+            known_sessions.update(day.isoformat() for day in sessions)
+            merged_by_year, payloads = {}, {}
+            for year in sorted(years):
+                name = f"daily/{year}.parquet"
+                old_rows, old_schema = [], None
+                try:
+                    old_bytes = self.data.read( "sources", storage_id, name)
+                except DataError as error:
+                    if error.code != "missing":
+                        raise
+                else:
+                    old_table = pq.read_table(pa.BufferReader(old_bytes))
+                    old_rows, old_schema = old_table.to_pylist(), old_table.schema
+                merged = {}
+                for old in old_rows:
+                    key = (normalize_security_id(str(old["code"])), str(old["date"]))
+                    merged[key] = self._merge_daily_row(merged[key], old, key) if key in merged else dict(old)
+                for key, row in incoming.items():
+                    if key[1][:4] == year:
+                        merged[key] = self._merge_daily_row(merged[key], row, key) if key in merged else row
+                merged_by_year[year] = (name, sorted(merged.values(),
+                    key=lambda item: (str(item["code"]), str(item["date"]))), old_schema)
+            calendar_name = manifest["calendar"]
+            calendar_payload = json.dumps(
+                {"sessions": sorted(known_sessions), "source_file": current_calendar.get("source_file")},
+                ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+            calendar_days = sorted(_date.fromisoformat(str(value)) for value in known_sessions)
+            for year, (name, values, old_schema) in merged_by_year.items():
+                fields = list(old_schema.names) if old_schema is not None else []
+                for row in values:
+                    for field in row:
+                        if field not in fields:
+                            fields.append(field)
+                arrays, schema_fields = [], []
+                for field in fields:
+                    if old_schema is not None and field in old_schema.names:
+                        arrow_type = old_schema.field(field).type
+                        arrays.append(pa.array([row.get(field) for row in values], type=arrow_type))
+                        schema_fields.append(pa.field(field, arrow_type))
+                    else:
+                        array = pa.array([row.get(field) for row in values])
+                        arrays.append(array)
+                        schema_fields.append(pa.field(field, array.type))
+                output = pa.BufferOutputStream()
+                pq.write_table(pa.Table.from_arrays(arrays, schema=pa.schema(schema_fields)), output)
+                payloads[name] = output.getvalue().to_pybytes()
+            if dry_run:
+                return {
+                    "years": sorted(merged_by_year),
+                    "records": sum(len(values) for _, values, _ in merged_by_year.values()),
+                    "incoming": len(incoming),
+                    "calendar": len(known_sessions),
+                }
+            files = []
+            for ref in manifest["files"]:
+                name = ref["file"]
+                if name == calendar_name:
+                    files.append({**ref, "sha256": hashlib.sha256(calendar_payload).hexdigest()})
+                elif name.startswith(f"source/{storage_id}/daily/") and name.split("/")[-1].split(".")[0] in years:
+                    files.append({**ref, "sha256": hashlib.sha256(payloads[f"daily/{name.split('/')[-1]}"]).hexdigest()})
+                else:
+                    files.append(ref)
+            known = {ref["file"] for ref in files}
+            for name, payload in payloads.items():
+                path = f"source/{storage_id}/{name}"
+                if path not in known:
+                    files.append({"file": path, "sha256": hashlib.sha256(payload).hexdigest(), "role": "market"})
+            updated = dict(manifest)
+            updated["files"] = files
+            scope = dict(updated.get("scope", {}))
+            scope["symbols"] = self._merge_symbol_scope(
+                scope.get("symbols", []), [row.get("code") for row in incoming.values()])
+            scope["calendar_start"] = calendar_days[0].isoformat()
+            scope["calendar_end"] = calendar_days[-1].isoformat()
+            updated["scope"] = scope
+            manifest_payload = json.dumps(updated, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
+            self.data.write("sources", dataset_id, calendar_name, calendar_payload)
+            for name, payload in payloads.items():
+                self.data.write("sources", storage_id, name, payload)
+            return self.data.write("sources", dataset_id, "manifest.json", manifest_payload)
+
+    @staticmethod
+    def _merge_daily_row(old, new, key):
+        value = dict(old)
+        for field in set(old) | set(new):
+            left, right = old.get(field), new.get(field)
+            if field == "code":
+                value[field] = left if left is not None else right
+                continue
+            if left is not None and right is not None and left != right:
+                raise DataError("data_conflict", f"daily field conflict: {key[0]} {key[1]} {field}")
+            value[field] = right if left is None else left
+        return value
+
+    @staticmethod
+    def _merge_symbol_scope(existing, incoming):
+        values = []
+        identities = set()
+        for symbol in [*existing, *incoming]:
+            identity = normalize_security_id(str(symbol))
+            if identity not in identities:
+                identities.add(identity)
+                values.append(str(symbol))
+        return sorted(values)
+
+    @staticmethod
+    def _validate_canonical_daily(packet: Mapping[str, object]) -> None:
+        request = packet.get("request") if isinstance(packet, Mapping) else None
+        request = request if isinstance(request, Mapping) else {}
+        frequency = packet.get("frequency", request.get("frequency", "daily"))
+        if frequency in {"d", "日"}:
+            frequency = "daily"
+        if frequency != "daily":
+            raise DataError("canonical_daily", "only unadjusted daily packets may enter the daily lake")
+        basis = packet.get("price_basis", request.get("price_basis", "raw"))
+        if basis in {"不复权", "unadjusted"}:
+            basis = "raw"
+        if basis != "raw":
+            raise DataError("canonical_daily", "adjusted prices cannot enter the raw daily lake")
+        adjustment = packet.get("adjustment", request.get("adjustment"))
+        if adjustment not in (None, "3", 3, "不复权", "unadjusted"):
+            raise DataError("canonical_daily", "adjusted frequency cannot enter the raw daily lake")
+        fields = packet.get("fields", request.get("fields"))
+        if fields is not None:
+            names = set(fields) if isinstance(fields, (list, tuple, set)) else set()
+            required = {"open", "high", "low", "close", "volume", "amount"}
+            if not required <= names:
+                raise DataError("canonical_daily", "daily lake packets require OHLCVA fields")
+
+
+    def daily_collection_view(self, source: Mapping, dataset_id: str) -> Mapping[str, object]:
+        """Return only canonical metadata; rows are fetched by page."""
+        return self.daily_collection_page(source, dataset_id, offset=0, limit=0)
+
+    def _daily_view_context(self, source: Mapping, dataset_id: str):
+        source_id = source['id']
+        """Read daily metadata and current file references without bars."""
+        from datetime import date as _date
+        with self.data.transaction('sources'):
+            manifest = self.data.manifest(dataset_id)
+            calendar_name = manifest.get("calendar")
+            calendar = json.loads(self.data.read( "sources", dataset_id, calendar_name))
+            sessions = tuple(_date.fromisoformat(str(item)) for item in calendar.get("sessions", ()))
+            if len(sessions) < 2:
+                raise DataError("invalid_dataset", "daily calendar requires a following session")
+            scope = dict(manifest.get("scope", {}))
+            dataset_symbols = tuple(scope.get("symbols", ()))
+            symbols = dataset_symbols
+            if not dataset_symbols:
+                raise DataError("invalid_dataset", "daily scope symbols are required")
+            descriptor = source
+            source_codes = descriptor.get("defaults", {}).get("codes")
+            if isinstance(source_codes, list) and source_codes:
+                requested_codes = tuple(str(item) for item in source_codes)
+                requested_ids = {normalize_security_id(item) for item in requested_codes}
+                available = {normalize_security_id(item) for item in dataset_symbols}
+                if not requested_ids <= available:
+                    raise DataError("scope_mismatch", "registered source symbols are outside the dataset")
+                symbols = requested_codes
+                scope["symbols"] = list(requested_codes)
+            daily_refs = [ref for ref in manifest.get("files", [])
+                          if isinstance(ref, Mapping) and "daily/" in str(ref.get("file", ""))]
+            generation = {"source_id": source_id, "dataset": dataset_id,
+                          "scope": scope, "calendar": [day.isoformat() for day in sessions],
+                          "files": sorted((ref["file"], ref["sha256"]) for ref in daily_refs)}
+            snapshot_id = hashlib.sha256(json.dumps(generation, ensure_ascii=False,
+                                             sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+            files = []
+            for ref in daily_refs:
+                parts = Path(str(ref["file"])).parts
+                if len(parts) >= 4 and parts[0] == "source":
+                    files.append((parts[1], Path(*parts[2:]).as_posix()))
+                elif parts and parts[0] == "daily":
+                    files.append((dataset_id, Path(*parts).as_posix()))
+            return manifest, sessions, scope, symbols, files, snapshot_id, dataset_symbols
+
+    def daily_collection_summary(self, source: Mapping, dataset_id: str) -> Mapping[str, object]:
+        """Return SQL metadata only.  This never creates a Dataset or Bar."""
+        source_id = source["id"]
+        with self.data.transaction('sources'):
+            manifest, sessions, scope, symbols, files, snapshot_id, dataset_symbols = self._daily_view_context(
+                source, dataset_id)
+            paths = [str(self.data.path("sources", identity, name)) for identity, name in files]
+            if not paths:
+                raise DataError("invalid_dataset", "daily Parquet files are required")
+            codes = sorted({str(item) for item in symbols} |
+                           {normalize_security_id(str(item)) for item in symbols} |
+                           {str(item) for item in dataset_symbols
+                            if normalize_security_id(str(item)) in {
+                                normalize_security_id(str(code)) for code in symbols}})
+            literal = ",".join("'" + item.replace("'", "''") + "'" for item in codes)
+            connection = duckdb.connect()
+            try:
+                row = connection.execute(
+                    "SELECT count(*), count(DISTINCT code), min(date), max(date) "
+                    f"FROM read_parquet(?) WHERE code IN ({literal})", [paths]).fetchone()
+            finally:
+                connection.close()
+        return {"snapshot_id": snapshot_id, "source_id": source_id,
+                "collected_at": None,
+                "request": {"dataset": dataset_id, "symbols": list(symbols)},
+                "data_as_of": str(row[3]) if row and row[3] is not None else sessions[-2].isoformat(),
+                "scope": scope, "records": [],
+                "records_count": int(row[0] or 0), "symbols_count": int(row[1] or 0),
+                "first_date": str(row[2]) if row and row[2] is not None else None,
+                "last_date": str(row[3]) if row and row[3] is not None else None}
+
+    def daily_collection_page(self, source: Mapping, dataset_id: str, *, offset: int = 0,
+                              limit: int = 50, start=None, end=None, symbols=None) -> Mapping[str, object]:
+        """Read one canonical daily page with SQL filtering and pagination."""
+        source_id = source["id"]
+        if type(offset) is not int or offset < 0 or type(limit) is not int or limit < 0:
+            raise DataError("invalid_snapshot", "invalid snapshot page")
+        with self.data.transaction('sources'):
+            manifest, sessions, scope, declared, files, snapshot_id, dataset_symbols = self._daily_view_context(
+                source, dataset_id)
+            start = sessions[0] if start is None else date.fromisoformat(str(start))
+            end = sessions[-2] if end is None else date.fromisoformat(str(end))
+            if not sessions[0] <= start <= end <= sessions[-2]:
+                raise DataError("invalid_snapshot", "snapshot dates are outside the daily calendar")
+            requested = declared if symbols is None else tuple(str(item) for item in symbols)
+            requested_ids = tuple(normalize_security_id(item) for item in requested)
+            declared_ids = {normalize_security_id(item) for item in declared}
+            if not set(requested_ids) <= declared_ids:
+                raise DataError("scope_mismatch", "snapshot symbols are outside the daily scope")
+            codes = sorted({str(item) for item in requested} | set(requested_ids) |
+                           {str(item) for item in dataset_symbols
+                            if normalize_security_id(str(item)) in set(requested_ids)})
+            literal = ",".join("'" + item.replace("'", "''") + "'" for item in codes)
+            paths = [str(self.data.path("sources", identity, name)) for identity, name in files]
+            connection = duckdb.connect()
+            try:
+                where = f"code IN ({literal}) AND CAST(date AS DATE) BETWEEN ? AND ?"
+                total = connection.execute(
+                    f"SELECT count(*) FROM read_parquet(?) WHERE {where}",
+                    [paths, start.isoformat(), end.isoformat()]).fetchone()[0]
+                rows = [] if limit == 0 else connection.execute(
+                    f"SELECT * FROM read_parquet(?) WHERE {where} ORDER BY date, code LIMIT {limit} OFFSET {offset}",
+                    [paths, start.isoformat(), end.isoformat()]).fetch_arrow_table().to_pylist()
+            finally:
+                connection.close()
+        required = {"open", "high", "low", "close", "volume", "amount"}
+        records = []
+        for row in rows:
+            value = {}
+            for key, item in row.items():
+                if isinstance(item, float) and not math.isfinite(item):
+                    item = None
+                value[key] = item.isoformat() if isinstance(item, date) else item
+            for key in required:
+                item = value.get(key)
+                if item is None or (isinstance(item, float) and not math.isfinite(item)):
+                    raise DataError("invalid_dataset", f"required daily field is not finite: {key}")
+            records.append(value)
+        return {"snapshot_id": snapshot_id, "source_id": source_id,
+                "collected_at": None,
+                "request": {"dataset": dataset_id, "symbols": list(requested),
+                            "start": start.isoformat(), "end": end.isoformat()},
+                "data_as_of": end.isoformat(), "scope": scope,
+                "records": records, "records_count": int(total),
+                "offset": offset, "limit": limit, "total": int(total)}
 
     @staticmethod
     def validate(packet: Mapping) -> None:
@@ -718,6 +1240,7 @@ def http(url, data=None):
 
 
 class EastmoneyQuotes:
+    keys = ('code', 'data_at')
     def __init__(self, config, transport: Callable = http):
         self.config, self.transport = config, transport
 
@@ -976,6 +1499,7 @@ def parse_cninfo_page(response, number, size):
 
 
 class CninfoAnnouncements:
+    keys = ('id', 'org_id', 'code')
     def __init__(self, config, transport: Callable = http):
         self.config, self.transport = config, transport
 
@@ -1015,6 +1539,7 @@ class CninfoAnnouncements:
 
 
 class Securities:
+    keys = ('exchange', 'code')
     """Collect official delisting records without owning persistence."""
 
     def __init__(self, config, provider=None):
@@ -1066,14 +1591,29 @@ class Securities:
 
 
 class News:
+    keys = ('url',)
+    date_field = 'date'
+
+    @staticmethod
+    def validate_record(row):
+        day = date.fromisoformat(row['date'])
+        if row.get('url') != f'https://cn.govopendata.com/xinwenlianbo/{day:%Y%m%d}/':
+            raise ValueError('invalid broadcast URL')
+        articles = row.get('articles')
+        if not isinstance(articles, list) or not articles:
+            raise ValueError('broadcast articles are required')
+        for seq, article in enumerate(articles, 1):
+            if (not isinstance(article, Mapping) or article.get('seq') != seq
+                    or any(not isinstance(article.get(key), str) or not article[key].strip()
+                           for key in ('headline', 'content'))):
+                raise ValueError('incomplete broadcast article')
     def __init__(self, config, transport=None):
         self.config = config
         self.transport = transport or self._http
 
-    @staticmethod
-    def _http(url):
-        request = Request(url, headers={"User-Agent": "Mozilla/5.0"})
-        with urlopen(request, timeout=30) as response:
+    def _http(self, url):
+        request = URLRequest(url, headers={"User-Agent": "Lianghua/1.0"})
+        with urlopen(request, timeout=self.timeout) as response:
             return response.read().decode("utf-8")
 
     def collect(self, request):
@@ -1081,31 +1621,52 @@ class News:
         start, end = date.fromisoformat(request["start"]), date.fromisoformat(request["end"])
         if start > end:
             raise ValueError("start must not exceed end")
+        interval = request.get('interval', self.config.get('params', {}).get('interval', 1))
+        self.timeout = request.get('timeout', self.config.get('params', {}).get('timeout', 30))
+        for name, value in (('interval', interval), ('timeout', self.timeout)):
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not math.isfinite(value) or value < 0 or (name == 'timeout' and value == 0)):
+                raise ValueError(f'invalid {name}')
+        completed = set(request.get('completed_dates', ()))
         records, raw, day = [], [], start
         try:
             while day <= end:
+                if day.isoformat() in completed:
+                    day += timedelta(days=1)
+                    continue
+                if raw:
+                    time.sleep(max(1, interval))
                 url = f"https://cn.govopendata.com/xinwenlianbo/{day:%Y%m%d}/"
                 page = self.transport(url)
                 raw.append({"url": url, "request": {"date": day.isoformat()}, "response": page})
                 soup = BeautifulSoup(page, "html.parser")
+                title = soup.select_one('h1.article-title')
+                match = re.search(r'(\d{4})年\s*(\d{1,2})月\s*(\d{1,2})日', title.get_text() if title else '')
+                if match is None or date(*(int(x) for x in match.groups())) != day:
+                    raise ValueError('broadcast date does not match request')
                 articles = soup.select("article.content-section")
                 if not articles:
                     raise ValueError("broadcast page contains no articles")
+                entries = []
                 for seq, article in enumerate(articles, 1):
                     heading = article.find(["h1", "h2", "h3"])
                     body = article.select_one(".content-body")
                     if heading is None or body is None:
                         raise ValueError("incomplete broadcast article")
                     headline = heading.get_text(strip=True)
-                    content = "\n".join(p.get_text(strip=True) for p in body.find_all("p"))
+                    content = "\n".join(p.get_text().strip() for p in body.find_all("p") if p.get_text().strip())
                     if not headline or not content:
                         raise ValueError("empty broadcast article")
-                    if request.get("keyword", "") not in headline + content:
-                        continue
-                    records.append({"date": day.isoformat(), "seq": seq,
-                                    "section_id": (heading.get("id") or article.get("id") or "").removeprefix("section-"),
-                                    "headline": headline, "content": content,
-                                    "raw_page": len(raw) - 1})
+                    entries.append({'seq': seq, 'section_id': article.get('id') or heading.get('id'),
+                                    'headline': headline, 'content': content})
+                links = soup.select('nav a[href^="#"], .toc a[href^="#"]')
+                if links:
+                    ids = [entry['section_id'] for entry in entries]
+                    if (len(set(ids)) != len(ids) or any(value is None for value in ids)
+                            or [link['href'][1:] for link in links] != ids):
+                        raise ValueError('broadcast directory does not match articles')
+                records.append({'date': day.isoformat(), 'url': url, 'articles': entries,
+                                'raw_page': len(raw) - 1})
                 day += timedelta(days=1)
         except Exception as error:
             raise CollectionError(str(error), raw) from error
@@ -1119,6 +1680,7 @@ def collect_daily(request):
 
 
 DEFAULT_METHODS = {
+    "news": News,
     "quotes": EastmoneyQuotes,
     "daily": BaostockDaily,
     "announcements": CninfoAnnouncements,

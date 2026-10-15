@@ -19,6 +19,7 @@ class Collect:
         self._active = set()
         self._cancelled = set()
         self._packets = {}
+        self._job_sources = {}
         self._current_job_id = None
         self._fetch_thread = None
         self._merge_thread = None
@@ -52,6 +53,7 @@ class Collect:
                "started_at": datetime.now().isoformat(), "finished_at": None,
                "snapshot_id": None, "records": 0}
         self._jobs[job["job_id"]] = job
+        self._job_sources[job['job_id']] = deepcopy(source)
         saved = False
         try:
             self._save(job)
@@ -69,17 +71,12 @@ class Collect:
                 self._current_job_id = job["job_id"]
                 if job["job_id"] in self._cancelled:
                     raise RuntimeError("collection cancelled before publish")
-                published = self.methods.publish(packet)
-                if source.get("data_type") == "daily":
-                    view = self.data.daily_collection_view(source_id, source["dataset_id"])
-                    job["snapshot_id"] = view["snapshot_id"]
-                    job["records"] = view["records_count"]
-                else:
-                    snapshot = self.data.latest_collection(source_id)
-                    if snapshot is None:
-                        raise RuntimeError("published collection has no current snapshot")
-                    job["snapshot_id"] = snapshot["snapshot_id"]
-                    job["records"] = len(packet["records"])
+                self.methods.publish(source, packet)
+                view = self.methods.records(source, 0, 0)
+                if view is None:
+                    raise RuntimeError("published source has no current records")
+                job["snapshot_id"] = view["snapshot_id"]
+                job["records"] = view["records_count"]
                 job["status"] = "succeeded"
         except Exception as error:
             job.update(status="failed", error=f"{type(error).__name__}: {error}")
@@ -132,6 +129,7 @@ class Collect:
                "error": None, "started_at": datetime.now().isoformat(),
                "finished_at": None, "snapshot_id": None, "records": 0}
         self._jobs[job["job_id"]] = job
+        self._job_sources[job['job_id']] = deepcopy(source)
         self._current_job_id = job["job_id"]
         self._save(job)
         self._fetch_thread = threading.Thread(
@@ -185,22 +183,19 @@ class Collect:
     def _merge_task(self, job_id, dry_run):
         try:
             packet = self._packets[job_id]
-            stats = self.methods.prepare_publish(packet)
             job = self.status(job_id)
+            source = self._job_sources[job_id]
+            stats = self.methods.prepare(source, packet)
             if dry_run:
                 job.update(status="validated", phase="validate", merge=stats)
             else:
-                published = self.methods.publish(packet)
+                self.methods.publish(source, packet)
                 job.update(status="succeeded", phase="publish", merge=stats)
-                if packet.get("data_type") == "daily":
-                    view = self.data.daily_collection_view(job["source_id"], packet["dataset_id"])
-                    job["snapshot_id"] = view["snapshot_id"]
-                    job["records"] = view["records_count"]
-                else:
-                    snapshot = self.data.latest_collection(job["source_id"])
-                    if snapshot is None:
-                        raise RuntimeError("published collection has no current snapshot")
-                    job["snapshot_id"] = snapshot["snapshot_id"]
+                view = self.methods.records(source, 0, 0)
+                if view is None:
+                    raise RuntimeError("published source has no current records")
+                job["snapshot_id"] = view["snapshot_id"]
+                job["records"] = view['records_count']
                 self._packets.pop(job_id, None)
             job["finished_at"] = datetime.now().isoformat()
             self._save(job)
@@ -345,61 +340,23 @@ class Collect:
             return self.schedule(source_id, value)
         if operation == "workbench.job":
             return self.status(value["id"])
-        if operation == "workbench.snapshot":
-            source_id = value["id"]
-            source = self.sources.get(source_id)
-            if source.get("data_type") == "daily":
-                snapshot = self.data.daily_collection_page(
-                    source_id, source["dataset_id"], offset=value.get("offset", 0),
-                    limit=value.get("limit", 50), start=value.get("start"),
-                    end=value.get("end"), symbols=value.get("symbols", value.get("codes")))
-            else:
-                snapshot = self.data.latest_collection(source_id)
-            if snapshot is None:
-                raise KeyError(source_id)
-            offset = value.get("offset", 0); limit = value.get("limit", 50)
-            if (source.get("data_type") != "daily" and
-                    (type(offset) is not int or type(limit) is not int or
-                     offset < 0 or not 1 <= limit <= 1000)):
-                raise ValueError("invalid snapshot page")
-            if source.get("data_type") == "daily":
-                return snapshot
-            return {
-                **{key: item for key, item in snapshot.items() if key != "raw"},
-                "records": snapshot.get("records", [])[offset:offset + limit],
-                "offset": offset, "limit": limit,
-                "total": len(snapshot.get("records", [])),
-            }
-        if operation == "workbench.evidence":
-            source_id = value["id"]
-            source = self.sources.get(source_id)
-            if source.get("data_type") == "daily":
-                index = value.get("index")
-                if type(index) is not int or index < 0:
-                    raise ValueError("invalid evidence index")
-                snapshot = self.data.daily_collection_page(
-                    source_id, source["dataset_id"], offset=index, limit=1,
-                    start=value.get("start"), end=value.get("end"),
-                    symbols=value.get("symbols", value.get("codes")))
-            else:
-                snapshot = self.data.latest_collection(source_id)
-            if snapshot is None:
-                raise KeyError(source_id)
-            index = value.get("index")
-            record_index = 0 if source.get("data_type") == "daily" else index
-            if (type(index) is not int or index < 0 or
-                    record_index >= len(snapshot.get("records", []))):
+        if operation in {"workbench.snapshot", "workbench.evidence"}:
+            source = self.sources.get(value["id"])
+            evidence = operation == "workbench.evidence"
+            offset = value.get("index") if evidence else value.get("offset", 0)
+            limit = 1 if evidence else value.get("limit", 50)
+            scope = {name: value[name] for name in ("start", "end", "symbols", "keyword", "fields") if name in value}
+            page = self.methods.records(source, offset, limit, **scope)
+            if page is None:
+                raise KeyError(source["id"])
+            if not evidence:
+                return {key: item for key, item in page.items() if key != "raw"}
+            if not page["records"]:
                 raise ValueError("invalid evidence index")
-            return {
-                "snapshot_id": snapshot["snapshot_id"],
-                "collected_at": snapshot.get("collected_at"),
-                "request": snapshot.get("request", {}),
-                "record_index": index,
-                "record": snapshot["records"][record_index],
-                "raw": snapshot.get("raw", []),
-                "scope": snapshot.get("scope", {}),
-                "reviews": snapshot.get("reviews", []),
-            }
+            return {"snapshot_id": page["snapshot_id"], "collected_at": page.get("collected_at"),
+                    "request": page.get("request", {}), "record_index": offset,
+                    "record": page["records"][0], "raw": page.get("raw", []),
+                    "scope": page.get("scope", {}), "reviews": page.get("reviews", [])}
         if operation == "lake.researchInputs":
             return self._research_inputs()
         if operation == "lake.status":
@@ -594,10 +551,7 @@ class Collect:
         except Exception:
             schedule = None
         try:
-            if source.get("data_type") == "daily":
-                snapshot = self.data.daily_collection_summary(source_id, source["dataset_id"])
-            else:
-                snapshot = self.data.latest_collection(source_id)
+            snapshot = self.methods.records(source, 0, 0)
             summary = None if snapshot is None else {
                 key: snapshot.get(key) for key in
                 ("snapshot_id", "collected_at", "data_as_of", "scope")

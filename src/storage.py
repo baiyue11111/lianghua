@@ -5,6 +5,7 @@ from __future__ import annotations
 from hashlib import sha256
 from contextlib import contextmanager
 import fcntl
+import errno
 import os
 from pathlib import Path
 import threading
@@ -31,39 +32,56 @@ class DataStore:
         self.project = Path(project).resolve()
         self.root = self.project / "data"
         self._locks = threading.local()
+        self._pid = os.getpid()
 
-    def _publish_path(self, dataset: str) -> Path:
+    def _namespace_root(self, namespace: str) -> Path:
+        physical = PHYSICAL_KINDS.get(namespace)
+        if physical is None:
+            raise ValueError('invalid data kind')
+        return self.project / 'log' if physical == 'log' else self.root / physical
+
+    def _publish_path(self, dataset: str, namespace: str = 'sources') -> Path:
         if not dataset or Path(dataset).name != dataset:
             raise ValueError("invalid dataset identity")
-        return self.root / "source" / ".publish" / f"{dataset}.state"
+        return self._namespace_root(namespace) / '.publish' / f'{dataset}.state'
 
     @contextmanager
     def source_lock(self):
+        with self.namespace_lock('sources'):
+            yield
+
+    @contextmanager
+    def namespace_lock(self, namespace: str):
         """Serialize the complete source range across threads and processes."""
-        lock_path = self.root / "source" / ".locks" / "source.lock"
+        if self._pid != os.getpid():
+            self._locks = threading.local()
+            self._pid = os.getpid()
+        anchor = self._namespace_root(namespace)
+        lock_path = anchor / '.locks' / 'source.lock'
         locks = getattr(self._locks, "values", {})
-        current = locks.get("source")
+        key = str(anchor)
+        current = locks.get(key)
         if current is not None:
-            locks["source"] = current + 1
+            locks[key] = current + 1
             try:
                 yield
             finally:
-                locks["source"] -= 1
+                locks[key] -= 1
             return
         lock_path.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
         fcntl.flock(descriptor, fcntl.LOCK_EX)
-        locks["source"] = 1
+        locks[key] = 1
         self._locks.values = locks
         try:
             yield
         finally:
-            locks.pop("source", None)
+            locks.pop(key, None)
             fcntl.flock(descriptor, fcntl.LOCK_UN)
             os.close(descriptor)
 
-    def publish_state(self, dataset: str) -> str | None:
-        path = self._publish_path(dataset)
+    def publish_state(self, dataset: str, namespace: str = 'sources') -> str | None:
+        path = self._publish_path(dataset, namespace)
         try:
             return path.read_text()
         except FileNotFoundError:
@@ -71,8 +89,8 @@ class DataStore:
         except (OSError, UnicodeError):
             return "<invalid-publish-state>"
 
-    def publish_states(self) -> tuple[str, ...]:
-        folder = self.root / "source" / ".publish"
+    def publish_states(self, namespace: str = 'sources') -> tuple[str, ...]:
+        folder = self._namespace_root(namespace) / '.publish'
         if not folder.exists():
             return ()
         states = []
@@ -83,8 +101,8 @@ class DataStore:
                 states.append("<invalid-publish-state>")
         return tuple(states)
 
-    def begin_publish(self, dataset: str, token: str) -> None:
-        path = self._publish_path(dataset)
+    def begin_publish(self, dataset: str, token: str, namespace: str = 'sources') -> None:
+        path = self._publish_path(dataset, namespace)
         if path.exists():
             raise ValueError("dataset publication is already in progress")
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -95,16 +113,16 @@ class DataStore:
         finally:
             temporary.unlink(missing_ok=True)
 
-    def finish_publish(self, dataset: str, token: str) -> None:
-        path = self._publish_path(dataset)
-        if self.publish_state(dataset) != token:
+    def finish_publish(self, dataset: str, token: str, namespace: str = 'sources') -> None:
+        path = self._publish_path(dataset, namespace)
+        if self.publish_state(dataset, namespace) != token:
             raise ValueError("dataset publication token changed")
         path.unlink(missing_ok=True)
 
     def path(self, kind: str, identity: str, name: str) -> Path:
         if (
             any(not value or value in (".", "..") or Path(value).name != value for value in (kind, identity))
-            or (kind == "sources" and identity.startswith("."))
+            or identity.startswith(".")
         ):
             raise ValueError("invalid data identity")
         physical_kind = PHYSICAL_KINDS.get(kind)
@@ -126,7 +144,17 @@ class DataStore:
         return self.path(kind, identity, name).read_bytes()
 
     def delete(self, kind: str, identity: str, name: str) -> None:
-        self.path(kind, identity, name).unlink()
+        target = self.path(kind, identity, name)
+        target.unlink()
+        folder, root = target.parent, self._namespace_root(kind)
+        while folder != root:
+            try:
+                folder.rmdir()
+            except OSError as error:
+                if error.errno in (errno.ENOTEMPTY, errno.EEXIST):
+                    break
+                raise
+            folder = folder.parent
 
     def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef:
         if not isinstance(value, bytes):
@@ -155,7 +183,7 @@ class DataStore:
             relative = path.relative_to(anchor)
             if identity is None and len(relative.parts) < 2:
                 continue
-            if kind == "sources" and identity is None and relative.parts[0].startswith("."):
+            if identity is None and relative.parts[0].startswith("."):
                 continue
             key = relative.parts[0] if identity is None else identity
             name = Path(*relative.parts[1:]).as_posix() if identity is None else relative.as_posix()

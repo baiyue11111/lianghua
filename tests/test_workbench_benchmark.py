@@ -18,9 +18,14 @@ class BenchmarkTests(unittest.TestCase):
                     row["amount"] = row["volume"] * 200.0
             pq.write_table(table.from_pylist(rows, schema=table.schema), path)
             data = build_data(root)
-            data.publish_collection("legacy", {"records": [
-                {"date": "2020-01-31", "code": "sh.600003", "close": 100},
-            ], "raw": [], "scope": {}, "data_as_of": "2020-01-31"})
+            import hashlib, json
+            from tests.history_fixture import update_manifest
+            manifest = data.manifest('fixture')
+            for ref in manifest['files']:
+                if ref['file'] == 'daily/bars.parquet':
+                    ref['sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+            update_manifest(root, files=manifest['files'])
+            data.write('sources', 'legacy', 'records.json', b'{"records":[{"date":"2020-01-31","code":"sh.600003","close":100}]}')
             service = Benchmarks(data, [{
                 "id": "canonical", "name": "canonical", "source_id": "legacy",
                 "dataset_id": "fixture", "code": "sh.600003", "provider": "test",
@@ -31,31 +36,35 @@ class BenchmarkTests(unittest.TestCase):
 
     def test_configured_index_reads_evidence_without_supplier_coupling(self):
         with tempfile.TemporaryDirectory() as d:
-            data=build_data(Path(d)); snapshot=data.publish_collection('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'},{'date':'2026-09-30','code':'sh.000300','close':'4040'}],'raw':[{'response':'original'}],'scope':{},'data_as_of':'2026-09-30'})
-            service=Benchmarks(data,[{'id':'hs300','name':'沪深300','source_id':'index','code':'sh.000300','provider':'BaoStock','currency':'CNY','return_type':'price'}])
-            result=service.series('hs300','2026-09-29','2026-09-30')
-            self.assertEqual(result['points'],[{'at':'2026-09-29','close':4000.0},{'at':'2026-09-30','close':4040.0}])
-            self.assertEqual(result['snapshot_id'],data.latest_collection('index')['snapshot_id'])
-            with self.assertRaises(KeyError):service.series('unknown','2026-09-29','2026-09-30')
+            from tests.history_fixture import make_snapshot
+            make_snapshot(Path(d)); data=build_data(Path(d))
+            service=Benchmarks(data,[{'id':'hs300','name':'基准','source_id':'unused','dataset_id':'fixture','code':'sh.600003','provider':'registered','currency':'CNY','return_type':'price'}])
+            result=service.series('hs300','2020-01-31','2020-02-03')
+            self.assertEqual(result['points'],[{'at':'2020-01-31','close':11.0},{'at':'2020-02-03','close':11.0}])
+            self.assertTrue(result['snapshot_id'])
+            with self.assertRaises(KeyError):service.series('unknown','2020-01-31','2020-02-03')
     def test_no_snapshot_and_bad_prices_fail_explicitly(self):
         with tempfile.TemporaryDirectory() as d:
             data=build_data(Path(d)); spec={'id':'i','name':'指数','source_id':'s','code':'x','provider':'test','currency':'CNY','return_type':'price'}
             service=Benchmarks(data,[spec])
-            with self.assertRaisesRegex(ValueError,'未同步'):service.series('i','2026-09-29','2026-09-30')
-            data.publish_collection('s',{'records':[{'date':'2026-09-29','code':'x','close':'0'}],'raw':[],'scope':{},'data_as_of':'2026-09-29'})
-            with self.assertRaisesRegex(ValueError,'收盘价'):service.series('i','2026-09-29','2026-09-30')
+            with self.assertRaisesRegex(ValueError,'dataset_id'):service.series('i','2026-09-29','2026-09-30')
+            from tests.history_fixture import make_snapshot
+            from protocal import DataError
+            make_snapshot(Path(d))
+            service=Benchmarks(data,[{**spec, 'dataset_id':'fixture', 'code':'sh.600003'}])
+            import json
+            data.write('sources','fixture','daily/bars.parquet',b'corrupt')
+            with self.assertRaises(DataError):service.series('i','2020-01-31','2020-02-03')
 
     def test_requested_account_dates_must_be_fully_covered(self):
         with tempfile.TemporaryDirectory() as d:
             data=build_data(Path(d))
-            spec={'id':'i','name':'指数','source_id':'s','code':'x','provider':'test','currency':'CNY','return_type':'price'}
-            data.publish_collection('s',{'records':[
-                {'date':'2026-09-29','code':'x','close':'100'},
-                {'date':'2026-10-01','code':'x','close':'110'},
-            ],'raw':[],'scope':{},'data_as_of':'2026-10-01'})
+            from tests.history_fixture import make_snapshot
+            make_snapshot(Path(d))
+            spec={'id':'i','name':'基准','source_id':'s','dataset_id':'fixture','code':'sh.600003','provider':'test','currency':'CNY','return_type':'price'}
             service=Benchmarks(data,[spec])
             with self.assertRaisesRegex(ValueError,'日期不全'):
-                service.series('i','2026-09-29','2026-10-01',dates=('2026-09-29','2026-09-30','2026-10-01'))
+                service.series('i','2020-01-31','2020-02-03',dates=('2020-01-31','2020-02-01','2020-02-03'))
 
 class BenchmarkPortTests(unittest.TestCase):
     def test_preflight_and_run_keep_config_hash_when_benchmark_is_added(self):
@@ -91,8 +100,12 @@ class BenchmarkPortTests(unittest.TestCase):
             self.assertEqual(port.handle('workbench.benchmarks',{}),[spec])
             request={'id':'hs300','start':'2026-09-29','end':'2026-09-30'}
             with self.assertRaises(ValueError):port.handle('workbench.benchmark',request)
-            data.publish_collection('index',{'records':[{'date':'2026-09-29','code':'sh.000300','close':'4000'}],'raw':[{}],'scope':{},'data_as_of':'2026-09-29'})
-            series=port.handle('workbench.benchmark',request);self.assertEqual(series['points'][0]['close'],4000)
+            from tests.history_fixture import make_snapshot
+            make_snapshot(Path(d))
+            spec.update(dataset_id='fixture', code='sh.600003')
+            port=KernelBacktestPort(data, lambda *args, **kwargs: object(), Benchmarks(data,[spec]))
+            series=port.handle('workbench.benchmark',{**request,'start':'2020-01-31','end':'2020-02-03'})
+            self.assertEqual(series['points'][0]['close'],11.0)
             with self.assertRaises(ValueError):port.handle('workbench.benchmark',{**request,'start':'not-a-date'})
 
 class ResearchEndpointTests(unittest.TestCase):

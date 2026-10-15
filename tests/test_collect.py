@@ -11,9 +11,35 @@ from unittest.mock import patch
 
 from protocal import DataBus, DataError, Modules, Protocol
 from storage import DataStore
+from collect.methods import Methods
 
 
 class CollectionTests(unittest.TestCase):
+    def test_methods_merge_unique_current_records_without_batch_files(self):
+        from collect.methods import Methods
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root))); methods = Methods(bus)
+            source = {'id': 'custom', 'method': 'fixture', 'params': {'key_fields': ['identity']}}
+            from collect.sources import Sources
+            sources = Sources(bus)
+            sources.register({**source, 'name': 'Custom', 'frequency': 'manual', 'defaults': {}})
+            source = sources.get('custom')
+            packet = {'records': [{'identity': 'a', 'value': 1}], 'raw': [], 'scope': {}}
+            with self.assertRaises(DataError) as caught:
+                methods.publish({**source, 'params': {}}, packet)
+            self.assertEqual(caught.exception.code, 'identity_policy')
+            methods.publish(source, packet)
+            methods.publish(source, packet)
+            view = methods.records(source, 0, 50)
+            self.assertEqual(view['total'], 1)
+            self.assertEqual(view['records'], packet['records'])
+            before = bus.read('sources', 'custom', 'records.json')
+            with self.assertRaises(DataError):
+                methods.publish(source, {**packet, 'records': [{'identity': 'a', 'value': 2}]})
+            self.assertEqual(bus.read('sources', 'custom', 'records.json'), before)
+            self.assertFalse((Path(root) / 'data/source/snapshots').exists())
+            self.assertFalse((Path(root) / 'log/custom/latest.json').exists())
+
     def test_collect_request_normalization_is_shared_and_rejects_before_fetch(self):
         from collect.methods import Methods
 
@@ -174,11 +200,11 @@ class CollectionTests(unittest.TestCase):
                                   "dataset_id": "fixture",
                                   "defaults": {"codes": [code]}})
 
-            index = bus.daily_collection_summary("sh_index", "fixture")
-            index_page = bus.daily_collection_page("sh_index", "fixture",
+            index = Methods(bus).daily_collection_summary(sources.get('sh_index'), "fixture")
+            index_page = Methods(bus).records(sources.get('sh_index'),
                                                    limit=10)
-            bank = bus.daily_collection_summary("bank", "fixture")
-            bank_page = bus.daily_collection_page("bank", "fixture", limit=10)
+            bank = Methods(bus).daily_collection_summary(sources.get('bank'), "fixture")
+            bank_page = Methods(bus).records(sources.get('bank'), limit=10)
             self.assertEqual(index["records_count"], 1)
             self.assertEqual(index_page["total"], 1)
             self.assertEqual([row["code"] for row in index_page["records"]],
@@ -336,8 +362,10 @@ class CollectionTests(unittest.TestCase):
                 {"frequency": "daily", "fields": ["status"]},
             ):
                 with self.subTest(request=request), self.assertRaises(DataError) as caught:
-                    bus.publish_daily("lake", "fixture", {
+                    Methods(bus).publish({'id': 'fixture', 'data_type': 'daily',
+                                          'storage_id': 'lake', 'dataset_id': 'fixture'}, {
                         "records": [row], "calendar": ["2026-01-02"],
+                        "raw": [],
                         "request": request, "scope": {"universe": "market"},
                     })
                 self.assertEqual(caught.exception.code, "canonical_daily")
@@ -433,8 +461,8 @@ class CollectionTests(unittest.TestCase):
                               "open": 10.0, "high": 11.0, "low": 9.0,
                               "close": 10.5, "volume": 1.0, "amount": 2.0}],
                 "raw": [], "scope": {"universe": "market"}}})
-            methods.publish = lambda packet: published.append(packet)
-            methods.prepare_publish = lambda packet: {"records": len(packet["records"]), "incoming": len(packet["records"])}
+            methods.publish = lambda source, packet: published.append(packet)
+            methods.prepare = lambda source, packet: {"records": len(packet["records"]), "incoming": len(packet["records"])}
             collect = Collect(sources, methods)
             fetched = collect.handle("lake.startFetch", {
                 "mode": "fix", "start": "2026-01-02", "end": "2026-01-02",
@@ -571,7 +599,8 @@ class CollectionTests(unittest.TestCase):
                     "frequency": "daily", "defaults": {"codes": ["1.600000"]},
                 })
                 with patch("collect.methods.EastmoneyQuotes.collect", return_value={
-                        "records": [{"source": "new_quotes"}], "raw": [],
+                        "records": [{"code": "1.600000", "data_at": "2026-10-14T15:00:00+08:00",
+                                     "source": "new_quotes"}], "raw": [],
                         "scope": {"kind": "fixture"}}):
                     result = backend._modules.sources.run({"source_id": "new_quotes"})
                 self.assertEqual(result["status"], "succeeded")
@@ -585,22 +614,22 @@ class CollectionTests(unittest.TestCase):
             bus = DataBus(DataStore(Path(root)))
             methods = Methods(bus, {
                 'fixture': lambda source, request: {
-                    'records': [{'code': '600001', 'date': request['date'], 'close': 10.0}],
+                    'records': [{'code': '600001', 'date': request['date'], 'close': 10.0, 'raw_page': 0}],
                     'raw': [{'source': source['id'], 'request': request}],
                     'data_as_of': request['date'],
                     'scope': {'symbols': ['600001'], 'universe': 'fixed_symbols'},
                 },
             })
-            source = {'id': 'fixture', 'method': 'fixture'}
+            source = {'id': 'fixture', 'method': 'fixture', 'params': {'key_fields': ['code', 'date']}}
             packet = methods.fetch(source, {'date': '2026-10-14'})
-            published = methods.publish(packet)
+            published = methods.publish(source, packet)
             logged = methods.log({'source_id': 'fixture', 'event': 'published'})
             self.assertEqual(published.kind, 'sources')
             self.assertEqual(logged.kind, 'state')
-            latest = json.loads(bus.read('state', 'fixture', 'latest.json'))
-            self.assertEqual(json.loads(bus.read(
-                'sources', 'snapshots', latest['snapshot_id'] + '.json'
-            ))['records'][0]['close'], 10.0)
+            view = methods.records(source)
+            self.assertEqual(view['records'][0]['close'], 10.0)
+            self.assertEqual(view['raw'], packet['raw'])
+            self.assertEqual(bus.list('sources', 'snapshots'), ())
             self.assertEqual(json.loads(bus.read('state', 'collect', logged.name))['event'], 'published')
 
     def test_methods_publish_accepts_non_security_packets_and_source_id_is_authoritative(self):
@@ -615,13 +644,13 @@ class CollectionTests(unittest.TestCase):
                     'scope': {'category': 'announcement'},
                 },
             })
-            packet = methods.fetch({'id': 'announcements', 'method': 'news'},
+            source = {'id': 'announcements', 'method': 'fixture', 'params': {'key_fields': ['title']}}
+            packet = methods.fetch({**source, 'method': 'news'},
                                   {'date': '2026-10-14'})
             self.assertEqual(packet['source_id'], 'announcements')
-            published = methods.publish(packet)
+            published = methods.publish(source, packet)
             self.assertEqual(published.kind, 'sources')
-            latest = json.loads(bus.read('state', 'announcements', 'latest.json'))
-            self.assertTrue(latest['snapshot_id'])
+            self.assertTrue(methods.records(source)['snapshot_id'])
 
     def test_collect_manual_run_uses_registered_source_and_one_methods_path(self):
         from collect.core import Collect
@@ -632,7 +661,8 @@ class CollectionTests(unittest.TestCase):
             bus = DataBus(DataStore(Path(root)))
             sources = Sources(bus)
             sources.register({'id': 'fixture', 'name': 'Fixture', 'method': 'fixture',
-                              'frequency': 'daily', 'defaults': {}})
+                              'frequency': 'daily', 'defaults': {},
+                              'params': {'key_fields': ['code', 'date']}})
             methods = Methods(bus, {
                 'fixture': lambda source, request: {
                     'records': [{'code': '600001', 'date': request['date'], 'close': 10.0}],
@@ -728,7 +758,7 @@ class CollectionTests(unittest.TestCase):
                       "name": "Daily", "frequency": "daily", "defaults": {}}
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
-            methods.publish(methods.fetch(source, {"records": [
+            methods.publish(source, methods.fetch(source, {"records": [
                 {"code": "600000", "date": "2025-01-02", "name": "A",
                  "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5,
                  "volume": 100.0, "amount": 1050.0},
@@ -780,7 +810,7 @@ class CollectionTests(unittest.TestCase):
                       "storage_id": "lake", "dataset_id": "fixture",
                       "calendar": ["2025-01-02"]}
             with self.assertRaises(DataError) as error:
-                methods.publish(methods.fetch(source, {"records": [{
+                methods.publish(source, methods.fetch(source, {"records": [{
                     "code": "600000", "date": "2025-01-02", "open": 10.0,
                     "high": 11.0, "low": 9.0, "close": 99.0,
                     "volume": 1.0, "amount": 10.0}]}))
@@ -823,7 +853,7 @@ class CollectionTests(unittest.TestCase):
                       "storage_id": "lake", "dataset_id": "fixture",
                       "calendar": ["2025-01-02", "2025-01-03"]}
             with self.assertRaises((TypeError, ValueError)):
-                methods.publish(methods.fetch(source, {"records": [{
+                methods.publish(source, methods.fetch(source, {"records": [{
                     "code": "600000", "date": "2025-01-03", "name": {"bad": "schema"},
                     "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.0,
                     "volume": 2.0, "amount": 22.0,
@@ -880,8 +910,8 @@ class CollectionTests(unittest.TestCase):
                 "open": 12.0, "high": 13.0, "low": 11.0, "close": 12.5,
                 "volume": 140.0, "amount": 1750.0,
             }]}
-            methods.publish(methods.fetch(source, packet))
-            methods.publish(methods.fetch(source, packet))
+            methods.publish(source, methods.fetch(source, packet))
+            methods.publish(source, methods.fetch(source, packet))
             dataset = bus.query(DataQuery(
                 "fixture", date(2024, 12, 31), date(2025, 1, 3),
                 ("open", "high", "low", "close", "volume", "amount"),
@@ -1065,7 +1095,8 @@ class CollectionTests(unittest.TestCase):
                 {**row, "code": "sh.000001"}, {**row, "code": "sz.000001"}],
                 "fields": ["open", "high", "low", "close", "volume", "amount"],
                 "scope": {"universe": "market"}}
-            bus.publish_daily("lake", "market", packet)
+            Methods(bus).publish({'id': 'market', 'data_type': 'daily',
+                                  'storage_id': 'lake', 'dataset_id': 'market'}, {**packet, 'raw': []})
             dataset = bus.query(DataQuery(
                 "market", date(2026, 1, 2), date(2026, 1, 2),
                 ("open", "high", "low", "close", "volume", "amount"), 1, "raw",
@@ -1092,7 +1123,7 @@ class CollectionTests(unittest.TestCase):
                 return {"records": [], "raw": [], "scope": {"category": "generic"}}
             methods = Methods(bus, {"fixture": handler})
             original = methods.publish
-            methods.publish = lambda packet: published.append(original(packet))
+            methods.publish = lambda source, packet: published.append(original(source, packet))
             collect = Collect(sources, methods)
             result = []
             thread = threading.Thread(target=lambda: result.append(
@@ -1135,7 +1166,8 @@ class CollectionTests(unittest.TestCase):
             bus = DataBus(DataStore(Path(root)))
             sources = Sources(bus)
             sources.register({"id": "fixture", "name": "Fixture", "method": "fixture",
-                              "frequency": "daily", "defaults": {}})
+                              "frequency": "daily", "defaults": {},
+                              "params": {"key_fields": ["value"]}})
             methods = Methods(bus, {"fixture": lambda source, request: {
                 "records": [{"value": 1}], "raw": [], "scope": {"kind": "fixture"}}})
             methods.log = lambda _event: (_ for _ in ()).throw(OSError("log failed"))
@@ -1152,7 +1184,8 @@ class CollectionTests(unittest.TestCase):
             bus = DataBus(DataStore(Path(root)))
             sources = Sources(bus)
             sources.register({"id": "fixture", "name": "Fixture", "method": "fixture",
-                              "frequency": "daily", "defaults": {}})
+                              "frequency": "daily", "defaults": {},
+                              "params": {"key_fields": ["identity"]}})
             methods = Methods(bus, {"fixture": lambda source, request: {
                 "records": [], "raw": [], "scope": {"kind": "fixture"}}})
             collect = Collect(sources, methods)
@@ -1218,24 +1251,111 @@ class CollectionTests(unittest.TestCase):
             'start': '2026-10-01', 'end': '2026-10-01', 'codes': ['600036']})
         self.assertEqual([row['bs_code'] for row in result['records']], ['sh.600036'])
 
-    def test_news_uses_shared_snapshot_storage(self):
+    def test_news_uses_current_records_and_skips_existing_dates(self):
         from collect.methods import News, Methods
         from collect.core import Collect
         from collect.sources import Sources
-        page = '<article class="content-section" id="section-1"><h2>标题</h2><div class="content-body"><p>正文</p></div></article>'
+        page = '<h1 class="article-title">2026年10月1日 新闻联播</h1><article class="content-section"><h2>标题</h2><div class="content-body"><p>正文<a href="/">链接</a>结尾</p></div></article>'
         with tempfile.TemporaryDirectory() as root:
             bus = DataBus(DataStore(Path(root)))
             sources = Sources(bus)
             sources.register({'id': 'news', 'name': 'News', 'method': 'news',
                               'frequency': 'daily', 'defaults': {}})
-            methods = Methods(bus, {'news': News({}, lambda url: page)})
-            job = Collect(sources, methods).run(
-                {'source_id': 'news', 'start': '2026-10-01', 'end': '2026-10-01', 'codes': []})
+            calls = []
+            methods = Methods(bus, {'news': News({}, lambda url: calls.append(url) or page)})
+            collect = Collect(sources, methods)
+            request = {'source_id': 'news', 'start': '2026-10-01', 'end': '2026-10-01', 'codes': []}
+            job = collect.run(request)
             self.assertEqual(job['status'], 'succeeded', job['error'])
-            snapshot = bus.latest_collection('news')
-            self.assertEqual(snapshot['records'][0]['content'], '正文')
+            snapshot = methods.records(sources.get('news'))
+            self.assertEqual(snapshot['records'][0]['articles'][0]['content'], '正文链接结尾')
             self.assertEqual(snapshot['raw'][0]['response'], page)
+            self.assertEqual(collect.run(request)['status'], 'succeeded')
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(methods.records(sources.get('news'))['total'], 1)
             self.assertEqual(list(Path(root).rglob('*.db')), [])
+
+    def test_default_news_http_and_invalid_pages(self):
+        from collect.methods import News, DEFAULT_METHODS, CollectionError
+        self.assertIs(DEFAULT_METHODS.get('news'), News)
+        page = '<h1 class="article-title">2026年10月1日 新闻联播</h1><nav><a href="#section-1">标题</a></nav><article class="content-section" id="section-1"><h2 id="1">标题</h2><div class="content-body"><p>正文</p></div></article>'
+        response = unittest.mock.MagicMock()
+        response.__enter__.return_value.read.return_value = page.encode()
+        with patch('collect.methods.urlopen', return_value=response):
+            packet = News({}).collect({'start': '2026-10-01', 'end': '2026-10-01', 'interval': 0})
+        self.assertEqual(packet['records'][0]['url'], 'https://cn.govopendata.com/xinwenlianbo/20261001/')
+        for bad in (page.replace('10月1日', '10月2日'), page.replace('<p>正文</p>', '<p></p>'),
+                    page.replace('href="#section-1"', 'href="#section-2"'),
+                    page.replace('<nav>', '<div class="toc">').replace('</nav>', '<a href="#missing">缺失</a></div>'),
+                    page.replace('</nav>', '<a href="#section-1">重复</a></nav>')):
+            with self.subTest(page=bad), self.assertRaises(CollectionError):
+                News({}, lambda url: bad).collect({'start': '2026-10-01', 'end': '2026-10-01'})
+        from urllib.error import HTTPError
+        def missing(url):
+            raise HTTPError(url, 404, 'not published', {}, None)
+        with self.assertRaises(CollectionError):
+            News({}, missing).collect({'start': '2026-10-01', 'end': '2026-10-01'})
+
+    def test_news_schedule_uses_manual_engine_and_is_disabled_by_default(self):
+        from collect.methods import News
+        from collect.core import Collect
+        from collect.sources import Sources
+        page = '<h1 class="article-title">2026年10月1日 新闻联播</h1><article class="content-section"><h2>标题</h2><div class="content-body"><p>正文</p></div></article>'
+        calls = []
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root))); sources = Sources(bus)
+            source = sources.register({'id': 'news', 'name': 'News', 'method': 'news',
+                                       'frequency': 'daily', 'defaults': {}})
+            methods = Methods(bus, {'news': News({}, lambda url: calls.append(url) or page)})
+            collect = Collect(sources, methods)
+            settings = {'input': {'start': '2026-10-01', 'end': '2026-10-01'}, 'interval_seconds': 60}
+            self.assertFalse(collect.schedule('news', settings)['enabled'])
+            collect.tick(time.time() + 61)
+            self.assertEqual(calls, [])
+            schedule = collect.schedule('news', {**settings, 'enabled': True})
+            collect.tick(schedule['next_at'])
+            self.assertEqual(methods.records(source)['total'], 1)
+            collect.tick(schedule['next_at'] + 61)
+            self.assertEqual(len(calls), 1)
+            collect.close()
+
+    def test_news_missing_dates_and_conflicts_keep_full_content(self):
+        from collect.methods import News, CollectionError
+        from collect.sources import Sources
+        from collect.core import Collect
+        calls = []
+        def transport(url):
+            calls.append(url)
+            number = int(url.rstrip('/').split('/')[-1][-2:])
+            return f'<h1 class="article-title">2026年10月{number}日 新闻联播</h1><article class="content-section"><h2>新闻</h2><div class="content-body"><p>全文</p></div></article>'
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root))); sources = Sources(bus)
+            source = sources.register({'id': 'news', 'name': 'News', 'method': 'news',
+                                       'frequency': 'daily', 'defaults': {}})
+            methods = Methods(bus, {'news': News({}, transport)})
+            with self.assertRaises(ValueError):
+                methods.publish(source, {'records': [{'url': 'broken', 'date': '2026-10-01', 'articles': []}],
+                                         'raw': [], 'scope': {}})
+            collect = Collect(sources, methods)
+            for day in ('01', '03'):
+                self.assertEqual(collect.run({'source_id': 'news', 'start': f'2026-10-{day}',
+                                             'end': f'2026-10-{day}'})['status'], 'succeeded')
+            self.assertEqual(collect.run({'source_id': 'news', 'start': '2026-10-01',
+                'end': '2026-10-03', 'keyword': '不匹配', 'fields': ['date']})['status'], 'succeeded')
+            self.assertEqual([url[-3:-1] for url in calls], ['01', '03', '02'])
+            self.assertEqual(methods.records(source)['total'], 3)
+            self.assertEqual(methods.records(source)['records'][0]['articles'][0]['content'], '全文')
+            before = bus.read('sources', 'news', 'records.json')
+            row = methods.records(source)['records'][0]
+            row['articles'][0]['content'] = '篡改'
+            with self.assertRaises(DataError):
+                methods.publish(source, {'records': [row], 'raw': [], 'scope': {}})
+            self.assertEqual(bus.read('sources', 'news', 'records.json'), before)
+            count = len(calls)
+            for params in ({'timeout': 0}, {'interval': -1}, {'start': '2026-10-04', 'end': '2026-10-01'}):
+                with self.assertRaises(ValueError):
+                    News({}, transport).collect({'start': '2026-10-01', 'end': '2026-10-01', **params})
+            self.assertEqual(len(calls), count)
 
     def test_latest_quote_fields_are_selectable(self):
         from collect.methods import EastmoneyQuotes

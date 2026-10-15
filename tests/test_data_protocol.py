@@ -9,6 +9,95 @@ from unittest.mock import patch
 
 
 class DataProtocolTests(unittest.TestCase):
+    def test_delete_removes_empty_resource_directories_not_namespace(self):
+        from protocal import build_data
+        with tempfile.TemporaryDirectory() as root:
+            bus = build_data(Path(root))
+            bus.write('sources', 'old', 'nested/file.bin', b'old')
+            bus.delete('sources', 'old', 'nested/file.bin')
+            self.assertFalse((Path(root) / 'data/source/old').exists())
+            self.assertTrue((Path(root) / 'data/source').is_dir())
+
+    def test_fork_does_not_inherit_transaction_ownership_or_reentrant_lock(self):
+        import os
+        from protocal import DataBus, DataError
+        from storage import DataStore
+        with tempfile.TemporaryDirectory() as root:
+            store = DataStore(Path(root)); bus = DataBus(store)
+            with patch('storage.os.open', return_value=123), patch('storage.os.close'), patch('storage.fcntl.flock') as flock:
+                with store.namespace_lock('sources'):
+                    with patch('storage.os.getpid', return_value=os.getpid() + 1):
+                        with store.namespace_lock('sources'):
+                            pass
+                self.assertEqual(flock.call_count, 4)
+            # A child must not use its parent's in-progress publication token.
+            with self.assertRaises(DataError):
+                with bus.transaction('sources'):
+                    bus.write('sources', 'one', 'a.bin', b'a')
+                    from contextlib import nullcontext
+                    with patch('protocal.os.getpid', return_value=os.getpid() + 1), \
+                            patch.object(store, 'namespace_lock', side_effect=lambda _: nullcontext()):
+                        bus.read('sources', 'one', 'a.bin')
+
+    def test_nested_failure_cannot_be_hidden_by_outer_transaction(self):
+        from protocal import DataBus, DataError
+        from storage import DataStore
+        with tempfile.TemporaryDirectory() as root:
+            store = DataStore(Path(root)); bus = DataBus(store)
+            with self.assertRaises(DataError):
+                with bus.transaction('sources'):
+                    bus.write('sources', 'one', 'a.bin', b'a')
+                    try:
+                        with bus.transaction('sources'):
+                            raise OSError('second write failed')
+                    except OSError:
+                        pass
+            self.assertTrue(store.publish_states())
+            with self.assertRaises(DataError):
+                bus.read('sources', 'one', 'a.bin')
+
+    def test_mixed_market_declared_order_is_preserved_and_duplicate_aliases_rejected(self):
+        from datetime import date
+        from protocal import DataBus, DataQuery, DataError
+        from storage import DataStore
+        from tests.history_fixture import make_snapshot, update_manifest
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root, symbols=('000001', '600000'))
+            bus = DataBus(DataStore(root))
+            query = DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
+                              ('open', 'high', 'low', 'close', 'volume', 'amount'),
+                              1, 'adjusted', symbols=('600000',))
+            result = bus.query(query)
+            self.assertEqual(result.scope['symbols'], ('600000',))
+            update_manifest(root, scope={'symbols': ['000001', '600000', 'sh.600000'],
+                                         'universe': 'CN_A_SHARE'})
+            with self.assertRaises(DataError):
+                bus.query(query)
+
+    def test_generic_transaction_starts_only_at_first_write_and_blocks_partial_publication(self):
+        from protocal import DataBus, DataError
+        from storage import DataStore
+        with tempfile.TemporaryDirectory() as root:
+            store = DataStore(Path(root)); bus = DataBus(store)
+            with self.assertRaises(ValueError):
+                with bus.transaction('sources'):
+                    raise ValueError('candidate encoding failed')
+            self.assertEqual(store.publish_states(), ())
+            with bus.transaction('sources'):
+                bus.write('sources', 'one', 'a.bin', b'a')
+                bus.write('sources', 'two', 'b.bin', b'b')
+            self.assertEqual(store.publish_states(), ())
+            self.assertEqual(bus.read('sources', 'two', 'b.bin'), b'b')
+            with self.assertRaises(RuntimeError):
+                with bus.transaction('sources'):
+                    bus.write('sources', 'one', 'a.bin', b'changed')
+                    raise RuntimeError('interrupted between files')
+            with self.assertRaises(DataError):
+                DataBus(store).read('sources', 'two', 'b.bin')
+            bus.write('state', 'process', 'event.json', b'{}')
+            self.assertEqual(bus.read('state', 'process', 'event.json'), b'{}')
+
     def test_query_reads_dataset_from_data_store_without_reader(self):
         from datetime import date
         from protocal import DataBus, DataQuery
@@ -48,7 +137,7 @@ class DataProtocolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root); make_snapshot(root)
             bus = DataBus(DataStore(root))
-            manifest = bus.snapshot("fixture")
+            manifest = bus.manifest("fixture")
             bus.begin_publish("fixture")
             with self.assertRaisesRegex(DataError, "publication is incomplete"):
                 bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
@@ -223,9 +312,9 @@ class DataProtocolTests(unittest.TestCase):
             published = bus.publish('dataset', manifest)
 
             self.assertEqual(published.name, 'manifest.json')
-            self.assertEqual(bus.snapshot('dataset'), manifest)
+            self.assertEqual(bus.manifest('dataset'), manifest)
             bus.write('sources', 'dataset', 'daily/bars.parquet', b'changed')
-            self.assertEqual(bus.snapshot('dataset'), manifest)
+            self.assertEqual(bus.manifest('dataset'), manifest)
 
     def test_publish_rejects_unbound_files_and_invalid_scope(self):
         from protocal import DataError, build_data
@@ -255,4 +344,4 @@ class DataProtocolTests(unittest.TestCase):
             }
             bus.write('sources', 'dataset', 'manifest.json',
                       json.dumps(manifest).encode())
-            self.assertEqual(bus.snapshot('dataset'), manifest)
+            self.assertEqual(bus.manifest('dataset'), manifest)
