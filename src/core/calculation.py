@@ -718,7 +718,7 @@ class AccountLedger:
             value+=price*lot.shares; cost+=lot.cost
         point=AccountPoint(day,self._cash,value,receivables,liabilities,
             self._cash+value+receivables-liabilities,self._realized,value-cost,self._income)
-        if (sum((p.cash_delta for p in self._postings),Decimal(0))+self.initial_cash!=self._cash
+        if (sum((p.cash_delta for p in self._postings),self.initial_cash)!=self._cash
                 or abs(point.equity-self.initial_cash-self._realized-(value-cost)-self._income-receivables+liabilities)>Decimal('1e-18')):
             raise ValueError('account conservation invariant failed')
         self._day=day

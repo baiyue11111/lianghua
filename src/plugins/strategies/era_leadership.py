@@ -29,6 +29,10 @@ class Strategy:
     def generate(self, frame: MarketFrame, account: AccountSnapshot):
         if type(frame.context.get('trading')) is not bool: raise ValueError('trading phase must be explicit')
         if not frame.context['trading']: return None
+        # Keep the portfolio until every held security has an observed signal.
+        if any(frame.history[symbol][-1].fields['signal_close'] is None
+               for symbol in account.positions):
+            return None
         p = self.params
         candidates = []
         for symbol, prices in histories(frame, p.momentum_window).items():

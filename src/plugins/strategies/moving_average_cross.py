@@ -40,6 +40,12 @@ class Strategy:
             if not frame.fields:
                 return None
             raise ValueError('strategy requires observed history')
+        for symbol, shares in account.positions.items():
+            if shares <= 0:
+                continue
+            value = frame.history[symbol][-1].fields['signal_close']
+            if value is None:
+                return None
         selected=[]
         p=self.params
         for symbol,rows in sorted(frame.history.items()):

@@ -142,6 +142,18 @@ class DynamicTaxTests(unittest.TestCase):
         self.assertEqual(ledger.settle(date(2015,9,15)),())
         self.assertEqual(ledger.liability(date(2015,9,15)),D(20))
 
+    def test_fractional_tax_cash_replay_remains_strict(self):
+        from core.calculation import AccountLedger
+        ledger=AccountLedger(D('1000000'))
+        day=date(2014,7,10)
+        ledger.record_cash('first',day,'dividend_tax',D('-999215.359337'),'a'*64)
+        ledger.record_cash('supplement',day,'dividend_tax',
+                           D('-729.9999999999999999999999998'),'b'*64)
+        self.assertEqual(ledger.mark(day,{},D(0),D(0)).cash,ledger.cash)
+        ledger._cash += D('1e-25')
+        with self.assertRaisesRegex(ValueError,'account conservation'):
+            ledger.mark(day,{},D(0),D(0))
+
 
 class TaxHarness:
     def __init__(self, rules):

@@ -40,5 +40,9 @@ class Strategy:
             if fast > slow: candidates.append((fast / slow, symbol))
         selected = Calculation.select(candidates, p.positions, lambda row: row[0], p.sort_desc)
         if selected == self.selected: return None
+        for symbol, shares in account.positions.items():
+            if shares <= 0: continue
+            if frame.history[symbol][-1].fields['signal_close'] is None:
+                return None
         self.selected = selected
         return TargetSet(self.strategy_id, frame.at, weights(selected, p.exposure), {s: 'fast_above_slow' for s in selected})
