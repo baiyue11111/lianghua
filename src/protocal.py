@@ -1784,11 +1784,18 @@ def _load_adjusted_lake_panel(
         raise AdjustmentCoverageError((CoverageIssue(
             "*", "invalid_code_change_evidence", str(exc)),)) from exc
     files = [str(path) for path in paths]
-    code_filter = ""
+    # Resolve the storage key before selection and grouping. Price arithmetic
+    # uses the A-share number; the dataset port restores the requested identity.
+    source = ("(SELECT split_part(identity, '.', 2) AS code, * EXCLUDE(code, identity) "
+              "FROM (SELECT *, CASE WHEN contains(code, '.') THEN lower(code) "
+              "WHEN starts_with(code, '6') THEN 'sh.' || code ELSE 'sz.' || code END AS identity "
+              "FROM read_parquet(?, union_by_name=true))")
     query_params = [files]
     if symbols is not None:
-        code_filter = " WHERE code IN (SELECT * FROM UNNEST(?))"
-        query_params.append(list(symbols))
+        source += " WHERE identity IN (SELECT * FROM UNNEST(?))"
+        query_params.append([normalize_security_id(symbol) for symbol in symbols])
+    source += ")"
+    code_filter = ""
     date_filter = " AND " if code_filter else " WHERE "
     if date_start is not None:
         date_filter += "CAST(date AS DATE) >= ?"
@@ -1802,11 +1809,11 @@ def _load_adjusted_lake_panel(
     try:
         bounds = connection.execute(
             "SELECT code, min(date), max(date), count(*), count(DISTINCT date), "
-            "arg_max(name, date) FROM read_parquet(?)" + row_filter + " GROUP BY code ORDER BY code",
+            "arg_max(name, date) FROM " + source + row_filter + " GROUP BY code ORDER BY code",
             query_params,
         ).fetchall()
         calendar_strings = [row[0] for row in connection.execute(
-            "SELECT DISTINCT date FROM read_parquet(?)" + row_filter + " ORDER BY date", query_params
+            "SELECT DISTINCT date FROM " + source + row_filter + " ORDER BY date", query_params
         ).fetchall()]
         if not bounds or not calendar_strings:
             raise AdjustmentCoverageError((CoverageIssue("*", "empty_lake", str(daily_dir)),))
@@ -1905,7 +1912,7 @@ def _load_adjusted_lake_panel(
         date_index = {str(day): column for column, day in enumerate(calendar_strings)}
         reader = connection.execute(
             "SELECT code, date, open, high, low, close, volume, amount, tradestatus "
-            "FROM read_parquet(?)" + row_filter + " ORDER BY code, date", query_params,
+            "FROM " + source + row_filter + " ORDER BY code, date", query_params,
         ).to_arrow_reader(batch_size=100_000)
         for batch in reader:
             columns = batch.to_pydict()

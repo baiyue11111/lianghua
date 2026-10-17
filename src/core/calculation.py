@@ -386,7 +386,7 @@ class AccountExecutionSession:
         price=self.rules.price(order,bar,quantity,previous_close,
                                volume20=previous20_mean_volume)
         gross=price*quantity
-        fee=self.rules.fees(gross,order.side,bar.trade_date)
+        fee=self.rules.fees(gross,order.side,bar.trade_date,symbol=order.symbol,shares=quantity)
         total=gross+fee.commission+fee.stamp_duty+fee.transfer_fee
         if order.side is Side.BUY and total>self.account.cash-reserve:
             return Fill(order.order_id,order.symbol,order.side,bar.trade_date,0,0,0,0,0,
@@ -782,7 +782,17 @@ class FeePolicy:
             return rows
         rate,minimum=Decimal(raw['commission_rate']),Decimal(raw['minimum_commission'])
         if any(not v.is_finite() or v<0 for v in (rate,minimum)): raise ValueError('invalid commission')
-        return cls(rate,minimum,schedule('stamp_rates'),schedule('transfer_rates'),source_sha256,raw['rounding'])
+        transfers=[]
+        for row in raw['transfer_rates']:
+            effective=date.fromisoformat(row['effective'])
+            value=Decimal(row['rate']); basis=row.get('basis','amount'); market=row.get('market')
+            if not value.is_finite() or value<0 or basis not in {'amount','shares'} or (market is not None and (not isinstance(market,str) or not market)):
+                raise ValueError('invalid transfer fee terms')
+            transfers.append((effective,value,basis,market))
+        keys=[(item[0],item[3] or '') for item in transfers]
+        if not transfers or keys!=sorted(set(keys)):
+            raise ValueError('ordered unique transfer fee dates and markets required')
+        return cls(rate,minimum,schedule('stamp_rates'),tuple(transfers),source_sha256,raw['rounding'])
 
 @dataclass(frozen=True)
 class FeeBreakdown:
@@ -960,7 +970,7 @@ class TradeRules:
             candidate_price=self.price(order,bar,candidate,previous_close,volume20=volume20)
             limit=self._quantity_limit(order,bar,candidate_price,cash,positions,sellable,reserve,
                                        volume20,used,step)
-            fee=self.fees(candidate_price*candidate,order.side,bar.trade_date)
+            fee=self.fees(candidate_price*candidate,order.side,bar.trade_date,symbol=order.symbol,shares=candidate)
             total=candidate_price*candidate+fee.commission+fee.stamp_duty+fee.transfer_fee
             if candidate <= limit and total <= available:
                 low=middle
@@ -978,7 +988,7 @@ class TradeRules:
             middle = (low + high + 1) // 2
             quantity = middle * step
             gross = price * quantity
-            fee = self.fees(gross, order.side, bar.trade_date)
+            fee = self.fees(gross, order.side, bar.trade_date,symbol=order.symbol,shares=quantity)
             total = gross + fee.commission + fee.stamp_duty + fee.transfer_fee
             if total <= available:
                 low = middle
@@ -986,7 +996,7 @@ class TradeRules:
                 high = middle - 1
         return low * step
 
-    def fees(self, gross, side, day):
+    def fees(self, gross, side, day, *, symbol=None, shares=None):
         rounding = self.fees_config['params']['rounding']
         gross = self._decimal(gross, 'gross')
         def rate(rows):
@@ -995,11 +1005,17 @@ class TradeRules:
                 raise ValueError('fee effective date does not cover trade')
             return eligible[-1]
         stamp = rate(self.fee_policy.stamp_rates)
-        transfer = rate(self.fee_policy.transfer_rates)
+        market=symbol.split('.',1)[0] if isinstance(symbol,str) and '.' in symbol else None
+        terms=[row for row in self.fee_policy.transfer_rates
+               if row[0]<=day and (row[3] is None or row[3]==market)]
+        if not terms:
+            raise ValueError('transfer fee date or market is not covered')
+        _,transfer,basis,_=terms[-1]
+        base=gross if basis=='amount' else self._decimal(shares,'shares')
         result = FeeBreakdown(
             max(self.fee_policy.minimum_commission, gross * self.fee_policy.commission_rate),
             gross * stamp if side is Side.SELL else Decimal(0),
-            gross * transfer,
+            base * transfer,
         )
         if rounding == 'half_up':
             result = FeeBreakdown(*(value.quantize(Decimal('0.01'), rounding=ROUND_HALF_UP) for value in (
@@ -1070,12 +1086,12 @@ class TradeRules:
         if (not isinstance(taxable_income, Decimal) or not taxable_income.is_finite()
                 or taxable_income < 0):
             raise ValueError('finite nonnegative Decimal taxable income required')
-        modern = registration > date(2015, 9, 8)
-        rate = self._holding_rate(acquired, disposed, Decimal(0) if modern else Decimal('.05'))
-        withheld = Decimal(0) if modern else taxable_income * Decimal('.05')
+        long_rate, withholding_rate, policy = self.tax_policy.terms(registration)
+        rate = self._holding_rate(acquired, disposed, long_rate)
+        withheld = taxable_income * withholding_rate
         final = taxable_income * rate
         return TaxResult(taxable_income, rate, withheld, final, final - withheld,
-                         '财税2015-101' if modern else '财税2012-85')
+                         policy)
 
     def _allocate_fifo(self, lots: tuple[TaxLot, ...], net_disposed_shares: int,
                        disposed: date) -> tuple[tuple[TaxLot, ...], tuple[TaxLot, ...]]:
@@ -1100,11 +1116,6 @@ class TradeRules:
             needed -= take
         return tuple(allocated), tuple(remaining)
 
-    def _tax_rate(self, acquired, disposed):
-        if disposed < acquired or disposed < self.tax_policy.effective:
-            raise ValueError('date is outside declared dividend tax policy')
-        return self._holding_rate(acquired, disposed, Decimal(0))
-
     def _tax_sell(self, symbol, shares, day):
         ledger=self._tax_ledger
         symbol_lots = tuple(lot for lot in ledger.lots if lot.symbol == symbol)
@@ -1115,12 +1126,14 @@ class TradeRules:
         for lot in sorted(ledger.lots, key=lambda lot: lot.acquired):
             take = takes.get(lot.lot_id, 0)
             for right in lot.rights:
-                tax=right.income_per_share*take*self._tax_rate(lot.acquired,day)
+                tax_result=self._dividend_tax(lot.acquired,day,right.registration,
+                    right.income_per_share*take)
+                tax=tax_result.supplement
                 if tax:
                     key=canonical_hash((right.distribution_id,right.component,lot.lot_id,day.isoformat()))
                     old=ledger.pending[key].amount if key in ledger.pending else Decimal(0)
                     ledger.pending[key]=TaxPayment(key,right.distribution_id,symbol,lot.acquired,day,right.operation,
-                        max(day,right.due),old+tax,right.source_sha256,ledger.policy.policy)
+                        max(day,right.due),old+tax,right.source_sha256,tax_result.policy)
             if lot.symbol == symbol:
                 if lot.lot_id in remaining_by_id:
                     remaining.append(remaining_by_id[lot.lot_id])
@@ -1153,7 +1166,8 @@ class TradeRules:
 
     def _tax_liability(self, day):
         ledger=self._tax_ledger
-        potential=sum((lot.shares*right.income_per_share*self._tax_rate(lot.acquired,day)
+        potential=sum((self._dividend_tax(lot.acquired,day,right.registration,
+                           lot.shares*right.income_per_share).supplement
                        for lot in ledger.lots for right in lot.rights if right.operation<=day), Decimal(0))
         return potential + ledger.reserve(day)
 
@@ -1166,7 +1180,7 @@ class TradeRules:
                 raise ValueError('liquidity must be observed before execution day')
             for symbol in set(holdings) | {item.symbol for item in orders}:
                 if symbol not in snapshot.raw_marks:
-                    raise ValueError(f'missing opening mark: {symbol}')
+                    raise ValueError(f'missing opening mark: {symbol} on {trade_date}')
                 nonnegative(snapshot.raw_marks[symbol])
             for item in orders:
                 if item.symbol not in snapshot.amount20:
@@ -1694,7 +1708,9 @@ class TaxPolicy:
         required={'effective','policy','payment_timing','liability','rounding'}
         if required-set(raw) or set(raw)-required-{'bonus_holding_period','bonus_tax_allocation'}:
             raise ValueError('tax policy fields missing or unsupported')
-        if (raw['policy']!='财税2015-101' or date.fromisoformat(raw['effective'])<date(2015,9,9)
+        starts={'财税2015-101':date(2015,9,9),
+                '财税2012-85+财税2015-101':date(2013,1,1)}
+        if (raw['policy'] not in starts or date.fromisoformat(raw['effective'])<starts[raw['policy']]
                 or raw['payment_timing']!='later_of_disposal_and_income'
                 or raw['liability']!='current_holding_period' or raw['rounding']!='none'
                 or not re.fullmatch('[0-9a-f]{64}',source_sha256)):
@@ -1702,8 +1718,16 @@ class TaxPolicy:
         return cls(date.fromisoformat(raw['effective']),raw['policy'],source_sha256,
                    raw.get('bonus_holding_period'),raw.get('bonus_tax_allocation'))
 
+    def terms(self, registration):
+        if not isinstance(registration,date) or registration<date(2013,1,1):
+            raise ValueError('unsupported dividend record date')
+        if registration<=date(2015,9,8):
+            return Decimal('.05'),Decimal('.05'),'财税2012-85'
+        return Decimal(0),Decimal(0),'财税2015-101'
+
 @dataclass(frozen=True)
 class TaxRight:
+    registration: date
     distribution_id: str
     component: str
     operation: date
@@ -1767,8 +1791,18 @@ class TaxLedger:
         rights=[]
         cash=Decimal(str(event.cash_per_share))
         shares=Decimal(str(event.stock_dividend_per_share))*stock_nominal+reserve_taxable
-        if cash: rights.append(TaxRight(distribution_id,'cash',event.operation_date,event.payment_date,cash,source_sha256))
-        if shares: rights.append(TaxRight(distribution_id,'shares',event.operation_date,credit_date,shares,source_sha256))
+        if cash: rights.append(TaxRight(event.registration_date,distribution_id,'cash',event.operation_date,event.payment_date,cash,source_sha256))
+        if shares: rights.append(TaxRight(event.registration_date,distribution_id,'shares',event.operation_date,credit_date,shares,source_sha256))
+        _,withholding_rate,policy=self.policy.terms(event.registration_date)
+        if withholding_rate:
+            for lot in self.lots:
+                if lot.symbol!=event.code:
+                    continue
+                for right in rights:
+                    identity=canonical_hash((distribution_id,right.component,lot.lot_id,'withholding'))
+                    self.pending[identity]=TaxPayment(identity,distribution_id,event.code,lot.acquired,
+                        event.registration_date,right.operation,right.due,
+                        right.income_per_share*lot.shares*withholding_rate,source_sha256,policy)
         self.lots=tuple(replace(lot,rights=lot.rights+tuple(rights)) if lot.symbol==event.code else lot for lot in self.lots)
         if bonus:
             for lot in self.lots:
@@ -1794,9 +1828,9 @@ class TaxLedger:
         grouped={}
         for lot in existing:
             for right in lot.rights:
-                key=(right.distribution_id,right.component,right.operation,right.due,right.source_sha256)
+                key=(right.registration,right.distribution_id,right.component,right.operation,right.due,right.source_sha256)
                 grouped[key]=grouped.get(key,Decimal(0))+right.income_per_share*lot.shares
-        bonus_rights=tuple(TaxRight(*key[:4],amount/total,key[4]) for key,amount in grouped.items())
+        bonus_rights=tuple(TaxRight(*key[:5],amount/total,key[5]) for key,amount in grouped.items())
         factor=Decimal(count)/total
         self.lots=tuple(replace(lot,rights=tuple(replace(right,income_per_share=right.income_per_share*factor) for right in lot.rights))
             if lot in existing else lot for lot in self.lots)+(TaxHolding(identity,symbol,acquired,shares,bonus_rights),)

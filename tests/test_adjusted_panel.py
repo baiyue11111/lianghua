@@ -187,12 +187,31 @@ class AdjustedPanelTests(unittest.TestCase):
         path.write_text(json.dumps(payload), encoding="utf-8")
         return path
 
-    def load(self):
+    def load(self, **kwargs):
         return _load_adjusted_lake_panel(
             self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
             stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
             read=lambda path: path.read_bytes(),
-            list_files=lambda directory, pattern: tuple(directory.glob(pattern)))
+            list_files=lambda directory, pattern: tuple(directory.glob(pattern)), **kwargs)
+
+    def test_storage_code_forms_share_one_selected_history(self):
+        self.write_bars([
+            _bar('2020-01-02',close=10,open_=10,high=11,low=9,code='600000'),
+            _bar('2020-01-03',close=11,open_=11,high=12,low=10,code='sh.600000')])
+        self.write_cache([['sh.600000','2018-01-01','1','1','1']])
+        panel=self.load(symbols=('sh.600000',))
+        self.assertEqual(panel.symbols,('600000',))
+        self.assertEqual(panel.calendar,(date(2020,1,2),date(2020,1,3)))
+        np.testing.assert_array_equal(panel.raw_close,[[10,11]])
+
+    def test_market_qualified_filter_does_not_include_another_market(self):
+        self.write_bars([
+            _bar('2020-01-02',close=10,open_=10,high=11,low=9,code='000001'),
+            _bar('2020-01-02',close=3000,open_=3000,high=3100,low=2900,code='sh.000001')])
+        self.write_cache([['sz.000001','2018-01-01','1','1','1']],code='sz.000001')
+        panel=self.load(symbols=('sz.000001',))
+        self.assertEqual(panel.symbols,('000001',))
+        np.testing.assert_array_equal(panel.raw_close,[[10]])
 
     def test_factor_is_effective_on_event_day_for_signals_only(self):
         # Regressions caught: future factor leaks into yesterday, or execution

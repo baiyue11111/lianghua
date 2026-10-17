@@ -132,7 +132,7 @@ class TradeExecutionTests(unittest.TestCase):
                                          100, 10, 1000, 0, 0, 'filled'))
         value._tax_ledger.lots = (TaxHolding(
             'lot', 'A', date(2024, 1, 2), 100,
-            (TaxRight('div', 'cash', date(2024, 1, 2), date(2024, 1, 5), D('1'), 'a' * 64),)),)
+            (TaxRight(date(2024, 1, 2), 'div', 'cash', date(2024, 1, 2), date(2024, 1, 5), D('1'), 'a' * 64),)),)
         day = date(2024, 1, 3)
         value.tax(day, phase='begin')
         sell = self.order(side=Side.SELL, shares=100)

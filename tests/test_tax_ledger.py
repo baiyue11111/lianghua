@@ -105,6 +105,43 @@ class DynamicTaxTests(unittest.TestCase):
         self.assertEqual(amount(date(2020,2,29),date(2021,3,1),D(0)),D(0))
         self.assertEqual(amount(date(2014,1,1),date(2016,1,1),D('.05')),D('.05'))
 
+    def historical(self):
+        from core.calculation import TaxPolicy
+        ledger = self.ledger()
+        ledger.rules.tax_policy = TaxPolicy.from_mapping({
+            'effective':'2013-01-01','policy':'财税2012-85+财税2015-101',
+            'payment_timing':'later_of_disposal_and_income','liability':'current_holding_period',
+            'rounding':'none'}, 'd'*64)
+        ledger.ledger.policy = ledger.rules.tax_policy
+        return ledger
+
+    def test_historical_withholding_and_supplement_are_separate(self):
+        ledger=self.historical()
+        self.day(ledger,[fill('buy',Side.BUY,'2014-01-02',100)])
+        ledger.register('old',event('A','2014-01-10','2014-01-20'),D(1),D(0),'b'*64)
+        self.assertEqual(ledger.liability(date(2014,1,20)),D(20))
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2014,1,20))),D(5))
+        self.assertEqual(ledger.liability(date(2014,1,20)),D(15))
+        self.day(ledger,[fill('sell',Side.SELL,'2014-01-21',100)])
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2014,1,21))),D(15))
+        self.assertEqual(ledger.liability(date(2014,1,21)),D(0))
+
+    def test_old_distribution_keeps_old_tax_after_regime_changes(self):
+        ledger=self.historical()
+        self.day(ledger,[fill('buy',Side.BUY,'2014-01-02',100)])
+        ledger.register('old',event('A','2015-09-08','2015-09-15'),D(1),D(0),'b'*64)
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2015,9,15))),D(5))
+        self.assertEqual(ledger.liability(date(2016,1,4)),D(0))
+        self.day(ledger,[fill('sell',Side.SELL,'2016-01-04',100)])
+        self.assertEqual(ledger.settle(date(2016,1,4)),())
+
+    def test_modern_distribution_has_no_withholding(self):
+        ledger=self.historical()
+        self.day(ledger,[fill('buy',Side.BUY,'2015-09-01',100)])
+        ledger.register('new',event('A','2015-09-09','2015-09-15'),D(1),D(0),'b'*64)
+        self.assertEqual(ledger.settle(date(2015,9,15)),())
+        self.assertEqual(ledger.liability(date(2015,9,15)),D(20))
+
 
 class TaxHarness:
     def __init__(self, rules):

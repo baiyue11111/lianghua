@@ -48,6 +48,36 @@ class Result:
 
 
 class ResearchFetchTests(TestCase):
+    def dividend_base(self):
+        return {"schema": 1, "kind": "dividend", "code": "sh.600000",
+                "start": None, "end": None, "year": "2014", "source_hash": "a"*64,
+                "records": [{"announce_date": "2014-03-01", "registration_date": "2014-06-01",
+                  "operation_date": "2014-06-02", "payment_date": "2014-06-03",
+                  "stock_market_date": None, "cash_per_share": 0.5,
+                  "stock_dividend_per_share": 0, "reserve_to_stock_per_share": None,
+                  "cash_after_tax_text": None}]}
+
+    def dividend_html(self, *, reserve="0", day="2014-06-02", duplicate=False):
+        row=f"<tr><td>0</td><td>{reserve}</td><td>7.25</td><td>实施</td><td>{day}</td><td>2014-06-01</td><td>--</td></tr>"
+        return ("<table><thead><tr><th colspan=7>分红方案(每10股)</th></tr><tr><th>送股(股)</th><th>转增(股)</th><th>派息(税前)(元)</th>"
+                "<th>进度</th><th>除权除息日</th><th>股权登记日</th><th>红股上市日</th></tr></thead>"
+                +row+(row if duplicate else "")+"</table>")
+
+    def test_dividend_adapter_uses_explicit_public_market_quantities(self):
+        base=self.dividend_base()
+        fact=fetch.DividendHistory.normalize(base,self.dividend_html())
+        self.assertEqual(fact["records"][0]["reserve_to_stock_per_share"],0)
+        self.assertEqual(fact["records"][0]["cash_per_share"],0.725)
+        self.assertEqual(fact["records"][0]["payment_date"],"2014-06-03")
+        self.assertIsNone(base["records"][0]["reserve_to_stock_per_share"])
+        self.assertNotEqual(fact["source_hash"],base["source_hash"])
+
+    def test_dividend_adapter_rejects_missing_quantities_and_ambiguous_dates(self):
+        for html in (self.dividend_html(reserve="--"), self.dividend_html(day="2014-06-03"),
+                     self.dividend_html(duplicate=True), self.dividend_html().replace("每10股","每股")):
+            with self.subTest(html=html), self.assertRaises((ValueError,fetch.CacheIntegrityError)):
+                fetch.DividendHistory.normalize(self.dividend_base(),html)
+
     def test_stock_basic_raw_becomes_security_fact_and_round_trips(self):
         fields = ["code", "ipoDate", "outDate", "type", "status"]
         raw = {"error_code": "0", "error_msg": "success", "fields": fields,

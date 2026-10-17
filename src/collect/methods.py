@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+from decimal import Decimal
 from math import isfinite
 import duckdb
 import warnings
@@ -319,6 +320,72 @@ def normalize_facts(payload: dict) -> dict:
             "end": expected["end"], "year": expected["year"],
             "source_hash": payload["raw_response_sha256"], "records": records}
 
+
+
+class DividendHistory:
+    """Public-market distribution quantities from Sina, settlement dates from standard facts."""
+
+    @staticmethod
+    def normalize(base, html):
+        from io import StringIO
+        import pandas as pd
+        validate_facts(base, kind="dividend", code=base["code"], year=base["year"])
+        tables = [table for table in pd.read_html(StringIO(html)) if "转增" in str(table.columns)]
+        if len(tables) != 1:
+            raise ValueError("one dividend history table is required")
+        table = tables[0]
+        if "每10股" not in str(table.columns):
+            raise ValueError("dividend quantities must declare the per-ten-share unit")
+        table.columns = [name[-1] if isinstance(name, tuple) else name for name in table.columns]
+        fields = {"送股(股)", "转增(股)", "派息(税前)(元)", "进度", "除权除息日", "股权登记日", "红股上市日"}
+        if len(set(table.columns)) != len(table.columns) or not fields <= set(table.columns):
+            raise ValueError("dividend history fields are missing or duplicated")
+        result = deepcopy(base)
+        for record in result["records"]:
+            matches = table[(table["除权除息日"].astype(str) == record["operation_date"])
+                            & (table["股权登记日"].astype(str) == record["registration_date"])
+                            & (table["进度"].astype(str) == "实施")]
+            if len(matches) != 1:
+                raise ValueError("distribution requires an exact record-date and ex-date match")
+            row = matches.iloc[0]
+            for target, source in (("cash_per_share", "派息(税前)(元)"),
+                                   ("stock_dividend_per_share", "送股(股)"),
+                                   ("reserve_to_stock_per_share", "转增(股)")):
+                value = _fact_number(row[source])
+                if value is None or value < 0:
+                    raise ValueError("distribution quantity must be explicitly numeric")
+                record[target] = float(Decimal(str(value)) / Decimal(10))
+            market = str(row["红股上市日"])
+            if market != "--":
+                parsed = _fact_date(market)
+                if record["stock_market_date"] not in (None, parsed):
+                    raise ValueError("conflicting share listing date")
+                record["stock_market_date"] = parsed
+        result["source_hash"] = _sha256({"base": base, "html": html})
+        validate_facts(result, kind="dividend", code=result["code"], year=result["year"])
+        return result
+
+    def collect(self, data, code, start_year, end_year):
+        import requests
+        code = normalize_security_id(code)
+        url = f"https://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/{code.split('.')[1]}.phtml"
+        response = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        outputs = []
+        for year in range(start_year, end_year + 1):
+            name = f"dividend_{code}_{year}.json"
+            base = json.loads(data.read("sources", "facts", name))
+            fact = self.normalize(base, response.text)
+            outputs.append((name, base, fact))
+        # Validate the whole requested range before publishing any replacement.
+        with data.transaction("sources"):
+            for name, base, fact in outputs:
+                data.write("state", "collect", f"{uuid4().hex}.json",
+                    _canonical({"url": url, "source_hash": fact["source_hash"],
+                                "base": base, "html": response.text}))
+                data.write("sources", "facts", name, _canonical(fact))
+        return {"code": code, "years": len(outputs),
+                "records": sum(len(fact["records"]) for _, _, fact in outputs)}
 
 def _validate_cache(request: Request, payload: dict) -> None:
     try:

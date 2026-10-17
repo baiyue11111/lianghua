@@ -19,6 +19,21 @@ class FeePolicyTests(unittest.TestCase):
             'tax': {'model':'fifo','params':{}},
             'check': {'model':'cn_a_share','params':{'tick':'0.01','min_qty':100,'step':100}}}
         return TradeRules(config, fee, tax)
+    def test_historical_transfer_fee_uses_declared_market_and_basis(self):
+        raw={'commission_rate':'.00025','minimum_commission':'5','rounding':'none',
+             'stamp_rates':[{'effective':'2008-09-19','rate':'.001'}],
+             'transfer_rates':[
+                 {'effective':'2012-09-01','rate':'.0003','basis':'shares','market':'sh'},
+                 {'effective':'2012-09-01','rate':'.0000255','basis':'amount','market':'sz'},
+                 {'effective':'2015-08-01','rate':'.00002'}]}
+        from core.calculation import FeePolicy
+        rule=self.rules(FeePolicy.from_mapping(raw,'a'*64))
+        self.assertEqual(rule.fees(D(10000),Side.BUY,date(2014,1,2),symbol='sh.600000',shares=1000).transfer_fee,D('.3'))
+        self.assertEqual(rule.fees(D(10000),Side.BUY,date(2014,1,2),symbol='sz.000001',shares=1000).transfer_fee,D('.255'))
+        self.assertEqual(rule.fees(D(10000),Side.BUY,date(2015,8,1),symbol='sh.600000',shares=1000).transfer_fee,D('.2'))
+        with self.assertRaises(ValueError):
+            rule.fees(D(10000),Side.BUY,date(2014,1,2),symbol='hk.000001',shares=1000)
+
     def test_historical_fee_versions_and_both_side_transfer(self):
         rules=self.rules(self.fees())
         self.assertEqual(tuple(rules.fees(D(100000),Side.SELL,date(2022,4,28)).__dict__.values()),
@@ -34,7 +49,7 @@ class FeePolicyTests(unittest.TestCase):
         from core.calculation import TradeRules, TaxPolicy
         from protocal import Order, Bar
         from dataclasses import replace
-        fees=replace(self.fees(),transfer_rates=((date(2020,1,1),D('.01')),))
+        fees=replace(self.fees(),transfer_rates=((date(2020,1,1),D('.01'),'amount',None),))
         value=TradeRules({'price': {'model':'ratio','params':{'rate':'0','tick':'0.01'}},
             'quantity': {'model':'capacity','params':{}},
             'fees': {'model':'dated','params':{'rounding':'none'}},
