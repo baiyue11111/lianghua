@@ -84,6 +84,9 @@ class Strategy:
         if 'next_session' not in frame.context: raise ValueError('next_session is required to determine month end')
         following=date.fromisoformat(frame.context['next_session'])
         if following<=frame.at.date(): raise ValueError('next_session must follow decision session')
+        if any(frame.history[symbol][-1].fields['signal_close'] is None
+               for symbol in account.positions):
+            return None
         breadth,candidates=self.features(frame)
         if breadth is None:
             # No price or breadth substitution: remain in the previous gate state.
