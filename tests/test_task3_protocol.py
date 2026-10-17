@@ -217,7 +217,7 @@ class Task3ProtocolTests(unittest.TestCase):
             make_snapshot(root)
             path = root / "data/source/fixture/manifest.json"
             manifest = json.loads(path.read_text())
-            del manifest["inputs"]["calendar"]["sessions"]
+            del manifest["inputs"]["calendar"]
             path.write_text(json.dumps(manifest))
             with self.assertRaisesRegex(DataError, "calendar"):
                 DataBus(DataStore(root)).query(

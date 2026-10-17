@@ -37,10 +37,10 @@ class SettlementFlowTests(unittest.TestCase):
 
     def test_registration_distribution_and_tax_use_the_same_account(self):
         records = list(self.case.inputs(exit_market=False))
-        event = normalize_dividend_records([{
-            'code': '000001', 'dividRegistDate': '2020-02-03', 'dividOperateDate': '2020-02-04',
-            'dividPayDate': '2020-02-05', 'dividStockMarketDate': '2020-02-06',
-            'dividCashPsBeforeTax': '0.3', 'dividStocksPs': '0.1',
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0,
+            'code': '000001', 'registration_date': '2020-02-03', 'operation_date': '2020-02-04',
+            'payment_date': '2020-02-05', 'stock_market_date': '2020-02-06',
+            'cash_per_share': '0.3', 'stock_dividend_per_share': '0.1',
         }])[0]
         records[1] = replace(records[1], registrations=(RegistrationAction(
             'plan', event, 'a' * 64, date(2020, 2, 5), D(1), D(0), 'b' * 64
@@ -166,7 +166,7 @@ class SettlementFlowTests(unittest.TestCase):
         trade_rules.tax(first.trade_date, phase='begin')
         trade_rules.tax(first.trade_date, (first,), phase='preview')
         trade_rules.tax(first.trade_date, (first,), phase='end')
-        event = normalize_dividend_records([{'code': 'A', 'dividRegistDate': '2020-01-10', 'dividOperateDate': '2020-01-13', 'dividPayDate': '2020-01-20', 'dividCashPsBeforeTax': '1'}])[0]
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'stock_dividend_per_share': 0, 'code': 'A', 'registration_date': '2020-01-10', 'operation_date': '2020-01-13', 'payment_date': '2020-01-20', 'cash_per_share': '1'}])[0]
         taxes.register('div', event, D(1), D(0), 'a' * 64)
         day = date(2020, 1, 21)
         trade_rules.tax(day, phase='begin')
@@ -194,7 +194,7 @@ class SettlementFlowTests(unittest.TestCase):
                 return None
 
         calendar = (date(2020, 7, 1), date(2020, 7, 2), date(2020, 7, 3), date(2020, 7, 6), date(2020, 7, 7))
-        event = normalize_dividend_records([{'code': 'A', 'dividRegistDate': '2020-07-02', 'dividOperateDate': '2020-07-03', 'dividPayDate': '2020-07-04', 'dividStockMarketDate': '2020-07-06', 'dividCashPsBeforeTax': '.3', 'dividStocksPs': '.1'}])[0]
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'code': 'A', 'registration_date': '2020-07-02', 'operation_date': '2020-07-03', 'payment_date': '2020-07-04', 'stock_market_date': '2020-07-06', 'cash_per_share': '.3', 'stock_dividend_per_share': '.1'}])[0]
         action = RegistrationAction('weekend', event, 'a' * 64, date(2020, 7, 5), D(1), D(0), 'b' * 64)
         records = []
         for index, day in enumerate(calendar[:-1]):

@@ -9,9 +9,9 @@ def fill(identity,side,day,shares,symbol='A'):
     return Fill(identity,symbol,side,date.fromisoformat(day),shares,10.,shares*10.,0.,0.,'filled')
 
 def event(identity,registration,payment,cash='1',stock='0'):
-    return normalize_dividend_records([{'code':identity,'dividRegistDate':registration,
-        'dividOperateDate':(date.fromisoformat(registration).replace(day=date.fromisoformat(registration).day+1)).isoformat(),
-        'dividPayDate':payment,'dividStockMarketDate':payment,'dividCashPsBeforeTax':cash,'dividStocksPs':stock}])[0]
+    return normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'code':identity,'registration_date':registration,
+        'operation_date':(date.fromisoformat(registration).replace(day=date.fromisoformat(registration).day+1)).isoformat(),
+        'payment_date':payment,'stock_market_date':payment,'cash_per_share':cash,'stock_dividend_per_share':stock}])[0]
 
 class DynamicTaxTests(unittest.TestCase):
     def ledger(self):

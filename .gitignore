@@ -37,3 +37,7 @@ __pycache__/
 /docs/workbench-benchmark.jpg
 /docs/workbench-chinese.jpg
 /docs/workbench-verified.jpg
+
+# Local strategy exploration configurations
+/configs/strategy_long/
+/configs/strategy_search/

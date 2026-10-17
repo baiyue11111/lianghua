@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import json
-import argparse
 import math
 from math import isfinite
 import duckdb
 import warnings
-from protocal import DataError, normalize_security_id
+from protocal import DataError, normalize_security_id, validate_facts
 import re
 import calendar
 import hashlib
@@ -62,9 +61,10 @@ class Request:
 
     @property
     def key(self) -> str:
+        code = normalize_security_id(self.code)
         if self.kind == "adjust":
-            return f"adjust_{self.code}_{self.start}_{self.end}"
-        return f"dividend_{self.code}_{self.year}"
+            return f"adjust_{code}_{self.start}_{self.end}"
+        return f"dividend_{code}_{self.year}"
 
 
 def _bs_code(code: str) -> str:
@@ -91,6 +91,39 @@ def _canonical(value) -> bytes:
 
 def _sha256(value) -> str:
     return hashlib.sha256(_canonical(value)).hexdigest()
+
+
+def _calendar_coverage(ranges):
+    parsed = []
+    if not isinstance(ranges, list):
+        raise ValueError("calendar coverage must be a list")
+    for item in ranges:
+        if not isinstance(item, Mapping) or set(item) != {"start", "end"}:
+            raise ValueError("calendar coverage range is malformed")
+        start, end = date.fromisoformat(item["start"]), date.fromisoformat(item["end"])
+        if start.isoformat() != item["start"] or end.isoformat() != item["end"] or start > end:
+            raise ValueError("calendar coverage range is invalid")
+        parsed.append((start, end))
+    merged = []
+    for start, end in sorted(parsed):
+        if merged and start <= merged[-1][1] + timedelta(days=1):
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return [{"start": start.isoformat(), "end": end.isoformat()} for start, end in merged]
+
+
+def _calendar_payload(value):
+    if not isinstance(value, Mapping) or set(value) != {"sessions", "coverage"}:
+        raise ValueError("calendar must contain sessions and coverage")
+    sessions = value["sessions"]
+    if not isinstance(sessions, list):
+        raise ValueError("calendar sessions must be a list")
+    days = [date.fromisoformat(str(day)) for day in sessions]
+    if any(day.isoformat() != raw for day, raw in zip(days, sessions)):
+        raise ValueError("calendar session is invalid")
+    return {"sessions": sorted({day.isoformat() for day in days}),
+            "coverage": _calendar_coverage(value["coverage"])}
 
 
 @contextmanager
@@ -159,32 +192,140 @@ def fetch_one(request: Request, bs, timeout: int = DEFAULT_TIMEOUT) -> dict:
 
 def fetch_and_cache(request: Request, bs, data, timeout: int = DEFAULT_TIMEOUT):
     payload = fetch_one(request, bs, timeout)
-    return data.write("sources", "research_cache", f"{request.key}.json",
-                      (json.dumps(payload, ensure_ascii=False, indent=2) + "\n").encode())
+    facts = normalize_facts(payload)
+    validate_facts(facts, kind=facts["kind"], code=facts["code"],
+                   start=facts["start"], end=facts["end"], year=facts["year"])
+    data.write("state", "collect", f"{uuid4().hex}.json",
+               (json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n").encode())
+    return data.write("sources", "facts", f"{request.key}.json",
+                      (json.dumps(facts, ensure_ascii=False, indent=2) + "\n").encode())
+
+
+def _fact_date(value):
+    if value in (None, ""):
+        return None
+    if not isinstance(value, str):
+        raise CacheIntegrityError("provider date is not text")
+    try:
+        return date.fromisoformat(value).isoformat()
+    except ValueError as error:
+        raise CacheIntegrityError("provider date is invalid") from error
+
+
+def _fact_number(value, *, positive=False):
+    if value in (None, ""):
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise CacheIntegrityError("provider number is invalid") from error
+    if not math.isfinite(number) or (positive and number <= 0):
+        raise CacheIntegrityError("provider number is invalid")
+    return number
+
+
+def normalize_facts(payload: dict) -> dict:
+    """Validate a provider envelope and convert its rows to standard facts."""
+    if not isinstance(payload, dict):
+        raise CacheIntegrityError("provider payload is not an object")
+    if payload.get("schema") == 1:
+        request = payload.get("request")
+        prefix, suffix = "query_stock_basic(", ")"
+        if not isinstance(request, str) or not request.startswith(prefix) or not request.endswith(suffix):
+            raise CacheIntegrityError("stock-basic request mismatch")
+        try:
+            code = _bs_code(request[len(prefix):-1])
+        except ValueError as error:
+            raise CacheIntegrityError("stock-basic code is invalid") from error
+        if code != request[len(prefix):-1]:
+            raise CacheIntegrityError("stock-basic code is not canonical")
+        raw = payload.get("raw_response")
+        if not isinstance(raw, dict) or payload.get("raw_response_sha256") != _sha256(raw):
+            raise CacheIntegrityError("stock-basic raw response hash mismatch")
+        if raw.get("error_code") != "0":
+            raise CacheIntegrityError("stock-basic response contains an error")
+        fields, rows = raw.get("fields"), raw.get("rows")
+        required = ("code", "ipoDate", "outDate", "type", "status")
+        if (not isinstance(fields, list) or not all(isinstance(field, str) for field in fields) or
+                len(fields) != len(set(fields)) or
+                not isinstance(rows, list) or set(required) - set(fields) or len(rows) != 1):
+            raise CacheIntegrityError("stock-basic fields or rows are malformed")
+        positions = {name: fields.index(name) for name in required}
+        row = rows[0]
+        if not isinstance(row, list) or len(row) != len(fields) or row[positions["code"]] != code:
+            raise CacheIntegrityError("stock-basic row identity or length mismatch")
+        if not all(isinstance(row[positions[name]], str) for name in ("type", "status")):
+            raise CacheIntegrityError("stock-basic type or status is invalid")
+        record = {"listing_date": _fact_date(row[positions["ipoDate"]]),
+                  "delisting_date": _fact_date(row[positions["outDate"]]),
+                  "type": row[positions["type"]], "status": row[positions["status"]]}
+        return {"schema": 1, "kind": "security", "code": code, "start": None, "end": None,
+                "year": None, "source_hash": payload["raw_response_sha256"], "records": [record]}
+    kind = payload.get("request", {}).get("kind") if isinstance(payload.get("request"), dict) else None
+    request = payload.get("request")
+    if payload.get("schema") != 2 or kind not in {"adjust", "dividend"}:
+        raise CacheIntegrityError("unsupported provider payload")
+    try:
+        code = _bs_code(request.get("code", ""))
+    except (AttributeError, TypeError, ValueError) as error:
+        raise CacheIntegrityError("provider request code is invalid") from error
+    expected = {"kind": kind, "code": code,
+                "start": request.get("start"), "end": request.get("end"),
+                "year": request.get("year")}
+    if request != expected or payload.get("request_sha256") != _sha256(expected):
+        raise CacheIntegrityError("provider request mismatch")
+    raw = payload.get("raw_response")
+    if not isinstance(raw, dict) or payload.get("raw_response_sha256") != _sha256(raw):
+        raise CacheIntegrityError("provider raw response hash mismatch")
+    if str(raw.get("error_code")) != "0":
+        raise CacheIntegrityError("provider response contains an error")
+    fields, rows = raw.get("fields"), raw.get("rows")
+    if (not isinstance(fields, list) or not all(isinstance(field, str) for field in fields) or
+            len(fields) != len(set(fields)) or
+            not isinstance(rows, list) or "code" not in fields):
+        raise CacheIntegrityError("provider fields or rows are malformed")
+    if raw.get("code") != expected["code"]:
+        raise CacheIntegrityError("provider response code mismatch")
+    if payload.get("request_fields_sha256") != hashlib.sha256(",".join(fields).encode()).hexdigest():
+        raise CacheIntegrityError("provider field hash mismatch")
+    if payload.get("status") not in {"ok", "empty"} or (payload["status"] == "empty") != (not rows):
+        raise CacheIntegrityError("provider status mismatch")
+    names = ("dividOperateDate", "foreAdjustFactor", "backAdjustFactor") if kind == "adjust" else (
+        "dividPlanAnnounceDate", "dividRegistDate", "dividOperateDate", "dividPayDate",
+        "dividStockMarketDate", "dividCashPsBeforeTax", "dividStocksPs",
+        "dividReserveToStockPs", "dividCashPsAfterTax")
+    if set(names) - set(fields):
+        raise CacheIntegrityError("provider fields are missing required facts")
+    positions = {name: fields.index(name) for name in ["code", *names]}
+    records = []
+    for row in rows:
+        if not isinstance(row, list) or len(row) != len(fields) or row[positions["code"]] != expected["code"]:
+            raise CacheIntegrityError("provider row identity or length mismatch")
+        if kind == "adjust":
+            records.append({"date": _fact_date(row[positions["dividOperateDate"]]),
+                            "forward": _fact_number(row[positions["foreAdjustFactor"]], positive=True),
+                            "backward": _fact_number(row[positions["backAdjustFactor"]], positive=True)})
+        else:
+            records.append({"announce_date": _fact_date(row[positions["dividPlanAnnounceDate"]]),
+                            "registration_date": _fact_date(row[positions["dividRegistDate"]]),
+                            "operation_date": _fact_date(row[positions["dividOperateDate"]]),
+                            "payment_date": _fact_date(row[positions["dividPayDate"]]),
+                            "stock_market_date": _fact_date(row[positions["dividStockMarketDate"]]),
+                            "cash_per_share": _fact_number(row[positions["dividCashPsBeforeTax"]]),
+                            "stock_dividend_per_share": _fact_number(row[positions["dividStocksPs"]]),
+                            "reserve_to_stock_per_share": _fact_number(row[positions["dividReserveToStockPs"]]),
+                            "cash_after_tax_text": row[positions["dividCashPsAfterTax"]]})
+    return {"schema": 1, "kind": kind, "code": expected["code"], "start": expected["start"],
+            "end": expected["end"], "year": expected["year"],
+            "source_hash": payload["raw_response_sha256"], "records": records}
 
 
 def _validate_cache(request: Request, payload: dict) -> None:
-    if payload.get("schema") != 2:
-        raise CacheIntegrityError("unsupported or missing cache schema")
-    expected = {"kind": request.kind, "code": _bs_code(request.code), "start": request.start,
-                "end": request.end, "year": request.year}
-    if payload.get("request") != expected or payload.get("request_sha256") != _sha256(expected):
-        raise CacheIntegrityError("cached request mismatch")
-    raw = payload.get("raw_response")
-    if not isinstance(raw, dict) or payload.get("raw_response_sha256") != _sha256(raw):
-        raise CacheIntegrityError("cached raw response hash mismatch")
-    fields, rows = raw.get("fields"), raw.get("rows")
-    if not isinstance(fields, list) or not isinstance(rows, list) or "code" not in fields:
-        raise CacheIntegrityError("cached fields/rows are malformed")
-    if str(raw.get("error_code")) != "0":
-        raise CacheIntegrityError("cached raw response has provider error")
-    index = fields.index("code")
-    if any(not isinstance(row, list) or len(row) != len(fields) or row[index] != expected["code"] for row in rows):
-        raise CacheIntegrityError("cached row identity or length mismatch")
-    if payload.get("request_fields_sha256") != hashlib.sha256(",".join(fields).encode()).hexdigest():
-        raise CacheIntegrityError("cached field hash mismatch")
-    if payload.get("status") not in {"ok", "empty"} or (payload["status"] == "empty") != (not rows):
-        raise CacheIntegrityError("cached status is invalid")
+    try:
+        validate_facts(payload, kind=request.kind, code=normalize_security_id(request.code),
+                       start=request.start, end=request.end, year=request.year)
+    except (ValueError, TypeError) as error:
+        raise CacheIntegrityError(str(error)) from error
 
 
 def pending_requests(requests: list[Request], data) -> list[Request]:
@@ -192,7 +333,7 @@ def pending_requests(requests: list[Request], data) -> list[Request]:
     pending = []
     for request in requests:
         try:
-            payload = json.loads(data.read("sources", "research_cache", f"{request.key}.json"))
+            payload = json.loads(data.read("sources", "facts", f"{request.key}.json"))
         except DataError as error:
             if error.code == "missing":
                 pending.append(request)
@@ -207,76 +348,6 @@ def pending_requests(requests: list[Request], data) -> list[Request]:
 def limit_pending(requests: list[Request], data, max_tasks: int) -> list[Request]:
     pending = pending_requests(requests, data)
     return pending[:max_tasks] if max_tasks else pending
-
-
-def _years(value: str) -> list[str]:
-    if ":" in value:
-        start, end = value.split(":", 1)
-        if not (start.isdigit() and end.isdigit()) or int(start) > int(end):
-            raise ValueError("year range must be START:END")
-        return [str(year) for year in range(int(start), int(end) + 1)]
-    if not value.isdigit():
-        raise ValueError("year must be YYYY or YYYY:YYYY")
-    return [value]
-
-
-def build_requests(args) -> list[Request]:
-    codes = [item.strip() for item in (args.codes or "").split(",") if item.strip()]
-    unique = []
-    seen = set()
-    for code in codes:
-        _bs_code(code)
-        if code not in seen:
-            seen.add(code)
-            unique.append(code)
-    if not unique:
-        raise ValueError("--codes is required")
-    if args.kind == "adjust":
-        if not args.start or not args.end:
-            raise ValueError("adjust requires --start and --end")
-        return [Request("adjust", code, args.start, args.end, None) for code in unique]
-    if not args.year:
-        raise ValueError("dividend requires --year")
-    return [Request("dividend", code, None, None, year)
-            for code in unique for year in _years(args.year)]
-
-
-def main(argv=None, *, data=None) -> int:
-    parser = argparse.ArgumentParser(description="standard provider evidence collection")
-    parser.add_argument("kind", choices=("adjust", "dividend"))
-    parser.add_argument("--codes")
-    parser.add_argument("--start")
-    parser.add_argument("--end")
-    parser.add_argument("--year")
-    parser.add_argument("--max-tasks", type=int, default=0)
-    parser.add_argument("--timeout", type=int, default=DEFAULT_TIMEOUT)
-    parser.add_argument("--force", action="store_true")
-    args = parser.parse_args(argv)
-    if data is None:
-        from protocal import build_data
-        data = build_data(Path(__file__).resolve().parents[2])
-    requests = build_requests(args)
-    if not args.force:
-        requests = limit_pending(requests, data, args.max_tasks)
-    elif args.max_tasks:
-        requests = requests[:args.max_tasks]
-    if not requests:
-        return 0
-    import baostock as bs
-    failed = 0
-    try:
-        login_with_timeout(bs, args.timeout)
-        for request in requests:
-            fetch_and_cache(request, bs, data, args.timeout)
-    except Exception:
-        failed = 1
-    finally:
-        try:
-            with _timeout(args.timeout):
-                bs.logout()
-        except Exception:
-            failed = 1
-    return 1 if failed else 0
 
 
 def login_with_timeout(bs, timeout: int):
@@ -634,7 +705,7 @@ class Methods:
         result["source_id"] = source["id"]
         result['request'] = {key: deepcopy(value) for key, value in frozen_request.items()
                              if key != 'completed_dates'}
-        for name in ("data_type", "storage_id", "dataset_id", "calendar"):
+        for name in ("data_type", "storage_id", "dataset_id"):
             if name in source and name not in result:
                 result[name] = deepcopy(source[name])
         for name in ("frequency", "price_basis", "adjustment", "fields"):
@@ -643,21 +714,20 @@ class Methods:
         if source.get('method') == 'daily' or result.get("data_type") == "daily":
             packet_calendar = result.get("calendar")
             stored_name = source.get("calendar")
-            if not isinstance(stored_name, str) and isinstance(packet_calendar, str):
-                stored_name = packet_calendar
-            stored = []
+            stored = None
             if isinstance(stored_name, str):
                 calendar_dataset = result.get("dataset_id") or source.get("dataset_id")
                 payload = json.loads(self.data.read("sources", calendar_dataset, stored_name))
-                stored = payload.get("sessions") if isinstance(payload, Mapping) else None
-                if not isinstance(stored, list) or not stored:
-                    raise ValueError("daily source calendar must contain sessions")
-            actual = packet_calendar if isinstance(packet_calendar, list) else []
-            sessions = sorted({str(value) for value in [*stored, *actual]})
-            if not sessions and (stored_name is not None or packet_calendar is not None):
-                raise ValueError("daily source calendar must contain sessions")
-            if sessions:
-                result["calendar"] = sessions
+                stored = _calendar_payload(payload)
+            elif stored_name is not None:
+                raise ValueError("daily source calendar must name a calendar file")
+            actual = _calendar_payload(packet_calendar) if packet_calendar is not None else None
+            if stored is not None or actual is not None:
+                sources = [item for item in (stored, actual) if item is not None]
+                result["calendar"] = {
+                    "sessions": sorted({day for item in sources for day in item["sessions"]}),
+                    "coverage": _calendar_coverage([span for item in sources for span in item["coverage"]]),
+                }
         return result
 
     def coverage(self, source: Mapping, request: Mapping):
@@ -907,9 +977,15 @@ class Methods:
             raise DataError("invalid_identity", "invalid daily source or dataset identity")
         self._validate_canonical_daily(packet)
         rows = packet.get("records") if isinstance(packet, Mapping) else None
-        sessions = packet.get("calendar") if isinstance(packet, Mapping) else None
-        if not isinstance(rows, list) or not rows or not isinstance(sessions, list):
+        calendar = packet.get("calendar") if isinstance(packet, Mapping) else None
+        if not isinstance(rows, list) or not rows or not isinstance(calendar, Mapping):
             raise DataError("invalid_packet", "daily rows and calendar are required")
+        try:
+            calendar = _calendar_payload(calendar)
+        except (TypeError, ValueError) as error:
+            raise DataError("invalid_packet", str(error)) from error
+        if not calendar["sessions"]:
+            raise DataError("invalid_packet", "daily calendar has no sessions")
         from datetime import date as _date
         incoming, years = {}, set()
         for row in rows:
@@ -934,19 +1010,16 @@ class Methods:
             value = {name: item for name, item in row.items() if name != "raw_page"}
             incoming[key] = self._merge_daily_row(incoming[key], value, key) if key in incoming else value
             years.add(str(day.year))
-        try:
-            sessions = sorted({_date.fromisoformat(str(value)) for value in sessions})
-        except (TypeError, ValueError) as error:
-            raise DataError("invalid_packet", "daily calendar is invalid") from error
-        if not sessions:
-            raise DataError("invalid_packet", "daily calendar is empty")
         import pyarrow as pa
         import pyarrow.parquet as pq
         with self.data.transaction('sources'):
             manifest = self.data.manifest(dataset_id)
             current_calendar = json.loads(self.data.read( "sources", dataset_id, manifest["calendar"]))
-            known_sessions = set(current_calendar.get("sessions", []))
-            known_sessions.update(day.isoformat() for day in sessions)
+            current_calendar = _calendar_payload(current_calendar)
+            known_sessions = set(current_calendar["sessions"])
+            known_sessions.update(calendar["sessions"])
+            known_coverage = _calendar_coverage([
+                *current_calendar["coverage"], *calendar["coverage"]])
             merged_by_year, payloads = {}, {}
             for year in sorted(years):
                 name = f"daily/{year}.parquet"
@@ -971,9 +1044,8 @@ class Methods:
                     key=lambda item: (str(item["code"]), str(item["date"]))), old_schema)
             calendar_name = manifest["calendar"]
             calendar_payload = json.dumps(
-                {"sessions": sorted(known_sessions), "source_file": current_calendar.get("source_file")},
+                {"sessions": sorted(known_sessions), "coverage": known_coverage},
                 ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-            calendar_days = sorted(_date.fromisoformat(str(value)) for value in known_sessions)
             for year, (name, values, old_schema) in merged_by_year.items():
                 fields = list(old_schema.names) if old_schema is not None else []
                 for row in values:
@@ -1019,8 +1091,12 @@ class Methods:
             scope = dict(updated.get("scope", {}))
             scope["symbols"] = self._merge_symbol_scope(
                 scope.get("symbols", []), [row.get("code") for row in incoming.values()])
-            scope["calendar_start"] = calendar_days[0].isoformat()
-            scope["calendar_end"] = calendar_days[-1].isoformat()
+            if known_coverage:
+                scope["calendar_start"] = known_coverage[0]["start"]
+                scope["calendar_end"] = known_coverage[-1]["end"]
+            else:
+                scope.pop("calendar_start", None)
+                scope.pop("calendar_end", None)
             updated["scope"] = scope
             manifest_payload = json.dumps(updated, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
             self.data.write("sources", dataset_id, calendar_name, calendar_payload)
@@ -1381,26 +1457,34 @@ class BaostockDaily:
             )
         fields = list(getattr(response, "fields", ()))
         required = {"calendar_date", "is_trading_day"}
-        if not required <= set(fields):
+        if len(fields) != len(set(fields)) or not required <= set(fields):
             raise ValueError("trade calendar fields are incomplete")
         rows = []
         while response.next():
             rows.append(list(response.get_row_data()))
         if any(len(row) != len(fields) for row in rows):
             raise ProviderError("trade calendar row length differs from fields")
-        dates = []
+        dates, all_days = [], []
         for row in rows:
             item = dict(zip(fields, row))
-            if str(item["is_trading_day"]) != "1":
-                continue
             try:
-                day = date.fromisoformat(str(item["calendar_date"]))
+                raw_day = item["calendar_date"]
+                day = date.fromisoformat(str(raw_day))
             except (TypeError, ValueError) as error:
                 raise ValueError("trade calendar date is invalid") from error
-            if not start_day <= day <= end_day:
+            if day.isoformat() != raw_day or not start_day <= day <= end_day:
                 raise ValueError("trade calendar response is outside request")
-            dates.append(day)
-        dates = sorted(set(dates))
+            flag = str(item["is_trading_day"])
+            if flag not in {"0", "1"} or day in all_days:
+                raise ValueError("trade calendar response has invalid or duplicate dates")
+            all_days.append(day)
+            if flag == "1":
+                dates.append(day)
+        expected = [start_day + timedelta(days=offset)
+                    for offset in range((end_day - start_day).days + 1)]
+        if sorted(all_days) != expected:
+            raise ValueError("trade calendar response does not cover the full request")
+        dates.sort()
         return dates, {"provider": "baostock", "request": {
             "start_date": start, "end_date": end,
         }, "response": {"fields": fields, "rows": rows,
@@ -1414,18 +1498,13 @@ class BaostockDaily:
             raise RuntimeError(f"login {login.error_code}: {login.error_msg}")
         records, raw = [], []
         try:
-            calendar_sessions = []
+            calendar = {"sessions": [], "coverage": []}
             if frequency == "d":
                 calendar_end = request.get("calendar_end") or (date.fromisoformat(request['end']) + timedelta(days=31)).isoformat()
-                requested_end = date.fromisoformat(request["end"])
                 all_sessions, calendar_raw = self.trade_calendar(
                     bs, request["start"], calendar_end)
-                following = [day for day in all_sessions if day > requested_end]
-                if not following:
-                    raise ValueError("trade calendar has no following session")
-                calendar_sessions = [day.isoformat() for day in all_sessions
-                                     if day <= requested_end]
-                calendar_sessions.append(following[0].isoformat())
+                calendar = {"sessions": [day.isoformat() for day in all_sessions],
+                            "coverage": [{"start": request["start"], "end": calendar_end}]}
                 raw.append(calendar_raw)
             for code in codes:
                 if code.split('.')[0] == 'bj':
@@ -1489,7 +1568,7 @@ class BaostockDaily:
                 "data_as_of": max((row["date"] for row in records), default=None),
                 "frequency": frequency, "adjustment": adjustment,
                 "fields": list(names),
-                "calendar": calendar_sessions,
+                "calendar": calendar,
                 "scope": {"codes": codes, "start": request["start"], "end": request["end"],
                           "frequency": request.get("frequency", "d"),
                           "adjustment": request.get("adjustment", "3")}}
@@ -2075,8 +2154,13 @@ def read_stock_basic(payload: dict) -> dict:
 
 def write_stock_basic(data, payload: dict):
     read_stock_basic(payload)
-    value = (json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
-    return data.write("sources", "stock_basic", f"{_sha256(payload)}.json", value)
+    facts = normalize_facts(payload)
+    validate_facts(facts, kind=facts["kind"], code=facts["code"],
+                   start=facts["start"], end=facts["end"], year=facts["year"])
+    data.write("state", "collect", f"{uuid4().hex}.json",
+               (json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n").encode())
+    value = (json.dumps(facts, ensure_ascii=False, sort_keys=True, indent=2) + "\n").encode()
+    return data.write("sources", "facts", f"stock_basic_{facts['code']}.json", value)
 
 
 def _bytes(value):

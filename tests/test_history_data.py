@@ -1,3 +1,4 @@
+from protocal import normalize_security_id
 from datetime import date
 from decimal import Decimal
 import json
@@ -216,7 +217,7 @@ class HistoricalDataTests(unittest.TestCase):
             registry = json.loads(registry_path.read_text())
             registry["markets"][0]["members"] = None
             registry_path.write_text(json.dumps(registry))
-            bad = root / "data/source/fixture/factors/adjust_600004_1990-01-01_2020-02-05.json"
+            bad = root / "data/source/fixture/factors/adjust_sh.600004_1990-01-01_2020-02-05.json"
             bad.write_text("broken unrelated factor")
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("open", "high", "low", "close", "volume", "amount"), 20,
@@ -254,8 +255,22 @@ class HistoricalDataTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             make_snapshot(root, symbols=("600003", "600004"))
-            unrelated = root / "data/source/fixture/factors/adjust_600004_1990-01-01_2020-02-05.json"
+            unrelated = root / "data/source/fixture/factors/adjust_sh.600004_1990-01-01_2020-02-05.json"
             unrelated.write_text("not a factor cache")
+
+            dataset = query(root, symbols=("600003",), history=3)
+
+            self.assertEqual(dataset.scope["symbols"], ("600003",))
+            self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
+
+    def test_query_does_not_require_supplier_raw_files(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=("600003",))
+            raw = root / "data/source/fixture/provider/adjust_sh.600003.json"
+            raw.parent.mkdir()
+            raw.write_text('{"provider":"raw"}')
+            raw.unlink()
 
             dataset = query(root, symbols=("600003",), history=3)
 
@@ -270,26 +285,26 @@ class HistoricalDataTests(unittest.TestCase):
             self.assertEqual(dataset.records[-1].trade_date, date(2020, 1, 31))
             self.assertEqual(dataset.calendar[-1], date(2020, 2, 3))
 
-    def test_calendar_source_must_cover_selected_warmup_and_sentinel(self):
+    def test_calendar_coverage_must_cover_selected_warmup_and_sentinel(self):
         for bound, value in (("start", "2020-01-30"), ("end", "2020-02-04")):
             with self.subTest(bound=bound), TemporaryDirectory() as temp:
                 root = Path(temp)
                 make_snapshot(root, symbols=("600003",))
-                source = root / "data/source/fixture/calendar_source.json"
-                payload = json.loads(source.read_text())
-                payload["request"][bound] = value
-                source.write_text(json.dumps(payload))
-                with self.assertRaisesRegex(DataError, "calendar source coverage"):
+                path = root / "data/source/fixture/calendar.json"
+                payload = json.loads(path.read_text())
+                payload["coverage"][0][bound] = value
+                path.write_text(json.dumps(payload))
+                with self.assertRaisesRegex(DataError, "calendar coverage"):
                     query(root, history=3)
 
-    def test_calendar_source_can_start_after_unused_calendar_history(self):
+    def test_calendar_coverage_can_start_after_unused_calendar_history(self):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             make_snapshot(root, symbols=("600003",))
-            source = root / "data/source/fixture/calendar_source.json"
-            value = json.loads(source.read_text())
-            value["request"]["start"] = "2019-12-01"
-            source.write_text(json.dumps(value))
+            path = root / "data/source/fixture/calendar.json"
+            value = json.loads(path.read_text())
+            value["coverage"][0]["start"] = "2019-12-01"
+            path.write_text(json.dumps(value))
             dataset = query(root, history=3)
             self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
 
@@ -321,14 +336,13 @@ class HistoricalDataTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             make_snapshot(root, symbols=("600003",))
-            path = root / "data/source/fixture/corp/dividend_600003_2020.json"
+            path = root / "data/source/fixture/corp/dividend_sh.600003_2020.json"
             value = json.loads(path.read_text())
-            value["raw_response"]["rows"] = [[
-                "sh.600003", "2020-01-20", "2020-01-31", "2020-01-30",
-                "2020-02-04", "", "0.25", "0", "0",
-            ]]
-            value["raw_response_sha256"] = canonical_hash(value["raw_response"])
-            value["status"] = "ok"
+            value["records"] = [{"announce_date":"2020-01-20", "registration_date":"2020-01-30",
+                "operation_date":"2020-01-31", "payment_date":"2020-02-04",
+                "stock_market_date":None, "cash_per_share":0.25, "stock_dividend_per_share":0,
+                "reserve_to_stock_per_share":0, "cash_after_tax_text":None}]
+            value["source_hash"] = canonical_hash(value["records"])
             path.write_text(json.dumps(value))
 
             dataset = query(root, history=3)
@@ -343,14 +357,13 @@ class HistoricalDataTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             make_snapshot(root, symbols=("600003",))
-            path = root / "data/source/fixture/corp/dividend_600003_2020.json"
+            path = root / "data/source/fixture/corp/dividend_sh.600003_2020.json"
             value = json.loads(path.read_text())
-            value["raw_response"]["rows"] = [[
-                "sh.600003", "2020-01-20", "2020-01-31", "2020-01-30",
-                "2020-02-04", "", "0.25", "0", "0",
-            ]]
-            value["raw_response_sha256"] = canonical_hash(value["raw_response"])
-            value["status"] = "ok"
+            value["records"] = [{"announce_date":"2020-01-20", "registration_date":"2020-01-30",
+                "operation_date":"2020-01-31", "payment_date":"2020-02-04",
+                "stock_market_date":None, "cash_per_share":0.25, "stock_dividend_per_share":0,
+                "reserve_to_stock_per_share":0, "cash_after_tax_text":None}]
+            value["source_hash"] = canonical_hash(value["records"])
             path.write_text(json.dumps(value))
             dataset = query(root, symbols=("sh.600003",), history=3)
             actions = [action for record in dataset.records for action in record.registrations]
@@ -363,27 +376,26 @@ class HistoricalDataTests(unittest.TestCase):
         with TemporaryDirectory() as temp:
             root = Path(temp)
             make_snapshot(root, symbols=("600003",))
-            path = root / "data/source/fixture/corp/dividend_600003_2020.json"
+            path = root / "data/source/fixture/corp/dividend_sh.600003_2020.json"
             value = json.loads(path.read_text())
-            value["raw_response"]["rows"] = [[
-                "sh.600003", "2020-01-20", "2020-01-31", "2020-01-30",
-                "2020-02-04", "2020-02-03", "0", "0.1", "0",
-            ]]
-            value["raw_response_sha256"] = canonical_hash(value["raw_response"])
-            value["status"] = "ok"
+            value["records"] = [{"announce_date":"2020-01-20", "registration_date":"2020-01-30",
+                "operation_date":"2020-01-31", "payment_date":"2020-02-04",
+                "stock_market_date":"2020-02-03", "cash_per_share":0, "stock_dividend_per_share":0.1,
+                "reserve_to_stock_per_share":0, "cash_after_tax_text":None}]
+            value["source_hash"] = canonical_hash(value["records"])
             path.write_text(json.dumps(value))
             policy_path = root / "data/source/fixture/account_policy.json"
             policy = json.loads(policy_path.read_text())
             policy["tax"]["bonus_holding_period"] = "originating_lot"
             policy["tax"]["bonus_tax_allocation"] = "proportional_entitlement"
             policy_path.write_text(json.dumps(policy))
-            name = "corp/dividend_600003_2020.json"
-            update_manifest(root, inputs={"calendar": {"sessions": "calendar.json", "source": "calendar_source.json"},
+            name = "corp/dividend_sh.600003_2020.json"
+            update_manifest(root, inputs={"calendar": "calendar.json",
                 "bars": "daily", "code_changes": "code_changes.json",
-                "factor_cache": {"template": "factors/adjust_{symbol}_{start}_{end}.json",
+                "adjustments": {"template": "factors/adjust_{symbol}_{start}_{end}.json",
                                  "start": "1990-01-01", "end": "2020-02-05"},
-                "corporate_action_cache": {"template": "corp/dividend_{symbol}_{year}.json"},
-                "stock_basic_cache": {"template": "basic/stock_basic_{provider_code}.json"},
+                "distributions": {"template": "corp/dividend_{symbol}_{year}.json"},
+                "securities": {"template": "basic/stock_basic_{symbol}.json"},
                 "account_policy": "account_policy.json", "action_facts": [{
                     "source_file": name, "source_row": 0, "credit_date": "2020-02-03",
                     "stock_nominal_per_share": "1", "reserve_taxable_per_share": "0",

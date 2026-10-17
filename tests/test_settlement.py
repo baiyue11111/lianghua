@@ -166,10 +166,10 @@ class DataPluginSettlementTests(unittest.TestCase):
     def test_settlement_matches_runner_for_nonempty_dividend_and_share_tax_trace(self):
         case = SettlementFixture()
         records = list(case.inputs(exit_market=False))
-        event = normalize_dividend_records([{
-            "code": "000001", "dividRegistDate": "2020-02-03", "dividOperateDate": "2020-02-04",
-            "dividPayDate": "2020-02-05", "dividStockMarketDate": "2020-02-06",
-            "dividCashPsBeforeTax": "0.3", "dividStocksPs": "0.1",
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0,
+            "code": "000001", "registration_date": "2020-02-03", "operation_date": "2020-02-04",
+            "payment_date": "2020-02-05", "stock_market_date": "2020-02-06",
+            "cash_per_share": "0.3", "stock_dividend_per_share": "0.1",
         }])[0]
         action = RegistrationAction(
             "plan", event, "a" * 64, date(2020, 2, 5), D(1), D(0), "b" * 64

@@ -42,11 +42,6 @@ PROTOCOL_VERSION = 1
 PROBLEM_SCHEMA = "urn:lianghua:ui:problem:v1"
 EXECUTION_FIELDS = ("open", "high", "low", "close", "volume", "amount")
 LIQUIDITY_WINDOW = 20
-_FACTOR_FIELDS = frozenset({
-    "code", "dividOperateDate", "foreAdjustFactor", "backAdjustFactor", "adjustFactor",
-})
-
-
 def required_fields(fields) -> tuple[str, ...]:
     """Keep settlement prices and strategy fields in one ordered request."""
     return tuple(dict.fromkeys((*EXECUTION_FIELDS, *tuple(fields))))
@@ -535,9 +530,36 @@ class DataBus:
     def _sql_name(name: str) -> str:
         return '"' + name.replace('"', '""') + '"'
 
+    def _market_storage_ids(self) -> tuple[str, ...]:
+        try:
+            registry = json.loads(self._call("read", "sources", "registry", "sources.json"))
+        except (DataError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError) as error:
+            raise DataError("invalid_registry", "market storage is not registered") from error
+        markets = registry.get("markets") if isinstance(registry, Mapping) else None
+        datasets = registry.get("datasets") if isinstance(registry, Mapping) else None
+        if not isinstance(markets, list) or not isinstance(datasets, list):
+            raise DataError("invalid_registry", "market storage is not registered")
+        descriptors = {row.get("id"): row for row in datasets
+                       if isinstance(row, Mapping) and isinstance(row.get("id"), str)}
+        market_ids = {row.get("dataset_id") for row in markets
+                      if isinstance(row, Mapping) and isinstance(row.get("dataset_id"), str)}
+        if not market_ids:
+            raise DataError("invalid_registry", "market storage is not registered")
+        storage_ids = set()
+        for dataset_id in market_ids:
+            descriptor = descriptors.get(dataset_id)
+            if descriptor is None:
+                raise DataError("invalid_registry", "market dataset is not registered")
+            storage_id = descriptor.get("storage_id", dataset_id)
+            if not isinstance(storage_id, str) or not storage_id or Path(storage_id).name != storage_id:
+                raise DataError("invalid_registry", "market storage identity is invalid")
+            storage_ids.add(storage_id)
+        return tuple(sorted(storage_ids))
+
     def _lake_files(self, suffix: str) -> list[tuple[str, Path]]:
-        return [(ref.name, self._store.path("sources", "lake", ref.name))
-                for ref in self._store.list("sources", "lake")
+        return [(f"{identity}/{ref.name}", self._store.path("sources", identity, ref.name))
+                for identity in self._market_storage_ids()
+                for ref in self._store.list("sources", identity)
                 if ref.name.endswith(suffix) and ref.name.endswith(".parquet")]
 
     def _lake_query(self, files: list[tuple[str, Path]], sql: str):
@@ -731,7 +753,8 @@ class DataBus:
                 "valuation": self._lake_files("valuation_factors.parquet"),
                 "fundamentals": self._lake_files("fundamentals.parquet"),
             }
-            lake_refs = self._store.list("sources", "lake")
+            lake_refs = [(f"{identity}/{ref.name}", ref) for identity in self._market_storage_ids()
+                         for ref in self._store.list("sources", identity)]
             facts = {name: self._lake_table_facts(files, date_field="quarter")
                      for name, files in tables.items()}
             for name, files in tables.items():
@@ -749,26 +772,29 @@ class DataBus:
                             facts[name]["delisted_or_unknown"] = int(row[1] or 0)
                         finally:
                             connection.close()
-            cache_root = self._store.path("sources", "research_cache_verified", "_").parent
-            cache_names = sorted(path.name for path in cache_root.glob("*.json"))
-            sample_names = (cache_names[:8] + cache_names[-8:]
-                            if len(cache_names) > 16 else cache_names)
-            cache_valid = cache_invalid = 0
+            fact_names = sorted(ref.name for ref in self._store.list("sources", "facts")
+                                if ref.name.startswith(("adjust_", "dividend_", "stock_basic_")) and ref.name.endswith(".json"))
+            sample_names = (fact_names[:8] + fact_names[-8:]
+                            if len(fact_names) > 16 else fact_names)
+            fact_valid = fact_invalid = 0
             for name in sample_names:
                 try:
-                    value = json.loads(self._store.read("sources", "research_cache_verified", name))
-                    if (value.get("schema") == 2 and value.get("status") == "ok"
-                            and isinstance(value.get("raw_response"), Mapping)):
-                        cache_valid += 1
-                    else:
-                        cache_invalid += 1
+                    value = json.loads(self._store.read("sources", "facts", name))
+                    kind = value.get("kind") if isinstance(value, Mapping) else None
+                    code = value.get("code") if isinstance(value, Mapping) else None
+                    if kind not in {"adjust", "dividend", "security"} or not isinstance(code, str):
+                        raise ValueError("standard fact kind or code is invalid")
+                    start, end, year = (value.get("start"), value.get("end"), value.get("year"))
+                    validate_facts(value, kind=kind, code=code,
+                                    start=start, end=end, year=year)
+                    fact_valid += 1
                 except (OSError, UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
-                    cache_invalid += 1
+                    fact_invalid += 1
             code_changes = []
             code_change_status = "unknown"
             try:
                 value = json.loads(self._store.read(
-                    "sources", "research", "security_code_changes.json"))
+                    "sources", "facts", "security_code_changes.json"))
                 events = value.get("events", []) if isinstance(value, Mapping) else []
                 code_changes = [event for event in events
                                 if isinstance(event, Mapping)
@@ -801,17 +827,17 @@ class DataBus:
                     errors.append(f"交易状态 {key} {count} 行")
             if code_change_status != "checked":
                 errors.append(f"代码变更事实{code_change_status}，未完成检查")
-            if cache_invalid:
-                errors.append(f"复权因子缓存抽样无效 {cache_invalid} 个")
-            if len(sample_names) < len(cache_names):
-                errors.append(f"复权因子缓存仅抽样检查 {len(sample_names)}/{len(cache_names)} 个")
+            if fact_invalid:
+                errors.append(f"标准事实抽样无效 {fact_invalid} 个")
+            if len(sample_names) < len(fact_names):
+                errors.append(f"标准事实仅抽样检查 {len(sample_names)}/{len(fact_names)} 个")
             return {"daily": daily, **facts, "errors": errors,
-                    "partition_sha256": {ref.name: ref.sha256 for ref in lake_refs
+                    "partition_sha256": {name: ref.sha256 for name, ref in lake_refs
                                          if ref.name.startswith("daily/") and ref.name.endswith(".parquet")},
-                    "saved_factor_files": len(cache_names),
-                    "research_cache": {"files": len(cache_names), "checked": len(sample_names),
-                                        "valid": cache_valid, "invalid": cache_invalid,
-                                        "check_scope": "sample" if len(sample_names) < len(cache_names)
+                    "saved_factor_files": sum(1 for name in fact_names if name.startswith("adjust_")),
+                    "facts": {"files": len(fact_names), "checked": len(sample_names),
+                                        "valid": fact_valid, "invalid": fact_invalid,
+                                        "check_scope": "sample" if len(sample_names) < len(fact_names)
                                         else "all"},
                     "unverified_code_changes": code_changes,
                     "code_change_status": code_change_status}
@@ -915,7 +941,7 @@ class DataBus:
                                              if facts["code_change_status"] == "checked"
                                              else [{"status": facts["code_change_status"]}]),
                 "saved_factor_files": facts["saved_factor_files"],
-                "factor_cache_check": facts["research_cache"],
+                "fact_check": facts["facts"],
                 "partition_sha256": facts["partition_sha256"], "ranking_status": "NOT_RELEASED",
                 "requirements_before_ranking": list(facts["errors"])}
 
@@ -1343,49 +1369,121 @@ class SearchResponse:
 
 
 
-def _validate_factor_cache(request, payload):
-    if not isinstance(payload, dict) or payload.get("schema") != 2:
-        raise ValueError("unsupported factor-cache schema")
-    if payload.get("request") != request:
-        raise ValueError("factor-cache request mismatch")
-    raw = payload.get("raw_response")
-    if not isinstance(raw, dict) or payload.get("raw_response_sha256") != _sha256_json(raw):
-        raise ValueError("factor-cache response hash mismatch")
-    if raw.get("error_code") != "0" or raw.get("code") != request.get("code"):
-        raise ValueError("factor-cache provider status or code mismatch")
-    fields, rows = raw.get("fields"), raw.get("rows")
-    if not isinstance(fields, list) or not isinstance(rows, list):
-        raise ValueError("factor-cache fields or rows malformed")
-    required = ({"code", "dividOperateDate", "foreAdjustFactor", "backAdjustFactor", "adjustFactor"}
-                if request.get("kind") == "adjust"
-                else {"code", "dividOperateDate", "dividRegistDate", "dividPayDate",
-                      "dividStockMarketDate", "dividCashPsBeforeTax", "dividStocksPs",
-                      "dividReserveToStockPs"})
-    if len(fields) != len(set(fields)) or not required <= set(fields):
-        raise ValueError("factor-cache fields missing or duplicated")
-    if payload.get("status") != ("ok" if rows else "empty"):
-        raise ValueError("factor-cache status and rows disagree")
-    for row in rows:
-        if not isinstance(row, list) or len(row) != len(fields):
-            raise ValueError("factor-cache row length mismatch")
-        if row[fields.index("code")] != request["code"]:
-            raise ValueError("factor-cache row code mismatch")
+def validate_facts(payload, *, kind, code, start=None, end=None, year=None):
+    """Validate and return a standard fact document for every reader."""
+    keys = {"schema", "kind", "code", "start", "end", "year", "source_hash", "records"}
+    if not isinstance(payload, dict) or set(payload) != keys or payload["schema"] != 1:
+        raise ValueError("standard fact document schema or fields are invalid")
+    expected = {"kind": kind, "code": code, "start": start, "end": end, "year": year}
+    if any(payload.get(key) != value for key, value in expected.items()):
+        raise ValueError(f"{kind} fact identity or range mismatch")
+    source_hash = payload.get("source_hash")
+    if not isinstance(source_hash, str) or not re.fullmatch(r"[0-9a-f]{64}", source_hash):
+        raise ValueError(f"{kind} fact source hash is invalid")
+    if not isinstance(payload.get("records"), list):
+        raise ValueError(f"{kind} fact records are malformed")
+    if normalize_security_id(code) != code:
+        raise ValueError("standard fact code is not canonical")
+    records = payload["records"]
+    if kind == "adjust":
+        start_date = _fact_date(start, "adjustment start")
+        end_date = _fact_date(end, "adjustment end")
+        if start_date > end_date or year is not None:
+            raise ValueError("adjustment fact range is invalid")
+        previous = None
+        for row in records:
+            if not isinstance(row, dict) or set(row) != {"date", "forward", "backward"}:
+                raise ValueError("adjustment fact fields are invalid")
+            effective = _fact_date(row["date"], "adjustment date")
+            if not start_date <= effective <= end_date or (previous is not None and effective <= previous):
+                raise ValueError("adjustment fact dates are outside range or unordered")
+            _fact_number(row["forward"], "forward factor", positive=True)
+            _fact_number(row["backward"], "backward factor", positive=True)
+            previous = effective
+    elif kind == "dividend":
+        if start is not None or end is not None or not isinstance(year, str) or not re.fullmatch(r"\d{4}", year):
+            raise ValueError("dividend fact year is invalid")
+        fields = {"announce_date", "registration_date", "operation_date", "payment_date",
+                  "stock_market_date", "cash_per_share", "stock_dividend_per_share",
+                  "reserve_to_stock_per_share", "cash_after_tax_text"}
+        for row in records:
+            if not isinstance(row, dict) or set(row) != fields:
+                raise ValueError("dividend fact fields are invalid")
+            for field in ("announce_date", "registration_date", "operation_date", "payment_date", "stock_market_date"):
+                _fact_date(row[field], f"dividend {field}", required=False)
+            for field in ("cash_per_share", "stock_dividend_per_share", "reserve_to_stock_per_share"):
+                amount = row[field]
+                if amount is None:
+                    continue
+                amount = _fact_number(amount, f"dividend {field}")
+                if amount < 0:
+                    raise ValueError(f"dividend {field} is negative")
+            if row["cash_after_tax_text"] is not None and not isinstance(row["cash_after_tax_text"], str):
+                raise ValueError("dividend cash_after_tax_text is invalid")
+    elif kind == "security":
+        if start is not None or end is not None or year is not None or len(records) != 1:
+            raise ValueError("security fact identity or record count is invalid")
+        row = records[0]
+        if not isinstance(row, dict) or set(row) != {"listing_date", "delisting_date", "type", "status"}:
+            raise ValueError("security fact fields are invalid")
+        _fact_date(row["listing_date"], "listing date", required=False)
+        _fact_date(row["delisting_date"], "delisting date", required=False)
+        if not isinstance(row["type"], str) or not isinstance(row["status"], str):
+            raise ValueError("security fact type or status is invalid")
+    else:
+        raise ValueError("unsupported standard fact kind")
+    return records, source_hash
 
-def _provider_code(code):
-    if "." in code:
-        market, number = code.lower().split(".", 1)
-        valid = (market == "sh" and number.startswith("6")) or (market == "sz" and number.startswith(("000", "001", "002", "003", "300", "301", "302")))
-        if not valid or len(number) != 6 or not number.isdigit():
-            raise ValueError(f"unsupported market code: {code}")
-        return f"{market}.{number}"
-    if len(code) != 6 or not code.isdigit():
-        raise ValueError(f"unsupported market code: {code}")
-    if code.startswith("6"):
-        return f"sh.{code}"
-    if code.startswith(("000", "001", "002", "003", "300", "301", "302")):
-        return f"sz.{code}"
-    raise ValueError(f"unsupported market code: {code}")
 
+def _fact_date(value, field, *, required=True):
+    if value is None and not required:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be an ISO date")
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError(f"{field} must be an ISO date") from error
+    if parsed.isoformat() != value:
+        raise ValueError(f"{field} must be an ISO date")
+    return parsed
+
+
+def _fact_number(value, field, *, positive=False):
+    if isinstance(value, bool) or not isinstance(value, (int, float, Decimal)):
+        raise ValueError(f"{field} must be numeric")
+    number = float(value)
+    if not math.isfinite(number) or (positive and number <= 0):
+        raise ValueError(f"{field} is invalid")
+    return number
+
+
+def _calendar_facts(payload):
+    if not isinstance(payload, dict) or not isinstance(payload.get("sessions"), list):
+        raise ValueError("calendar sessions are invalid")
+    raw_coverage = payload.get("coverage")
+    if not isinstance(raw_coverage, list) or not raw_coverage:
+        raise ValueError("calendar coverage is required")
+    sessions = tuple(_fact_date(value, "calendar session") for value in payload["sessions"])
+    if len(sessions) < 2 or tuple(sorted(set(sessions))) != sessions:
+        raise ValueError("calendar sessions must be ordered and include a following session")
+    coverage = []
+    for item in raw_coverage:
+        if not isinstance(item, dict) or set(item) != {"start", "end"}:
+            raise ValueError("calendar coverage entry is invalid")
+        start = _fact_date(item["start"], "calendar coverage start")
+        end = _fact_date(item["end"], "calendar coverage end")
+        if start > end:
+            raise ValueError("calendar coverage range is reversed")
+        coverage.append((start, end))
+    coverage = tuple(sorted(coverage))
+    if any(left[1] >= right[0] for left, right in zip(coverage, coverage[1:])):
+        raise ValueError("calendar coverage ranges overlap")
+    return sessions, coverage
+
+
+def _calendar_covers(coverage, start, end):
+    return any(left <= start and end <= right for left, right in coverage)
 
 def normalize_security_id(code: str) -> str:
     """Return the stable identity used by the standard data merge key.
@@ -1405,7 +1503,11 @@ def normalize_security_id(code: str) -> str:
         return f"{market}.{number}"
     if not re.fullmatch(r"\d{6}", value):
         raise ValueError(f"security code must be six digits or market-qualified: {code}")
-    return _provider_code(value)
+    if value.startswith("6"):
+        return f"sh.{value}"
+    if value.startswith(("000", "001", "002", "003", "300", "301", "302")):
+        return f"sz.{value}"
+    raise ValueError(f"unsupported market code: {code}")
 def _sha256_json(value: object) -> str:
     encoded = json.dumps(value, ensure_ascii=False, sort_keys=True,
                          separators=(",", ":")).encode("utf-8")
@@ -1414,16 +1516,6 @@ def _sha256_json(value: object) -> str:
 
 def _sha256_file(path: Path, read: Callable[[Path], bytes]) -> str:
     return hashlib.sha256(read(path)).hexdigest()
-
-
-def _bs_code(symbol: str) -> str:
-    if not re.fullmatch(r"\d{6}", symbol):
-        raise ValueError("lake code is not six digits")
-    if symbol.startswith("6"):
-        return f"sh.{symbol}"
-    if symbol.startswith(("000", "001", "002", "003", "300", "301", "302")):
-        return f"sz.{symbol}"
-    raise ValueError("lake code is outside BaoStock's supported A-share markets")
 
 
 def _factor_number(raw: object, field: str) -> float:
@@ -1443,45 +1535,15 @@ def _load_factor_cache(path: Path, symbol: str, start: date,
     from core.calculation import FactorEvent, SourceHash
     raw_file = read(path)
     payload = json.loads(raw_file)
-    provider_code = _bs_code(symbol)
-    request = {"kind": "adjust", "code": provider_code,
-               "start": start.isoformat(), "end": end.isoformat(), "year": None}
-    if not isinstance(payload, dict) or payload.get("schema") != 2:
-        raise ValueError("unsupported factor-cache schema")
-    if payload.get("request") != request or payload.get("request_sha256") != _sha256_json(request):
-        raise ValueError("factor-cache request or request hash mismatch")
-    raw = payload.get("raw_response")
-    if not isinstance(raw, dict) or payload.get("raw_response_sha256") != _sha256_json(raw):
-        raise ValueError("factor-cache response hash mismatch")
-    if raw.get("error_code") != "0" or raw.get("code") != provider_code:
-        raise ValueError("factor-cache provider status or code mismatch")
-    fields, rows = raw.get("fields"), raw.get("rows")
-    if not isinstance(fields, list) or not isinstance(rows, list):
-        raise ValueError("factor-cache fields or rows malformed")
-    if len(fields) != len(set(fields)) or not _FACTOR_FIELDS <= set(fields):
-        raise ValueError("factor-cache fields missing or duplicated")
-    expected_fields_hash = hashlib.sha256(",".join(fields).encode("utf-8")).hexdigest()
-    if payload.get("request_fields_sha256") != expected_fields_hash:
-        raise ValueError("factor-cache fields hash mismatch")
-    if payload.get("status") != ("ok" if rows else "empty"):
-        raise ValueError("factor-cache status and rows disagree")
-    positions = {field: fields.index(field) for field in _FACTOR_FIELDS}
+    code = normalize_security_id(symbol)
+    rows, _ = validate_facts(payload, kind="adjust", code=code,
+                              start=start.isoformat(), end=end.isoformat(), year=None)
     events = []
     last_event = None
     for row in rows:
-        if not isinstance(row, list) or len(row) != len(fields):
-            raise ValueError("factor-cache row length mismatch")
-        if row[positions["code"]] != provider_code:
-            raise ValueError("factor-cache row code mismatch")
-        try:
-            effective = date.fromisoformat(row[positions["dividOperateDate"]])
-        except (TypeError, ValueError) as exc:
-            raise ValueError("invalid factor effective date") from exc
-        if not (start <= effective <= end) or (last_event is not None and effective <= last_event):
-            raise ValueError("factor events outside coverage or not strictly ordered")
-        fore = _factor_number(row[positions["foreAdjustFactor"]], "foreAdjustFactor")
-        back = _factor_number(row[positions["backAdjustFactor"]], "backAdjustFactor")
-        _factor_number(row[positions["adjustFactor"]], "adjustFactor")
+        effective = date.fromisoformat(row["date"])
+        fore = float(row["forward"])
+        back = float(row["backward"])
         events.append(FactorEvent(symbol, effective, fore, back))
         last_event = effective
     return tuple(events), SourceHash(str(path), hashlib.sha256(raw_file).hexdigest())
@@ -1490,41 +1552,22 @@ def _load_factor_cache(path: Path, symbol: str, start: date,
 def _load_stock_basic_anchor(path: Path, symbol: str, first_bar: date,
                              read: Callable[[Path], bytes]) -> tuple[ListingAnchorEvidence, SourceHash]:
     from core.calculation import ListingAnchorEvidence, SourceHash
-    """Admit only an exact, one-code BaoStock IPO response for this first bar."""
+    """Use a normalized security fact as listing-anchor evidence."""
     file_bytes = read(path)
     payload = json.loads(file_bytes)
-    provider_code = _bs_code(symbol)
-    if not isinstance(payload, dict) or payload.get("schema") != 1:
-        raise ValueError("unsupported stock-basic schema")
-    if payload.get("request") != f"query_stock_basic({provider_code})":
-        raise ValueError("stock-basic request is not exact per-code evidence")
-    raw = payload.get("raw_response")
-    if not isinstance(raw, dict) or payload.get("raw_response_sha256") != _sha256_json(raw):
-        raise ValueError("stock-basic raw response hash mismatch")
-    if raw.get("error_code") != "0":
-        raise ValueError("stock-basic provider response failed")
-    fields, rows = raw.get("fields"), raw.get("rows")
-    required = {"code", "ipoDate", "outDate", "type", "status"}
-    if not isinstance(fields, list) or not isinstance(rows, list):
-        raise ValueError("stock-basic fields or rows malformed")
-    if len(fields) != len(set(fields)) or not required <= set(fields) or len(rows) != 1:
-        raise ValueError("stock-basic fields or per-code row count invalid")
+    code = normalize_security_id(symbol)
+    rows, source_hash = validate_facts(
+        payload, kind="security", code=code, start=None, end=None, year=None)
     row = rows[0]
-    if not isinstance(row, list) or len(row) != len(fields):
-        raise ValueError("stock-basic row length mismatch")
-    values = dict(zip(fields, row, strict=True))
-    if values["code"] != provider_code or values["type"] != "1":
-        raise ValueError("stock-basic code or security type mismatch")
-    try:
-        ipo_date = date.fromisoformat(values["ipoDate"])
-        out_date = date.fromisoformat(values["outDate"]) if values["outDate"] else None
-    except (TypeError, ValueError) as exc:
-        raise ValueError("stock-basic IPO or delisting date invalid") from exc
+    if row["type"] != "1":
+        raise ValueError("security fact type or status is invalid")
+    ipo_date = date.fromisoformat(row["listing_date"])
+    out_date = None if row["delisting_date"] is None else date.fromisoformat(row["delisting_date"])
     if out_date is not None and out_date < first_bar:
-        raise ValueError("stock-basic delisting predates first bar")
+        raise ValueError("security delisting predates first bar")
     if ipo_date != first_bar:
-        raise ValueError(f"stock-basic IPO {ipo_date} does not equal first raw bar {first_bar}")
-    return (ListingAnchorEvidence(symbol, ipo_date, str(path), payload["raw_response_sha256"]),
+        raise ValueError(f"security listing {ipo_date} does not equal first raw bar {first_bar}")
+    return (ListingAnchorEvidence(symbol, ipo_date, str(path), source_hash),
             SourceHash(str(path), hashlib.sha256(file_bytes).hexdigest()))
 
 
@@ -1547,7 +1590,7 @@ def _load_factor_history(cache_dir: Path, symbol: str, start: date, end: date,
     def load(code, visited):
         if code in visited:
             raise ValueError('cyclic code-change history')
-        path = cache_dir / template.format(symbol=code, start=start, end=end)
+        path = cache_dir / template.format(symbol=normalize_security_id(code), start=start, end=end)
         events, source = _load_factor_cache(path, code, start, end, read)
         if code not in incoming:
             return events, (source,)
@@ -1721,12 +1764,9 @@ def _load_adjusted_lake_panel(
                                   SourceHash)
     """Load the *entire* supplied A-share lake with fail-closed factor coverage.
 
-    A first bar preceding the first event is anchored at BaoStock's documented
-    listing-day backward factor 1 only when an exact per-code, hash-validated
-    stock-basic snapshot confirms ``ipoDate == first raw bar`` and the supplied
-    code-change evidence has no unresolved rename for that history. A global
-    all-stock response cannot substitute for the per-code snapshot because
-    BaoStock may silently truncate it while returning success.
+    A first bar preceding the first adjustment requires a verified listing date
+    equal to that bar and no unresolved security code change. Listing identity
+    and adjustment coverage come from standard fact records.
     """
     daily_dir, cache_dir = Path(daily_dir), Path(cache_dir)
     if not isinstance(factor_start, date) or not isinstance(factor_end, date) or factor_start > factor_end:
@@ -1787,7 +1827,7 @@ def _load_adjusted_lake_panel(
                 issues.append(CoverageIssue(code, "duplicate_lake_bar",
                                             f"{count - distinct_count} duplicate code-date rows"))
             try:
-                provider_code = _bs_code(code)
+                market_code = normalize_security_id(code)
                 first = date.fromisoformat(str(first_string))
                 last = date.fromisoformat(str(last_string))
             except (TypeError, ValueError) as exc:
@@ -1808,15 +1848,13 @@ def _load_adjusted_lake_panel(
                     f"{change['old_code']}->{change['new_code']} on {change['effective_date']}"))
                 continue
             cache_path = cache_dir / factor_template.format(
-                symbol=code, start=factor_start, end=factor_end)
+                symbol=normalize_security_id(code), start=factor_start, end=factor_end)
             try:
                 events, history_hashes = _load_factor_history(
                     cache_dir, code, factor_start, factor_end, changes, read,
                     factor_template)
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-                reason = "missing_factor_cache" if isinstance(exc, FileNotFoundError) else (
-                    "invalid_factor_history" if "seam" in str(exc) or "rename" in str(exc)
-                    or "code-change" in str(exc) else "invalid_factor_cache")
+                reason = "missing_factor_cache" if isinstance(exc, FileNotFoundError) else "invalid_factor_history"
                 issues.append(CoverageIssue(code, reason, f"{cache_path}: {exc}"))
                 continue
             cache_hashes.extend(history_hashes)
@@ -1831,14 +1869,13 @@ def _load_adjusted_lake_panel(
                         "per-code stock-basic and code-change evidence are required"))
                     continue
                 stock_basic_path = Path(stock_basic_dir) / stock_basic_template.format(
-                    provider_code=provider_code)
+                    symbol=normalize_security_id(code), provider_code=market_code)
                 try:
                     anchor, source_hash = _load_stock_basic_anchor(stock_basic_path, code, first, read)
                 except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
                     reason = ("missing_stock_basic_snapshot" if isinstance(exc, FileNotFoundError)
-                              else "invalid_stock_basic_snapshot" if "hash" in str(exc) or
-                              "schema" in str(exc) or "request" in str(exc) or "malformed" in str(exc)
-                              else "missing_initial_anchor")
+                              else "missing_initial_anchor" if "does not equal first raw bar" in str(exc)
+                              else "invalid_stock_basic_snapshot")
                     issues.append(CoverageIssue(code, reason, f"{stock_basic_path}: {exc}"))
                     continue
                 listing_anchors.append(anchor)
@@ -2046,38 +2083,23 @@ def _load_dataset(data, query):
         market_files[str(path)]=hashes[str(path)]
         return path
     inputs=manifest.get('inputs')
-    if (not isinstance(inputs,dict) or not isinstance(inputs.get('calendar'),dict)
-            or not isinstance(inputs['calendar'].get('sessions'),str)
-            or not isinstance(inputs['calendar'].get('source'),str)):
-        raise ValueError('calendar input sessions and source are required')
-    calendar_name=inputs['calendar']['sessions']
+    if not isinstance(inputs,dict) or not isinstance(inputs.get('calendar'),str):
+        raise ValueError('calendar input must name a calendar file')
+    calendar_name=inputs['calendar']
     market_evidence(calendar_name)
     calendar_payload=json.loads(read(calendar_name))
-    calendar=tuple(date.fromisoformat(value) for value in calendar_payload['sessions'])
-    # Calendar evidence is mandatory even if OHLC happens to omit a session.
-    calendar_source_name = inputs['calendar']['source']
-    market_evidence(calendar_source_name)
-    calendar_source = json.loads(read(calendar_source_name))
-    coverage_request = calendar_source.get('request')
-    if (not isinstance(coverage_request, dict)
-            or not isinstance(coverage_request.get('start'), str)
-            or not isinstance(coverage_request.get('end'), str)):
-        raise ValueError('calendar source must declare its requested range')
-    try:
-        calendar_start = date.fromisoformat(coverage_request['start'])
-        calendar_end = date.fromisoformat(coverage_request['end'])
-    except ValueError as error:
-        raise ValueError('calendar source requested range is invalid') from error
-    if len(calendar)<2 or tuple(sorted(set(calendar)))!=calendar: raise ValueError('ordered calendar and next-session sentinel required')
+    calendar, coverage = _calendar_facts(calendar_payload)
+    calendar_start=coverage[0][0]
+    calendar_end=coverage[-1][1]
     bars_dir=inputs['bars']
-    factor=inputs['factor_cache']
-    factor_dir=factor['template'].rsplit('/', 1)[0]
-    stock=inputs['stock_basic_cache']
-    stock_dir=stock['template'].rsplit('/', 1)[0]
+    adjustments=inputs['adjustments']
+    factor_dir=adjustments['template'].rsplit('/', 1)[0]
+    securities=inputs['securities']
+    stock_dir=securities['template'].rsplit('/', 1)[0]
     changes_name=inputs['code_changes']
     policy_name=inputs['account_policy']
-    factor_start=date.fromisoformat(factor['start'])
-    factor_end=date.fromisoformat(factor['end'])
+    factor_start=date.fromisoformat(adjustments['start'])
+    factor_end=date.fromisoformat(adjustments['end'])
     declared=tuple(scope.get('symbols', ()))
     declared_ids=tuple(normalize_security_id(symbol) for symbol in declared)
     if len(set(declared_ids)) != len(declared_ids):
@@ -2118,8 +2140,8 @@ def _load_dataset(data, query):
     read_start_index=calendar.index(read_start)
     read_end=actual_end
     sentinel=calendar[end_index+1]
-    if calendar_start > read_start or calendar_end < sentinel:
-        raise ValueError('calendar source coverage does not cover selected warm-up, interval, and sentinel')
+    if not _calendar_covers(coverage, read_start, sentinel):
+        raise ValueError('calendar coverage does not cover selected warm-up, interval, and sentinel')
     external_roots={}
     for directory in (bars_dir, factor_dir, stock_dir):
         shared=shared_ref(directory)
@@ -2176,8 +2198,8 @@ def _load_dataset(data, query):
         factor_start=factor_start,factor_end=factor_end,
         code_changes_path=market_evidence(changes_name),stock_basic_dir=source_ref(stock_dir)[0],
         symbols=selected_symbols,date_start=read_start,date_end=read_end,
-        factor_template=Path(factor['template']).name,
-        stock_basic_template=Path(stock['template']).name,
+        factor_template=Path(adjustments['template']).name,
+        stock_basic_template=Path(securities['template']).name,
         read=read_path,
         list_files=list_files)
     scope = dict(scope)
@@ -2195,35 +2217,27 @@ def _load_dataset(data, query):
         raise ValueError('point-in-time factor snapshot must end exactly at query cutoff')
     calendar = tuple(calendar[read_start_index:end_index+2])
     # Each requested code/year cache is explicit evidence, including successful empty results.
-    coverage_template=inputs['corporate_action_cache']['template']
+    coverage_template=inputs['distributions']['template']
     source_events={}; query_keys=set(); observations=[]; facts={}
     selected_codes=tuple(panel.symbols)
     for code in selected_codes:
       for year in range(read_start.year, actual_end.year + 1):
-        name=coverage_template.format(symbol=code,year=year)
-        path=market_evidence(name); payload=json.loads(read(name)); request=payload['request']
-        if request['kind']!='dividend': raise ValueError('dividend source request required')
-        if request['start'] is not None or request['end'] is not None: raise ValueError('dividend source requires year request')
-        _validate_factor_cache(request, payload)
-        source_code=request['code'].split('.')[-1]; request_year=int(request['year'])
-        if source_code != code or request_year != year:
-            raise ValueError('corporate action cache identity differs from template')
-        if request['code']!=_provider_code(code): raise ValueError('corporate action provider identity invalid')
-        required_fields={'code','dividPlanAnnounceDate','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate',
-            'dividCashPsBeforeTax','dividStocksPs','dividReserveToStockPs'}
-        if not required_fields<=set(payload['raw_response']['fields']): raise ValueError('corporate action source fields incomplete')
+        name=coverage_template.format(symbol=normalize_security_id(code),year=year)
+        path=market_evidence(name); payload=json.loads(read(name))
+        records, _ = validate_facts(payload, kind='dividend',
+            code=normalize_security_id(code), start=None, end=None, year=str(year))
         query_keys.add((code,year))
-        raw=payload['raw_response']
-        records=[dict(zip(raw['fields'],row)) for row in raw['rows']]
         for row,record in enumerate(records):
-            event=normalize_dividend_records([record])[0]
-            if event.code!=request['code']: raise ValueError('corporate action source code differs from request')
+            try:
+                event=normalize_dividend_records([{**record,'code':normalize_security_id(code)}])[0]
+            except ValueError as error:
+                raise ValueError(f'{name}, record {row}: {error}') from error
             event=replace(event,code=code)
             if event.registration_date is not None and read_start<=event.registration_date<=actual_end:
                 if not event.executable: raise ValueError('corporate action settlement evidence incomplete')
-                if not record.get('dividPlanAnnounceDate') or not record.get('dividRegistDate'):
+                if not record.get('announce_date') or not record.get('registration_date'):
                     raise ValueError('cash distribution identity dates are required')
-                distribution_id=f"{code}:{record['dividPlanAnnounceDate']}:{record['dividRegistDate']}"
+                distribution_id=f"{code}:{record['announce_date']}:{record['registration_date']}"
                 source=canonical_hash({'file':name,'row':row,'hash':hashes[str(path)]})
                 observations.append((source,distribution_id,event))
                 source_events[(name,row)]=(event,hashes[str(path)])
@@ -2381,7 +2395,7 @@ def _load_dataset(data, query):
         if not any(factor_dir in name for name in names_by_path.values()):
             raise ValueError('point-in-time query requires factor availability evidence')
     data_hash=canonical_hash({'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],
-        'inputs':inputs,'price_basis':'BaoStock-back-factor-signal-index','fields':manifest.get('fields',{})})
+        'inputs':inputs,'price_basis':'backward-factor-signal-index','fields':manifest.get('fields',{})})
     return (panel, calendar, {day: tuple(actions) for day, actions in day_inputs.items()},
             hashes, data_hash, {'policy': policy, 'source_hash': policy_hash},
             canonical_hash({'files': account_files, 'facts': [
@@ -2406,9 +2420,7 @@ def _prepare_raw_dataset(data, query):
     if not isinstance(calendar_name, str):
         raise ValueError("daily dataset calendar is required")
     calendar_payload = json.loads(data.read("sources", query.dataset, calendar_name))
-    sessions = tuple(date.fromisoformat(str(value)) for value in calendar_payload.get("sessions", ()))
-    if len(sessions) < 2 or tuple(sorted(set(sessions))) != sessions:
-        raise ValueError("daily dataset calendar must be ordered and include a following session")
+    sessions, coverage = _calendar_facts(calendar_payload)
     if query.start not in sessions or query.end not in sessions:
         raise ValueError("requested interval is outside historical snapshot")
     start_index = sessions.index(query.start)
@@ -2418,6 +2430,8 @@ def _prepare_raw_dataset(data, query):
     first_index = max(0, start_index - query.history + 1)
     run_days = sessions[first_index:end_index + 1]
     read_days = run_days + (sessions[end_index + 1],)
+    if not _calendar_covers(coverage, run_days[0], read_days[-1]):
+        raise ValueError("calendar coverage does not cover raw query warm-up, interval, and sentinel")
     needed_years = {str(day.year) for day in read_days}
     start_value = run_days[0]
     end_value = run_days[-1]
@@ -3112,26 +3126,21 @@ class CollectionPort:
         return max(dates) if dates else None
 
     def calendar_coverage(self, source, start, end):
-        """A stored calendar alone cannot prove that no trading day is missing."""
+        """Return whether registered calendar facts cover the requested range."""
         dataset = source['dataset_id']
         manifest = self.data.manifest(dataset)
-        name = manifest.get('inputs', {}).get('calendar', {}).get('source')
+        name = manifest.get('inputs', {}).get('calendar')
         if not isinstance(name, str):
             return False
         parts = Path(name).parts
-        payload = self.data.read('sources', parts[1], Path(*parts[2:]).as_posix()) if parts[0] == 'source' else self.data.read('sources', dataset, name)
-        proof = json.loads(payload)
-        requested = proof.get('request', {})
-        if not (requested.get('start', '9999-12-31') <= start <= end <= requested.get('end', '0001-01-01')):
-            return False
-        response = proof.get('response', {})
-        fields = response.get('fields', [])
-        if {'calendar_date','is_trading_day'} <= set(fields):
-            expected = {r[fields.index('calendar_date')] for r in response['rows']
-                        if str(r[fields.index('is_trading_day')]) == '1' and start <= r[fields.index('calendar_date')] <= end}
-            actual = set(json.loads(self.data.read('sources', dataset, manifest['calendar']))['sessions'])
-            return expected == {day for day in actual if start <= day <= end}
-        return False
+        payload = (self.data.read('sources', parts[1], Path(*parts[2:]).as_posix())
+                   if parts[0] == 'source' else self.data.read('sources', dataset, name))
+        _, coverage = _calendar_facts(json.loads(payload))
+        start_date = _fact_date(start, 'calendar query start')
+        end_date = _fact_date(end, 'calendar query end')
+        if start_date > end_date:
+            raise ValueError('calendar query range is reversed')
+        return _calendar_covers(coverage, start_date, end_date)
 
     def record_rows(self, source):
         with self.data.transaction('sources'):

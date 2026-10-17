@@ -14,6 +14,12 @@ from storage import DataStore
 from collect.methods import Methods
 
 
+def _calendar(sessions):
+    days = sorted(set(sessions))
+    return {"sessions": days,
+            "coverage": ([{"start": days[0], "end": days[-1]}] if days else [])}
+
+
 class CollectionTests(unittest.TestCase):
     def test_methods_merge_unique_current_records_without_batch_files(self):
         from collect.methods import Methods
@@ -224,7 +230,7 @@ class CollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             bus = DataBus(DataStore(root))
-            calendar = {"sessions": ["2026-01-02", "2026-01-05", "2026-01-06"]}
+            calendar = _calendar(["2026-01-02", "2026-01-05", "2026-01-06"])
             calendar_ref = bus.write("sources", "lake", "calendar.json",
                                      json.dumps(calendar).encode())
             bus.write("sources", "lake", "manifest.json", json.dumps({
@@ -271,7 +277,7 @@ class CollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             bus = DataBus(DataStore(root))
-            calendar = {"sessions": ["2026-01-02", "2026-01-05", "2026-01-06"]}
+            calendar = _calendar(["2026-01-02", "2026-01-05", "2026-01-06"])
             calendar_ref = bus.write("sources", "lake", "calendar.json",
                                      json.dumps(calendar).encode())
             bus.write("sources", "lake", "manifest.json", json.dumps({
@@ -306,8 +312,11 @@ class CollectionTests(unittest.TestCase):
                 error_code = "0"
                 error_msg = ""
                 fields = trade_dates
-                def __init__(self):
-                    self.rows = [["2026-01-07", "1"], ["2026-01-08", "1"]]
+                def __init__(self, start, end):
+                    from datetime import date, timedelta
+                    first, last = date.fromisoformat(start), date.fromisoformat(end)
+                    self.rows = [[(first + timedelta(days=offset)).isoformat(), "1"]
+                                 for offset in range((last - first).days + 1)]
                 def next(self):
                     return bool(self.rows)
                 def get_row_data(self):
@@ -315,7 +324,7 @@ class CollectionTests(unittest.TestCase):
             provider = SimpleNamespace(
                 login=lambda: SimpleNamespace(error_code="0", error_msg=""),
                 logout=lambda: None,
-                query_trade_dates=lambda *args, **kwargs: TradeDates(),
+                query_trade_dates=lambda *args, **kwargs: TradeDates(kwargs["start_date"], kwargs["end_date"]),
                 query_history_k_data_plus=lambda *args, **kwargs: Rows())
             methods = Methods(bus)
             collect = Collect(sources, methods)
@@ -331,9 +340,11 @@ class CollectionTests(unittest.TestCase):
                 history = next(item for item in packet["raw"]
                                if item["response"]["fields"][0] == "date")
                 self.assertEqual(history["response"]["rows"][0][2], "10.0")
-                self.assertEqual(packet["calendar"], ["2026-01-02", "2026-01-05",
-                                                       "2026-01-06", "2026-01-07",
-                                                       "2026-01-08"])
+                self.assertEqual(packet["calendar"], {
+                    "sessions": ["2026-01-02", "2026-01-05", "2026-01-06",
+                                 "2026-01-07", "2026-01-08"],
+                    "coverage": [{"start": "2026-01-02", "end": "2026-01-08"}],
+                })
                 self.assertEqual(packet["records"][0]["open"], 10.0)
                 self.assertIsInstance(packet["records"][0]["close"], float)
                 self.assertTrue(collect.handle("lake.startMerge", {"dryRun": True})["ok"])
@@ -364,7 +375,7 @@ class CollectionTests(unittest.TestCase):
                 with self.subTest(request=request), self.assertRaises(DataError) as caught:
                     Methods(bus).publish({'id': 'fixture', 'data_type': 'daily',
                                           'storage_id': 'lake', 'dataset_id': 'fixture'}, {
-                        "records": [row], "calendar": ["2026-01-02"],
+                        "records": [row], "calendar": _calendar(["2026-01-02"]),
                         "raw": [],
                         "request": request, "scope": {"universe": "market"},
                     })
@@ -393,6 +404,9 @@ class CollectionTests(unittest.TestCase):
                 "pctChg": 1.25, "amount": 123456789.0,
             }]), lake / "latest_snapshot.parquet")
             bus = DataBus(DataStore(root))
+            bus.write("sources", "registry", "sources.json", json.dumps({
+                "sources": [], "datasets": [{"id": "market", "storage_id": "lake"}],
+                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
             sources = Sources(bus)
             result = Collect(sources, Methods(bus)).handle("lake.query", {"q": "招商"})
             self.assertEqual(result["items"][0]["代码"], "600036")
@@ -418,7 +432,7 @@ class CollectionTests(unittest.TestCase):
                               "dataset_id": "market", "calendar": "calendar.json",
                               "defaults": {}})
             bus.write("sources", "market", "calendar.json",
-                      json.dumps({"sessions": ["2026-01-02", "2026-01-03"]}).encode())
+                      json.dumps(_calendar(["2026-01-02", "2026-01-03"])).encode())
             collect = Collect(sources, Methods(bus))
             at = datetime(2026, 1, 2, 15, tzinfo=timezone.utc)
             frame = MarketFrame(at, "MARKET",
@@ -740,7 +754,7 @@ class CollectionTests(unittest.TestCase):
             pq.write_table(existing, output)
             daily_ref = bus.write("sources", "lake", "daily/2025.parquet",
                                   output.getvalue().to_pybytes())
-            calendar = {"sessions": ["2025-01-02"], "source_file": "calendar_source.json"}
+            calendar = _calendar(["2025-01-02", "2025-01-03"])
             calendar_ref = bus.write("sources", "fixture", "calendar.json",
                                      json.dumps(calendar).encode())
             manifest = {"schema": 2,
@@ -754,7 +768,7 @@ class CollectionTests(unittest.TestCase):
             bus.write("sources", "fixture", "manifest.json", json.dumps(manifest).encode())
             source = {"id": "daily", "method": "daily", "data_type": "daily",
                       "storage_id": "lake", "dataset_id": "fixture",
-                      "calendar": ["2025-01-02", "2025-01-03"],
+                      "calendar": "calendar.json",
                       "name": "Daily", "frequency": "daily", "defaults": {}}
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
@@ -796,7 +810,7 @@ class CollectionTests(unittest.TestCase):
             before = bus.write("sources", "lake", "daily/2025.parquet",
                                output.getvalue().to_pybytes())
             calendar_ref = bus.write("sources", "fixture", "calendar.json",
-                                     b'{"sessions":["2025-01-02"]}')
+                json.dumps(_calendar(["2025-01-02"])).encode())
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
                 {"file": "source/lake/daily/2025.parquet",
@@ -807,8 +821,7 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture",
-                      "calendar": ["2025-01-02"]}
+                      "storage_id": "lake", "dataset_id": "fixture", "calendar": "calendar.json"}
             with self.assertRaises(DataError) as error:
                 methods.publish(source, methods.fetch(source, {"records": [{
                     "code": "600000", "date": "2025-01-02", "open": 10.0,
@@ -837,7 +850,7 @@ class CollectionTests(unittest.TestCase):
                                      output.getvalue().to_pybytes())
             before_calendar = bus.write(
                 "sources", "fixture", "calendar.json",
-                b'{"sessions":["2025-01-02"],"source_file":"calendar.json"}',
+                json.dumps(_calendar(["2025-01-02"])).encode(),
             )
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": before_calendar.sha256, "role": "market"},
@@ -850,8 +863,7 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture",
-                      "calendar": ["2025-01-02", "2025-01-03"]}
+                      "storage_id": "lake", "dataset_id": "fixture", "calendar": "calendar.json"}
             with self.assertRaises((TypeError, ValueError)):
                 methods.publish(source, methods.fetch(source, {"records": [{
                     "code": "600000", "date": "2025-01-03", "name": {"bad": "schema"},
@@ -891,7 +903,7 @@ class CollectionTests(unittest.TestCase):
                 "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.5,
                 "volume": 120.0, "amount": 1380.0,
             }])
-            calendar = {"sessions": ["2024-12-31", "2025-01-02", "2025-01-03", "2025-01-04"]}
+            calendar = _calendar(["2024-12-31", "2025-01-02", "2025-01-03", "2025-01-04"])
             calendar_ref = bus.write("sources", "fixture", "calendar.json",
                                      json.dumps(calendar).encode())
             manifest = {"schema": 2, "files": [
@@ -904,7 +916,7 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture", "calendar": calendar["sessions"]}
+                      "storage_id": "lake", "dataset_id": "fixture", "calendar": "calendar.json"}
             packet = {"records": [{
                 "code": "600000", "date": "2025-01-03", "name": "A",
                 "open": 12.0, "high": 13.0, "low": 11.0, "close": 12.5,
@@ -946,10 +958,10 @@ class CollectionTests(unittest.TestCase):
                 table_output = pa.BufferOutputStream()
                 pq.write_table(pa.Table.from_pylist(rows), table_output)
                 bus.write("sources", "lake", name, table_output.getvalue().to_pybytes())
-            bus.write("sources", "research", "security_code_changes.json",
+            bus.write("sources", "facts", "security_code_changes.json",
                       json.dumps({"events": []}).encode())
             calendar = bus.write("sources", "market", "calendar.json",
-                                 json.dumps({"sessions": ["2026-01-02", "2026-01-05", "2026-01-06"]}).encode())
+                                 json.dumps(_calendar(["2026-01-02", "2026-01-05", "2026-01-06"])).encode())
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": calendar.sha256, "role": "market"},
                 {"file": "source/lake/daily/2026.parquet", "sha256": old.sha256, "role": "market"}],
@@ -963,7 +975,7 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"fixture": lambda source, request: {
                 "records": [{"code": "600000", "date": "2026-01-05", "open": 11.0,
                               "high": 12.0, "low": 10.0, "close": 11.5, "volume": 120.0,
-                              "amount": 1380.0, "close_hfq": 11.5}], "calendar": ["2026-01-02", "2026-01-05", "2026-01-06"],
+                              "amount": 1380.0, "close_hfq": 11.5}], "calendar": _calendar(["2026-01-02", "2026-01-05", "2026-01-06"]),
                 "raw": [], "scope": {"symbols": ["600000"]}}})
             job = Collect(sources, methods).run({"source_id": "market", "force": True})
             self.assertEqual(job["status"], "succeeded")
@@ -979,6 +991,9 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(evidence["snapshot_id"], page["snapshot_id"])
             self.assertIn("close", evidence["record"])
             self.assertEqual(bus.list("sources", "snapshots"), ())
+            bus.write("sources", "registry", "sources.json", json.dumps({
+                "sources": [], "datasets": [{"id": "market", "storage_id": "lake"}],
+                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
             profile = collect.handle("lake.status", {"rescan": True})
             self.assertEqual(profile["总览"]["日线行情"]["股票数"], 1)
             inputs = collect.handle("lake.researchInputs", {})
@@ -1022,15 +1037,18 @@ class CollectionTests(unittest.TestCase):
             write_table("fundamentals.parquet", [
                 {"code": "600036", "quarter": "2025Q1", "roe": None},
             ])
-            bus.write("sources", "research", "security_code_changes.json", json.dumps({
+            bus.write("sources", "facts", "security_code_changes.json", json.dumps({
                 "events": [{"old_code": "600036", "new_code": "600037",
                             "effective_date": "2025-01-03",
                             "factor_basis_continuity_verified": False}]
             }).encode())
-            bus.write("sources", "research_cache_verified", "adjust_600036.json", json.dumps({
+            bus.write("sources", "facts", "adjust_sh.600036.json", json.dumps({
                 "schema": 2, "status": "ok", "raw_response": {"rows": []}
             }).encode())
 
+            bus.write("sources", "registry", "sources.json", json.dumps({
+                "sources": [], "datasets": [{"id": "market", "storage_id": "lake"}],
+                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
             facts = bus.lake_facts()
             self.assertEqual(facts["daily"]["rows"], 4)
             self.assertEqual(facts["daily"]["symbols"], 2)
@@ -1057,12 +1075,15 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(len(inputs["price_basis_issues"]), 0)
             self.assertEqual(len(inputs["unverified_code_changes"]), 1)
             self.assertEqual(inputs["saved_factor_files"], 1)
-            self.assertEqual(inputs["factor_cache_check"]["check_scope"], "all")
+            self.assertEqual(inputs["fact_check"]["check_scope"], "all")
             bus.write("sources", "registry", "sources.json", json.dumps({"sources": [{
                 "id": "daily_fix", "name": "Daily fix", "method": "fixture",
                 "frequency": "daily", "data_type": "daily", "modes": ["fix"],
                 "default": True, "defaults": {}
             }]}).encode())
+            bus.update_registry(lambda registry: {**registry,
+                "datasets": [{"id": "market", "storage_id": "lake"}],
+                "markets": [{"dataset_id": "market"}]})
             doctor = bus.doctor_report()
             self.assertTrue(any(item["可修复"] and item["fix"]["source_id"] == "daily_fix"
                                 for item in doctor["items"]))
@@ -1082,7 +1103,7 @@ class CollectionTests(unittest.TestCase):
             root = Path(root)
             bus = DataBus(DataStore(root))
             calendar = bus.write("sources", "market", "calendar.json",
-                                 json.dumps({"sessions": ["2026-01-02", "2026-01-05"]}).encode())
+                                 json.dumps(_calendar(["2026-01-02", "2026-01-05"])).encode())
             bus.write("sources", "market", "manifest.json", json.dumps({
                 "schema": 2, "files": [{"file": "calendar.json", "sha256": calendar.sha256,
                                          "role": "market"}], "fields": {},
@@ -1090,7 +1111,7 @@ class CollectionTests(unittest.TestCase):
                           "universe": "market"}, "calendar": "calendar.json"}).encode())
             row = {"date": "2026-01-02", "open": 10.0, "high": 11.0,
                    "low": 9.0, "close": 10.5, "volume": 100.0, "amount": 1050.0}
-            packet = {"calendar": ["2026-01-02", "2026-01-05"], "records": [
+            packet = {"calendar": _calendar(["2026-01-02", "2026-01-05"]), "records": [
                 {**row, "code": "600036"}, {**row, "code": "sh.600036"},
                 {**row, "code": "sh.000001"}, {**row, "code": "sz.000001"}],
                 "fields": ["open", "high", "low", "close", "volume", "amount"],
@@ -1401,12 +1422,16 @@ class CollectionTests(unittest.TestCase):
         class TradeDates:
             error_code = '0'; error_msg = ''
             fields = ['calendar_date', 'is_trading_day']
-            def __init__(self): self.rows = [['2026-09-30', '1'], ['2026-10-01', '1']]
+            def __init__(self, start, end):
+                from datetime import date, timedelta
+                first, last = date.fromisoformat(start), date.fromisoformat(end)
+                self.rows = [[(first + timedelta(days=offset)).isoformat(), '1']
+                             for offset in range((last - first).days + 1)]
             def next(self): return bool(self.rows)
             def get_row_data(self): return self.rows.pop(0)
         provider = SimpleNamespace(
             login=lambda: SimpleNamespace(error_code='0'), logout=lambda: None,
-            query_trade_dates=lambda *args, **kwargs: TradeDates(),
+            query_trade_dates=lambda *args, **kwargs: TradeDates(kwargs['start_date'], kwargs['end_date']),
             query_history_k_data_plus=lambda *args, **kwargs: calls.append((args, kwargs)) or Rows())
         with patch.dict('sys.modules', {'baostock': provider}):
             collect_daily({'codes': ['600036', 'sh.000001'],
@@ -1465,11 +1490,15 @@ class CollectionTests(unittest.TestCase):
         class TradeDates:
             error_code = '0'; error_msg = ''
             fields = ['calendar_date', 'is_trading_day']
-            def __init__(self): self.rows = [['2026-10-01', '1'], ['2026-10-02', '1'], ['2026-10-03', '1']]
+            def __init__(self, start, end):
+                from datetime import date, timedelta
+                first, last = date.fromisoformat(start), date.fromisoformat(end)
+                self.rows = [[(first + timedelta(days=offset)).isoformat(), '1']
+                             for offset in range((last - first).days + 1)]
             def next(self): return bool(self.rows)
             def get_row_data(self): return self.rows.pop(0)
         provider = SimpleNamespace(login=lambda: SimpleNamespace(error_code='0'), logout=lambda: None,
-                                   query_trade_dates=lambda *args, **kwargs: TradeDates(),
+                                   query_trade_dates=lambda *args, **kwargs: TradeDates(kwargs['start_date'], kwargs['end_date']),
                                    query_history_k_data_plus=lambda *args, **kwargs: Rows())
         with patch.dict('sys.modules', {'baostock': provider}):
             result = collect_daily({'codes': ['sz.301001'], 'start': '2026-10-01', 'end': '2026-10-02', 'fields': Rows.fields})

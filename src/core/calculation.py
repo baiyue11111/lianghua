@@ -1416,20 +1416,20 @@ def normalize_dividend_records(records) -> tuple[CorporateActionEvent, ...]:
         code = str(record.get("code", "")).strip()
         if not code:
             raise InvalidCorporateAction("missing code")
-        operation = _date(record.get("dividOperateDate"), "dividOperateDate", True)
+        operation = _date(record.get("operation_date"), "operation_date", True)
         key = (code, operation)
         if key in seen:
             raise InvalidCorporateAction(f"duplicate corporate action: {code} {operation}")
         seen.add(key)
-        after_tax = record.get("dividCashPsAfterTax")
-        cash = _number(record.get("dividCashPsBeforeTax"), "dividCashPsBeforeTax")
-        stock = _number(record.get("dividStocksPs"), "dividStocksPs")
-        reserve = _number(record.get("dividReserveToStockPs"), "dividReserveToStockPs")
+        after_tax = record.get("cash_after_tax_text")
+        cash = _number(record.get("cash_per_share"), "cash_per_share", default=float("nan"))
+        stock = _number(record.get("stock_dividend_per_share"), "stock_dividend_per_share", default=float("nan"))
+        reserve = _number(record.get("reserve_to_stock_per_share"), "reserve_to_stock_per_share", default=float("nan"))
         if min(cash, stock, reserve) < 0:
             raise InvalidCorporateAction(f"negative corporate action value: {key}")
-        registration = _date(record.get("dividRegistDate"), "dividRegistDate")
-        payment = _date(record.get("dividPayDate"), "dividPayDate")
-        market = _date(record.get("dividStockMarketDate"), "dividStockMarketDate")
+        registration = _date(record.get("registration_date"), "registration_date")
+        payment = _date(record.get("payment_date"), "payment_date")
+        market = _date(record.get("stock_market_date"), "stock_market_date")
         if cash == 0 and stock == 0 and reserve == 0:
             raise InvalidCorporateAction(f"no economic terms: {key}")
         issues = ["tax_unverified"]
@@ -1476,15 +1476,15 @@ def adjustment_factor_asof(code: str, records, as_of: date, coverage_start: date
         record_code = str(record.get("code", "")).strip()
         if not record_code or record_code != code:
             raise InvalidCorporateAction("factor records must have one explicit matching code")
-        operation = _date(record.get("dividOperateDate", record.get("date")), "dividOperateDate", True)
+        operation = _date(record.get("date"), "date", True)
         key = (record_code, operation)
         if key in seen:
             raise InvalidCorporateAction(f"duplicate factor event: {key}")
         seen.add(key)
         if not (coverage_start <= operation <= coverage_end):
             raise InvalidCorporateAction(f"factor event outside coverage: {operation}")
-        record_fore = _number(record.get("foreAdjustFactor"), "foreAdjustFactor", default=float("nan"))
-        record_back = _number(record.get("backAdjustFactor"), "backAdjustFactor", default=float("nan"))
+        record_fore = _number(record.get("forward"), "forward", default=float("nan"))
+        record_back = _number(record.get("backward"), "backward", default=float("nan"))
         if record_fore <= 0 or record_back <= 0:
             raise InvalidCorporateAction("adjustment factors must be positive")
         if operation <= as_of:

@@ -19,9 +19,9 @@ class AccountDistributionTests(unittest.TestCase):
         session.submit(Order('buy','A',Side.BUY,100,date(2020,6,29),date(2020,6,30),'entry'))
         session.execute('buy',Bar('A',date(2020,6,30),11.3,12,11,11.3,1000000,11300000),previous_close=11.3)
         account.mark(date(2020,7,1),{'A':D('11.3')},D(0),D(0))
-        event=normalize_dividend_records([{'code':'A','dividRegistDate':'2020-07-01',
-            'dividOperateDate':'2020-07-02','dividPayDate':'2020-07-03',
-            'dividStockMarketDate':'2020-07-06','dividCashPsBeforeTax':'0.3','dividStocksPs':'0.1'}])[0]
+        event=normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'code':'A','registration_date':'2020-07-01',
+            'operation_date':'2020-07-02','payment_date':'2020-07-03',
+            'stock_market_date':'2020-07-06','cash_per_share':'0.3','stock_dividend_per_share':'0.1'}])[0]
         claim=calculate_entitlement(event,date(2020,7,1),100)
         delivery=distribution_ledger.ShareDelivery(account.lots[0].lot_id,date(2020,6,30),
                                                   10,date(2020,7,3),date(2020,7,6))
