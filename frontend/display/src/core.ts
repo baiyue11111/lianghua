@@ -7,6 +7,7 @@ export type Slot=Required<UiSlot>;
 export type State=Required<UiState> & {targets:Record<string,Slot>};
 export type {FrontendPort,BackendPort} from './protocol';
 export interface Operation extends UiOperation {
+  execute?:(data:JsonValue,context:{call:(operation:string,data:JsonValue)=>Promise<JsonValue>;progress:(data:JsonValue)=>void;signal:AbortSignal})=>Promise<JsonValue>;
   requires?:string;
   // Feature code decides whether its successful check authorizes a write.
   ready?:(messages:UiMessage[])=>boolean;
@@ -19,6 +20,7 @@ export interface Options {
   operations:Operation[];
   schemas:Record<string,object>;
   backend?:BackendPort;
+  progress?:(state:State)=>void;
   handlers?:Record<string,(message:UiMessage)=>void>;
   id?:()=>string;
   events?:Record<string,string>;
@@ -68,6 +70,7 @@ export function createDisplay(options:Options) {
   const registry=new Ajv({strict:false});addFormats(registry);
   for(const [id,body] of Object.entries(options.schemas))registry.addSchema(body,id);
   const checks=new Map(Object.keys(options.schemas).map(id=>[id,registry.getSchema(id)!]));
+  const controller=new AbortController();
   const listeners=new Set<()=>void>();
   const pending=new Map<string,{id:string;revision:number}>();
   const approved=new Map<string,{revision:number;identity:string}>();
@@ -139,7 +142,24 @@ export function createDisplay(options:Options) {
     put(target,{...slot(target),problems:[],operations:{...slot(target).operations,[spec.operation]:{...slot(target).operations[spec.operation],status:'pending',request_id:request.request_id,revision:initial.revision,input:action.data}}});
     const current=()=>!closed&&pending.get(k)?.id===request.request_id&&slot(target).revision===initial.revision;
     try {
-      const messages=await options.backend.send(request);
+      const makeMessage=(data:JsonValue):UiMessage=>({message_id:id(),correlation_id:request.request_id,kind:'operation',type:'lianghua:'+spec.operation,schema:spec.response_schemas[0],data});
+      const call=async(operation:string,data:JsonValue):Promise<JsonValue>=>{
+        const nested=operations.get(operation);
+        if(!nested||nested.execute)throw Error('未注册后端操作');
+        assertJson(data);
+        if(!checks.get(nested.input_schema)?.(data))throw Error('输入不符合注册 schema');
+        const child:UiRequest={request_id:id(),operation,schema:nested.input_schema,data};
+        const replies=await options.backend!.send(child);
+        if(!Array.isArray(replies)||replies.some(m=>m.correlation_id!==child.request_id))throw Error('响应标识与请求不匹配');
+        replies.forEach(m=>accept(m,nested));
+        const issue=replies.find(m=>m.kind==='problem');
+        if(issue){const problem=issue.data as unknown as UiProblem;throw Error(problem.detail??problem.title);}
+        if(replies.length!==1)throw Error('需要一个响应');
+        return replies[0].data;
+      };
+      const messages=spec.execute?[makeMessage(await spec.execute(data,{call,signal:controller.signal,progress:value=>{
+        if(current()){publish(target,[makeMessage(value)],spec);options.progress?.(state);}
+      }}))]:await options.backend.send(request);
       if(!current())return state;
       if(!Array.isArray(messages))throw Error('响应必须是消息列表');
       if(messages.some(message=>message.correlation_id!==request.request_id))throw Error('响应标识与请求不匹配');
@@ -179,6 +199,6 @@ export function createDisplay(options:Options) {
       if(!target)throw Error("未注册消息接收目标");
       publish(target,[message]);
     },
-    dispose(){closed=true;listeners.clear();for(const timer of timers.values())clearTimeout(timer);timers.clear();pending.clear();approved.clear();},
+    dispose(){closed=true;controller.abort();listeners.clear();for(const timer of timers.values())clearTimeout(timer);timers.clear();pending.clear();approved.clear();},
   };
 }

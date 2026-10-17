@@ -7,7 +7,7 @@ const output=value=>process.stdout.write(JSON.stringify(value)+'\n');
 const backend=process.argv.includes('--connected')?{send:request=>new Promise((resolve,reject)=>{
  waits.set(request.request_id,{resolve,reject});output({kind:'request',request});
 })}:undefined;
-const core=createDisplay({...features(),backend});
+const core=createDisplay({...features(),backend,progress:state=>output({kind:'state',state})});
 const input=createInterface({input:process.stdin,crlfDelay:Infinity});
 function close(){core.dispose();for(const wait of waits.values())wait.reject(Error('session closed'));waits.clear();input.close();}
 let running=false;

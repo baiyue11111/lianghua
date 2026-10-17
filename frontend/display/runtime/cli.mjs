@@ -997,14 +997,14 @@ var require_codegen = __commonJS({
         return replaceName(expr);
       if (!canOptimize(expr))
         return expr;
-      return new code_1._Code(expr._items.reduce((items, c) => {
+      return new code_1._Code(expr._items.reduce((items2, c) => {
         if (c instanceof code_1.Name)
           c = replaceName(c);
         if (c instanceof code_1._Code)
-          items.push(...c._items);
+          items2.push(...c._items);
         else
-          items.push(c);
-        return items;
+          items2.push(c);
+        return items2;
       }, []));
       function replaceName(n) {
         const c = constants[n.str];
@@ -1162,7 +1162,7 @@ var require_util = __commonJS({
         mergeNames: (gen, from, to) => gen.if((0, codegen_1._)`${to} !== true && ${from} !== undefined`, () => gen.assign(to, (0, codegen_1._)`${from} === true ? true : ${to} > ${from} ? ${to} : ${from}`)),
         mergeToName: (gen, from, to) => gen.if((0, codegen_1._)`${to} !== true`, () => gen.assign(to, from === true ? true : (0, codegen_1._)`${to} > ${from} ? ${to} : ${from}`)),
         mergeValues: (from, to) => from === true ? true : Math.max(from, to),
-        resultToName: (gen, items) => gen.var("items", items)
+        resultToName: (gen, items2) => gen.var("items", items2)
       })
     };
     function evaluatedPropsToName(gen, ps) {
@@ -1670,13 +1670,13 @@ var require_defaults = __commonJS({
     var codegen_1 = require_codegen();
     var util_1 = require_util();
     function assignDefaults(it, ty) {
-      const { properties, items } = it.schema;
+      const { properties, items: items2 } = it.schema;
       if (ty === "object" && properties) {
         for (const key in properties) {
           assignDefault(it, key, properties[key].default);
         }
-      } else if (ty === "array" && Array.isArray(items)) {
-        items.forEach((sch, i) => assignDefault(it, i, sch.default));
+      } else if (ty === "array" && Array.isArray(items2)) {
+        items2.forEach((sch, i) => assignDefault(it, i, sch.default));
       }
     }
     exports.assignDefaults = assignDefaults;
@@ -2480,11 +2480,11 @@ var require_validate = __commonJS({
         gen.return((0, codegen_1._)`${names_1.default.errors} === 0`);
       }
     }
-    function assignEvaluated({ gen, evaluated, props, items }) {
+    function assignEvaluated({ gen, evaluated, props, items: items2 }) {
       if (props instanceof codegen_1.Name)
         gen.assign((0, codegen_1._)`${evaluated}.props`, props);
-      if (items instanceof codegen_1.Name)
-        gen.assign((0, codegen_1._)`${evaluated}.items`, items);
+      if (items2 instanceof codegen_1.Name)
+        gen.assign((0, codegen_1._)`${evaluated}.items`, items2);
     }
     function schemaKeywords(it, types, typeErrors, errsCount) {
       const { gen, schema, data, allErrors, opts, self } = it;
@@ -2947,12 +2947,12 @@ var require_compile = __commonJS({
           validate.source = { validateName, validateCode, scopeValues: gen._values };
         }
         if (this.opts.unevaluated) {
-          const { props, items } = schemaCxt;
+          const { props, items: items2 } = schemaCxt;
           validate.evaluated = {
             props: props instanceof codegen_1.Name ? void 0 : props,
-            items: items instanceof codegen_1.Name ? void 0 : items,
+            items: items2 instanceof codegen_1.Name ? void 0 : items2,
             dynamicProps: props instanceof codegen_1.Name,
-            dynamicItems: items instanceof codegen_1.Name
+            dynamicItems: items2 instanceof codegen_1.Name
           };
           if (validate.source)
             validate.source.evaluated = (0, codegen_1.stringify)(validate.evaluated);
@@ -4962,8 +4962,8 @@ var require_ref = __commonJS({
               it.items = util_1.mergeEvaluated.items(gen, schEvaluated.items, it.items);
             }
           } else {
-            const items = gen.var("items", (0, codegen_1._)`${source}.evaluated.items`);
-            it.items = util_1.mergeEvaluated.items(gen, items, it.items, codegen_1.Name);
+            const items2 = gen.var("items", (0, codegen_1._)`${source}.evaluated.items`);
+            it.items = util_1.mergeEvaluated.items(gen, items2, it.items, codegen_1.Name);
           }
         }
       }
@@ -5503,28 +5503,28 @@ var require_additionalItems = __commonJS({
       error,
       code(cxt) {
         const { parentSchema, it } = cxt;
-        const { items } = parentSchema;
-        if (!Array.isArray(items)) {
+        const { items: items2 } = parentSchema;
+        if (!Array.isArray(items2)) {
           (0, util_1.checkStrictMode)(it, '"additionalItems" is ignored when "items" is not an array of schemas');
           return;
         }
-        validateAdditionalItems(cxt, items);
+        validateAdditionalItems(cxt, items2);
       }
     };
-    function validateAdditionalItems(cxt, items) {
+    function validateAdditionalItems(cxt, items2) {
       const { gen, schema, data, keyword, it } = cxt;
       it.items = true;
       const len = gen.const("len", (0, codegen_1._)`${data}.length`);
       if (schema === false) {
-        cxt.setParams({ len: items.length });
-        cxt.pass((0, codegen_1._)`${len} <= ${items.length}`);
+        cxt.setParams({ len: items2.length });
+        cxt.pass((0, codegen_1._)`${len} <= ${items2.length}`);
       } else if (typeof schema == "object" && !(0, util_1.alwaysValidSchema)(it, schema)) {
-        const valid = gen.var("valid", (0, codegen_1._)`${len} <= ${items.length}`);
+        const valid = gen.var("valid", (0, codegen_1._)`${len} <= ${items2.length}`);
         gen.if((0, codegen_1.not)(valid), () => validateItems(valid));
         cxt.ok(valid);
       }
       function validateItems(valid) {
-        gen.forRange("i", items.length, len, (i) => {
+        gen.forRange("i", items2.length, len, (i) => {
           cxt.subschema({ keyword, dataProp: i, dataPropType: util_1.Type.Num }, valid);
           if (!it.allErrors)
             gen.if((0, codegen_1.not)(valid), () => gen.break());
@@ -6663,16 +6663,16 @@ var require_unevaluatedItems = __commonJS({
       error,
       code(cxt) {
         const { gen, schema, data, it } = cxt;
-        const items = it.items || 0;
-        if (items === true)
+        const items2 = it.items || 0;
+        if (items2 === true)
           return;
         const len = gen.const("len", (0, codegen_1._)`${data}.length`);
         if (schema === false) {
-          cxt.setParams({ len: items });
-          cxt.fail((0, codegen_1._)`${len} > ${items}`);
+          cxt.setParams({ len: items2 });
+          cxt.fail((0, codegen_1._)`${len} > ${items2}`);
         } else if (typeof schema == "object" && !(0, util_1.alwaysValidSchema)(it, schema)) {
-          const valid = gen.var("valid", (0, codegen_1._)`${len} <= ${items}`);
-          gen.if((0, codegen_1.not)(valid), () => validateItems(valid, items));
+          const valid = gen.var("valid", (0, codegen_1._)`${len} <= ${items2}`);
+          gen.if((0, codegen_1.not)(valid), () => validateItems(valid, items2));
           cxt.ok(valid);
         }
         it.items = true;
@@ -7532,8 +7532,8 @@ var require_formats = __commonJS({
         return false;
       const year = +matches[1];
       const month = +matches[2];
-      const day = +matches[3];
-      return month >= 1 && month <= 12 && day >= 1 && day <= (month === 2 && isLeapYear(year) ? 29 : DAYS[month]);
+      const day2 = +matches[3];
+      return month >= 1 && month <= 12 && day2 >= 1 && day2 <= (month === 2 && isLeapYear(year) ? 29 : DAYS[month]);
     }
     function compareDate(d1, d2) {
       if (!(d1 && d2))
@@ -8824,6 +8824,7 @@ function createDisplay(options) {
   (0, import_ajv_formats.default)(registry);
   for (const [id2, body] of Object.entries(options.schemas)) registry.addSchema(body, id2);
   const checks = new Map(Object.keys(options.schemas).map((id2) => [id2, registry.getSchema(id2)]));
+  const controller = new AbortController();
   const listeners = /* @__PURE__ */ new Set();
   const pending = /* @__PURE__ */ new Map();
   const approved = /* @__PURE__ */ new Map();
@@ -8924,7 +8925,30 @@ function createDisplay(options) {
     put(target, { ...slot(target), problems: [], operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: "pending", request_id: request.request_id, revision: initial.revision, input: action.data } } });
     const current = () => !closed && pending.get(k)?.id === request.request_id && slot(target).revision === initial.revision;
     try {
-      const messages = await options.backend.send(request);
+      const makeMessage = (data2) => ({ message_id: id(), correlation_id: request.request_id, kind: "operation", type: "lianghua:" + spec.operation, schema: spec.response_schemas[0], data: data2 });
+      const call = async (operation, data2) => {
+        const nested = operations.get(operation);
+        if (!nested || nested.execute) throw Error("\u672A\u6CE8\u518C\u540E\u7AEF\u64CD\u4F5C");
+        assertJson(data2);
+        if (!checks.get(nested.input_schema)?.(data2)) throw Error("\u8F93\u5165\u4E0D\u7B26\u5408\u6CE8\u518C schema");
+        const child = { request_id: id(), operation, schema: nested.input_schema, data: data2 };
+        const replies = await options.backend.send(child);
+        if (!Array.isArray(replies) || replies.some((m) => m.correlation_id !== child.request_id)) throw Error("\u54CD\u5E94\u6807\u8BC6\u4E0E\u8BF7\u6C42\u4E0D\u5339\u914D");
+        replies.forEach((m) => accept(m, nested));
+        const issue = replies.find((m) => m.kind === "problem");
+        if (issue) {
+          const problem2 = issue.data;
+          throw Error(problem2.detail ?? problem2.title);
+        }
+        if (replies.length !== 1) throw Error("\u9700\u8981\u4E00\u4E2A\u54CD\u5E94");
+        return replies[0].data;
+      };
+      const messages = spec.execute ? [makeMessage(await spec.execute(data, { call, signal: controller.signal, progress: (value) => {
+        if (current()) {
+          publish(target, [makeMessage(value)], spec);
+          options.progress?.(state);
+        }
+      } }))] : await options.backend.send(request);
       if (!current()) return state;
       if (!Array.isArray(messages)) throw Error("\u54CD\u5E94\u5FC5\u987B\u662F\u6D88\u606F\u5217\u8868");
       if (messages.some((message) => message.correlation_id !== request.request_id)) throw Error("\u54CD\u5E94\u6807\u8BC6\u4E0E\u8BF7\u6C42\u4E0D\u5339\u914D");
@@ -8980,6 +9004,7 @@ function createDisplay(options) {
     },
     dispose() {
       closed = true;
+      controller.abort();
       listeners.clear();
       for (const timer of timers.values()) clearTimeout(timer);
       timers.clear();
@@ -8988,6 +9013,147 @@ function createDisplay(options) {
     }
   };
 }
+
+// src/collect.ts
+var items = (value) => {
+  if (value === void 0) return [];
+  const values = value.split(",").map((v) => v.trim());
+  if (values.some((v) => !v)) throw Error("\u5217\u8868\u9879\u4E0D\u80FD\u4E3A\u7A7A");
+  return [...new Set(values)];
+};
+var day = (value) => {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || new Date(value).toISOString().slice(0, 10) !== value) throw Error("\u65E5\u671F\u65E0\u6548");
+  return value;
+};
+var collect = async (raw, { call, progress, signal }) => {
+  const values = { ...raw };
+  const parts = values.selector.split(":");
+  const [name, intent] = parts;
+  const range = /^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent ?? "");
+  const command = range ? "range" : intent;
+  if (parts.length !== 2 || !["latest", "range", "auto", "check", "status"].includes(command)) throw Error("\u9700\u8981 <market>:[start,end] \u6216 latest\u3001range\u3001auto\u3001check\u3001status");
+  if (range) {
+    if (values.start !== void 0 || values.end !== void 0) throw Error("\u533A\u95F4\u4E0D\u80FD\u4E0E start\u3001end \u91CD\u590D\u586B\u5199");
+    values.start = range[1].length === 4 ? range[1] + "-01-01" : range[1];
+    values.end = range[2].length === 4 ? range[2] + "-12-31" : range[2];
+  }
+  if (command !== "auto" && values.interval !== void 0) throw Error("interval \u4EC5\u7528\u4E8E auto");
+  if (command === "status" && Object.keys(values).some((key) => key !== "selector")) throw Error("status \u4E0D\u63A5\u53D7\u6536\u96C6\u53C2\u6570");
+  if (["latest", "auto"].includes(command) && (values.start !== void 0 || values.end !== void 0)) throw Error("latest \u548C auto \u81EA\u52A8\u786E\u5B9A\u65E5\u671F\uFF0C\u8BF7\u7528 range \u6307\u5B9A\u533A\u95F4");
+  if (command === "range" && (!values.start || !values.end)) throw Error("range \u9700\u8981 start \u548C end");
+  if (values.start === void 0 !== (values.end === void 0)) throw Error("start \u548C end \u5FC5\u987B\u540C\u65F6\u586B\u5199");
+  const duration = /^([1-9]\d*)(s|m|h|d)$/.exec(values.interval ?? "1d");
+  if (!duration) throw Error("interval \u9700\u8981\u6B63\u6570\u548C\u5355\u4F4D s\u3001m\u3001h \u6216 d");
+  const interval = Number(duration[1]) * { s: 1, m: 60, h: 3600, d: 86400 }[duration[2]] * 1e3;
+  if (!Number.isSafeInteger(interval) || interval > 2147483647) throw Error("interval \u8D85\u51FA\u8303\u56F4");
+  const registry = await call("collection.describe", {});
+  const markets = registry.markets.filter((m) => [m.scope, m.name, ...m.aliases ?? []].includes(name));
+  if (markets.length !== 1) throw Error("\u5E02\u573A\u672A\u552F\u4E00\u767B\u8BB0\uFF1A" + name);
+  const market = markets[0];
+  if (typeof market.timezone !== "string" || !market.timezone) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u65F6\u533A");
+  if (command === "status") return { market: market.scope, sources: await call("workbench.sources", {}) };
+  const spec = market.collect;
+  if (!spec?.data) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u6536\u96C6\u6570\u636E\u6E90");
+  let types = items(values.data);
+  if (!types.length) types = spec.default ?? [];
+  if (types.length === 1 && types[0] === "all") types = Object.keys(spec.data);
+  if (!types.length || types.some((kind) => !spec.data[kind])) throw Error("\u6570\u636E\u7C7B\u578B\u672A\u767B\u8BB0");
+  const source = (id) => {
+    const found = registry.sources.find((s) => s.id === id);
+    if (!found) throw Error("\u6570\u636E\u6E90\u672A\u767B\u8BB0\uFF1A" + id);
+    return found;
+  };
+  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: market.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(/* @__PURE__ */ new Date());
+  if (values.start) {
+    day(values.start);
+    day(values.end);
+    if (values.start > values.end || values.end > today()) throw Error("\u65E5\u671F\u5E94\u6709\u5E8F\u4E14\u4E0D\u665A\u4E8E\u4ECA\u5929");
+  }
+  const requested = items(values.codes);
+  const codes = async () => {
+    if (spec.codes) return spec.codes;
+    const binding = spec.securities;
+    if (!binding) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u8BC1\u5238\u76EE\u5F55\uFF0C\u8BF7\u63D0\u4F9B codes");
+    source(binding.source);
+    if (command !== "check") {
+      const input2 = { source_id: binding.source, refresh: true };
+      if (binding.exchanges !== void 0) input2.exchanges = binding.exchanges;
+      await call("collection.run", input2);
+    }
+    let rows = [], offset = 0;
+    while (true) {
+      const page = await call("workbench.snapshot", { id: binding.source, offset });
+      rows.push(...page.records);
+      offset += page.records.length;
+      if (offset >= page.total || !page.records.length) break;
+    }
+    const exchanges = /* @__PURE__ */ new Set();
+    const result = rows.filter((row) => {
+      if (Object.entries(binding.filters ?? {}).some(([field, allowed]) => !allowed.includes(row[field]))) return false;
+      const code = row[binding.code];
+      if (typeof code !== "string") throw Error("\u76EE\u5F55\u7F3A\u5C11\u8BC1\u5238\u4EE3\u7801");
+      if (binding.pattern && !new RegExp("^(?:" + binding.pattern + ")$").test(code)) return false;
+      exchanges.add(code.split(".")[0]);
+      const opened = row[binding.from], closed = row[binding.to];
+      return !(opened && opened > (values.end ?? today()) || closed && (values.start ? closed < values.start : true));
+    }).map((row) => row[binding.code]);
+    if ((binding.exchanges ?? []).some((exchange) => !exchanges.has(exchange))) throw Error("\u8BC1\u5238\u76EE\u5F55\u7F3A\u5C11\u767B\u8BB0\u7684\u4EA4\u6613\u6240");
+    return [...new Set(result)].sort();
+  };
+  const cycle = async () => {
+    const plans = [], jobs = [];
+    let marketCodes;
+    for (const kind of types) {
+      if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
+      const binding = spec.data[kind];
+      source(binding.source);
+      const selected = binding.codes ?? (requested.length ? requested : marketCodes ??= await codes());
+      if (!selected.length) throw Error("\u533A\u95F4\u5185\u6CA1\u6709\u8BC1\u5238");
+      let start = values.start, end = values.end;
+      if (!start) {
+        const stored = await call("collection.inspect", { source_id: binding.source, codes: selected });
+        if (!stored.last_date) throw Error("\u6CA1\u6709\u5DF2\u5B58\u6570\u636E\uFF0C\u8BF7\u7528 range \u6307\u5B9A start \u548C end");
+        start = stored.last_date;
+        end = today();
+      }
+      const request = { source_id: binding.source, start, end };
+      if (values.fields) request.fields = items(values.fields);
+      const size = spec.batch_size === void 0 ? selected.length : spec.batch_size;
+      if (!Number.isSafeInteger(size) || size < 1) throw Error("\u5E02\u573A\u6536\u96C6\u6279\u91CF\u8BBE\u7F6E\u65E0\u6548");
+      for (let offset = 0; offset < selected.length; offset += size) {
+        if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
+        const batch = { ...request, codes: selected.slice(offset, offset + size) };
+        if (command === "check") {
+          const result = await call("collection.inspect", batch);
+          plans.push({ data: kind, request: batch, coverage: result.coverage });
+        } else {
+          if (["latest", "auto"].includes(command)) Object.assign(batch, { force: true, refresh: true });
+          jobs.push(await call("collection.run", batch));
+          if (selected.length > size) progress({ market: market.scope, data: kind, status: "running", completed: Math.min(offset + size, selected.length), total: selected.length });
+        }
+      }
+    }
+    return command === "check" ? { market: market.scope, status: plans.every((p) => p.coverage.complete) ? "complete" : "incomplete", plans } : { market: market.scope, status: "succeeded", jobs };
+  };
+  do {
+    const result = await cycle();
+    if (command !== "auto") return result;
+    progress(result);
+    await new Promise((resolve, reject) => {
+      const abort = () => {
+        clearTimeout(timer);
+        reject(Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62"));
+      };
+      const timer = setTimeout(() => {
+        signal.removeEventListener("abort", abort);
+        resolve();
+      }, interval);
+      signal.addEventListener("abort", abort, { once: true });
+      if (signal.aborted) abort();
+    });
+  } while (!signal.aborted);
+  throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
+};
 
 // src/workbench/strategy-model.ts
 function backtestInput(spec, values, capital, start, end, dataset) {
@@ -9060,6 +9226,10 @@ var defs = {
   "lake.doctorJob": { input: object2(), poll: 1e3 },
   "cli.ingest": { input: object2({ price: text, fundamentals: text, valuations: text, output: text, max_symbols: { anyOf: [integer, { type: "null" }] }, price_part: { anyOf: [{ type: "array", items: integer }, { type: "null" }] } }), mode: "write" },
   "cli.backtest": { input: object2({ config: text }), mode: "write" },
+  "collection.describe": { input: object2() },
+  "collection.inspect": { input: object2({ source_id: text, codes: { type: "array", items: text }, start: text, end: text, fields: { type: "array", items: text } }, ["source_id"]) },
+  "collection.run": { input: { type: "object", required: ["source_id"], properties: { source_id: text }, additionalProperties: true }, mode: "write" },
+  "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, interval: text }, ["selector"]), mode: "write" },
   "cli.report": { input: object2({ artifact: text, output: text, builder: text, ready_timeout_ms: integer, timeout_ms: integer }), mode: "write" }
 };
 var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;
@@ -9069,7 +9239,7 @@ function features() {
   const operations = Object.entries(defs).map(([operation, definition]) => {
     schemas[inputSchema(operation)] = definition.input;
     schemas[outputSchema(operation)] = {};
-    return { operation, input_schema: inputSchema(operation), response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"], mode: definition.mode ?? "read", poll: definition.poll, changes: definition.changes };
+    return { operation, input_schema: inputSchema(operation), response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"], mode: definition.mode ?? "read", poll: definition.poll, changes: definition.changes, ...operation === "cli.collect" ? { execute: collect } : {} };
   });
   const prepare = (raw) => {
     const data = raw;
@@ -9110,7 +9280,7 @@ var backend = process.argv.includes("--connected") ? { send: (request) => new Pr
   waits.set(request.request_id, { resolve, reject });
   output({ kind: "request", request });
 }) } : void 0;
-var core = createDisplay({ ...features(), backend });
+var core = createDisplay({ ...features(), backend, progress: (state) => output({ kind: "state", state }) });
 var input = createInterface({ input: process.stdin, crlfDelay: Infinity });
 function close() {
   core.dispose();

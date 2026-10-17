@@ -421,7 +421,7 @@ class AccountExecutionSession:
     def execute_open(self, trade_date: date, bars: Mapping[str, Bar],
                      previous_closes: Mapping[str, float | None], *, risk: OpeningRiskSnapshot,
                      volume20: Mapping[str, Decimal] | None = None,
-                     cash_reserve: Decimal = Decimal(0), on_fill=None):
+                     cash_reserve: Decimal = Decimal(0), on_fill=None, eligible=None):
         """Execute a complete pending-order snapshot, sells before buys.
 
         Missing bars are not interpreted as suspensions. The data adapter must
@@ -435,14 +435,22 @@ class AccountExecutionSession:
             raise TypeError('cash_reserve must be an explicit Decimal')
         if not cash_reserve.is_finite() or cash_reserve < 0:
             raise ValueError('cash_reserve must be finite and nonnegative')
+        eligible = None if eligible is None else tuple(eligible)
         inputs=(tuple(sorted(bars.items())),tuple(sorted(previous_closes.items())),risk.liquidity_as_of,
                 tuple(sorted(risk.raw_marks.items())),tuple(sorted(risk.amount20.items())),
-                tuple(sorted(volume20.items())),cash_reserve,risk.receivables,risk.liabilities,risk.limits)
+                tuple(sorted(volume20.items())),cash_reserve,risk.receivables,risk.liabilities,risk.limits,
+                eligible)
         if trade_date in self._open_attempts:
             original,fills=self._open_attempts[trade_date]
             if original!=inputs: raise ValueError('conflicting opening replay')
             return fills
-        orders=sorted(self.pending,key=lambda order:(order.side!=Side.SELL,order.order_id))
+        excluded = ()
+        if eligible is not None:
+            allowed = set(eligible)
+            excluded = tuple(order for order in self.pending
+                             if order.side == Side.BUY and order.symbol not in allowed)
+        orders=sorted((order for order in self.pending if order not in excluded),
+                      key=lambda order:(order.side!=Side.SELL,order.order_id))
         holdings=self._holdings()
         self.rules.check(phase='opening_validate', snapshot=risk,
                          trade_date=trade_date, holdings=holdings, orders=orders)
@@ -456,6 +464,8 @@ class AccountExecutionSession:
                 raise ValueError(f'opening mark does not match executable open: {order.symbol}')
             if (order.order_id,trade_date) in self._attempts:
                 raise ValueError('opening batch overlaps an existing individual attempt')
+        for order in excluded:
+            self.cancel(order.order_id, trade_date, 'market_ineligible')
         fills=[]
         for order in orders:
             bar=bars[order.symbol]; previous=previous_closes[order.symbol]

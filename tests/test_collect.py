@@ -525,7 +525,7 @@ class CollectionTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as root:
             bus = DataBus(DataStore(Path(root)))
-            registry = {"sources": [], "datasets": [{"id": "history_holdout"}],
+            registry = {"sources": [], "datasets": [{"id": "fixture_dataset"}],
                         "benchmarks": [{"id": "hs300"}]}
             bus.write("sources", "registry", "sources.json",
                       json.dumps(registry).encode())
@@ -593,8 +593,8 @@ class CollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             backend = build_backend(Path(root))
             try:
-                self.assertEqual(backend._modules.sources.sources.list(), [])
-                backend._modules.sources.sources.register({
+                self.assertEqual(backend._modules.sources.collect.sources.list(), [])
+                backend._modules.sources.collect.sources.register({
                     "id": "new_quotes", "name": "New quotes", "method": "quotes",
                     "frequency": "daily", "defaults": {"codes": ["1.600000"]},
                 })
@@ -602,7 +602,7 @@ class CollectionTests(unittest.TestCase):
                         "records": [{"code": "1.600000", "data_at": "2026-10-14T15:00:00+08:00",
                                      "source": "new_quotes"}], "raw": [],
                         "scope": {"kind": "fixture"}}):
-                    result = backend._modules.sources.run({"source_id": "new_quotes"})
+                    result = backend._modules.sources.handle("collection.run", {"source_id": "new_quotes"})
                 self.assertEqual(result["status"], "succeeded")
             finally:
                 backend.close()

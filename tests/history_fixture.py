@@ -38,6 +38,11 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
         'request':{'start':history_start.isoformat(),'end':sessions[-1].isoformat()},
         'sessions':[d.isoformat() for d in sessions]})
     write('calendar.json',{'sessions':[d.isoformat() for d in sessions],'source_file':'calendar_source.json'})
+    write('market_members.json', {'records': [
+        {'code': symbol, 'index': None, 'effective': history_start.isoformat(),
+         'known_at': f'{history_start.isoformat()}T08:00:00+08:00', 'included': True}
+        for symbol in symbols
+    ]})
     write('code_changes.json',{'schema':1,'scope':'engineering_fixture','events':[]})
     factor_start='1990-01-01'; factor_end='2020-02-05'; corp=[]
     def cache(name,request,fields,rows):
@@ -53,7 +58,7 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
         for year in map(str,range(history_start.year,2021)):
             name=f'corp/dividend_{symbol}_{year}.json'
             cache(name,{'kind':'dividend','code':identity,'start':None,'end':None,'year':year},
-                ['code','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate','dividCashPsBeforeTax','dividStocksPs','dividReserveToStockPs'],[])
+                ['code','dividPlanAnnounceDate','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate','dividCashPsBeforeTax','dividStocksPs','dividReserveToStockPs'],[])
             corp.append({'file':name})
     write('policy_source.json',{'type':'engineering_fee_and_tax_policy'},'account')
     policy={'schema':1,'investor':'domestic_individual_unrestricted_a_share',
@@ -65,8 +70,26 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
                'liability':'current_holding_period','rounding':'none'}}
     write('account_policy.json',policy,'account')
     (folder/'manifest.json').write_text(json.dumps({'schema':2,'files':files,'fields':{},'calendar':'calendar.json',
-        'scope':{'symbols':symbols,'universe':'CN_A_SHARE'},'price':{'daily_dir':'daily','cache_dir':'factors','stock_basic_dir':'basic','code_changes':'code_changes.json','factor_start':factor_start,'factor_end':factor_end},
-        'corporate_action_sources':corp,'action_facts':[],'account_policy':'account_policy.json'}))
+        'scope':{'symbols':symbols,'universe':'CN_A_SHARE'},
+        'inputs':{'calendar':{'sessions':'calendar.json','source':'calendar_source.json'},
+                  'bars':'daily',
+                  'code_changes':'code_changes.json',
+                  'factor_cache':{'template':'factors/adjust_{symbol}_{start}_{end}.json','start':factor_start,'end':factor_end},
+                  'corporate_action_cache':{'template':'corp/dividend_{symbol}_{year}.json'},
+                  'stock_basic_cache':{'template':'basic/stock_basic_{provider_code}.json'},
+                  'account_policy':'account_policy.json','action_facts':[]}}))
+    registry = root/'data'/'source'/'registry'/'sources.json'
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(json.dumps({'sources': [], 'datasets': [], 'benchmarks': [], 'markets': [{
+        'scope': 'CN_A', 'dataset_id': 'fixture', 'currency': 'CNY',
+        'calendar': 'calendar.json', 'timezone': 'Asia/Shanghai',
+        'session_open': '09:30', 'session_close': '15:00',
+        'execution': 'cn_a_share', 'code_normalizer': 'normalize_security_id',
+        'fields': {'close': {'source': 'daily', 'column': 'close', 'type': 'number'}},
+        'members': {'source': 'fixture', 'file': 'market_members.json',
+                    'code': 'code', 'index': 'index', 'effective': 'effective',
+                    'known': 'known_at', 'included': 'included'},
+    }]}))
     return {'dataset': 'fixture'}
 
 

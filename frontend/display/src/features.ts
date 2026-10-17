@@ -1,4 +1,5 @@
 import type {JsonValue,Operation,Options} from './core';
+import {collect} from './collect';
 import {backtestInput} from './workbench/strategy-model';
 import type {StrategySpec} from './workbench/port';
 const object=(properties:Record<string,object>={},required=Object.keys(properties))=>({type:'object',properties,required,additionalProperties:false});
@@ -28,6 +29,10 @@ const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Opera
  'lake.doctor':{input:object(),poll:3000},'lake.doctorFix':{input:object({id:text}),mode:'write'},'lake.doctorJob':{input:object(),poll:1000},
  'cli.ingest':{input:object({price:text,fundamentals:text,valuations:text,output:text,max_symbols:{anyOf:[integer,{type:'null'}]},price_part:{anyOf:[{type:'array',items:integer},{type:'null'}]}}),mode:'write'},
  'cli.backtest':{input:object({config:text}),mode:'write'},
+ 'collection.describe':{input:object()},
+ 'collection.inspect':{input:object({source_id:text,codes:{type:'array',items:text},start:text,end:text,fields:{type:'array',items:text}},['source_id'])},
+ 'collection.run':{input:{type:'object',required:['source_id'],properties:{source_id:text},additionalProperties:true},mode:'write'},
+ 'cli.collect':{input:object({selector:text,data:text,codes:text,fields:text,start:text,end:text,interval:text},['selector']),mode:'write'},
  'cli.report':{input:object({artifact:text,output:text,builder:text,ready_timeout_ms:integer,timeout_ms:integer}),mode:'write'},
 };
 export const inputSchema=(operation:string)=>`urn:lianghua:ui:input:${operation}:v1`;
@@ -38,7 +43,7 @@ export function features():Pick<Options,'operations'|'schemas'> {
    schemas[inputSchema(operation)]=definition.input;
    // Existing feature data is JSON; transport/schema migration belongs to the backend adapter.
    schemas[outputSchema(operation)]={};
-   return {operation,input_schema:inputSchema(operation),response_schemas:[outputSchema(operation),'urn:lianghua:ui:problem:v1'],mode:definition.mode??'read',poll:definition.poll,changes:definition.changes};
+   return {operation,input_schema:inputSchema(operation),response_schemas:[outputSchema(operation),'urn:lianghua:ui:problem:v1'],mode:definition.mode??'read',poll:definition.poll,changes:definition.changes,...(operation==='cli.collect'?{execute:collect}:{})};
  });
  const prepare=(raw:JsonValue):JsonValue=>{
    const data=raw as unknown as {spec:StrategySpec;values:Record<string,string|boolean>;capital:string;start:string;end:string;dataset:string};

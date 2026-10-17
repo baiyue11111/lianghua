@@ -16,6 +16,7 @@ class EffectiveConfigTests(unittest.TestCase):
         dataset = SimpleNamespace(
             fields=required_fields(requirements.fields),
             history=requirements.history_bars,
+            scope={"market": {"selection": {"scope": "CN_A"}}},
         )
         return build_effective_config(
             request, strategy, requirements, dataset,

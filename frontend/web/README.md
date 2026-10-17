@@ -1,73 +1,26 @@
-# React + TypeScript + Vite
+# Web 界面
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+- 行情：搜索、K 线、指数；采集为轻量状态与动作。
+- 策略研究：策略列表 → 配置尝试 → 单次结果。结果分为概览、配置和成交。
+- 配置文件回测：从策略首页按需打开，使用既有服务器配置路径端口。没有网页参数编辑器。
 
-Currently, two official plugins are available:
+所有请求经过现有交互核心。展示模型在 `src/research/model.ts`；格式工具在 `src/shared/format.ts`。适配层、协议和后端保持只读。
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+运行验证：
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+npm run test:dev
+npm run build -- --outDir /tmp/readable-web-build
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+构建只做无缓存类型检查，不向依赖链接写入，也没有在 TypeScript 配置里写临时路径。
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+受控浏览器检查页：
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```sh
+node scripts/visual.mjs
 ```
+
+命令输出临时 HTML 路径。此页使用真实组件与交互核心，后端是固定测试替身，不连接生产服务。可用页面片段：`#market`、`#research`、`#attempts`、`#result`、`#config`、`#trades`、`#batch`。其中批次结果仅调用测试替身。其他写操作被测试替身拒绝。
+
+组件测试通过服务端渲染调用真实事件，未替换组件或 hooks；它不验证浏览器生命周期、实际图表绘制或手机尺寸。桌面截图仅检查了受控尝试列表。

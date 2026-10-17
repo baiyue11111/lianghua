@@ -157,8 +157,6 @@ class DataRequest:
     history_bars: int
     frequency: str = "daily"
     price_basis: str = "adjusted"
-    symbols: tuple[str, ...] | None = None
-    universe: str = "dataset"
 
     def __post_init__(self) -> None:
         if not self.fields or len(set(self.fields)) != len(self.fields):
@@ -167,12 +165,6 @@ class DataRequest:
             _name(name, "data field")
         if type(self.history_bars) is not int or self.history_bars < 1:
             raise ValueError("history_bars must be a positive integer")
-        if self.symbols is not None:
-            if not self.symbols or tuple(sorted(set(self.symbols))) != self.symbols:
-                raise ValueError("symbols must be an ordered unique nonempty tuple")
-            for symbol in self.symbols:
-                _name(symbol, "requested symbol")
-        _name(self.universe, "data universe")
         _name(self.frequency, "data frequency")
         _name(self.price_basis, "price basis")
 
@@ -273,6 +265,7 @@ class HistoryDay:
     liquidity_as_of: date
     registrations: tuple[RegistrationAction, ...]
     opening_volume20: Mapping[str, Decimal] = field(default_factory=dict)
+    opening_eligible: tuple[str, ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -317,6 +310,7 @@ class DataQuery:
     universe: str = "dataset"
     frequency: str = "daily"
     purpose: str = "trade"
+    market: Mapping[str, object] | None = None
 
     def __post_init__(self):
         if not isinstance(self.dataset, str) or not self.dataset.strip():
@@ -345,6 +339,8 @@ class DataQuery:
                 any(not isinstance(symbol, str) or not symbol.strip() for symbol in self.symbols) or
                 len(set(self.symbols)) != len(self.symbols)):
             raise ValueError("symbols must be ordered and unique")
+        if self.market is not None:
+            object.__setattr__(self, "market", _market_selection(self.market))
 
 
 @dataclass(frozen=True)
@@ -974,7 +970,19 @@ class DataBus:
         if not isinstance(query, DataQuery):
             raise DataError("invalid_query", "query must be DataQuery")
         try:
-            result = _prepare_dataset(self, query)
+            source_query = query
+            if query.market is not None:
+                from dataclasses import replace
+                from plugins.data import Adapter
+                candidates = Adapter.candidates(self, query.market, query.dataset,
+                                                query.start, query.end)
+                if not candidates:
+                    raise DataError("market_data_missing", "market selector has no source candidates")
+                source_query = replace(query, symbols=candidates)
+            result = _prepare_dataset(self, source_query)
+            if query.market is not None:
+                from plugins.data import Adapter
+                result = Adapter.market(self, query, result)
         except DataError:
             raise
         except (KeyError, TypeError, ValueError, OSError) as error:
@@ -1204,13 +1212,10 @@ class BacktestRequest:
     history: int = 0
     price_basis: str = "adjusted"
     as_of: date | None = None
-    symbols: tuple[str, ...] | None = None
-    universe: str = "dataset"
+    market: Mapping[str, object] = field(default_factory=lambda: {"scope": "CN_A"})
     settlement_parameters: Mapping[str, object] | None = None
     evaluation_parameters: Mapping[str, object] | None = None
     benchmark_id: str | None = None
-    validation_window: tuple[datetime, datetime] | None = None
-    out_of_sample_window: tuple[datetime, datetime] | None = None
 
     def __post_init__(self) -> None:
         try:
@@ -1232,25 +1237,9 @@ class BacktestRequest:
                 raise ValueError("unsupported price basis")
             if self.as_of is not None and not isinstance(self.as_of, date):
                 raise ValueError("as_of must be a date")
-            symbols = None if self.symbols is None else tuple(self.symbols)
-            if symbols is not None and (not symbols or len(set(symbols)) != len(symbols)
-                                        or any(not isinstance(symbol, str) or not symbol.strip()
-                                               for symbol in symbols)):
-                raise ValueError("symbols must be ordered and unique")
-            object.__setattr__(self, "symbols", symbols)
-            _name(self.universe, "universe")
+            object.__setattr__(self, "market", _market_selection(self.market))
             if self.benchmark_id is not None:
                 _name(self.benchmark_id, "benchmark_id")
-            for name in ("validation_window", "out_of_sample_window"):
-                window = getattr(self, name)
-                if window is not None:
-                    if (not isinstance(window, tuple) or len(window) != 2
-                            or any(not isinstance(item, datetime) for item in window)):
-                        raise ValueError(f"{name} must contain two datetimes")
-                    _aware(window[0], f"{name} start")
-                    _aware(window[1], f"{name} end")
-                    if window[0] > window[1]:
-                        raise ValueError(f"{name} start must not exceed end")
             for name in ("settlement_parameters", "evaluation_parameters"):
                 value = getattr(self, name)
                 if value is None:
@@ -1341,7 +1330,6 @@ class Trial:
 class SearchResponse:
     trials: tuple[Trial, ...]
     best_index: int
-    validation: BacktestResponse | None = None
 
     def __post_init__(self) -> None:
         trials = tuple(self.trials)
@@ -1351,8 +1339,6 @@ class SearchResponse:
             raise ValueError("best_index must point to a trial")
         if any(not isinstance(trial, Trial) for trial in trials):
             raise TypeError("trials must contain Trial values")
-        if self.validation is not None and not isinstance(self.validation, BacktestResponse):
-            raise TypeError("validation must be BacktestResponse or None")
         object.__setattr__(self, "trials", trials)
 
 
@@ -1543,7 +1529,8 @@ def _load_stock_basic_anchor(path: Path, symbol: str, first_bar: date,
 
 
 def _load_factor_history(cache_dir: Path, symbol: str, start: date, end: date,
-                         changes: tuple[dict, ...], read: Callable[[Path], bytes]):
+                         changes: tuple[dict, ...], read: Callable[[Path], bytes],
+                         template: str = 'adjust_{symbol}_{start}_{end}.json'):
     from core.calculation import FactorEvent
     """Use explicit alias intervals, checking unchanged basis at each seam.
 
@@ -1560,7 +1547,7 @@ def _load_factor_history(cache_dir: Path, symbol: str, start: date, end: date,
     def load(code, visited):
         if code in visited:
             raise ValueError('cyclic code-change history')
-        path = cache_dir / f'adjust_{code}_{start}_{end}.json'
+        path = cache_dir / template.format(symbol=code, start=start, end=end)
         events, source = _load_factor_cache(path, code, start, end, read)
         if code not in incoming:
             return events, (source,)
@@ -1641,6 +1628,36 @@ def _float_or_nan(value: object, field: str, code: str, day: str,
     return number
 
 
+def _parquet_paths_for_dates(paths: tuple[Path, ...], start: date, end: date) -> tuple[Path, ...]:
+    import pyarrow.parquet as pq
+
+    selected=[]
+    for path in paths:
+        parquet=pq.ParquetFile(path)
+        column=parquet.schema_arrow.get_field_index('date')
+        if column < 0:
+            raise ValueError(f'parquet date field missing: {path}')
+        intersects=False
+        for index in range(parquet.metadata.num_row_groups):
+            stats=parquet.metadata.row_group(index).column(column).statistics
+            if stats is None or not stats.has_min_max:
+                intersects=True
+                break
+            low,high=stats.min,stats.max
+            low=low.date() if isinstance(low,datetime) else low
+            high=high.date() if isinstance(high,datetime) else high
+            if not isinstance(low,date):
+                low=date.fromisoformat(str(low))
+            if not isinstance(high,date):
+                high=date.fromisoformat(str(high))
+            if low<=end and high>=start:
+                intersects=True
+                break
+        if intersects:
+            selected.append(path)
+    return tuple(selected)
+
+
 class _BarEvidenceError(ValueError):
     def __init__(self, reason: str, detail: str):
         self.reason = reason
@@ -1693,6 +1710,10 @@ def _load_adjusted_lake_panel(
     code_changes_path: Path,
     stock_basic_dir: Path | None = None,
     symbols: tuple[str, ...] | None = None,
+    date_start: date | None = None,
+    date_end: date | None = None,
+    factor_template: str = 'adjust_{symbol}_{start}_{end}.json',
+    stock_basic_template: str = 'stock_basic_{provider_code}.json',
     read: Callable[[Path], bytes],
     list_files: Callable[[Path, str], tuple[Path, ...]],
 ) -> AdjustedPricePanel:
@@ -1711,29 +1732,41 @@ def _load_adjusted_lake_panel(
     if not isinstance(factor_start, date) or not isinstance(factor_end, date) or factor_start > factor_end:
         raise ValueError("valid factor_start and factor_end dates are required")
     paths = sorted(list_files(daily_dir, "*.parquet"))
+    if date_start is not None and date_end is not None:
+        paths=list(_parquet_paths_for_dates(tuple(paths),date_start,date_end))
     if not paths:
         raise AdjustmentCoverageError((CoverageIssue("*", "missing_lake", str(daily_dir)),))
+    connection = duckdb.connect()
     lake_hashes = tuple(SourceHash(str(path), _sha256_file(path, read)) for path in paths)
     try:
         changes, identity_hash = _load_code_changes(Path(code_changes_path), read)
     except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
         raise AdjustmentCoverageError((CoverageIssue(
             "*", "invalid_code_change_evidence", str(exc)),)) from exc
-    connection = duckdb.connect()
     files = [str(path) for path in paths]
     code_filter = ""
     query_params = [files]
     if symbols is not None:
         code_filter = " WHERE code IN (SELECT * FROM UNNEST(?))"
         query_params.append(list(symbols))
+    date_filter = " AND " if code_filter else " WHERE "
+    if date_start is not None:
+        date_filter += "CAST(date AS DATE) >= ?"
+        query_params.append(date_start)
+    if date_end is not None:
+        date_filter += (" AND " if date_start is not None else "") + "CAST(date AS DATE) <= ?"
+        query_params.append(date_end)
+    if date_start is None and date_end is None:
+        date_filter = ""
+    row_filter = code_filter + date_filter
     try:
         bounds = connection.execute(
             "SELECT code, min(date), max(date), count(*), count(DISTINCT date), "
-            "arg_max(name, date) FROM read_parquet(?)" + code_filter + " GROUP BY code ORDER BY code",
+            "arg_max(name, date) FROM read_parquet(?)" + row_filter + " GROUP BY code ORDER BY code",
             query_params,
         ).fetchall()
         calendar_strings = [row[0] for row in connection.execute(
-            "SELECT DISTINCT date FROM read_parquet(?)" + code_filter + " ORDER BY date", query_params
+            "SELECT DISTINCT date FROM read_parquet(?)" + row_filter + " ORDER BY date", query_params
         ).fetchall()]
         if not bounds or not calendar_strings:
             raise AdjustmentCoverageError((CoverageIssue("*", "empty_lake", str(daily_dir)),))
@@ -1774,10 +1807,12 @@ def _load_adjusted_lake_panel(
                     code, "unverified_code_change",
                     f"{change['old_code']}->{change['new_code']} on {change['effective_date']}"))
                 continue
-            cache_path = cache_dir / f"adjust_{code}_{factor_start}_{factor_end}.json"
+            cache_path = cache_dir / factor_template.format(
+                symbol=code, start=factor_start, end=factor_end)
             try:
                 events, history_hashes = _load_factor_history(
-                    cache_dir, code, factor_start, factor_end, changes, read)
+                    cache_dir, code, factor_start, factor_end, changes, read,
+                    factor_template)
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
                 reason = "missing_factor_cache" if isinstance(exc, FileNotFoundError) else (
                     "invalid_factor_history" if "seam" in str(exc) or "rename" in str(exc)
@@ -1795,7 +1830,8 @@ def _load_adjusted_lake_panel(
                         code, "missing_initial_anchor",
                         "per-code stock-basic and code-change evidence are required"))
                     continue
-                stock_basic_path = Path(stock_basic_dir) / f"stock_basic_{provider_code}.json"
+                stock_basic_path = Path(stock_basic_dir) / stock_basic_template.format(
+                    provider_code=provider_code)
                 try:
                     anchor, source_hash = _load_stock_basic_anchor(stock_basic_path, code, first, read)
                 except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
@@ -1832,7 +1868,7 @@ def _load_adjusted_lake_panel(
         date_index = {str(day): column for column, day in enumerate(calendar_strings)}
         reader = connection.execute(
             "SELECT code, date, open, high, low, close, volume, amount, tradestatus "
-            "FROM read_parquet(?)" + code_filter + " ORDER BY code, date", query_params,
+            "FROM read_parquet(?)" + row_filter + " ORDER BY code, date", query_params,
         ).to_arrow_reader(batch_size=100_000)
         for batch in reader:
             columns = batch.to_pydict()
@@ -1942,6 +1978,15 @@ def _load_dataset(data, query):
             return data.path('sources',identity,relative), identity, relative
         path=safe_path(folder,name)
         return path, dataset_id, path.relative_to(folder).as_posix()
+    def related_name(base, child):
+        if shared_ref(child) is not None:
+            return child
+        _, identity, relative = source_ref(base)
+        parent = Path(relative).parent
+        joined = (parent / child).as_posix()
+        if identity == dataset_id:
+            return joined
+        return f"source/{identity}/{joined}"
     def read(name):
         _, identity, relative=source_ref(name)
         return data.read('sources',identity,relative)
@@ -1978,17 +2023,17 @@ def _load_dataset(data, query):
 
     refs=manifest['files']
     if not isinstance(refs,list) or not refs: raise ValueError('historical evidence files are required')
-    bound_names={ref['file'] for ref in refs}
+    bound_names=set()
     hashes={}
     names_by_path={}
     market_files={}
     account_files={}
     for ref in refs:
-        path, _, _ = source_ref(ref['file'])
-        digest=sha256(read(ref['file'])).hexdigest()
-        if str(path) in hashes: raise ValueError('duplicate historical evidence file')
-        hashes[str(path)]=digest
-        names_by_path[str(path)]=ref['file']
+        if not isinstance(ref, dict) or not isinstance(ref.get('file'), str):
+            raise ValueError('historical evidence file reference is malformed')
+        if ref['file'] in bound_names:
+            raise ValueError('duplicate historical evidence file')
+        bound_names.add(ref['file'])
     def evidence(name):
         path, _, _ = source_ref(name)
         if str(path) not in hashes:
@@ -2000,49 +2045,108 @@ def _load_dataset(data, query):
         path=evidence(name)
         market_files[str(path)]=hashes[str(path)]
         return path
-    market_evidence(manifest['calendar'])
-    calendar_payload=json.loads(read(manifest['calendar']))
+    inputs=manifest.get('inputs')
+    if (not isinstance(inputs,dict) or not isinstance(inputs.get('calendar'),dict)
+            or not isinstance(inputs['calendar'].get('sessions'),str)
+            or not isinstance(inputs['calendar'].get('source'),str)):
+        raise ValueError('calendar input sessions and source are required')
+    calendar_name=inputs['calendar']['sessions']
+    market_evidence(calendar_name)
+    calendar_payload=json.loads(read(calendar_name))
     calendar=tuple(date.fromisoformat(value) for value in calendar_payload['sessions'])
     # Calendar evidence is mandatory even if OHLC happens to omit a session.
-    calendar_source_name = calendar_payload['source_file']
+    calendar_source_name = inputs['calendar']['source']
     market_evidence(calendar_source_name)
     calendar_source = json.loads(read(calendar_source_name))
     coverage_request = calendar_source.get('request')
-    if not isinstance(coverage_request, dict) or not isinstance(coverage_request.get('start'), str):
-        raise ValueError('calendar source must declare its requested start')
+    if (not isinstance(coverage_request, dict)
+            or not isinstance(coverage_request.get('start'), str)
+            or not isinstance(coverage_request.get('end'), str)):
+        raise ValueError('calendar source must declare its requested range')
     try:
         calendar_start = date.fromisoformat(coverage_request['start'])
+        calendar_end = date.fromisoformat(coverage_request['end'])
     except ValueError as error:
-        raise ValueError('calendar source requested start is invalid') from error
-    if calendar_start > calendar[0]:
-        raise ValueError('calendar source coverage starts after its first session')
+        raise ValueError('calendar source requested range is invalid') from error
     if len(calendar)<2 or tuple(sorted(set(calendar)))!=calendar: raise ValueError('ordered calendar and next-session sentinel required')
-    price=manifest['price']
-    declared=tuple(scope['symbols'])
-    for directory in ('daily_dir','cache_dir','stock_basic_dir'):
-        for ref in refs_under(price[directory]):
-            name=ref_name(price[directory], ref.name)
-            if name in bound_names:
-                market_evidence(name)
+    bars_dir=inputs['bars']
+    factor=inputs['factor_cache']
+    factor_dir=factor['template'].rsplit('/', 1)[0]
+    stock=inputs['stock_basic_cache']
+    stock_dir=stock['template'].rsplit('/', 1)[0]
+    changes_name=inputs['code_changes']
+    policy_name=inputs['account_policy']
+    factor_start=date.fromisoformat(factor['start'])
+    factor_end=date.fromisoformat(factor['end'])
+    declared=tuple(scope.get('symbols', ()))
+    declared_ids=tuple(normalize_security_id(symbol) for symbol in declared)
+    if len(set(declared_ids)) != len(declared_ids):
+        raise ValueError('declared security scope contains duplicate identities')
+    requested_ids=None if query.symbols is None else tuple(
+        normalize_security_id(symbol) for symbol in query.symbols)
+    if requested_ids is not None and len(set(requested_ids)) != len(requested_ids):
+        raise ValueError('requested symbols contain duplicate identities')
+    if requested_ids is not None and declared_ids and not set(requested_ids) <= set(declared_ids):
+        raise ValueError('requested symbols are outside supplied dataset')
+    if query.universe!='dataset' and scope['universe']!=query.universe:
+        raise ValueError('universe_scope_mismatch: dataset scope does not satisfy the requested universe')
+    if query.start < calendar[0] or query.end > calendar[-2]:
+        raise ValueError('requested interval is outside historical snapshot')
+    if query.universe!='dataset' and requested_ids is not None and set(requested_ids)!=set(declared_ids):
+        raise ValueError('universe_scope_mismatch: requested subset does not satisfy complete universe')
+    from bisect import bisect_left, bisect_right
+    start_index=bisect_left(calendar,query.start)
+    end_index=bisect_right(calendar,query.end)-1
+    if start_index >= len(calendar)-1 or end_index < start_index:
+        raise ValueError('requested interval contains no trading sessions')
+    warmup=max(query.history,LIQUIDITY_WINDOW)
+    if start_index < warmup:
+        raise ValueError(f'insufficient pre-start history: requires {warmup} sessions (strategy and execution)')
+    read_start=calendar[start_index-warmup]
+    actual_start=calendar[start_index]
+    actual_end=calendar[end_index]
+    plugins=manifest.get('signal_plugins',{})
+    if not isinstance(plugins,dict):
+        raise ValueError('signal_plugins must be a mapping')
+    scaler=plugins.get('scaler')
+    if scaler is not None and isinstance(scaler,dict) and isinstance(scaler.get('fit_start'),str):
+        fit_start=date.fromisoformat(scaler['fit_start'])
+        fit_index=bisect_left(calendar,fit_start)
+        if fit_index >= len(calendar)-1:
+            raise ValueError('signal scaler fit window is not fully covered')
+        read_start=calendar[min(start_index-warmup,fit_index)]
+    read_start_index=calendar.index(read_start)
+    read_end=actual_end
+    sentinel=calendar[end_index+1]
+    if calendar_start > read_start or calendar_end < sentinel:
+        raise ValueError('calendar source coverage does not cover selected warm-up, interval, and sentinel')
     external_roots={}
-    for directory in ('daily_dir','cache_dir','stock_basic_dir'):
-        shared=shared_ref(price[directory])
+    for directory in (bars_dir, factor_dir, stock_dir):
+        shared=shared_ref(directory)
         if shared is not None:
             identity,_=shared
             external_roots[identity]=data.path('sources',identity,'_').parent
     def read_path(path):
         if path.is_relative_to(folder):
-            return data.read('sources',dataset_id,path.relative_to(folder).as_posix())
-        source_root=data.path('sources','_','_').parents[1]
-        if path.is_relative_to(source_root):
-            relative=path.relative_to(source_root)
-            if len(relative.parts)<2:
+            identity=dataset_id
+            relative=path.relative_to(folder).as_posix()
+            name=relative
+        else:
+            source_root=data.path('sources','_','_').parents[1]
+            if not path.is_relative_to(source_root):
                 raise ValueError('unbound historical evidence path')
-            return data.read('sources',relative.parts[0],Path(*relative.parts[1:]).as_posix())
-        for identity, root in external_roots.items():
-            if path.is_relative_to(root):
-                return data.read('sources',identity,path.relative_to(root).as_posix())
-        raise ValueError('unbound historical evidence path')
+            relative_path=path.relative_to(source_root)
+            if len(relative_path.parts)<2:
+                raise ValueError('unbound historical evidence path')
+            identity=relative_path.parts[0]
+            relative=Path(*relative_path.parts[1:]).as_posix()
+            name=f'source/{identity}/{relative}'
+        payload=data.read('sources',identity,relative)
+        digest=sha256(payload).hexdigest()
+        hashes[str(path)]=digest
+        names_by_path[str(path)]=name
+        market_files[str(path)]=digest
+        return payload
     def list_files(directory, pattern):
         shared=shared_ref(directory)
         if shared is not None:
@@ -2064,95 +2168,50 @@ def _load_dataset(data, query):
                      for ref in data.list('sources',dataset_id)
                      if ref.name.startswith(prefix)
                      and ref.name.endswith(pattern.removeprefix('*')))
+    selected_symbols=(declared if requested_ids is None and declared else
+                      None if requested_ids is None else
+                      tuple(symbol.split('.')[-1] for symbol in requested_ids))
     panel=_load_adjusted_lake_panel(
-        source_ref(price['daily_dir'])[0],source_ref(price['cache_dir'])[0],
-        factor_start=date.fromisoformat(price['factor_start']),factor_end=date.fromisoformat(price['factor_end']),
-        code_changes_path=market_evidence(price['code_changes']),stock_basic_dir=source_ref(price['stock_basic_dir'])[0],
-        symbols=declared,
+        source_ref(bars_dir)[0],source_ref(factor_dir)[0],
+        factor_start=factor_start,factor_end=factor_end,
+        code_changes_path=market_evidence(changes_name),stock_basic_dir=source_ref(stock_dir)[0],
+        symbols=selected_symbols,date_start=read_start,date_end=read_end,
+        factor_template=Path(factor['template']).name,
+        stock_basic_template=Path(stock['template']).name,
         read=read_path,
         list_files=list_files)
-    target_days=tuple(calendar[:-1])
-    panel_days={day:index for index,day in enumerate(panel.calendar)}
-    if any(day not in panel_days for day in target_days):
-        raise ValueError('price dates do not cover calendar')
-    columns=[panel_days[day] for day in target_days]
-    from dataclasses import fields
-    arrays={field.name:getattr(panel,field.name)[:,columns]
-            for field in fields(panel)
-            if isinstance(getattr(panel,field.name),np.ndarray)
-            and getattr(panel,field.name).ndim==2}
-    panel=replace(panel,calendar=target_days,**arrays)
-    declared_ids = tuple(normalize_security_id(symbol) for symbol in declared)
-    if len(set(declared_ids)) != len(declared_ids):
-        raise ValueError('declared security scope contains duplicate identities')
-    requested_ids = None if query.symbols is None else tuple(
-        normalize_security_id(symbol) for symbol in query.symbols)
-    if query.universe!='dataset':
-        if scope['universe']!=query.universe:
-            raise ValueError('universe_scope_mismatch: dataset scope does not satisfy the requested universe')
-        if query.symbols is not None and set(requested_ids) != set(declared_ids):
-            raise ValueError('universe_scope_mismatch: requested subset does not satisfy complete universe')
-
     scope = dict(scope)
     scope['calendar_start'] = calendar_start.isoformat()
     scope['calendar_end'] = calendar[-2].isoformat()
-    if tuple(normalize_security_id(symbol) for symbol in panel.symbols) != declared_ids:
+    if requested_ids is None and declared_ids and set(normalize_security_id(symbol) for symbol in panel.symbols) != set(declared_ids):
         raise ValueError('declared security scope differs from supplied historical lake')
-    if tuple(calendar[:-1])!=panel.calendar:
-        raise ValueError('price dates must exactly cover calendar, with explicit next-session sentinel')
+    if tuple(calendar[read_start_index:end_index+1]) != panel.calendar:
+        raise ValueError('price dates do not cover selected warm-up and query interval')
     start,end=query.start,query.end
     as_of=query.as_of
-    if as_of is not None and as_of < end:
+    if as_of is not None and as_of < actual_end:
         raise ValueError('data as_of precedes query end')
-    if as_of is not None:
-        availability = manifest.get('source_availability')
-        if not isinstance(availability, list) or not availability:
-            raise ValueError('point-in-time query requires unified source availability evidence')
-        by_file = {}
-        for item in availability:
-            if (not isinstance(item, dict) or set(item) != {'file', 'sha256', 'available_at'}
-                    or item['file'] in by_file):
-                raise ValueError('invalid unified source availability evidence')
-            by_file[item['file']] = item
-        for absolute, digest in hashes.items():
-            name = names_by_path[absolute]
-            item = by_file.get(name)
-            if item is None or item['sha256'] != digest:
-                raise ValueError(f'point-in-time source availability is not bound: {name}')
-            try:
-                available_day = date.fromisoformat(item['available_at'])
-            except (TypeError, ValueError) as error:
-                raise ValueError(f'invalid source availability date: {name}') from error
-            if available_day > as_of:
-                raise ValueError(f'source evidence became available after query cutoff: {name}')
-    if as_of is not None and date.fromisoformat(price['factor_end']) != as_of:
+    if as_of is not None and factor_end != as_of:
         raise ValueError('point-in-time factor snapshot must end exactly at query cutoff')
-    if as_of is not None:
-        factor_files = [ref_name(price['cache_dir'], ref.name) for ref in refs_under(price['cache_dir'])]
-        if not factor_files:
-            raise ValueError('point-in-time query requires factor availability evidence')
-        for name in factor_files:
-            payload = json.loads(read(name))
-            if not isinstance(payload, dict):
-                raise ValueError(f'invalid factor evidence: {name}')
-    if not calendar[0]<=start<=end<=calendar[-2]: raise ValueError('requested interval is outside historical snapshot')
-    warmup=max(query.history,LIQUIDITY_WINDOW)
-    if sum(day<start for day in calendar)<warmup:
-        raise ValueError(f'insufficient pre-start history: requires {warmup} sessions (strategy and execution)')
-    # Each explicit code/year request must be source-backed, including empty
-    # results. A successful empty response is evidence; a missing file is not.
-    coverage=manifest['corporate_action_sources']; source_events={}; query_keys=set()
-    for item in coverage:
-        path=market_evidence(item['file']); payload=json.loads(read(item['file'])); request=payload['request']
+    calendar = tuple(calendar[read_start_index:end_index+2])
+    # Each requested code/year cache is explicit evidence, including successful empty results.
+    coverage_template=inputs['corporate_action_cache']['template']
+    source_events={}; query_keys=set(); observations=[]; facts={}
+    selected_codes=tuple(panel.symbols)
+    for code in selected_codes:
+      for year in range(read_start.year, actual_end.year + 1):
+        name=coverage_template.format(symbol=code,year=year)
+        path=market_evidence(name); payload=json.loads(read(name)); request=payload['request']
         if request['kind']!='dividend': raise ValueError('dividend source request required')
         if request['start'] is not None or request['end'] is not None: raise ValueError('dividend source requires year request')
         _validate_factor_cache(request, payload)
-        code=request['code'].split('.')[-1]; year=int(request['year'])
+        source_code=request['code'].split('.')[-1]; request_year=int(request['year'])
+        if source_code != code or request_year != year:
+            raise ValueError('corporate action cache identity differs from template')
         if request['code']!=_provider_code(code): raise ValueError('corporate action provider identity invalid')
-        required_fields={'code','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate',
+        required_fields={'code','dividPlanAnnounceDate','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate',
             'dividCashPsBeforeTax','dividStocksPs','dividReserveToStockPs'}
         if not required_fields<=set(payload['raw_response']['fields']): raise ValueError('corporate action source fields incomplete')
-        if (code,year) in query_keys: raise ValueError('duplicate corporate action coverage')
         query_keys.add((code,year))
         raw=payload['raw_response']
         records=[dict(zip(raw['fields'],row)) for row in raw['rows']]
@@ -2160,70 +2219,82 @@ def _load_dataset(data, query):
             event=normalize_dividend_records([record])[0]
             if event.code!=request['code']: raise ValueError('corporate action source code differs from request')
             event=replace(event,code=code)
-            if event.registration_date is not None and calendar[0]<=event.registration_date<=end:
+            if event.registration_date is not None and read_start<=event.registration_date<=actual_end:
                 if not event.executable: raise ValueError('corporate action settlement evidence incomplete')
-                source_events[(item['file'],row)]=(event,hashes[str(path)])
-    required={(code,year) for code in declared for year in range(calendar[0].year,end.year+1)}
-    if not required<=query_keys: raise ValueError('corporate action per-security/year source coverage incomplete')
-    policy_file=evidence(manifest['account_policy'])
-    policy=json.loads(read(manifest['account_policy']))
+                if not record.get('dividPlanAnnounceDate') or not record.get('dividRegistDate'):
+                    raise ValueError('cash distribution identity dates are required')
+                distribution_id=f"{code}:{record['dividPlanAnnounceDate']}:{record['dividRegistDate']}"
+                source=canonical_hash({'file':name,'row':row,'hash':hashes[str(path)]})
+                observations.append((source,distribution_id,event))
+                source_events[(name,row)]=(event,hashes[str(path)])
+                cash_only=(event.stock_dividend_per_share == 0 and event.reserve_to_stock_per_share == 0)
+                if cash_only:
+                    facts[(code,distribution_id)]=((None,Decimal('1'),Decimal('0')),
+                        [(hashes[str(path)],hashes[str(path)])])
+                else:
+                    for item in inputs.get('action_facts') or ():
+                        if item.get('source_file') == name and item.get('source_row') == row:
+                            credit_date=item.get('credit_date')
+                            credit_source=item.get('credit_source_file')
+                            if not isinstance(credit_date,str) or not credit_date.strip():
+                                raise ValueError('noncash corporate action requires a valid credit date')
+                            try:
+                                parsed_credit_date=date.fromisoformat(credit_date)
+                            except ValueError as error:
+                                raise ValueError('noncash corporate action credit date is invalid') from error
+                            if parsed_credit_date.isoformat()!=credit_date:
+                                raise ValueError('noncash corporate action credit date is invalid')
+                            if not isinstance(credit_source,str) or not credit_source.strip():
+                                raise ValueError('noncash corporate action requires a credit source file')
+                            terms=(item.get('credit_date'),Decimal(item['stock_nominal_per_share']),
+                                   Decimal(item['reserve_taxable_per_share']))
+                            facts[(code,distribution_id)]=(terms,[(hashes[str(path)],hashes[str(evidence(item['tax_source_file']))])])
+                            market_evidence(credit_source)
+                            break
+                    if (code,distribution_id) not in facts:
+                        raise ValueError('noncash corporate action requires sourced credit and tax facts')
+    policy_file=evidence(policy_name)
+    policy=json.loads(read(policy_name))
     if policy['schema']!=1 or policy['investor']!='domestic_individual_unrestricted_a_share':
         raise ValueError('unsupported investor account policy')
     for source in policy['sources']:
-        path=evidence(source['file'])
+        source_name=related_name(policy_name,source['file'])
+        path=evidence(source_name)
         if hashes[str(path)]!=source['sha256']: raise ValueError('policy source hash mismatch')
     policy_hash=hashes[str(policy_file)]
     fees=FeePolicy.from_mapping(policy['fees'],policy_hash)
     taxes=TaxPolicy.from_mapping(policy['tax'],policy_hash)
     if start<taxes.effective: raise ValueError('requested start precedes supported tax effective date')
-    matched={}; observations=[]; facts={}
-    for item in manifest['action_facts']:
-        key=(item['source_file'],item['source_row'])
-        if key not in source_events:
-            # Full snapshot facts remain bound when the requested interval is shorter.
-            path=market_evidence(item['source_file'])
-            payload=json.loads(read(item['source_file'])); raw=payload['raw_response']
-            row=item['source_row']
-            if type(row) is not int or not 0<=row<len(raw['rows']): raise ValueError('invalid action source row')
-            event=replace(normalize_dividend_records([dict(zip(raw['fields'],raw['rows'][row]))])[0],code=payload['request']['code'].split('.')[-1])
-            if event.registration_date is None or event.registration_date<calendar[0] or event.registration_date>end: continue
-            raise ValueError('unregistered action source')
-        if key in matched: raise ValueError('duplicate action fact source')
-        event,digest=source_events[key]; matched[key]=item
-        source=canonical_hash({'file':item['source_file'],'row':item['source_row'],'hash':digest})
-        observations.append((source,item['distribution_id'],event))
-        if item['credit_date'] is not None:
-            if item['credit_source_file'] is None: raise ValueError('share credit evidence required')
-            market_evidence(item['credit_source_file'])
-        elif item['credit_source_file'] is not None: raise ValueError('credit source without credit date')
-        tax_path=evidence(item['tax_source_file'])
-        terms=(item['credit_date'],Decimal(item['stock_nominal_per_share']),Decimal(item['reserve_taxable_per_share']))
-        identity=(event.code,item['distribution_id'])
-        if identity in facts and facts[identity][0]!=terms: raise ValueError('conflicting action tax/credit facts')
-        old=facts.get(identity,(terms,[]))[1]
-        facts[identity]=(terms,old+[(digest,hashes[str(tax_path)])])
-    if set(matched)!=set(source_events): raise ValueError('corporate action source events missing facts')
+    matched={}
     day_inputs={day:[] for day in calendar[:-1]}
-    for action in reconcile_corporate_actions(observations,{code:code for code in declared}):
+    for action in reconcile_corporate_actions(observations,{code:code for code in selected_codes}):
         terms,sources=facts[(action.security_id,action.distribution_id)]
         credit,nominal,reserve=terms
+        output_code=(query.symbols[requested_ids.index(normalize_security_id(action.security_id))]
+                     if requested_ids is not None else action.event.code)
+        event=replace(action.event,code=output_code)
         source_hash=canonical_hash({'observations':[source for source,_ in action.observations],'sources':sources})
         tax_hash=canonical_hash({'sources':sources,'policy':policy_hash})
-        TaxLedger(taxes).register(action.distribution_id,action.event,nominal,reserve,tax_hash,
+        TaxLedger(taxes).register(action.distribution_id,event,nominal,reserve,tax_hash,
             credit_date=None if credit is None else date.fromisoformat(credit))
-        day_inputs[action.event.registration_date].append(RegistrationAction(action.distribution_id,action.event,source_hash,
+        day_inputs[event.registration_date].append(RegistrationAction(action.distribution_id,event,source_hash,
             None if credit is None else date.fromisoformat(credit),nominal,reserve,tax_hash))
     field_data={}
     if extra:
         import pyarrow as pa
         import pyarrow.parquet as pq
-        refs=tuple(ref for ref in refs_under(price['daily_dir']) if ref.name.endswith('.parquet'))
+        refs=tuple(ref for ref in refs_under(bars_dir) if ref.name.endswith('.parquet'))
+        files=tuple(source_ref(ref_name(bars_dir,ref.name))[0] for ref in refs)
+        selected_paths=set(_parquet_paths_for_dates(files,panel.calendar[0],panel.calendar[-1]))
         columns=['code','date',*sorted({spec['column'] for spec in extra.values()})]
-        tables=[]
+        paths=[]
         for ref in refs:
-            name=ref_name(price['daily_dir'], ref.name)
-            market_evidence(name)
-            parquet=pq.ParquetFile(pa.BufferReader(data.read_ref(ref)))
+            file_name=ref_name(bars_dir, ref.name)
+            path,_,_=source_ref(file_name)
+            if path not in selected_paths:
+                continue
+            market_evidence(file_name)
+            parquet=pq.ParquetFile(path)
             schema=parquet.schema_arrow
             for name,spec in extra.items():
                 if spec['column'] not in schema.names:
@@ -2231,52 +2302,91 @@ def _load_dataset(data, query):
                 kind=schema.field(spec['column']).type
                 if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
                     raise ValueError('declared field column must be numeric: '+name)
-            tables.append(parquet.read(columns=columns))
-        table=pa.concat_tables(tables)
-        codes={normalize_security_id(symbol):i for i,symbol in enumerate(declared)}
+            paths.append(str(path))
+        code_filter=''
+        params=[paths]
+        if panel.symbols:
+            code_filter=' WHERE code IN (SELECT * FROM UNNEST(?))'
+            params.append(list(panel.symbols))
+        date_filter=' AND ' if code_filter else ' WHERE '
+        date_filter+='CAST(date AS DATE) BETWEEN ? AND ?'
+        params.extend((panel.calendar[0],panel.calendar[-1]))
+        connection=duckdb.connect()
+        try:
+            table=connection.execute(
+                'SELECT '+', '.join(columns)+' FROM read_parquet(?)'+code_filter+date_filter,
+                params).to_arrow_table()
+        finally:
+            connection.close()
+        codes={normalize_security_id(symbol):i for i,symbol in enumerate(panel.symbols)}
         dates={day:j for j,day in enumerate(panel.calendar)}
         field_data={name:np.full(panel.raw_close.shape,np.nan) for name in extra}
         seen=set()
         for row in table.to_pylist():
             code=normalize_security_id(str(row['code'])); raw_day=row['date']
             day=raw_day if isinstance(raw_day,date) else date.fromisoformat(raw_day)
-            if code not in codes or day not in dates: raise ValueError('numeric field row outside declared price scope')
+            if code not in codes or day not in dates:
+                raise ValueError('numeric field row outside selected price scope')
             identity=(code,day)
             if identity in seen: raise ValueError('duplicate numeric field security/date')
             seen.add(identity)
-            if requested_ids is not None and code not in requested_ids: continue
             i,j=codes[code],dates[day]
             for name,spec in extra.items():
                 value=row[spec['column']]
                 if value is None or not np.isfinite(float(value)): raise ValueError(f'numeric field missing/nonfinite: {name}, {code}, {day}')
                 field_data[name][i,j]=float(value)
         for name,values in field_data.items():
-            selected=list(range(len(declared))) if requested_ids is None else [declared_ids.index(code) for code in requested_ids]
+            selected=list(range(len(panel.symbols)))
             if np.any(np.isfinite(panel.raw_close[selected])&~np.isfinite(values[selected])):
                 raise ValueError('numeric field lacks aligned observed price rows: '+name)
-    requested=query.symbols
-    if requested is not None:
-        if not set(requested_ids)<=set(declared_ids): raise ValueError('requested symbols are outside supplied dataset')
-        indices=[declared_ids.index(code) for code in requested_ids]
-        field_data={name:values[indices] for name,values in field_data.items()}
-        from dataclasses import fields
-        arrays={field.name:getattr(panel,field.name)[indices] for field in fields(panel)
-                if isinstance(getattr(panel,field.name),np.ndarray) and getattr(panel,field.name).shape[:1]==(len(declared),)}
-        panel=replace(panel,symbols=requested,names=tuple(panel.names[i] for i in indices),
-            factor_events=tuple(event for event in panel.factor_events
-                                if normalize_security_id(event.code) in requested_ids),
-            listing_anchors=tuple(anchor for anchor in panel.listing_anchors
-                                   if normalize_security_id(anchor.code) in requested_ids),**arrays)
-        day_inputs={day:[action for action in actions
-                         if normalize_security_id(action.event.code) in requested_ids]
-                    for day,actions in day_inputs.items()}
-    data_hash=canonical_hash({'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],'price_request':price,'price_basis':'BaoStock-back-factor-signal-index','fields':manifest.get('fields',{})})
-    plugins = manifest.get('signal_plugins', {})
-    if not isinstance(plugins, dict):
-        raise ValueError('signal_plugins must be a mapping')
+    if query.symbols is not None:
+        rows={normalize_security_id(symbol):index for index,symbol in enumerate(panel.symbols)}
+        order=tuple(rows[identity] for identity in requested_ids)
+        output_symbols=tuple(query.symbols)
+        output_by_id=dict(zip(requested_ids,output_symbols))
+        reorder=lambda values: values[list(order),:]
+        panel=replace(panel,symbols=output_symbols,
+            names=tuple(panel.names[index] for index in order),
+            raw_open=reorder(panel.raw_open),raw_high=reorder(panel.raw_high),
+            raw_low=reorder(panel.raw_low),raw_close=reorder(panel.raw_close),
+            volume=reorder(panel.volume),amount=reorder(panel.amount),
+            back_factor=reorder(panel.back_factor),traded_bar=reorder(panel.traded_bar),
+            signal_close=reorder(panel.signal_close),signal_high=reorder(panel.signal_high),
+            factor_events=tuple(replace(event,code=output_by_id[normalize_security_id(event.code)])
+                                for event in panel.factor_events),
+            listing_anchors=tuple(replace(anchor,code=output_by_id[normalize_security_id(anchor.code)])
+                                  for anchor in panel.listing_anchors))
+        field_data={name:reorder(values) for name,values in field_data.items()}
+    if as_of is not None:
+        availability=manifest.get('source_availability')
+        if not isinstance(availability,list) or not availability:
+            raise ValueError('point-in-time query requires unified source availability evidence')
+        by_file={}
+        for item in availability:
+            if (not isinstance(item,dict) or set(item)!={'file','sha256','available_at'}
+                    or item['file'] in by_file):
+                raise ValueError('invalid unified source availability evidence')
+            by_file[item['file']]=item
+        for absolute,digest in hashes.items():
+            name=names_by_path[absolute]
+            item=by_file.get(name)
+            if item is None or item['sha256']!=digest:
+                raise ValueError(f'point-in-time source availability is not bound: {name}')
+            try:
+                available_day=date.fromisoformat(item['available_at'])
+            except (TypeError,ValueError) as error:
+                raise ValueError(f'invalid source availability date: {name}') from error
+            if available_day>as_of:
+                raise ValueError(f'source evidence became available after query cutoff: {name}')
+        if not any(factor_dir in name for name in names_by_path.values()):
+            raise ValueError('point-in-time query requires factor availability evidence')
+    data_hash=canonical_hash({'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],
+        'inputs':inputs,'price_basis':'BaoStock-back-factor-signal-index','fields':manifest.get('fields',{})})
     return (panel, calendar, {day: tuple(actions) for day, actions in day_inputs.items()},
             hashes, data_hash, {'policy': policy, 'source_hash': policy_hash},
-            canonical_hash({'files': account_files, 'facts': manifest['action_facts']}),
+            canonical_hash({'files': account_files, 'facts': [
+                (identity, tuple(None if value is None else str(value) for value in terms), sources)
+                for identity, (terms, sources) in sorted(facts.items())]}),
             field_data, scope, plugins)
 
 
@@ -2728,7 +2838,6 @@ class SearchSpec:
     max_trials: int
     metric: str
     direction: str
-    validation: BacktestRequest | None
     declaration: dict[str, object]
 
 
@@ -2755,6 +2864,9 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("workbench.preflight", "read", "preflight", "preflight", "document", "backtests"),
     OperationSpec("workbench.backtest", "write", "backtest", "backtest-result", "resource", "backtests"),
     OperationSpec("cli.backtest", "write", "cli-backtest", "cli-backtest", "operation", "commands"),
+    OperationSpec("collection.describe", "read", "collection-describe", "collection-describe", "document", "sources"),
+    OperationSpec("collection.inspect", "read", "collection-inspect", "collection-inspect", "document", "sources"),
+    OperationSpec("collection.run", "write", "collection-run", "collection-run", "operation", "sources"),
     OperationSpec("cli.ingest", "write", "cli-ingest", "cli-ingest", "operation", "commands"),
     OperationSpec("workbench.runs", "read", "runs", "runs", "collection", "research"),
     OperationSpec("workbench.run", "read", "run", "run", "resource", "research"),
@@ -2877,7 +2989,6 @@ class Research:
             "note": manifest.get("note", "运行结果未经历史资格认定。"),
             "parameters": manifest.get("parameters", {}),
             "effective_config": manifest.get("effective_config", {}),
-            "segments": manifest.get("segments", {}),
             "code_hash": manifest.get("code_hash"), "data_hash": manifest.get("data_hash"),
             "execution_hash": manifest.get("execution_hash"), "result": result,
         }
@@ -2925,7 +3036,6 @@ def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, 
         "parameters": dict(request.parameters),
         "effective_config": effective_config,
         "config_hash": value.get("config_hash"),
-        "segments": value.get("segments", {}),
         "source_hashes": value.get("provenance", {}).get("source_hashes", {}),
         "data_hash": value.get("provenance", {}).get("data_hash"),
         "execution_hash": value.get("provenance", {}).get("execution_hash"),
@@ -2939,14 +3049,102 @@ def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, 
         data.write("runs", request.run_id, name, content)
 
 
-def save_failed_backtest(data: DataPort, request: BacktestRequest, error: Exception,
+def save_failed_backtest(data: DataPort, run_id: str, error: Exception,
                          partial: object | None) -> str:
-    value = {"run_id": request.run_id, "status": "failed", "code": getattr(error, "code", "run_failed"),
+    value = {"run_id": run_id, "status": "failed", "code": getattr(error, "code", "run_failed"),
              "detail": str(error), "partial": _json_value(partial) if partial is not None else None}
     name = "failed.json"
-    data.write("runs", request.run_id, name, json.dumps(
+    data.write("runs", run_id, name, json.dumps(
         value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode())
-    return f"data/result/{request.run_id}/{name}"
+    return f"data/result/{run_id}/{name}"
+
+
+class CollectionPort:
+    def __init__(self, collect):
+        self.collect = collect
+        self.data = collect.data
+
+    def handle(self, operation, value):
+        if operation == 'collection.describe':
+            return json.loads(self.data.read('sources', 'registry', 'sources.json'))
+        if operation == 'collection.run':
+            result = self.collect.run(value)
+            if result['status'] != 'succeeded':
+                raise ValueError(result.get('error') or 'collection failed')
+            return result
+        if operation == 'collection.inspect':
+            source = self.collect.sources.get(value['source_id'])
+            result = {}
+            if 'codes' in value:
+                result['last_date'] = self.last_date(source, value['codes'])
+            if 'start' in value and 'end' in value:
+                request = self.collect.methods.prepare_request(source, value)
+                coverage = self.collect.methods.coverage(source, request)
+                if coverage is None:
+                    raise ValueError('coverage is not registered for this source')
+                result['coverage'] = dict(coverage)
+                if source.get('method') == 'daily':
+                    result['coverage']['calendar_evidence_complete'] = self.calendar_coverage(source, value['start'], value['end'])
+                    result['coverage']['complete'] = coverage['complete'] and result['coverage']['calendar_evidence_complete']
+            return json.loads(json.dumps(result, allow_nan=False))
+        # Existing source operations retain their registered structured contract.
+        return self.collect.handle(operation, value)
+
+    def last_date(self, source: Mapping, codes) -> str | None:
+        """Read the watermark for these securities, never an unrelated index."""
+        if source.get('method') == 'daily':
+            import duckdb
+            from copy import deepcopy
+            descriptor = deepcopy(dict(source))
+            descriptor['defaults'] = {k: v for k, v in source.get('defaults', {}).items() if k != 'codes'}
+            with self.data.transaction('sources'):
+                _, _, _, _, files, _, _ = self.collect.methods._daily_view_context(descriptor, source['dataset_id'])
+                paths = [str(self.data.path('sources', identity, name)) for identity, name in files]
+                aliases = sorted({v for code in codes for v in
+                                  (code, normalize_security_id(code), normalize_security_id(code).split('.')[-1])})
+                with duckdb.connect() as connection:
+                    row = connection.execute(
+                        'SELECT max(date) FROM read_parquet(?, union_by_name=true) WHERE code IN (SELECT unnest(?))',
+                        [paths, aliases]).fetchone()
+                return str(row[0]) if row and row[0] is not None else None
+        dates = [row['date'] for row in self.record_rows(source)
+                 if row.get('code') in codes and row.get('date')]
+        return max(dates) if dates else None
+
+    def calendar_coverage(self, source, start, end):
+        """A stored calendar alone cannot prove that no trading day is missing."""
+        dataset = source['dataset_id']
+        manifest = self.data.manifest(dataset)
+        name = manifest.get('inputs', {}).get('calendar', {}).get('source')
+        if not isinstance(name, str):
+            return False
+        parts = Path(name).parts
+        payload = self.data.read('sources', parts[1], Path(*parts[2:]).as_posix()) if parts[0] == 'source' else self.data.read('sources', dataset, name)
+        proof = json.loads(payload)
+        requested = proof.get('request', {})
+        if not (requested.get('start', '9999-12-31') <= start <= end <= requested.get('end', '0001-01-01')):
+            return False
+        response = proof.get('response', {})
+        fields = response.get('fields', [])
+        if {'calendar_date','is_trading_day'} <= set(fields):
+            expected = {r[fields.index('calendar_date')] for r in response['rows']
+                        if str(r[fields.index('is_trading_day')]) == '1' and start <= r[fields.index('calendar_date')] <= end}
+            actual = set(json.loads(self.data.read('sources', dataset, manifest['calendar']))['sessions'])
+            return expected == {day for day in actual if start <= day <= end}
+        return False
+
+    def record_rows(self, source):
+        with self.data.transaction('sources'):
+            offset = 0
+            while True:
+                view = self.collect.methods.records(source, offset, 1000)
+                if view is None:
+                    return
+                yield from view['records']
+                offset += len(view['records'])
+                if not view['records'] or offset >= view['total']:
+                    return
+
 
 
 def build_backend(root: Path) -> Protocol:
@@ -2977,7 +3175,7 @@ def build_backend(root: Path) -> Protocol:
     )
     lake = sources_port
     commands = CommandPort(project, backtests, data)
-    return Protocol(Modules(backtests, backtests, sources_port, lake, commands))
+    return Protocol(Modules(backtests, backtests, CollectionPort(sources_port), lake, commands))
 
 
 class KernelBacktestPort:
@@ -3049,49 +3247,18 @@ class KernelBacktestPort:
                 result = self._kernel.search(
                     request, search.updater, max_trials=search.max_trials,
                     metric=search.metric, direction=search.direction,
-                    validation=search.validation,
                 )
         except BacktestError as error:
             if error.code == "busy":
                 raise
             if search is None:
                 partial = getattr(error, "partial_result", None)
-                error.evidence_ref = save_failed_backtest(self._data, request, error, partial)
+                error.evidence_ref = save_failed_backtest(self._data, request.run_id, error, partial)
             else:
                 error.evidence_ref = self._save_search_failure(request, error)
             raise
         if search is None:
             value = _result_data(result, request, self._benchmarks)
-            segments = {}
-            for name, window in (("validation", request.validation_window),
-                                 ("out_of_sample", request.out_of_sample_window)):
-                if window is None:
-                    continue
-                segment_request = replace(
-                    request, run_id=f"{request.run_id}-{name}",
-                    start=window[0], end=window[1],
-                    validation_window=None, out_of_sample_window=None,
-                )
-                try:
-                    segment_result = self._kernel.run(segment_request)
-                    segment_value = _result_data(segment_result, segment_request, self._benchmarks)
-                except Exception as error:
-                    failure = error if isinstance(error, BacktestError) else BacktestError(
-                        f"{name}_failed", str(error))
-                    failure.code = f"{name}_failed"
-                    failure.evidence_ref = save_failed_backtest(
-                        self._data, request, failure,
-                        {"stage": name, "completed": segments, "main": value},
-                    )
-                    raise failure from error
-                save_backtest(self._data, segment_request, segment_value)
-                segments[name] = {
-                    "run_id": segment_request.run_id,
-                    "config_hash": segment_value["config_hash"],
-                    "result": f"data/result/{segment_request.run_id}/result.json",
-                }
-            if segments:
-                value["segments"] = segments
             save_backtest(self._data, request, value)
         else:
             try:
@@ -3126,7 +3293,7 @@ class KernelBacktestPort:
             evidence["failed_values"] = _json_value(error.failed_values)
         if hasattr(error, "trial_index"):
             evidence["trial_index"] = error.trial_index
-        return save_failed_backtest(self._data, request, error, evidence)
+        return save_failed_backtest(self._data, request.run_id, error, evidence)
 
     def _save_search(self, request: BacktestRequest, spec: SearchSpec, result) -> JsonObject:
         from strategy import canonical_hash
@@ -3140,54 +3307,6 @@ class KernelBacktestPort:
             value["trial_config_hash"] = value.pop("config_hash")
         best = result.trials[result.best_index]
         value = dict(_result_data(best.response, best.request, self._benchmarks))
-        validation_value = None
-        if result.validation is not None:
-            validation_request = replace(
-                spec.validation,
-                run_id=f"{request.run_id}-validation",
-                strategy_id=request.strategy_id,
-                dataset_id=request.dataset_id,
-                parameters=dict(best.request.parameters),
-            )
-            validation_value = _result_data(result.validation, validation_request, self._benchmarks)
-            save_backtest(self._data, validation_request, validation_value)
-        out_of_sample_value = None
-        if request.out_of_sample_window is not None:
-            out_start, out_end = request.out_of_sample_window
-            out_request = replace(
-                request, run_id=f"{request.run_id}-out_of_sample",
-                start=out_start, end=out_end,
-                parameters=dict(best.request.parameters),
-                validation_window=None, out_of_sample_window=None,
-            )
-            try:
-                out_result = self._kernel.run(out_request)
-                out_of_sample_value = _result_data(out_result, out_request, self._benchmarks)
-                save_backtest(self._data, out_request, out_of_sample_value)
-            except Exception as error:
-                failure = error if isinstance(error, BacktestError) else BacktestError(
-                    "out_of_sample_failed", str(error))
-                failure.code = "out_of_sample_failed"
-                failure.failed_request = out_request
-                failure.completed_trials = result.trials
-                completed_runs = [
-                    {"run_id": trial.request.run_id, "stage": "search"}
-                    for trial in result.trials
-                ]
-                if result.validation is not None:
-                    completed_runs.append({
-                        "run_id": validation_request.run_id,
-                        "stage": "validation",
-                    })
-                failure.partial_result = {
-                    "stage": "out_of_sample",
-                    "completed_runs": completed_runs,
-                    "validation_run_id": (
-                        validation_request.run_id if result.validation is not None else None
-                    ),
-                }
-                failure.evidence_ref = self._save_search_failure(request, failure)
-                raise failure from error
         effective_config = dict(value["effective_config"])
         declaration = dict(spec.declaration)
         declaration["base_parameters"] = dict(request.parameters)
@@ -3209,8 +3328,6 @@ class KernelBacktestPort:
                 "best_run_id": best.request.run_id,
                 "best_index": result.best_index,
                 "trials": trials,
-                "validation": validation_value,
-                "out_of_sample": out_of_sample_value,
             },
         })
         summary_request = replace(request, parameters=dict(best.request.parameters))
@@ -3233,13 +3350,65 @@ class CommandPort:
             config = _decode_backtest_config(Path(_text(data, "config")).read_bytes())
             if not isinstance(config, dict) or "request" in config:
                 raise ValueError("backtest config must be the request object without request wrapper")
-            result = self._backtests.handle("workbench.backtest", config)
-            if isinstance(result, PortResult):
-                return PortResult(
-                    result.kind, result.type,
-                    "urn:lianghua:ui:output:cli.backtest:v1", result.data,
-                )
-            return result
+            if "search" in config:
+                raise ValueError("cli.backtest compares fixed parameters and does not accept search")
+            if {"start", "end", "validation", "out_of_sample"} & set(config):
+                raise ValueError("cli.backtest requires intervals and rejects top-level range fields")
+            intervals = config.get("intervals")
+            if not isinstance(intervals, list) or not intervals:
+                raise ValueError("intervals must be a non-empty list")
+
+            batch_id = config.get("run_id", uuid4().hex)
+            prepared = []
+            common = {key: value for key, value in config.items() if key != "intervals"}
+            self._check_run_identity(batch_id)
+            for index, interval in enumerate(intervals, 1):
+                if not isinstance(interval, dict) or set(interval) - {"name", "start", "end"}:
+                    raise ValueError(f"interval {index} must contain only name, start and end")
+                name = interval.get("name")
+                if name is not None and (not isinstance(name, str) or not name.strip()):
+                    raise ValueError(f"interval {index} name must be a non-empty string or null")
+                run_id = f"{batch_id}-interval-{index:04d}"
+                self._check_run_identity(run_id)
+                request = {**common, "run_id": run_id,
+                           "start": interval.get("start"), "end": interval.get("end")}
+                try:
+                    parse_backtest_request(request)
+                except BacktestError as error:
+                    raise BacktestError(
+                        error.code,
+                        f"interval {index} ({name!r}, {run_id}): {error}",
+                    ) from error
+                prepared.append((index, name, run_id, request))
+
+            completed = []
+            for index, name, run_id, request in prepared:
+                try:
+                    result = self._backtests.handle("workbench.backtest", request)
+                except Exception as error:
+                    if isinstance(error, BacktestError) and error.code == "busy":
+                        raise BacktestError(
+                            "busy",
+                            f"interval {index} ({name!r}, {run_id}): {error}",
+                        ) from error
+                    failure = BacktestError(
+                        "interval_failed",
+                        f"interval {index} ({name!r}, {run_id}) failed: {error}",
+                    )
+                    partial = {"failed": {"index": index, "name": name, "run_id": run_id},
+                               "completed": completed}
+                    failure.evidence_ref = save_failed_backtest(
+                        self._data, batch_id, failure, partial,
+                    )
+                    raise failure from error
+                value = result.data if isinstance(result, PortResult) else result
+                completed.append({"index": index, "name": name, "run_id": run_id,
+                                  "result": value})
+            value = {"run_id": batch_id, "intervals": completed}
+            return PortResult(
+                "resource", "lianghua:cli-backtest",
+                "urn:lianghua:ui:output:cli.backtest:v1", value,
+            )
         if operation == "cli.ingest":
             from data.ingest import ingest_exploratory
 
@@ -3257,6 +3426,12 @@ class CommandPort:
             return asdict(result)
         raise ValueError(f"unsupported command operation: {operation}")
 
+    def _check_run_identity(self, value: JsonValue) -> None:
+        if not isinstance(value, str) or not value:
+            raise ValueError("run_id must be a data identity")
+        self._data.path("runs", value, "manifest.json")
+        if len(os.fsencode(value)) > os.pathconf(self._root, "PC_NAME_MAX"):
+            raise ValueError("run_id exceeds the storage identity length")
 
 class Protocol:
     """后端唯一入口；每个请求只经过一个已声明的模块端口。"""
@@ -3331,13 +3506,75 @@ class Protocol:
         )
 
 
+def _market_selection(value):
+    def finite_scalar(item):
+        if isinstance(item, (dict, list, tuple)):
+            raise ValueError("market filter value must be scalar")
+        if isinstance(item, Decimal) and not item.is_finite():
+            raise ValueError("market filter number must be finite")
+        if isinstance(item, float) and not math.isfinite(item):
+            raise ValueError("market filter number must be finite")
+
+    if not isinstance(value, Mapping):
+        raise ValueError("market must be an object")
+    unknown = set(value) - {"scope", "index", "codes", "filters"}
+    if unknown:
+        raise ValueError(f"unsupported market fields: {', '.join(sorted(unknown))}")
+    scope = value.get("scope")
+    if not isinstance(scope, str) or not scope.strip():
+        raise ValueError("market scope must be a non-empty string")
+    result = {"scope": scope.strip()}
+    if "index" in value:
+        index = value["index"]
+        if not isinstance(index, str) or not index.strip():
+            raise ValueError("market index must be a non-empty string")
+        result["index"] = index.strip()
+    if "codes" in value:
+        codes = value["codes"]
+        if (not isinstance(codes, (list, tuple)) or not codes
+                or any(not isinstance(code, str) or not code.strip() for code in codes)
+                or len({code.strip() for code in codes}) != len(codes)):
+            raise ValueError("market codes must be non-empty unique strings")
+        result["codes"] = tuple(code.strip() for code in codes)
+    if "filters" in value:
+        filters = value["filters"]
+        if not isinstance(filters, (list, tuple)):
+            raise ValueError("market filters must be a list")
+        conditions = []
+        for condition in filters:
+            if not isinstance(condition, Mapping) or set(condition) != {"field", "op", "value"}:
+                raise ValueError("market filter must contain field, op and value")
+            name, op, expected = condition["field"], condition["op"], condition["value"]
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("market filter field must be a non-empty string")
+            if not isinstance(op, str) or op not in {"eq", "ne", "gt", "gte", "lt", "lte", "in", "between"}:
+                raise ValueError("unsupported market filter operator")
+            if op == "in":
+                if not isinstance(expected, (list, tuple)) or not expected:
+                    raise ValueError("market in filter requires a non-empty list")
+                for item in expected:
+                    finite_scalar(item)
+                expected = tuple(expected)
+            elif op == "between":
+                if not isinstance(expected, (list, tuple)) or len(expected) != 2:
+                    raise ValueError("market between filter requires two values")
+                for item in expected:
+                    finite_scalar(item)
+                expected = tuple(expected)
+            else:
+                finite_scalar(expected)
+            conditions.append(MappingProxyType({"field": name.strip(), "op": op, "value": expected}))
+        result["filters"] = tuple(conditions)
+    return MappingProxyType(result)
+
+
 def parse_backtest_request(data: JsonValue) -> BacktestRequest:
     if not isinstance(data, dict):
         raise BacktestError("invalid_request", "backtest data must be an object")
     try:
         allowed = {"run_id", "module", "params", "dataset_id", "start", "end", "initial_cash",
-                   "fields", "history", "price_basis", "as_of", "symbols", "universe", "limits", "evaluation", "benchmark_id",
-                   "execution", "search", "validation", "out_of_sample"}
+                   "fields", "history", "price_basis", "as_of", "market", "limits", "evaluation", "benchmark_id",
+                   "execution", "search"}
         unknown = set(data) - allowed
         if unknown:
             raise ValueError(f"unsupported request fields: {', '.join(sorted(unknown))}")
@@ -3367,25 +3604,12 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
             fields=_names(data.get("fields", ()), "fields"), history=data.get("history", 0),
             price_basis=data.get("price_basis", "adjusted"),
             as_of=date.fromisoformat(data["as_of"]) if data.get("as_of") else None,
-            symbols=_names(data["symbols"], "symbols") if data.get("symbols") is not None else None,
-            universe=data.get("universe", "dataset"),
+            market=data.get("market", {"scope": "CN_A"}),
             settlement_parameters=settlement_parameters,
             evaluation_parameters=_object(data, "evaluation") if "evaluation" in data else {},
             benchmark_id=data.get("benchmark_id"),
         )
-        windows = {}
-        for name in ("validation", "out_of_sample"):
-            if name in data:
-                windows[name] = _window(data[name], name)
-        if "validation" in windows and windows["validation"][0].date() <= request.end.date():
-            raise ValueError("validation must start after training end")
-        if "out_of_sample" in windows:
-            previous = windows.get("validation", (request.end, request.end))[1]
-            if windows["out_of_sample"][0].date() <= previous.date():
-                raise ValueError("out_of_sample must start after validation")
-        return replace(request,
-                       validation_window=windows.get("validation"),
-                       out_of_sample_window=windows.get("out_of_sample"))
+        return request
     except BacktestError:
         raise
     except (KeyError, TypeError, ValueError) as error:
@@ -3505,11 +3729,7 @@ def _search(data: JsonValue, request: BacktestRequest) -> SearchSpec | None:
         "updater": value["updater"], "max_trials": max_trials,
         "metric": metric, "direction": direction,
     }
-    validation = None
-    if "validation" in data:
-        raw = data["validation"]
-        validation = _validation_request(request, raw, request.parameters)
-    return SearchSpec(updater, max_trials, metric, direction, validation, declaration)
+    return SearchSpec(updater, max_trials, metric, direction, declaration)
 
 
 def _updater(data: JsonValue):
@@ -3551,37 +3771,6 @@ def _updater(data: JsonValue):
     except (AttributeError, TypeError, ValueError) as error:
         raise BacktestError("invalid_search", str(error)) from error
     return partial(target, **dict(params))
-
-
-def _validation_request(request: BacktestRequest, value: Mapping, parameters: Mapping) -> BacktestRequest:
-    if not isinstance(value, Mapping):
-        raise BacktestError("invalid_search", "validation must be an object")
-    try:
-        start = _instant(value, "start", end=False)
-        end = _instant(value, "end", end=True)
-        return BacktestRequest(
-            run_id=request.run_id, strategy_id=request.strategy_id, parameters=dict(parameters),
-            dataset_id=request.dataset_id, start=start, end=end,
-            initial_cash=request.initial_cash, fields=request.fields, history=request.history,
-            price_basis=request.price_basis, as_of=request.as_of, symbols=request.symbols,
-            universe=request.universe, settlement_parameters=request.settlement_parameters,
-            evaluation_parameters=request.evaluation_parameters, benchmark_id=request.benchmark_id,
-            validation_window=None, out_of_sample_window=None,
-        )
-    except BacktestError:
-        raise
-    except (KeyError, TypeError, ValueError) as error:
-        raise BacktestError("invalid_search", str(error)) from error
-
-
-def _window(value, name: str) -> tuple[datetime, datetime]:
-    if not isinstance(value, Mapping) or set(value) != {"start", "end"}:
-        raise ValueError(f"{name} must contain only start and end")
-    start = _instant(value, "start", end=False)
-    end = _instant(value, "end", end=True)
-    if start > end:
-        raise ValueError(f"{name} start must not exceed end")
-    return start, end
 
 
 def _text(data: Mapping[str, JsonValue], name: str) -> str:
@@ -3637,16 +3826,22 @@ def _decimal_input(data: Mapping[str, JsonValue], name: str) -> Decimal:
 
 def _decode_backtest_config(raw: bytes) -> JsonObject:
     """Keep the monetary JSON token exact while preserving ordinary number types."""
-    decoded = json.loads(raw, parse_float=Decimal)
+    def reject_constant(value):
+        raise ValueError(f"non-standard JSON number: {value}")
+
+    decoded = json.loads(raw, parse_float=Decimal, parse_constant=reject_constant)
 
     def normalize(value, key=None):
         if isinstance(value, Decimal):
             if key == "initial_cash":
                 return value
             try:
-                return float(value)
+                number = float(value)
             except OverflowError as error:
                 raise ValueError("JSON number is outside the supported range") from error
+            if not math.isfinite(number):
+                raise ValueError("JSON number is outside the supported range")
+            return number
         if isinstance(value, dict):
             return {name: normalize(item, name) for name, item in value.items()}
         if isinstance(value, list):
@@ -3681,18 +3876,11 @@ def _query(request: BacktestRequest, requirements) -> DataQuery:
     history = requirements.history_bars if request.history == 0 else request.history
     if history < requirements.history_bars:
         raise BacktestError("invalid_query", "custom history is shorter than strategy requirements")
-    symbols = request.symbols if request.symbols is not None else requirements.symbols
-    if requirements.symbols is not None and symbols != requirements.symbols:
-        raise BacktestError("invalid_query", "custom symbols conflict with strategy scope")
-    if (requirements.universe != "dataset" and request.universe != "dataset"
-            and request.universe != requirements.universe):
-        raise BacktestError("invalid_query", "custom universe cannot lower or replace strategy universe")
-    universe = request.universe if request.universe != "dataset" else requirements.universe
     return DataQuery(
         dataset=request.dataset_id, start=request.start.date(), end=request.end.date(),
         fields=fields, history=history, price_basis=request.price_basis,
-        as_of=request.as_of, symbols=symbols, universe=universe,
-        frequency=requirements.frequency,
+        as_of=request.as_of, universe="dataset", frequency=requirements.frequency,
+        market=request.market,
     )
 
 
@@ -3764,17 +3952,13 @@ def _config_value(value):
         return {key: _config_value(item) for key, item in asdict(value).items()}
     if isinstance(value, Decimal):
         return str(value)
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
     if isinstance(value, Mapping):
         return {str(key): _config_value(item) for key, item in value.items()}
     if isinstance(value, (tuple, list)):
         return [_config_value(item) for item in value]
     return value
-
-
-def _window_value(window):
-    if window is None:
-        return None
-    return {"start": window[0].isoformat(), "end": window[1].isoformat()}
 
 
 def _strategy_params(strategy, request):
@@ -3804,14 +3988,13 @@ def build_effective_config(request, strategy, requirements, dataset, settlement)
         "history": history,
         "price_basis": request.price_basis,
         "as_of": request.as_of.isoformat() if request.as_of else None,
-        "symbols": list(request.symbols) if request.symbols else None,
-        "universe": request.universe,
+        "market": _config_value(request.market),
+        "market_resolution": _config_value(dataset.scope.get("market"))
+        if dataset is not None else None,
         "requirements": requirements_value,
         "settlement": _config_value(settlement),
         "evaluation": dict(request.evaluation_parameters),
         "benchmark_id": request.benchmark_id,
-        "validation": _window_value(request.validation_window),
-        "out_of_sample": _window_value(request.out_of_sample_window),
     }
     from strategy import canonical_hash
     return value, canonical_hash(value)

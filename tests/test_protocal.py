@@ -144,7 +144,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(fill.status, "filled")
         self.assertEqual(fill.shares, 10000)
 
-    def test_evaluation_windows_are_daily_disjoint_and_reject_nested_shapes(self):
+    def test_atomic_request_rejects_fixed_evaluation_windows(self):
         from protocal import BacktestError, parse_backtest_request
 
         base = {
@@ -152,23 +152,17 @@ class ProtocolTests(unittest.TestCase):
             "dataset_id": "fixture", "start": "2020-01-01T09:00:00+00:00",
             "end": "2020-01-03T09:00:00+00:00", "initial_cash": 1000000,
         }
-        with self.assertRaises(BacktestError):
-            parse_backtest_request({**base, "validation": {
-                "start": "2020-01-03T10:00:00+00:00", "end": "2020-01-04T10:00:00+00:00",
-            }})
-        with self.assertRaises(BacktestError):
-            parse_backtest_request({**base, "validation": {
-                "start": "2020-01-04", "end": "2020-01-03",
-            }})
-        with self.assertRaises(BacktestError):
-            parse_backtest_request({**base, "validation": {
-                "start": "2020-01-04", "end": "2020-01-05", "extra": 1,
-            }})
-        with self.assertRaises(BacktestError):
-            parse_backtest_request({**base,
-                "validation": {"start": "2020-01-04", "end": "2020-01-05"},
-                "out_of_sample": {"start": "2020-01-05T12:00:00+00:00", "end": "2020-01-06"},
-            })
+        from dataclasses import fields
+        from protocal import BacktestRequest
+
+        self.assertNotIn("validation_window", {field.name for field in fields(BacktestRequest)})
+        self.assertNotIn("out_of_sample_window", {field.name for field in fields(BacktestRequest)})
+        for old_fields in (
+            {"validation": {"start": "2020-01-04", "end": "2020-01-05"}},
+            {"out_of_sample": {"start": "2020-01-04", "end": "2020-01-05"}},
+        ):
+            with self.subTest(old_fields=old_fields), self.assertRaises(BacktestError):
+                parse_backtest_request({**base, **old_fields})
 
     def test_execution_and_config_hashes_change_with_selected_execution(self):
         from datetime import datetime, timezone
@@ -183,7 +177,8 @@ class ProtocolTests(unittest.TestCase):
         )
         strategy = SimpleNamespace(params={})
         requirements = SimpleNamespace(fields=("close",), history_bars=1)
-        dataset = SimpleNamespace(fields=("close",), history=1)
+        dataset = SimpleNamespace(fields=("close",), history=1,
+                                  scope={"market": {"selection": {"scope": "CN_A"}}})
         provenance = {"data_hash": "data", "source_hashes": {"bars": "source"}, "code_hash": "code"}
         first = {"execution": EXECUTION}
         second = {"execution": {**EXECUTION, "price": {

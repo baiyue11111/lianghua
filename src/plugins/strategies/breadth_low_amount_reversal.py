@@ -44,11 +44,11 @@ class Strategy:
     def requirements(self)->DataRequest:
         p=self.params
         return DataRequest(('open','high','low','close','volume','amount','signal_close'),
-                           max(p.trend_window,p.return_window+1,p.amount_window)+p.breadth_window-1,universe="CN_A_SHARE")
+                           max(p.trend_window,p.return_window+1,p.amount_window)+p.breadth_window-1)
 
     def features(self,frame:MarketFrame):
         """Use only each security's own observed trading days, through this close."""
-        if not frame.history: raise ValueError('strategy requires observed adjusted history')
+        if not frame.history: return None, []
         symbols=tuple(sorted(frame.history))
         times=sorted({row.at for rows in frame.history.values() for row in rows})
         if not times or times[-1]!=frame.at: raise ValueError('history must include decision session')
@@ -79,6 +79,7 @@ class Strategy:
         return breadth,candidates
 
     def generate(self,frame:MarketFrame,account:AccountSnapshot)->TargetSet|None:
+        if not frame.history: return None
         p=self.params
         if 'next_session' not in frame.context: raise ValueError('next_session is required to determine month end')
         following=date.fromisoformat(frame.context['next_session'])

@@ -73,9 +73,66 @@ class InvalidScaler:
 
 
 class Task3ProtocolTests(unittest.TestCase):
-    def test_no_search_runs_independent_validation_and_oos_accounts(self):
-        import json
-        from protocal import DataBus, KernelBacktestPort
+    def test_backtest_request_uses_market_and_rejects_legacy_scope_fields(self):
+        from protocal import BacktestError, parse_backtest_request
+
+        base = {
+            "module": "plugins.strategies.moving_average_cross",
+            "params": {"fast_window": 2, "slow_window": 3},
+            "dataset_id": "lake", "start": "2024-01-01", "end": "2024-01-31",
+            "initial_cash": "100000",
+        }
+        request = parse_backtest_request({
+            **base, "market": {"scope": "CN_A", "codes": ["US/AAPL", "HK/00005"],
+                                "filters": [{"field": "close", "op": "gte", "value": 30}]},
+        })
+        self.assertEqual(dict(request.market), {
+            "scope": "CN_A", "codes": ("US/AAPL", "HK/00005"),
+            "filters": ({"field": "close", "op": "gte", "value": 30},),
+        })
+        self.assertFalse(hasattr(request, "symbols"))
+        self.assertFalse(hasattr(request, "universe"))
+        for field in ("symbols", "universe"):
+            with self.subTest(field=field), self.assertRaises(BacktestError):
+                parse_backtest_request({**base, field: ["600009"] if field == "symbols" else "CN_A"})
+
+    def test_backtest_market_rejects_empty_scope_empty_codes_and_unknown_keys(self):
+        from protocal import BacktestError, parse_backtest_request
+
+        base = {
+            "module": "plugins.strategies.moving_average_cross", "params": {},
+            "dataset_id": "lake", "start": "2024-01-01", "end": "2024-01-31",
+            "initial_cash": "100000",
+        }
+        for market in ({"scope": ""}, {"scope": "CN_A", "codes": []},
+                       {"scope": "CN_A", "extra": True}):
+            with self.subTest(market=market), self.assertRaises(BacktestError):
+                parse_backtest_request({**base, "market": market})
+
+    def test_backtest_market_rejects_nonfinite_direct_python_scalars(self):
+        from decimal import Decimal
+        from protocal import BacktestError, parse_backtest_request
+
+        base = {
+            "module": "plugins.strategies.moving_average_cross", "params": {},
+            "dataset_id": "lake", "start": "2024-01-01", "end": "2024-01-31",
+            "initial_cash": "100000",
+        }
+        filters = (
+            {"field": "close", "op": "eq", "value": float("nan")},
+            {"field": "close", "op": "gte", "value": float("inf")},
+            {"field": "roe", "op": "in", "value": [0.1, float("-inf")]},
+            {"field": "roe", "op": "between", "value": [0.0, float("inf")]},
+            {"field": "roe", "op": "eq", "value": Decimal("NaN")},
+            {"field": "roe", "op": "in", "value": [Decimal("0.1"), Decimal("Infinity")]},
+        )
+        for condition in filters:
+            with self.subTest(condition=condition), self.assertRaises(BacktestError):
+                parse_backtest_request({**base, "market": {"scope": "CN_A",
+                                                               "filters": [condition]}})
+
+    def test_atomic_backtest_rejects_fixed_validation_and_oos_fields(self):
+        from protocal import BacktestError, DataBus, KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from plugins.data import Settlement
@@ -85,23 +142,18 @@ class Task3ProtocolTests(unittest.TestCase):
             make_snapshot(root)
             bus = DataBus(DataStore(root))
             port = KernelBacktestPort(bus, Settlement)
-            value = port.handle("workbench.backtest", {
+            base = {
                 "run_id": "three-segments", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-01-31", "initial_cash": 1000000,
-                "validation": {"start": "2020-02-03", "end": "2020-02-03"},
-                "out_of_sample": {"start": "2020-02-04", "end": "2020-02-04"},
                 **settlement_payload(),
-            }).data
-            self.assertEqual(value["effective_config"]["initial_cash"], "1000000")
-            self.assertEqual(set(value["segments"]), {"validation", "out_of_sample"})
-            self.assertNotEqual(value["config_hash"], value["segments"]["validation"]["config_hash"])
-            self.assertNotEqual(value["config_hash"], value["segments"]["out_of_sample"]["config_hash"])
-            saved = port.handle("workbench.run", {"id": value["run_id"]})
-            self.assertEqual(saved["segments"], value["segments"])
-            for segment in value["segments"].values():
-                manifest = json.loads(bus.read("runs", segment["run_id"], "manifest.json"))
-                self.assertEqual(manifest["effective_config"]["initial_cash"], "1000000")
+            }
+            for field in ("validation", "out_of_sample"):
+                with self.subTest(field=field), self.assertRaises(BacktestError):
+                    port.handle("workbench.backtest", {
+                        **base, field: {"start": "2020-02-03", "end": "2020-02-04"},
+                    })
+            self.assertEqual(bus.list("runs"), ())
     def test_data_query_declares_scope_and_bus_uses_one_reader(self):
         from protocal import DataBus, DataQuery
         from storage import DataStore
@@ -165,7 +217,7 @@ class Task3ProtocolTests(unittest.TestCase):
             make_snapshot(root)
             path = root / "data/source/fixture/manifest.json"
             manifest = json.loads(path.read_text())
-            del manifest["calendar"]
+            del manifest["inputs"]["calendar"]["sessions"]
             path.write_text(json.dumps(manifest))
             with self.assertRaisesRegex(DataError, "calendar"):
                 DataBus(DataStore(root)).query(
@@ -173,35 +225,21 @@ class Task3ProtocolTests(unittest.TestCase):
                               ("close",), 20, "adjusted")
                 )
 
-    def test_query_cannot_lower_strategy_universe_or_claim_unproven_pit(self):
-        from protocal import _query, DataQuery, DataBus
-        from protocal import BacktestRequest
+    def test_backtest_data_request_has_no_market_scope_claim_and_market_routes_to_reader(self):
+        from protocal import _query, BacktestRequest
         from datetime import datetime
         from decimal import Decimal
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
 
         requirements = SimpleNamespace(fields=("close",), history_bars=1,
-                                       price_basis="adjusted", symbols=None,
-                                       universe="CN_A_SHARE", frequency="daily")
+                                       price_basis="adjusted", frequency="daily")
         request = BacktestRequest("r", "s", {}, "fixture",
                                   datetime(2020, 1, 1, tzinfo=timezone.utc),
                                   datetime(2020, 1, 1, 23, 59, tzinfo=timezone.utc),
-                                  Decimal("100"), universe="dataset")
-        lowered = BacktestRequest("r", "s", {}, "fixture",
-                                  request.start, request.end, Decimal("100"), universe="OTHER")
-        self.assertEqual(_query(request, requirements).universe, "CN_A_SHARE")
-        with self.assertRaises(Exception):
-            _query(lowered, requirements)
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            config = make_snapshot(root)
-            bus = DataBus(DataStore(root))
-            query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                              ("open", "high", "low", "close", "volume", "amount", "signal_close"),
-                              20, "adjusted", date(2020, 2, 5), universe="CN_A_SHARE")
-            with self.assertRaises(Exception):
-                bus.query(query)
+                                  Decimal("100"), market={"scope": "CN_A", "codes": ["600003"]})
+        query = _query(request, requirements)
+        self.assertEqual(query.market["scope"], "CN_A")
+        self.assertEqual(query.market["codes"], ("600003",))
+        self.assertIsNone(query.symbols)
 
     def test_query_always_keeps_execution_prices_with_strategy_fields(self):
         from datetime import datetime
@@ -210,8 +248,7 @@ class Task3ProtocolTests(unittest.TestCase):
         from protocal import _query
 
         requirements = SimpleNamespace(fields=('signal_close',), history_bars=20,
-                                       price_basis='adjusted', symbols=None,
-                                       universe='dataset', frequency='daily')
+                                       price_basis='adjusted', frequency='daily')
         request = BacktestRequest(
             'prices', 'strategy', {}, 'fixture',
             datetime(2020, 1, 1, tzinfo=timezone.utc),
@@ -256,8 +293,8 @@ class Task3ProtocolTests(unittest.TestCase):
             strategy_id = "bad"
 
             def requirements(self):
-                return SimpleNamespace(fields=("close",), history_bars=1, price_basis="adjusted",
-                                       symbols=None, universe="fixture", frequency="daily")
+                return SimpleNamespace(fields=("close",), history_bars=1,
+                                       price_basis="adjusted", frequency="daily")
 
             def generate(self, frame, snapshot):
                 raise RuntimeError("decision failed")
@@ -269,7 +306,7 @@ class Task3ProtocolTests(unittest.TestCase):
                         lambda req, requirements: DataQuery(
                             req.dataset_id, req.start.date(), req.end.date(),
                             requirements.fields, requirements.history_bars, requirements.price_basis,
-                        None, requirements.symbols, requirements.universe, requirements.frequency),
+                            market=req.market),
                         FakeSettlement)
         with self.assertRaises(BacktestError) as caught:
             kernel.run(BacktestRequest("bad", "bad", {}, "fixture",
@@ -559,17 +596,17 @@ class Task3ProtocolTests(unittest.TestCase):
         with self.assertRaises(Exception):
             parse_backtest_request({**request_data(), "limits": {"adv_fraction": "NaN"}})
 
-    def test_preflight_request_keeps_scope_and_benchmark_inputs(self):
+    def test_preflight_request_keeps_market_and_benchmark_inputs(self):
         from protocal import parse_backtest_request
 
         request = parse_backtest_request({
             **{key: value for key, value in request_data().items() if key != "run_id"},
-            "symbols": ["600036"],
+            "market": {"scope": "CN_A", "codes": ["600036"]},
             "fields": ["signal_close"], "history": 60,
             "benchmark_id": "hs300",
         })
 
-        self.assertEqual(request.symbols, ("600036",))
+        self.assertEqual(request.market["codes"], ("600036",))
         self.assertEqual(request.fields, ("signal_close",))
         self.assertEqual(request.history, 60)
         self.assertEqual(request.benchmark_id, "hs300")
@@ -671,7 +708,17 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual([{"at": p.day.isoformat(), "equity": float(p.equity)}
                               for p in result.equity if p.day >= date(2020, 1, 31)], frozen["equity"])
             hashes = {key: canonical_hash(_json_value(getattr(result, key))) for key in frozen["trace_hashes"]}
-            self.assertEqual(hashes, frozen["trace_hashes"])
+            window = {"allocations", "equity", "frames", "holdings", "targets", "tax_liabilities"}
+            days = [point.day.isoformat() for point in result.equity]
+            indices = [index for index, day in enumerate(days) if day >= frozen["trace_window_start"]]
+            self.assertEqual([days[index] for index in indices], [item["at"] for item in frozen["equity"]])
+            for key in window:
+                trace = _json_value(getattr(result, key))
+                self.assertEqual(len(trace), len(days), key)
+                self.assertEqual(canonical_hash([trace[index] for index in indices]),
+                                 frozen["trace_window_hashes"][key], key)
+            for key in set(hashes) - window:
+                self.assertEqual(hashes[key], frozen["trace_hashes"][key], key)
 
     def test_protocol_saves_complete_kernel_trace_through_data_bus(self):
         import json

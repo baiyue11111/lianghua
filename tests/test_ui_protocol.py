@@ -44,6 +44,9 @@ class UiProtocolTest(unittest.TestCase):
             def readline(self):
                 return self.lines.pop(0) if self.lines else ""
 
+            def fileno(self):
+                return 101
+
             def read(self):
                 return ""
 
@@ -93,6 +96,7 @@ class UiProtocolTest(unittest.TestCase):
              patch.object(protocol.subprocess, "Popen", return_value=process), \
              patch.object(protocol.selectors, "DefaultSelector", Selector), \
              patch.object(protocol.asyncio, "run", side_effect=run_backend), \
+             patch.object(protocol.os, "read", side_effect=lambda fd, size: stdout.readline().encode()), \
              patch.object(protocol.time, "monotonic", side_effect=lambda: Clock.value):
             result = protocol.exchange(action)
 

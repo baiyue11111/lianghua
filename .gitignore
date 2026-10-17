@@ -24,17 +24,16 @@ __pycache__/
 .vscode/
 # Raw market data, generated runs and backups remain on disk
 /data/
+/log/
+/.archify/
 /runs*/
 /backup/
 /charts/
-*.duckdb
-*.duckdb.wal
-*.sqlite
-*.sqlite3
-*.db
-*.parquet
-*.xlsx
-*.xls
-*.csv
-*.npy
-*.npz
+# Local coverage output
+.coverage
+.coverage.*
+/htmlcov/
+# Local workbench screenshots; acceptance documents and JSON evidence stay tracked
+/docs/workbench-benchmark.jpg
+/docs/workbench-chinese.jpg
+/docs/workbench-verified.jpg

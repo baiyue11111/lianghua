@@ -140,7 +140,16 @@ class DataPluginSettlementTests(unittest.TestCase):
         hashes = {key: canonical_hash(result["trace"][key]) for key in frozen["trace_hashes"]}
         self.assertEqual(result["equity"], frozen["equity"])
         self.assertEqual(result["metrics"], frozen["metrics"])
-        self.assertEqual(hashes, frozen["trace_hashes"])
+        window = {"allocations", "equity", "frames", "holdings", "targets", "tax_liabilities"}
+        days = [item["day"] for item in result["trace"]["equity"]]
+        indices = [index for index, day in enumerate(days) if day >= frozen["trace_window_start"]]
+        self.assertEqual([days[index] for index in indices], [item["at"] for item in frozen["equity"]])
+        for key in window:
+            self.assertEqual(len(result["trace"][key]), len(days), key)
+            self.assertEqual(canonical_hash([result["trace"][key][index] for index in indices]),
+                             frozen["trace_window_hashes"][key], key)
+        for key in set(hashes) - window:
+            self.assertEqual(hashes[key], frozen["trace_hashes"][key], key)
 
     def test_validate_checks_default_fields_and_exact_symbol_order(self):
         at = datetime(2020, 1, 2, tzinfo=UTC)

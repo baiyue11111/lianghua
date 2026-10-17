@@ -43,7 +43,7 @@ class FakeStrategy:
 
     def requirements(self):
         return SimpleNamespace(fields=("close",), history=1, price_basis="adjusted",
-                               symbols=None, universe="fixture", frequency="daily")
+                               frequency="daily")
 
     def generate(self, frame, snapshot):
         return None
@@ -55,7 +55,8 @@ class FakeData:
         record = SimpleNamespace(trade_date=day, frame=SimpleNamespace(at=datetime(2020, 1, 1, tzinfo=timezone.utc)))
         self.dataset = Dataset("fixture", (record,), {"fees": object(), "tax_policy": object()},
                                {"source": "test", "calendar_start": day.isoformat()},
-                               {"universe": "fixture", "symbols": (), "calendar_start": day.isoformat()},
+                               {"universe": "fixture", "symbols": (), "calendar_start": day.isoformat(),
+                                "market": {"selection": {"scope": "CN_A"}, "execution": "fixture"}},
                                (day, date(2020, 1, 2)), ("close",), 1)
 
     def query(self, query):
@@ -77,8 +78,8 @@ class BacktestTests(unittest.TestCase):
                       lambda req, requirements: DataQuery(
                           req.dataset_id, req.start.date(), req.end.date(),
                           requirements.fields, requirements.history, requirements.price_basis,
-                          req.as_of or req.end.date(), requirements.symbols,
-                          requirements.universe, requirements.frequency), settlement,
+                          req.as_of or req.end.date(), frequency=requirements.frequency,
+                          market=req.market), settlement,
                       calculation=calculation or Calculation)
 
     def test_query_kernel_settlement_runs_with_fresh_state(self):
@@ -152,9 +153,9 @@ class BacktestTests(unittest.TestCase):
         FakeSettlement.active = None
         self.assertEqual(len(result), 1)
 
-    def test_request_preserves_declared_symbol_order_and_rejects_bool_history(self):
-        value = request(symbols=("B", "A"))
-        self.assertEqual(value.symbols, ("B", "A"))
+    def test_request_preserves_market_code_order_and_rejects_bool_history(self):
+        value = request(market={"scope": "CN_A", "codes": ("B", "A")})
+        self.assertEqual(value.market["codes"], ("B", "A"))
         with self.assertRaises(BacktestError) as caught:
             request(history=True)
         self.assertEqual(caught.exception.code, "invalid_request")

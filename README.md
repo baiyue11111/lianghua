@@ -4,18 +4,37 @@
 
 ## 启动
 
-安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。Web 的 `npm run dev` 只启动 React。浏览器和 CLI 都通过 `frontend/ui-protocol.py` 连接 `src/protocal.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，由 `DataBus` 读取数据并交给固定 `Kernel` 执行。见[接线状态与验证](docs/interaction-entrypoints.md)。
+安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在项目根目录运行 `uv run lianghua-dev`，同时启动 Python 后端和 React。打开 `http://127.0.0.1:3000/`，按 Ctrl+C 一起关闭。端口 3000 和 8000 必须空闲。Web 目录的 `npm run dev` 只启动 React。浏览器和 CLI 都通过 `frontend/ui-protocol.py` 连接 `src/protocal.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，由 `DataBus` 读取数据并交给固定 `Kernel` 执行。见[接线状态与验证](docs/interaction-entrypoints.md)。
 
 ## 命令行入口
 
-先运行下面的命令查看当前 CLI 参数，不把旧配置文件当作后端装配入口：
+查看当前 CLI 参数，或用 JSON 配置运行多区间回测：
 
 ```text
-lianghua-backtest --help
-lianghua-backtest run --help
+lianghua --help
+lianghua --backtest config.json
 ```
 
-业务请求通过 `src/protocal.py` 的现有操作目录验证，例如 `workbench.strategies`、`workbench.preflight` 和 `workbench.backtest`。数据由 `DataBus` 查询，`Kernel` 执行。
+配置示例：
+
+```json
+{
+  "module": "plugins.strategies.moving_average_cross",
+  "params": {"fast_window": 5, "slow_window": 20},
+  "dataset_id": "lake",
+  "market": {"scope": "CN_A", "codes": ["600009"]},
+  "initial_cash": "1000000",
+  "intervals": [
+    {"name": "甲", "start": "2024-01-01", "end": "2024-06-30"},
+    {"name": "乙", "start": "2024-07-01", "end": "2024-12-31"},
+    {"start": "2025-01-01", "end": "2025-06-30"}
+  ]
+}
+```
+
+`intervals` 必须是非空列表；每段提供 `start`、`end`，`name` 可选。每段独立回测，使用相同策略参数和初始资金，各自持有独立账户与持仓。CLI 不接受顶层日期范围或 search 配置。
+
+回测省略 `market` 时默认请求 `CN_A` 全市场。`scope` 的市场定义来自 registry；`codes`、`index` 和 `filters` 可组合，按 AND 取交集。全市场或指数筛选需要真实历史成员数据，财务条件需要带可知时间的事实数据。市场未登记或所需数据缺失时会明确拒绝，不会静默缩成可用子集。实际可用范围由 registry 与数据覆盖决定；此配置约定不表示当前数据已覆盖全 A，也不表示 HK 已可回测。
 
 成功结果写入标准输出，错误写入标准错误，并用非零退出码表示失败。策略、数据集和基准由 registry 与现有插件登记，不复制旧的万能配置结构。
 

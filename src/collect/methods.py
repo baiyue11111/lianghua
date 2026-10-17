@@ -661,7 +661,7 @@ class Methods:
         return result
 
     def coverage(self, source: Mapping, request: Mapping):
-        if source.get("data_type") != "daily" or request.get("force") is True:
+        if (source.get("data_type") != "daily" and source.get('method') != 'daily') or request.get("force") is True:
             return None
         try:
             from protocal import DataError
@@ -733,12 +733,16 @@ class Methods:
                          if (normalize_security_id(symbol), day.isoformat()) not in found]
                 for symbol in symbols
             }
+            calendar_complete = bool(sessions) and sessions[0] <= start <= end < sessions[-1]
             return {"dataset": dataset, "start": start.isoformat(), "end": end.isoformat(),
-                    "fields": tuple(fields), "complete": bool(wanted_days) and sessions[0] <= start <= end < sessions[-1] and not any(missing.values()),
+                    "calendar_complete": calendar_complete,
+                    "fields": tuple(fields), "complete": bool(wanted_days) and calendar_complete and not any(missing.values()),
                     "missing": missing, "sessions": tuple(day.isoformat() for day in wanted_days)}
 
     @staticmethod
     def missing_request(request: Mapping, coverage: Mapping) -> dict:
+        if not coverage["calendar_complete"]:
+            return dict(request)
         missing = coverage.get("missing", {})
         days = [day for values in missing.values() for day in values]
         codes = [code for code, values in missing.items() if values]
@@ -800,11 +804,12 @@ class Methods:
                     raise
                 old = []
             merged = {}
-            for row in [*old, *incoming]:
+            for index, row in enumerate([*old, *incoming]):
                 value = {name: deepcopy(item) for name, item in row.items() if name != "raw_page"}
                 identity = key(value)
                 if identity in merged:
-                    merged[identity] = self._merge_record(merged[identity], value, identity)
+                    merged[identity] = self._merge_record(merged[identity], value, identity,
+                        refresh=index >= len(old) and packet.get('request', {}).get('refresh') is True)
                 else:
                     merged[identity] = value
             records = [merged[identity] for identity in sorted(merged)]
@@ -816,10 +821,13 @@ class Methods:
             return self.data.write("sources", source["id"], "records.json", content)
 
     @staticmethod
-    def _merge_record(old, new, identity):
+    def _merge_record(old, new, identity, *, refresh=False):
         value = dict(old)
         for name in set(old) | set(new):
             left, right = old.get(name), new.get(name)
+            if refresh and right is not None:
+                value[name] = right
+                continue
             if left is not None and right is not None and left != right:
                 raise DataError("data_conflict", f"record conflict: {identity!r} {name}")
             value[name] = right if left is None else left
@@ -957,7 +965,8 @@ class Methods:
                     merged[key] = self._merge_daily_row(merged[key], old, key) if key in merged else dict(old)
                 for key, row in incoming.items():
                     if key[1][:4] == year:
-                        merged[key] = self._merge_daily_row(merged[key], row, key) if key in merged else row
+                        merged[key] = self._merge_daily_row(merged[key], row, key,
+                            refresh=packet.get('request', {}).get('refresh') is True) if key in merged else row
                 merged_by_year[year] = (name, sorted(merged.values(),
                     key=lambda item: (str(item["code"]), str(item["date"]))), old_schema)
             calendar_name = manifest["calendar"]
@@ -1020,12 +1029,15 @@ class Methods:
             return self.data.write("sources", dataset_id, "manifest.json", manifest_payload)
 
     @staticmethod
-    def _merge_daily_row(old, new, key):
+    def _merge_daily_row(old, new, key, *, refresh=False):
         value = dict(old)
         for field in set(old) | set(new):
             left, right = old.get(field), new.get(field)
             if field == "code":
                 value[field] = left if left is not None else right
+                continue
+            if refresh and right is not None:
+                value[field] = right
                 continue
             if left is not None and right is not None and left != right:
                 raise DataError("data_conflict", f"daily field conflict: {key[0]} {key[1]} {field}")
@@ -1133,7 +1145,7 @@ class Methods:
             try:
                 row = connection.execute(
                     "SELECT count(*), count(DISTINCT code), min(date), max(date) "
-                    f"FROM read_parquet(?) WHERE code IN ({literal})", [paths]).fetchone()
+                    f"FROM read_parquet(?, union_by_name=true) WHERE code IN ({literal})", [paths]).fetchone()
             finally:
                 connection.close()
         return {"snapshot_id": snapshot_id, "source_id": source_id,
@@ -1172,10 +1184,10 @@ class Methods:
             try:
                 where = f"code IN ({literal}) AND CAST(date AS DATE) BETWEEN ? AND ?"
                 total = connection.execute(
-                    f"SELECT count(*) FROM read_parquet(?) WHERE {where}",
+                    f"SELECT count(*) FROM read_parquet(?, union_by_name=true) WHERE {where}",
                     [paths, start.isoformat(), end.isoformat()]).fetchone()[0]
                 rows = [] if limit == 0 else connection.execute(
-                    f"SELECT * FROM read_parquet(?) WHERE {where} ORDER BY date, code LIMIT {limit} OFFSET {offset}",
+                    f"SELECT * FROM read_parquet(?, union_by_name=true) WHERE {where} ORDER BY date, code LIMIT {limit} OFFSET {offset}",
                     [paths, start.isoformat(), end.isoformat()]).fetch_arrow_table().to_pylist()
             finally:
                 connection.close()
@@ -1404,7 +1416,7 @@ class BaostockDaily:
         try:
             calendar_sessions = []
             if frequency == "d":
-                calendar_end = request.get("calendar_end") or date.today().isoformat()
+                calendar_end = request.get("calendar_end") or (date.fromisoformat(request['end']) + timedelta(days=31)).isoformat()
                 requested_end = date.fromisoformat(request["end"])
                 all_sessions, calendar_raw = self.trade_calendar(
                     bs, request["start"], calendar_end)
@@ -1416,6 +1428,12 @@ class BaostockDaily:
                 calendar_sessions.append(following[0].isoformat())
                 raw.append(calendar_raw)
             for code in codes:
+                if code.split('.')[0] == 'bj':
+                    packet = EastmoneyDaily(self.config).collect({**request,'codes':[code]})
+                    offset = len(raw)
+                    records.extend({**row,'raw_page':row['raw_page']+offset} for row in packet['records'])
+                    raw.extend(packet['raw'])
+                    continue
                 fields = ",".join(names)
                 response = bs.query_history_k_data_plus(
                     code, fields, start_date=request["start"], end_date=request["end"],
@@ -1437,13 +1455,17 @@ class BaostockDaily:
                     item = dict(zip(response.fields, row))
                     if item["code"] != code or not request["start"] <= item["date"] <= request["end"]:
                         raise ValueError("daily request/response mismatch")
+                    if item.get('tradestatus') == '0':
+                        for name in ('volume','amount'):
+                            if name in item and (item[name] is None or not str(item[name]).strip()):
+                                item[name] = 0.0
                     for name in self._numeric_fields & item.keys():
                         raw_value = item[name]
                         if raw_value is None or (
                             isinstance(raw_value, str) and not raw_value.strip()
                         ):
                             if name in self._required_daily_fields:
-                                raise ValueError(f"required daily field is empty: {name}")
+                                raise ValueError(f"required daily field is empty: {name} ({code} {item['date']}, volume={item.get('volume')}, tradestatus={item.get('tradestatus')})")
                             item[name] = None
                             continue
                         try:
@@ -1455,6 +1477,8 @@ class BaostockDaily:
                         item[name] = value
                     item["raw_page"] = len(raw) - 1
                     records.append(item)
+        except CollectionError as error:
+            raise CollectionError(str(error), [*raw, *error.evidence]) from error
         except Exception as error:
             raise CollectionError(str(error), raw) from error
         finally:
@@ -1679,7 +1703,294 @@ def collect_daily(request):
     return BaostockDaily({}).collect(request)
 
 
+class BseCatalogue:
+    """BSE's complete, paginated current security catalogue."""
+    keys = ('code',)
+
+    def __init__(self, config, transport=None):
+        self.transport = self.page if transport is None else transport
+
+    @staticmethod
+    def page(number):
+        url = 'https://www.bse.cn/nqxxController/nqxxCnzq.do'
+        params = {'page': str(number), 'typejb': 'T', 'xxfcbj[]': '2',
+                  'xxzqdm': '', 'sortfield': 'xxzqdm', 'sorttype': 'asc'}
+        import requests
+        response = requests.post(url, data=params, headers={
+            'User-Agent': 'Mozilla/5.0', 'Referer': 'https://www.bse.cn/nq/listedcompany.html'},
+            timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        text = response.text
+        payload, _ = json.JSONDecoder().raw_decode(text[text.index('['):])
+        if not isinstance(payload, list) or len(payload) != 1:
+            raise ProviderError('invalid BSE catalogue response')
+        return payload[0]
+
+    def collect(self, request):
+        records, raw = [], []
+        try:
+            first = self.transport(0)
+            pages, total = first['totalPages'], first['totalElements']
+            if type(pages) is not int or type(total) is not int or not 0 < pages <= total:
+                raise ProviderError('invalid BSE catalogue totals')
+            for number in range(pages):
+                page = first if number == 0 else self.transport(number)
+                raw.append({'provider':'bse','request':{'page':number},'response':page})
+                rows = page['content']
+                if (page['number'] != number or page['totalPages'] != pages
+                        or page['totalElements'] != total or not isinstance(rows, list)
+                        or not rows or page['numberOfElements'] != len(rows)):
+                    raise ProviderError('BSE catalogue pagination changed')
+                for row in rows:
+                    code = row['xxzqdm']
+                    if not isinstance(code, str) or not re.fullmatch(r'\d{6}', code):
+                        raise ProviderError('invalid BSE security code')
+                    opened = datetime.strptime(row['fxssrq'], '%Y%m%d').date().isoformat()
+                    records.append({'code':'bj.'+code,'code_name':row['xxzqjc'],
+                                    'ipoDate':opened,'outDate':'','type':'1','status':'1',
+                                    'raw_page':len(raw)-1})
+            if len(records) != total or len({r['code'] for r in records}) != total:
+                raise ProviderError('BSE catalogue count or identities disagree')
+            return {'records':records,'raw':raw,'scope':{},
+                    'data_as_of':datetime.now(timezone.utc).isoformat()}
+        except Exception as error:
+            raise CollectionError(str(error),raw) from error
+
+
+class EastmoneyFactors:
+    """Historical standard valuations from Eastmoney, including net-cash TTM."""
+    fields = {'peTTM':'PE_TTM','pbMRQ':'PB_MRQ','psTTM':'PS_TTM'}
+
+    def __init__(self, config, transport=None):
+        self.transport = EastmoneyDaily.get if transport is None else transport
+
+    @staticmethod
+    def number(value):
+        if isinstance(value, bool):
+            raise ProviderError('invalid Eastmoney numeric value')
+        result = float(value)
+        if not math.isfinite(result):
+            raise ProviderError('non-finite Eastmoney value')
+        return result
+
+    def pages(self, report, code, sort, raw, clause=''):
+        exchange, number = code.split('.')
+        params = {'reportName':report,'columns':'ALL','pageNumber':'1','pageSize':'500',
+                  'sortColumns':sort,'sortTypes':'-1','source':'WEB','client':'WEB',
+                  'filter':f'(SECUCODE="{number}.{exchange.upper()}")'+clause}
+        records, total, pages = [], None, None
+        page = 1
+        while pages is None or page <= pages:
+            params['pageNumber'] = str(page)
+            url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?'+urlencode(params)
+            response = self.transport(url)
+            raw.append({'provider':'eastmoney','request':{'url':url},'response':response})
+            result = response.get('result')
+            if response.get('success') is not True or not isinstance(result, dict):
+                raise ProviderError('Eastmoney report failed: '+str(response.get('message')))
+            if total is None:
+                total, pages = result['count'], result['pages']
+                if type(total) is not int or type(pages) is not int or not 0 < pages <= total:
+                    raise ProviderError('Eastmoney report has no complete records')
+            if result['count'] != total or result['pages'] != pages:
+                raise ProviderError('Eastmoney report totals changed')
+            rows = result['data']
+            if not isinstance(rows, list) or not rows:
+                raise ProviderError('Eastmoney report page is empty')
+            for row in rows:
+                if row.get('SECUCODE') != f'{number}.{exchange.upper()}' or row.get('SECURITY_CODE') != number:
+                    raise ProviderError('Eastmoney report security identity disagrees')
+                records.append({**row,'_raw_page':len(raw)-1})
+            page += 1
+        if len(records) != total:
+            raise ProviderError('Eastmoney report count disagrees')
+        return records
+
+    @classmethod
+    def cash_ttm(cls, reports, day):
+        known = {}
+        for row in reports:
+            period = date.fromisoformat(row['REPORT_DATE'][:10]).isoformat()
+            notice = date.fromisoformat(row['NOTICE_DATE'][:10]).isoformat()
+            # Date-only notices do not establish availability before that day's close.
+            if notice >= day:
+                continue
+            if period > notice:
+                raise ProviderError('cash report period is after disclosure')
+            if period not in known or known[period]['NOTICE_DATE'] < row['NOTICE_DATE']:
+                known[period] = row
+        if not known:
+            raise ProviderError('no disclosed cash report for '+day)
+        period = max(known)
+        value = cls.number(known[period]['CCE_ADD'])
+        if period.endswith('-12-31'):
+            return value
+        year = int(period[:4])-1
+        annual, prior = f'{year}-12-31', f'{year}{period[4:]}'
+        if annual not in known or prior not in known:
+            raise ProviderError('net cash TTM lacks disclosed prior-year reports for '+day)
+        return value+cls.number(known[annual]['CCE_ADD'])-cls.number(known[prior]['CCE_ADD'])
+
+    def collect(self, request):
+        fields = set(request['fields'])
+        if fields - set(self.fields) - {'pcfNcfTTM','date','code'}:
+            raise ValueError('unsupported Eastmoney factor fields')
+        raw, records = [], []
+        try:
+            for code in request['codes']:
+                clause = f"(TRADE_DATE>='{request['start']}')(TRADE_DATE<='{request['end']}')"
+                values = self.pages('RPT_VALUEANALYSIS_DET',code,'TRADE_DATE',raw,clause)
+                reports = self.pages('RPT_DMSK_FN_CASHFLOW',code,'REPORT_DATE',raw) if 'pcfNcfTTM' in fields else []
+                seen = set()
+                for value in values:
+                    day = date.fromisoformat(value['TRADE_DATE'][:10]).isoformat()
+                    if day in seen or not request['start'] <= day <= request['end']:
+                        raise ProviderError('duplicate or out-of-range Eastmoney factor date')
+                    seen.add(day)
+                    row = {'code':code,'date':day,'raw_page':value['_raw_page']}
+                    for field, source in self.fields.items():
+                        if field in fields:
+                            row[field] = None if value[source] is None else self.number(value[source])
+                    if 'pcfNcfTTM' in fields:
+                        cash = self.cash_ttm(reports,day)
+                        market_cap = self.number(value['TOTAL_MARKET_CAP'])
+                        if market_cap <= 0:
+                            raise ProviderError('invalid total market value')
+                        row['pcfNcfTTM'] = market_cap/cash if cash != 0 else None
+                    records.append(row)
+            return {'records':records,'raw':raw,'scope':{'codes':request['codes'],
+                    'start':request['start'],'end':request['end']}}
+        except Exception as error:
+            raise CollectionError(str(error),raw) from error
+
+
+class EastmoneyDaily:
+    """Eastmoney OHLCV; provider lots become standard shares."""
+    fields = ('date','open','close','high','low','volume','amount','amplitude','pctChg','change','turn')
+
+    def __init__(self, config, transport=None):
+        self.transport = self.get if transport is None else transport
+
+    @staticmethod
+    def get(url):
+        request = URLRequest(url, headers={'User-Agent':'Mozilla/5.0',
+                                          'Referer':'https://quote.eastmoney.com/'})
+        with urlopen(request, timeout=DEFAULT_TIMEOUT) as response:
+            return json.loads(response.read())
+
+    def collect(self, request):
+        codes, frequency, adjustment, names = BaostockDaily._validate_request(request)
+        factor_fields = set(names) & (set(EastmoneyFactors.fields) | {'pcfNcfTTM'})
+        unsupported = set(names) - set(self.fields) - factor_fields - {'code','adjustflag','tradestatus'}
+        if unsupported or frequency not in {'d','w','m'}:
+            raise ValueError('Eastmoney historical fields/frequency unavailable: '+','.join(sorted(unsupported or {frequency})))
+        periods = {'d':'101','w':'102','m':'103'}
+        # Provider adjustment flags differ from the public Baostock contract.
+        adjustments = {'1':'2','2':'1','3':'0'}
+        records, raw = [], []
+        try:
+            for code in codes:
+                exchange, number = code.split('.')
+                market = {'sh':'1','sz':'0','bj':'0'}[exchange]
+                params = {'fields1':'f1,f2,f3,f4,f5,f6',
+                          'fields2':'f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61',
+                          'secid':market+'.'+number,'klt':periods[frequency],
+                          'fqt':adjustments[adjustment],
+                          'beg':request['start'].replace('-',''), 'end':request['end'].replace('-','')}
+                url = 'https://push2his.eastmoney.com/api/qt/stock/kline/get?'+urlencode(params)
+                response = self.transport(url)
+                raw.append({'provider':'eastmoney','request':{'url':url},'response':response})
+                data = response.get('data')
+                if response.get('rc') != 0 or not isinstance(data, dict) or data.get('code') != number:
+                    raise ProviderError('Eastmoney daily response identity or status disagrees')
+                rows = data.get('klines')
+                if not isinstance(rows, list):
+                    raise ProviderError('Eastmoney daily bars are missing')
+                for line in rows:
+                    cells = line.split(',')
+                    if len(cells) != len(self.fields):
+                        raise ProviderError('Eastmoney daily field contract changed')
+                    row = dict(zip(self.fields, cells))
+                    day = date.fromisoformat(row['date']).isoformat()
+                    if not request['start'] <= day <= request['end']:
+                        raise ProviderError('Eastmoney daily date outside request')
+                    for field in self.fields[1:]:
+                        row[field] = float(row[field])
+                        if not math.isfinite(row[field]):
+                            raise ProviderError('Eastmoney non-finite daily field: '+field)
+                    if row['volume'] < 0 or row['amount'] < 0 or min(row[f] for f in ('open','high','low','close')) <= 0:
+                        raise ProviderError('Eastmoney invalid daily prices or volume')
+                    if 'tradestatus' in names:
+                        if row['volume'] <= 0:
+                            raise ProviderError('zero-volume bar lacks trading-status evidence')
+                        row['tradestatus'] = 1.0
+                    row['volume'] *= 100
+                    row.update(code=code,adjustflag=float(adjustment))
+                    records.append({**{field:row[field] for field in names if field not in factor_fields},'raw_page':len(raw)-1})
+            if factor_fields:
+                packet = EastmoneyFactors({},transport=self.transport).collect({**request,'fields':sorted(factor_fields)})
+                raw.extend(packet['raw'])
+                factors = {(r['code'],r['date']):r for r in packet['records']}
+                for row in records:
+                    key = row['code'],row['date']
+                    if key not in factors:
+                        raise ProviderError('missing matching Eastmoney factor date: '+str(key))
+                    row.update({field:factors[key][field] for field in factor_fields})
+            if len({(r['code'],r['date']) for r in records}) != len(records):
+                raise ProviderError('Eastmoney duplicate daily bars')
+            return {'records':records,'raw':raw,'scope':{'codes':codes,'start':request['start'],'end':request['end']},
+                    'data_as_of':max((r['date'] for r in records),default=None)}
+        except CollectionError as error:
+            raise CollectionError(str(error),[*raw,*error.evidence]) from error
+        except Exception as error:
+            raise CollectionError(str(error),raw) from error
+
+
+class Catalogue:
+    """Provider security catalogue; publication uses the usual method packet."""
+    keys = ('code',)
+
+    def __init__(self, config):
+        self.config = config
+
+    def collect(self, request):
+        import baostock as bs
+        exchanges = request.get('exchanges', ['sh','sz','bj'])
+        if not isinstance(exchanges, (list, tuple)) or not exchanges or set(exchanges) - {'sh','sz','bj'}:
+            raise ValueError('unsupported catalogue exchanges')
+        login = bs.login()
+        if str(login.error_code) != '0':
+            raise ProviderError('security catalogue login failed: ' + str(login.error_code))
+        raw = []
+        try:
+            with _timeout(DEFAULT_TIMEOUT):
+                response = bs.query_stock_basic()
+            if str(response.error_code) != '0':
+                raise ProviderError('security catalogue failed: ' + str(response.error_msg))
+            fields, rows = _response_rows(response, DEFAULT_TIMEOUT)
+            _validate_stock_basic_rows(fields, rows)
+            if not rows:
+                raise ProviderError('security catalogue is empty')
+            raw.append({'provider': 'baostock', 'request': {'method':'query_stock_basic'},
+                        'response': {'fields':fields,'rows':rows,'error_code':str(response.error_code)}})
+            records = [{**dict(zip(fields, row)), 'raw_page':0} for row in rows
+                       if row[fields.index('code')].split('.')[0] in exchanges]
+            if 'bj' in exchanges:
+                bse = BseCatalogue({}).collect({})
+                records.extend({**row,'raw_page':row['raw_page']+len(raw)} for row in bse['records'])
+                raw.extend(bse['raw'])
+            return {'records':records, 'raw':raw, 'scope':{'exchanges':list(exchanges)},
+                    'data_as_of':datetime.now(timezone.utc).isoformat()}
+        except CollectionError as error:
+            raise CollectionError(str(error), [*raw, *error.evidence]) from error
+        except Exception as error:
+            raise CollectionError(str(error), raw) from error
+        finally:
+            bs.logout()
+
+
 DEFAULT_METHODS = {
+    "catalogue": Catalogue,
     "news": News,
     "quotes": EastmoneyQuotes,
     "daily": BaostockDaily,

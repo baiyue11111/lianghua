@@ -157,8 +157,8 @@ class TradeRulesAcceptanceTests(unittest.TestCase):
             lambda req, requirements: DataQuery(
                 req.dataset_id, req.start.date(), req.end.date(), requirements.fields,
                 requirements.history_bars, requirements.price_basis,
-                req.as_of or req.end.date(), requirements.symbols,
-                requirements.universe, requirements.frequency,
+                req.as_of or req.end.date(), frequency=requirements.frequency,
+                market=req.market,
             ), SearchSettlement,
         )
         ratio = config()

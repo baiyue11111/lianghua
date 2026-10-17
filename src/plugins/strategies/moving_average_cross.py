@@ -37,6 +37,8 @@ class Strategy:
         if not frame.context['trading']:
             return None
         if not frame.history:
+            if not frame.fields:
+                return None
             raise ValueError('strategy requires observed history')
         selected=[]
         p=self.params

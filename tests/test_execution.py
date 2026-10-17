@@ -75,6 +75,39 @@ class TradeExecutionTests(unittest.TestCase):
             session.execute_open(date(2024, 1, 3), bars, {'A': 10}, risk=risk,
                                  volume20={'A': D('1000')}, cash_reserve=D('1'))
 
+    def test_opening_market_exclusion_cancels_pending_buy_before_fill(self):
+        account = AccountLedger(D('100000'))
+        session = AccountExecutionSession(account, rules())
+        session.submit(self.order(shares=100))
+        day = date(2024, 1, 3)
+        risk = OpeningRiskSnapshot(date(2024, 1, 2), {'A': D('10')},
+                                   {'A': D('100000')}, D('0'), D('0'))
+
+        fills = session.execute_open(day, {'A': self.bar()}, {'A': 10}, risk=risk,
+                                     eligible=())
+
+        self.assertEqual(fills, ())
+        self.assertEqual(session.pending, ())
+        self.assertEqual(account.order_cancellations[0].reason, 'market_ineligible')
+        self.assertEqual(account.cash, D('100000'))
+        replay = session.execute_open(day, {'A': self.bar()}, {'A': 10}, risk=risk,
+                                     eligible=())
+        self.assertEqual(replay, fills)
+        self.assertEqual(len(account.order_cancellations), 1)
+
+    def test_invalid_opening_risk_does_not_cancel_ineligible_buy(self):
+        account = AccountLedger(D('100000'))
+        session = AccountExecutionSession(account, rules())
+        session.submit(self.order(shares=100))
+        day = date(2024, 1, 3)
+        risk = OpeningRiskSnapshot(day, {'A': D('10')}, {'A': D('100000')}, D('0'), D('0'))
+
+        with self.assertRaisesRegex(ValueError, 'liquidity must be observed before execution day'):
+            session.execute_open(day, {'A': self.bar()}, {'A': 10}, risk=risk, eligible=())
+
+        self.assertEqual(len(session.pending), 1)
+        self.assertEqual(account.order_cancellations, ())
+
     def test_opening_reserve_rejects_callable_and_is_part_of_replay_inputs(self):
         account = AccountLedger(D('100000'))
         value = rules()
