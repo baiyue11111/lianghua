@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 from core.calculation import AllocationLimits
-from protocal import HistoryResult, RegistrationRecord
+from protocol import HistoryResult, RegistrationRecord
 
 
 _MARKET_OPS = {"eq", "ne", "gt", "gte", "lt", "lte", "in", "between"}
@@ -88,7 +88,7 @@ def _matches(actual, condition, kind):
 def _resolve_eligible(market, registry, days, symbols, daily_values,
                       membership_rows, fact_rows=None):
     """Resolve daily close and opening eligibility using only known evidence."""
-    from protocal import _market_selection
+    from protocol import _market_selection
 
     selection = _market_selection(market)
     if selection["scope"] != registry.get("scope"):
@@ -262,7 +262,7 @@ def _prepare_market(data, query, dataset):
     import json
     from dataclasses import replace
     from hashlib import sha256
-    from protocal import DataError, normalize_security_id
+    from protocol import DataError, normalize_security_id
 
     registry = json.loads(data.read("sources", "registry", "sources.json"))
     entries = registry.get("markets")
@@ -498,7 +498,7 @@ class Adapter:
     @classmethod
     def candidates(cls, data, market, dataset_id, start, end):
         import json
-        from protocal import normalize_security_id
+        from protocol import normalize_security_id
         registry = json.loads(data.read("sources", "registry", "sources.json"))
         entries = registry.get("markets")
         matches = [item for item in entries or () if isinstance(item, Mapping)
@@ -561,7 +561,7 @@ class Adapter:
 
     @classmethod
     def validate(cls, frames, *, symbols=None, fields=None, missing="reject"):
-        from protocal import MarketFrame
+        from protocol import MarketFrame
 
         frames = tuple(frames)
         if not frames or any(not isinstance(frame, MarketFrame) for frame in frames):
@@ -686,7 +686,7 @@ class Adapter:
     def adjust(cls, frames, *, basis, as_of, factors, anchor="back", volume_field="volume"):
         from dataclasses import replace
         from datetime import date
-        from protocal import HistoryBar
+        from protocol import HistoryBar
 
         if basis == "adjusted":
             raise ValueError("total adjusted basis is not implemented")
@@ -801,7 +801,7 @@ class Settlement:
     @classmethod
     def resolve(cls, *, limits=None, execution=None):
         from core.calculation import AllocationLimits
-        from protocal import _limits, validate_execution
+        from protocol import _limits, validate_execution
 
         if execution is None:
             execution = cls._copy(cls.DEFAULT_EXECUTION)
@@ -940,7 +940,7 @@ class Settlement:
     def _apply(self, record, following, trade_start=None):
         from dataclasses import replace
         from decimal import Decimal
-        from protocal import AccountSnapshot
+        from protocol import AccountSnapshot
         from core.calculation import OpeningRiskSnapshot
 
         if self._pending is not None:
@@ -1027,7 +1027,7 @@ class Settlement:
             raise
 
     def _plan(self, target, strategy_id):
-        from protocal import TargetSet
+        from protocol import TargetSet
         from dataclasses import replace
 
         if self._pending is None:

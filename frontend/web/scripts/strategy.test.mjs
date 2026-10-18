@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {backtestInput,parameterValues} from '../../display/src/workbench/strategy-model.ts';
+import {backtestInput,parameterValues} from '../../display/src/research/strategy-model.ts';
 const spec={module:'strategies.test',defaults:{count:8,threshold:.5,order:'small',enabled:true},parameters:[
   {key:'count',label:'持股数量',type:'integer',default:8,minimum:1,maximum:30},
   {key:'threshold',label:'阈值',type:'number',default:.5,exclusive_minimum:0},
@@ -24,7 +24,7 @@ test('invalid numeric, enum, date and capital values fail without guessing defau
 
 
 test('comparison only admits the same history, period, code, execution and unsampled dates',async()=>{
-  const {comparisonIssue}=await import('../../display/src/workbench/strategy-model.ts');
+  const {comparisonIssue}=await import('../../display/src/research/strategy-model.ts');
   const first={input:input(),result:{data_hash:'data',code_hash:'code',execution_hash:'execution',equity:[{at:'2020-01-01',equity:100000},{at:'2020-01-02',equity:110000}]}};
   const changed=structuredClone(first);changed.input.params.count=12;changed.input.initial_cash=200000;
   assert.equal(comparisonIssue(first,changed),'');
@@ -38,7 +38,7 @@ test('comparison only admits the same history, period, code, execution and unsam
 });
 
 test('a strategy unknown to frontend obtains its archive name and rules from the plugin catalog',async()=>{
-  const {strategyGroups}=await import('../../display/src/workbench/research-model.ts');
+  const {strategyGroups}=await import('../../display/src/research/research-model.ts');
   const plugin={strategy_id:'moving_average_cross',name:'双均线交叉',description:'快均线高于慢均线时持有',parameters:[],defaults:{},module:'strategies.moving_average_cross'};
   const run={id:'new',run_id:'new',strategy_id:plugin.strategy_id,metrics:{sharpe:null},qualification:'unverified'};
   const groups=strategyGroups([run],[plugin]);
@@ -49,7 +49,7 @@ test('a strategy unknown to frontend obtains its archive name and rules from the
 
 
 test('catalog includes unused plugins, separates same names, and retains removed plugin archives',async()=>{
-  const {strategyGroups,visibleStrategies,groupStatus}=await import('../../display/src/workbench/research-model.ts');
+  const {strategyGroups,visibleStrategies,groupStatus}=await import('../../display/src/research/research-model.ts');
   const first={module:'plugins.first',strategy_id:'first',name:'相同名称',description:'首个',parameters:[],defaults:{}};
   const second={...first,module:'plugins.second',strategy_id:'second',description:'第二个'};
   const archive={id:'removed-run',run_id:'removed-run',strategy_id:'removed',metrics:{},qualification:'unverified'};

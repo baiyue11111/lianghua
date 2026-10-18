@@ -5,7 +5,7 @@ import unittest
 
 import core.calculation as account_execution
 from core.calculation import AccountLedger, AllocationLimits
-from protocal import Bar, Order, Side
+from protocol import Bar, Order, Side
 
 
 class OpeningRiskTests(unittest.TestCase):

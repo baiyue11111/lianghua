@@ -2,7 +2,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from data.ingest import sha256_file
+from market.ingest import sha256_file
 
 
 class IngestionTests(unittest.TestCase):

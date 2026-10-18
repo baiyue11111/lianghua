@@ -12,7 +12,7 @@ protocol=importlib.import_module('frontend.ui-protocol')
 
 class CliTest(unittest.TestCase):
     def test_help_and_empty_args(self):
-        for values in ([],['--help'],['ingest','--help'],['report','--help']):
+        for values in ([],['--help'],['ingest','--help']):
             with contextlib.redirect_stdout(io.StringIO()):
                 try: result=cli.main(values)
                 except SystemExit as exc: result=exc.code
@@ -20,7 +20,7 @@ class CliTest(unittest.TestCase):
 
     def test_all_commands_become_actions_without_calling_business_services(self):
         parser=cli.build_parser()
-        commands=[['--backtest','x.json'],['ingest','--price','p','--fundamentals','f','--valuations','v','--output','o'],['report','--artifact','a','--output','o','--builder','b']]
+        commands=[['--backtest','x.json'],['ingest','--price','p','--fundamentals','f','--valuations','v','--output','o']]
         for values in commands:
             action=cli.to_action(parser.parse_args(values))
             self.assertEqual(action.kind,'invoke')
@@ -28,11 +28,17 @@ class CliTest(unittest.TestCase):
             if values[0]=='--backtest': self.assertEqual(action.data,{'config':'x.json'})
             protocol.parse_wire('UiAction',action.to_dict())
 
+    def test_unimplemented_report_command_is_not_advertised(self):
+        parser = cli.build_parser()
+        self.assertNotIn('report', parser.format_help())
+        with self.assertRaises(SystemExit):
+            parser.parse_args(['report', '--artifact', 'a', '--output', 'o', '--builder', 'b'])
+
     def test_old_subcommand_is_not_a_cli_fallback(self):
         with self.assertRaises(SystemExit):
             cli.build_parser().parse_args(['run','--config','x.json'])
 
-    def test_backtest_cannot_silently_ignore_ingest_or_report(self):
+    def test_backtest_cannot_silently_ignore_ingest(self):
         with self.assertRaises(SystemExit):
             cli.main(['--backtest','x.json','ingest','--price','p','--fundamentals','f','--valuations','v','--output','o'])
 

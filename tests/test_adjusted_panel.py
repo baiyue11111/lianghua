@@ -1,4 +1,4 @@
-"""Contract tests for event-time BaoStock signal prices over raw lake bars."""
+"""Contract tests for event-time BaoStock signal prices over raw cn_a bars."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from core.calculation import AdjustmentCoverageError
-from protocal import _load_adjusted_lake_panel
+from market.reader import _load_adjusted_panel
 
 
 FACTOR_START = date(1990, 1, 1)
@@ -73,7 +73,7 @@ class AdjustedPanelTests(unittest.TestCase):
         with self.assertRaises(AdjustmentCoverageError) as caught: self.load()
         reasons={(issue.code,issue.reason) for issue in caught.exception.issues}
         self.assertIn(('600000','missing_factor_cache'),reasons)
-        self.assertIn(('600000','invalid_lake_price'),reasons)
+        self.assertIn(('600000','invalid_source_price'),reasons)
         self.assertIn(('600001','contradictory_trade_state'),reasons)
         self.assertEqual(caught.exception.checked_bars,2)
 
@@ -188,7 +188,7 @@ class AdjustedPanelTests(unittest.TestCase):
         return path
 
     def load(self, **kwargs):
-        return _load_adjusted_lake_panel(
+        return _load_adjusted_panel(
             self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
             stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
             read=lambda path: path.read_bytes(),
@@ -340,7 +340,7 @@ class AdjustedPanelTests(unittest.TestCase):
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
 
-        self.assertIn(("600000", "invalid_lake_price"),
+        self.assertIn(("600000", "invalid_source_price"),
                       {(item.code, item.reason) for item in caught.exception.issues})
 
     def test_explicit_suspension_keeps_valuation_close_but_not_signal_bar(self):

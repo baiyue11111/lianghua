@@ -1,5 +1,5 @@
 import {useOperation,useValue} from '../interaction/model';
-import type {StrategyCatalog} from '@display/workbench/port';
+import type {StrategyCatalog} from '@display/research/port';
 import {batchRows} from './model';
 import {errorMessage} from '../shared/format';
 import Fields from '../shared/Fields';

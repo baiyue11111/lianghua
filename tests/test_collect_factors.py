@@ -5,7 +5,8 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from protocal import build_data, DataError
+from market import build_data
+from protocol import DataError
 from collect import methods as factors
 
 

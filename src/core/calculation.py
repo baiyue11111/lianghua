@@ -16,7 +16,7 @@ from statistics import fmean, stdev
 
 import numpy as np
 
-from protocal import Bar, Fill, Order, Side, TargetSet, Trial, validate_execution
+from protocol import Bar, Fill, Order, Side, TargetSet, Trial, validate_execution
 from strategy import canonical_hash
 
 

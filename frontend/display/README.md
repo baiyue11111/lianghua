@@ -4,7 +4,7 @@
 
 - `src/core.ts`：纯状态转换 `update`，以及执行器 `createDisplay`。管理请求、检查身份、重复写入、轮询、事件和会话关闭。
 - `src/features.ts`：现有功能的操作注册、输入检查和结果整理。没有 HTTP 路由。
-- `src/workbench/`、`src/lib/`：参数校验、分组、曲线及格式计算。
+- `src/research/`、`src/lib/`：参数校验、分组、曲线及格式计算。
 - `src/protocol.schema.json`、`src/protocol.d.ts`：从 `frontend/ui-protocol.py` 生成。公共模型和端口签名都从 Python 定义生成。不要手改。
 - `runtime/cli.mjs`：随 Python 包发布的 Node 产物。不要手改。
 

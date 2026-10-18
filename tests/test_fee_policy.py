@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal as D
 import unittest
-from protocal import Side
+from protocol import Side
 
 class FeePolicyTests(unittest.TestCase):
     def fees(self):
@@ -47,7 +47,7 @@ class FeePolicyTests(unittest.TestCase):
             self.rules(self.fees()).fees(D(100000),Side.SELL,date(2019,12,31))
     def test_buy_affordability_includes_transfer_fee(self):
         from core.calculation import TradeRules, TaxPolicy
-        from protocal import Order, Bar
+        from protocol import Order, Bar
         from dataclasses import replace
         fees=replace(self.fees(),transfer_rates=((date(2020,1,1),D('.01'),'amount',None),))
         value=TradeRules({'price': {'model':'ratio','params':{'rate':'0','tick':'0.01'}},

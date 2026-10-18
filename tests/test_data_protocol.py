@@ -10,7 +10,7 @@ from unittest.mock import patch
 
 class DataProtocolTests(unittest.TestCase):
     def test_delete_removes_empty_resource_directories_not_namespace(self):
-        from protocal import build_data
+        from market import build_data
         with tempfile.TemporaryDirectory() as root:
             bus = build_data(Path(root))
             bus.write('sources', 'old', 'nested/file.bin', b'old')
@@ -20,7 +20,8 @@ class DataProtocolTests(unittest.TestCase):
 
     def test_fork_does_not_inherit_transaction_ownership_or_reentrant_lock(self):
         import os
-        from protocal import DataBus, DataError
+        from market import DataBus
+        from protocol import DataError
         from storage import DataStore
         with tempfile.TemporaryDirectory() as root:
             store = DataStore(Path(root)); bus = DataBus(store)
@@ -35,12 +36,13 @@ class DataProtocolTests(unittest.TestCase):
                 with bus.transaction('sources'):
                     bus.write('sources', 'one', 'a.bin', b'a')
                     from contextlib import nullcontext
-                    with patch('protocal.os.getpid', return_value=os.getpid() + 1), \
+                    with patch('market.os.getpid', return_value=os.getpid() + 1), \
                             patch.object(store, 'namespace_lock', side_effect=lambda _: nullcontext()):
                         bus.read('sources', 'one', 'a.bin')
 
     def test_nested_failure_cannot_be_hidden_by_outer_transaction(self):
-        from protocal import DataBus, DataError
+        from market import DataBus
+        from protocol import DataError
         from storage import DataStore
         with tempfile.TemporaryDirectory() as root:
             store = DataStore(Path(root)); bus = DataBus(store)
@@ -58,7 +60,8 @@ class DataProtocolTests(unittest.TestCase):
 
     def test_mixed_market_declared_order_is_preserved_and_duplicate_aliases_rejected(self):
         from datetime import date
-        from protocal import DataBus, DataQuery, DataError
+        from market import DataBus
+        from protocol import DataQuery, DataError
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
         with tempfile.TemporaryDirectory() as root:
@@ -76,7 +79,8 @@ class DataProtocolTests(unittest.TestCase):
                 bus.query(query)
 
     def test_generic_transaction_starts_only_at_first_write_and_blocks_partial_publication(self):
-        from protocal import DataBus, DataError
+        from market import DataBus
+        from protocol import DataError
         from storage import DataStore
         with tempfile.TemporaryDirectory() as root:
             store = DataStore(Path(root)); bus = DataBus(store)
@@ -100,7 +104,8 @@ class DataProtocolTests(unittest.TestCase):
 
     def test_query_reads_dataset_from_data_store_without_reader(self):
         from datetime import date
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -130,7 +135,8 @@ class DataProtocolTests(unittest.TestCase):
 
     def test_query_rejects_a_dataset_while_publication_is_incomplete(self):
         from datetime import date
-        from protocal import DataError, DataBus, DataQuery
+        from protocol import DataError, DataQuery
+        from market import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -150,7 +156,8 @@ class DataProtocolTests(unittest.TestCase):
 
     def test_failed_publication_remains_explicitly_unavailable(self):
         from datetime import date
-        from protocal import DataError, DataBus, DataQuery
+        from protocol import DataError, DataQuery
+        from market import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -164,7 +171,8 @@ class DataProtocolTests(unittest.TestCase):
 
     def test_shared_source_publication_blocks_a_different_dataset_query(self):
         from datetime import date
-        from protocal import DataError, DataBus, DataQuery
+        from protocol import DataError, DataQuery
+        from market import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -178,7 +186,8 @@ class DataProtocolTests(unittest.TestCase):
             self.assertTrue((root / "data/source/.locks/source.lock").exists())
 
     def test_publication_owner_is_bound_to_the_writing_thread(self):
-        from protocal import DataError, DataBus
+        from protocol import DataError
+        from market import DataBus
         from storage import DataStore
 
         with tempfile.TemporaryDirectory() as root:
@@ -197,7 +206,7 @@ class DataProtocolTests(unittest.TestCase):
             self.assertEqual(errors, ["dataset_publishing", "dataset_publishing"])
 
     def test_source_delete_waits_for_the_same_source_lock_as_write(self):
-        from protocal import DataBus
+        from market import DataBus
         from storage import DataStore
 
         with tempfile.TemporaryDirectory() as root:
@@ -215,7 +224,8 @@ class DataProtocolTests(unittest.TestCase):
             self.assertTrue(deleted.is_set())
 
     def test_unfinished_source_publication_guards_views_and_delete_but_not_state(self):
-        from protocal import DataError, DataBus
+        from protocol import DataError
+        from market import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -247,18 +257,19 @@ class DataProtocolTests(unittest.TestCase):
                 bus.read("state", "jobs", "job.json")
 
     def test_delete_uses_the_same_identity_checks(self):
-        from protocal import build_data, DataError
+        from market import build_data
+        from protocol import DataError
         with tempfile.TemporaryDirectory() as root:
             bus = build_data(Path(root))
-            bus.write('state', 'lake', 'profile.json', b'{}')
-            bus.delete('state', 'lake', 'profile.json')
+            bus.write('state', 'cn_a', 'profile.json', b'{}')
+            bus.delete('state', 'cn_a', 'profile.json')
             with self.assertRaises(DataError):
-                bus.read('state', 'lake', 'profile.json')
+                bus.read('state', 'cn_a', 'profile.json')
             with self.assertRaises(DataError):
-                bus.delete('state', 'lake', '../../outside')
+                bus.delete('state', 'cn_a', '../../outside')
 
     def test_protocol_is_the_read_write_boundary(self):
-        from protocal import DataBus
+        from market import DataBus
         from storage import DataStore
         with tempfile.TemporaryDirectory() as root:
             bus = DataBus(DataStore(Path(root)))
@@ -268,7 +279,8 @@ class DataProtocolTests(unittest.TestCase):
             self.assertEqual(bus.list('sources', 'quotes'), (ref,))
 
     def test_missing_invalid_and_io_errors_are_distinct(self):
-        from protocal import DataBus, DataError
+        from market import DataBus
+        from protocol import DataError
         from storage import DataStore
         with tempfile.TemporaryDirectory() as root:
             store = DataStore(Path(root)); bus = DataBus(store)
@@ -285,7 +297,7 @@ class DataProtocolTests(unittest.TestCase):
                 self.assertEqual(caught.exception.code, 'io_failed')
 
     def test_identity_listing_does_not_read_other_groups(self):
-        from protocal import DataBus
+        from market import DataBus
         from storage import DataStore
         with tempfile.TemporaryDirectory() as root:
             store = DataStore(Path(root)); bus = DataBus(store)
@@ -296,7 +308,8 @@ class DataProtocolTests(unittest.TestCase):
             self.assertEqual(len(bus.list('sources', 'quotes')), 1)
 
     def test_dataset_snapshot_and_publish_share_manifest_contract(self):
-        from protocal import DataError, build_data
+        from protocol import DataError
+        from market import build_data
 
         with tempfile.TemporaryDirectory() as root:
             bus = build_data(Path(root))
@@ -317,7 +330,8 @@ class DataProtocolTests(unittest.TestCase):
             self.assertEqual(bus.manifest('dataset'), manifest)
 
     def test_publish_rejects_unbound_files_and_invalid_scope(self):
-        from protocal import DataError, build_data
+        from protocol import DataError
+        from market import build_data
 
         with tempfile.TemporaryDirectory() as root:
             bus = build_data(Path(root))
@@ -330,14 +344,14 @@ class DataProtocolTests(unittest.TestCase):
                     bus.publish('dataset', manifest)
 
     def test_manifest_can_bind_another_source_identity_without_path_traversal(self):
-        from protocal import build_data
+        from market import build_data
 
         with tempfile.TemporaryDirectory() as root:
             bus = build_data(Path(root))
-            ref = bus.write('sources', 'lake', 'daily/2025.parquet', b'price')
+            ref = bus.write('sources', 'cn_a', 'daily/2025.parquet', b'price')
             manifest = {
                 'schema': 2,
-                'files': [{'file': 'source/lake/daily/2025.parquet',
+                'files': [{'file': 'source/cn_a/daily/2025.parquet',
                            'sha256': ref.sha256, 'role': 'market'}],
                 'fields': {},
                 'scope': {'symbols': ['600001'], 'universe': 'fixed_symbols'},

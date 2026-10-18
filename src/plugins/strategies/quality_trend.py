@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from datetime import date
 
 from core.calculation import Calculation
-from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
+from protocol import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from ._ranked_signal import histories, weights
 

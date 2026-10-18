@@ -52,7 +52,7 @@ class EmptyPort:
 class ProtocolTests(unittest.TestCase):
     def test_extra_limits_are_unlimited_and_lot_size_comes_from_execution(self):
         from core.calculation import AllocationLimits
-        from protocal import _limits
+        from protocol import _limits
 
         limits = _limits({})
         self.assertEqual(limits.lot_size, 100)
@@ -61,7 +61,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertIsNone(AllocationLimits().stock_weight)
 
     def test_annual_risk_free_rate_is_explicit_and_quantity_sources_cannot_conflict(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.moving_average_cross", "params": {},
@@ -88,7 +88,7 @@ class ProtocolTests(unittest.TestCase):
             parse_backtest_request({**base, "limits": {"lot_size": 100}})
 
     def test_huge_risk_free_rate_is_an_invalid_request(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         with self.assertRaises(BacktestError) as caught:
             parse_backtest_request({
@@ -101,7 +101,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_settlement_describe_uses_json_null_for_unlimited_limits(self):
         from plugins.data import Settlement
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         limits = Settlement.describe({})["params"]["limits"]
         self.assertIsNone(limits["stock_weight"])
@@ -111,7 +111,7 @@ class ProtocolTests(unittest.TestCase):
         from datetime import date, datetime, timezone
         from decimal import Decimal
         from plugins.data import Settlement
-        from protocal import Bar, TargetSet
+        from protocol import Bar, TargetSet
         from tests.fee_fixture import fees, tax_policy
         from core.calculation import AccountExecutionSession, AccountLedger, AllocationLimits, TradeRules
 
@@ -145,7 +145,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(fill.shares, 10000)
 
     def test_atomic_request_rejects_fixed_evaluation_windows(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.moving_average_cross", "params": {},
@@ -153,7 +153,7 @@ class ProtocolTests(unittest.TestCase):
             "end": "2020-01-03T09:00:00+00:00", "initial_cash": 1000000,
         }
         from dataclasses import fields
-        from protocal import BacktestRequest
+        from protocol import BacktestRequest
 
         self.assertNotIn("validation_window", {field.name for field in fields(BacktestRequest)})
         self.assertNotIn("out_of_sample_window", {field.name for field in fields(BacktestRequest)})
@@ -168,7 +168,7 @@ class ProtocolTests(unittest.TestCase):
         from datetime import datetime, timezone
         from decimal import Decimal
         from types import SimpleNamespace
-        from protocal import BacktestRequest, build_effective_config, build_execution_hash
+        from protocol import BacktestRequest, build_effective_config, build_execution_hash
 
         request = BacktestRequest(
             "hash", "strategy", {}, "fixture",
@@ -191,7 +191,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertNotEqual(first_config_hash, second_config_hash)
 
     def test_execution_validation_is_shared_by_request_and_config_paths(self):
-        from protocal import BacktestError, _load_plugin, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
+        from backend import _load_plugin
 
         invalid = {**EXECUTION,
                    "price": {"model": "ratio", "params": {"rate": "1", "tick": "0.01"}}}
@@ -215,7 +216,7 @@ class ProtocolTests(unittest.TestCase):
 
     def test_loaded_plugin_exposes_one_dataset_validation_hook_with_merged_request(self):
         from types import SimpleNamespace
-        from protocal import _load_plugin
+        from backend import _load_plugin
 
         DATASET_VALIDATION_CALLS.clear()
         configured = _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
@@ -236,7 +237,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(execution["quantity"]["params"], {})
 
     def test_execution_rules_reject_invalid_bounds_and_mismatched_ticks(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.breadth_low_amount_reversal",
@@ -251,7 +252,7 @@ class ProtocolTests(unittest.TestCase):
                 parse_backtest_request({**base, "execution": execution})
 
     def test_standard_request_keeps_strict_execution_actions(self):
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         execution = {
             "price": {"model": "ratio", "params": {"rate": "0.01", "tick": "0.01"}},
@@ -269,7 +270,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(request.settlement_parameters["execution"], execution)
 
     def test_standard_request_rejects_old_execution_names_and_unknown_keys(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.breadth_low_amount_reversal",
@@ -307,7 +308,8 @@ class ProtocolTests(unittest.TestCase):
             parse_backtest_request(malformed)
 
     def test_kernel_result_is_saved_once_in_the_shared_data_store(self):
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from tests.fee_fixture import configured_settlement
 
@@ -316,7 +318,7 @@ class ProtocolTests(unittest.TestCase):
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
             port = KernelBacktestPort(bus, configured_settlement())
-            result = port.handle("workbench.backtest", {
+            result = port.handle("backtest.run", {
                 "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
@@ -329,7 +331,8 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(saved["equity"], result.data["equity"])
 
     def test_protocol_routes_backtest_to_the_injected_port(self):
-        from protocal import DataBus, KernelBacktestPort, Modules, Protocol
+        from market import DataBus
+        from backend import KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.fee_fixture import configured_settlement
 
@@ -340,7 +343,7 @@ class ProtocolTests(unittest.TestCase):
             backend = Protocol(Modules(
                 KernelBacktestPort(bus, configured_settlement()), *[EmptyPort() for _ in range(4)]))
             message = send(backend, ui.UiRequest(
-                "one", "workbench.backtest", "urn:lianghua:ui:input:workbench.backtest:v1", {
+                "one", "backtest.run", "urn:lianghua:ui:input:backtest.run:v1", {
                     "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
                     "params": {"positions": 4}, "dataset_id": "fixture",
                     "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",

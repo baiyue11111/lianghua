@@ -383,7 +383,7 @@ def session():
     core = Path(__file__).parent / "display" / "runtime" / "cli.mjs"
     if not core.is_file():
         raise OSError("交互核心发布产物缺失；请运行 npm run build --prefix frontend/display")
-    from protocal import build_backend
+    from backend import build_backend
     backend = build_backend(Path.cwd())
     process = None
     try:

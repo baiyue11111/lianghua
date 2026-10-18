@@ -1,7 +1,7 @@
 import unittest,tempfile
 from pathlib import Path
-from protocal import build_data
-from protocal import Benchmarks, KernelBacktestPort, Research
+from market import build_data
+from backend import Benchmarks, KernelBacktestPort, Research
 
 class BenchmarkTests(unittest.TestCase):
     def test_compare_benchmark_does_not_require_trade_bar_fields(self):
@@ -80,7 +80,7 @@ class BenchmarkTests(unittest.TestCase):
             service=Benchmarks(data,[spec])
             with self.assertRaisesRegex(ValueError,'dataset_id'):service.series('i','2026-09-29','2026-09-30')
             from tests.history_fixture import make_snapshot
-            from protocal import DataError
+            from protocol import DataError
             make_snapshot(Path(d))
             service=Benchmarks(data,[{**spec, 'dataset_id':'fixture', 'code':'sh.600003'}])
             import json
@@ -99,7 +99,7 @@ class BenchmarkTests(unittest.TestCase):
 
 class BenchmarkPortTests(unittest.TestCase):
     def test_preflight_and_run_keep_config_hash_when_benchmark_is_added(self):
-        from protocal import _result_data
+        from backend import _result_data
         from tests.test_core_backtest import BacktestTests, request
 
         kernel = BacktestTests().make_kernel()
@@ -128,16 +128,16 @@ class BenchmarkPortTests(unittest.TestCase):
             port=KernelBacktestPort(data, lambda *args, **kwargs: object(),
                                     Benchmarks(data, [spec]), datasets=(),
                                     research=Research(data))
-            self.assertEqual(port.handle('workbench.benchmarks',{}),[spec])
+            self.assertEqual(port.handle('research.benchmarks',{}),[spec])
             request={'id':'hs300','start':'2026-09-29','end':'2026-09-30'}
-            with self.assertRaises(ValueError):port.handle('workbench.benchmark',request)
+            with self.assertRaises(ValueError):port.handle('research.benchmark',request)
             from tests.history_fixture import make_snapshot
             make_snapshot(Path(d))
             spec.update(dataset_id='fixture', code='sh.600003')
             port=KernelBacktestPort(data, lambda *args, **kwargs: object(), Benchmarks(data,[spec]))
-            series=port.handle('workbench.benchmark',{**request,'start':'2020-01-31','end':'2020-02-03'})
+            series=port.handle('research.benchmark',{**request,'start':'2020-01-31','end':'2020-02-03'})
             self.assertEqual(series['points'][0]['close'],11.0)
-            with self.assertRaises(ValueError):port.handle('workbench.benchmark',{**request,'start':'not-a-date'})
+            with self.assertRaises(ValueError):port.handle('research.benchmark',{**request,'start':'not-a-date'})
 
 class ResearchEndpointTests(unittest.TestCase):
     def test_plot_sampling_keeps_final_observation(self):

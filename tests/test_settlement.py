@@ -9,7 +9,7 @@ from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
 from tests.fee_fixture import settlement as make_settlement
 from tests.settlement_fixture import SettlementFixture
 from core.calculation import normalize_dividend_records
-from protocal import HistoryBar, MarketFrame, RegistrationAction
+from protocol import HistoryBar, MarketFrame, RegistrationAction
 
 
 class DataPluginSettlementTests(unittest.TestCase):
@@ -124,7 +124,8 @@ class DataPluginSettlementTests(unittest.TestCase):
         from pathlib import Path
         from strategy import canonical_hash, load_strategy
         from tests.history_fixture import make_snapshot
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from plugins.data import Settlement
         frozen = json.loads(Path("tests/fixtures/kernel-history-ab.json").read_text())
@@ -136,7 +137,7 @@ class DataPluginSettlementTests(unittest.TestCase):
             root = Path(temp)
             make_snapshot(root)
             result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle(
-                "workbench.backtest", {**request, "run_id": "frozen-ab"}).data
+                "backtest.run", {**request, "run_id": "frozen-ab"}).data
         hashes = {key: canonical_hash(result["trace"][key]) for key in frozen["trace_hashes"]}
         self.assertEqual(result["equity"], frozen["equity"])
         self.assertEqual(result["metrics"], frozen["metrics"])

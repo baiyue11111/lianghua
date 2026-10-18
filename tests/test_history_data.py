@@ -1,4 +1,4 @@
-from protocal import normalize_security_id
+from protocol import normalize_security_id
 from datetime import date
 from decimal import Decimal
 import json
@@ -6,7 +6,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 
-from protocal import DataBus, DataError, DataQuery
+from market import DataBus
+from protocol import DataError, DataQuery
 from storage import DataStore
 from tests.history_fixture import make_snapshot
 
@@ -159,13 +160,13 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_empty_market_pool_is_a_valid_backtest_no_decision(self):
         from plugins.data import Settlement
-        from protocal import KernelBacktestPort
+        from backend import KernelBacktestPort
 
         with TemporaryDirectory() as temp:
             root = Path(temp)
             make_snapshot(root, symbols=("600003",))
             result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle(
-                "workbench.backtest", payload(
+                "backtest.run", payload(
                     run_id="empty-market-pool",
                     module="plugins.strategies.moving_average_cross",
                     params={"fast_window": 2, "slow_window": 3},
@@ -206,7 +207,8 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_market_codes_load_only_requested_source_rows_without_membership(self):
         import json
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -421,7 +423,8 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_raw_query_reuses_trade_state_validation(self):
         import pyarrow.parquet as pq
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
 
         cases = ((0.0, 100.0, 1000.0, "contradictory_trade_state"),
                  (1.0, 0.0, 0.0, "contradictory_trade_state"),
@@ -444,7 +447,8 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_raw_query_keeps_a_zero_turnover_suspension_as_valuation_only(self):
         import pyarrow.parquet as pq
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
 
         with TemporaryDirectory() as temp:
             root = Path(temp); make_snapshot(root)
@@ -522,12 +526,12 @@ class HistoricalDataTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "volume"): query(root)
 
     def test_preflight_effective_fields_match_resolved_dataset_fields(self):
-        from protocal import KernelBacktestPort
+        from backend import KernelBacktestPort
         from tests.fee_fixture import configured_settlement
         with TemporaryDirectory() as temp:
             root = Path(temp); make_snapshot(root)
             port = KernelBacktestPort(DataBus(DataStore(root)), configured_settlement())
-            result = port.handle("workbench.preflight", payload(
+            result = port.handle("backtest.prepare", payload(
                 module="plugins.strategies.moving_average_cross",
                 params={"fast_window": 2, "slow_window": 3},
                 market={"scope": "CN_A", "codes": ["600000"]},
@@ -559,12 +563,12 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_real_files_execute_parameter_ab_with_one_strategy_file(self):
         from plugins.data import Settlement
-        from protocal import KernelBacktestPort
+        from backend import KernelBacktestPort
         with TemporaryDirectory() as temp:
             root = Path(temp); make_snapshot(root)
             port = KernelBacktestPort(DataBus(DataStore(root)), Settlement)
-            a = port.handle("workbench.backtest", payload(run_id="0", params={"positions": 4})).data
-            b = port.handle("workbench.backtest", payload(
+            a = port.handle("backtest.run", payload(run_id="0", params={"positions": 4})).data
+            b = port.handle("backtest.run", payload(
                 run_id="1", params={"positions": 8},
                 execution={**payload()["execution"], "price": {"model": "ratio", "params": {"rate": ".002", "tick": ".01"}}},
             )).data
@@ -575,10 +579,10 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_parameter_change_uses_same_account_policy(self):
         from plugins.data import Settlement
-        from protocal import KernelBacktestPort
+        from backend import KernelBacktestPort
         with TemporaryDirectory() as temp:
             root = Path(temp); make_snapshot(root)
-            result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle("workbench.preflight", payload(params={"positions": 8}))
+            result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle("backtest.prepare", payload(params={"positions": 8}))
             self.assertFalse(result["issues"])
 
     def test_long_history_stays_bounded_and_trace_does_not_duplicate_history(self):

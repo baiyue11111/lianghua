@@ -105,7 +105,8 @@ class DataStoreTest(unittest.TestCase):
                             operation()
 
     def test_identity_symlink_cannot_cross_into_source_infrastructure(self):
-        from protocal import DataBus, DataError
+        from market import DataBus
+        from protocol import DataError
         from storage import DataStore
 
         with tempfile.TemporaryDirectory() as directory:

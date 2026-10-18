@@ -32,17 +32,6 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--output", type=Path, required=True)
     ingest.add_argument("--max-symbols", type=int)
     ingest.add_argument("--price-part", type=int, action="append", help="process only this 0-based zip price part; repeatable")
-    report = commands.add_parser(
-        "report",
-        help="用报告构建器生成可查看的报告文件。",
-        description="用报告构建器生成可查看的报告文件。",
-        epilog="示例：lianghua report --artifact run.json --output report.html --builder build-report.mjs",
-    )
-    report.add_argument("--artifact", type=Path, required=True)
-    report.add_argument("--output", type=Path, required=True)
-    report.add_argument("--builder", type=Path, required=True)
-    report.add_argument("--ready-timeout-ms", type=int, default=20_000)
-    report.add_argument("--timeout-ms", type=int, default=30_000)
     parser.add_argument("--backtest", type=Path, help="直接读取一个 backtest JSON 配置")
     parser.add_argument("--collect", metavar="MARKET:COMMAND", help="收集：沪深:[2003,2012]、latest、range、auto、check、status；auto 前台运行，Ctrl+C 停止")
     for name in ("data", "codes", "fields", "start", "end", "interval"):
@@ -90,7 +79,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.collect is None and any(getattr(args, name) is not None for name in ('data', 'codes', 'fields', 'start', 'end', 'interval')):
             parser.error('collection arguments require --collect')
         if args.backtest is not None and args.command is not None:
-            parser.error("--backtest cannot be combined with ingest or report")
+            parser.error("--backtest cannot be combined with ingest")
         state = protocol.exchange(to_action(args), on_state=print_state) if args.collect is not None else protocol.exchange(to_action(args))
         slot = state.targets["cli"]
         if slot.problems:

@@ -7,7 +7,7 @@ from math import ceil
 import numpy as np
 
 from core.calculation import Calculation
-from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
+from protocol import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 
 NAME = '市场宽度 · 低成交额反转'

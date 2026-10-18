@@ -33,14 +33,15 @@ package-dir = {"" = "src", "frontend" = "frontend"}
 packages = [
   "collect",
   "core",
-  "data",
+  "market",
   "plugins",
   "plugins.strategies",
   "frontend",
 ]
 py-modules = [
   "dev",
-  "protocal",
+  "protocol",
+  "backend",
   "storage",
   "strategy",
 ]

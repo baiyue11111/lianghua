@@ -5,7 +5,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest import TestCase, mock
-from protocal import build_data, DataBus, DataError
+from market import build_data, DataBus
+from protocol import DataError
 
 
 def bus(directory):

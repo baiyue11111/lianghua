@@ -4,7 +4,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 import json
-from protocal import build_data
+from market import build_data
 
 from collect.methods import (
     StockBasicEvidenceError,

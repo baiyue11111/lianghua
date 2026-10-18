@@ -11,7 +11,7 @@ from core.calculation import normalize_dividend_records
 from core.calculation import OpeningRiskSnapshot
 from plugins.data import Settlement
 from plugins.strategies.moving_average_cross import Params as CrossParams, Strategy as Cross
-from protocal import Bar, Fill, HistoryDay, MarketFrame, Order, RegistrationAction, Side, TargetSet
+from protocol import Bar, Fill, HistoryDay, MarketFrame, Order, RegistrationAction, Side, TargetSet
 from core.calculation import TaxLedger
 from tests.fee_fixture import rules, tax_policy, settlement as make_settlement
 from tests.settlement_fixture import SettlementFixture
@@ -95,8 +95,9 @@ class SettlementFlowTests(unittest.TestCase):
         import json
         from tempfile import TemporaryDirectory
 
-        from protocal import save_failed_backtest
-        from protocal import BacktestError, BacktestRequest, build_data
+        from backend import save_failed_backtest
+        from protocol import BacktestError, BacktestRequest
+        from market import build_data
 
         settlement = make_settlement(D('100000'))
         settlement.apply(self.case.inputs()[0], self.case.calendar[1])

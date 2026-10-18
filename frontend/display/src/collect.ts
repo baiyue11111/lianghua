@@ -37,7 +37,7 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
  if(markets.length!==1)throw Error('市场未唯一登记：'+name);
  const market=markets[0];
  if(typeof market.timezone!=='string'||!market.timezone)throw Error('市场未登记时区');
- if(command==='status')return {market:market.scope,sources:await call('workbench.sources',{})};
+ if(command==='status')return {market:market.scope,sources:await call('collection.sources',{})};
  const spec=market.collect;
  if(!spec?.data)throw Error('市场未登记收集数据源');
  let types=items(values.data);
@@ -64,7 +64,7 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
   }
   let rows:Row[]=[],offset=0;
   while(true){
-   const page=await call('workbench.snapshot',{id:binding.source,offset}) as Row;
+   const page=await call('collection.snapshot',{id:binding.source,offset}) as Row;
    rows.push(...page.records);offset+=page.records.length;
    if(offset>=page.total||!page.records.length)break;
   }

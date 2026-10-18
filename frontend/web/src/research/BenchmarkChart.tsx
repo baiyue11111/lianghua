@@ -1,14 +1,14 @@
 import {useMemo} from 'react';
 import {useValue,useOperation} from '../interaction/model';
 import ReactECharts from 'echarts-for-react';
-import type {RunDetail,BenchmarkSpec,BenchmarkSeries} from '@display/workbench/port';
-import {benchmarkCurves} from '@display/workbench/curves';
+import type {RunDetail,BenchmarkSpec,BenchmarkSeries} from '@display/research/port';
+import {benchmarkCurves} from '@display/research/curves';
 import {day,errorMessage,text} from '../shared/format';
 export default function BenchmarkChart({data,name}:{data:RunDetail;name:string}){
- const catalog=useOperation<BenchmarkSpec[]>('benchmark:catalog','workbench.benchmarks');
+ const catalog=useOperation<BenchmarkSpec[]>('benchmark:catalog','research.benchmarks');
  const [id,setId]=useValue('benchmark','identity','');
  const start=day(data.equity[0]?.at),end=day(data.equity.at(-1)?.at);
- const result=useOperation<BenchmarkSeries>('benchmark:series','workbench.benchmark',{id,start,end},!!id&&!!data.equity.length);
+ const result=useOperation<BenchmarkSeries>('benchmark:series','research.benchmark',{id,start,end},!!id&&!!data.equity.length);
  const plot=useMemo(()=>{
   if(!id)return {series:[{name,type:'line',showSymbol:false,data:data.equity.map(point=>[day(point.at),point.equity])}],error:''};
   if(!result.value)return {series:[],error:''};

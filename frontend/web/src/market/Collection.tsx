@@ -1,12 +1,12 @@
-import type {ContinuousFetch,FetchJob} from '@display/lib/lake';
+import type {ContinuousFetch,FetchJob} from '@display/lib/market';
 import {useOperation} from '../interaction/model';
 import {errorMessage,number,status} from '../shared/format';
 export default function Collection(){
- const schedule=useOperation<ContinuousFetch>('market:schedule','lake.continuousFetch');
- const task=useOperation<FetchJob>('market:task','lake.fetchJob');
- const toggle=useOperation('market:toggle','lake.setContinuousFetch',{},true,false);
- const start=useOperation('market:start','lake.startFetch',{},true,false);
- const stop=useOperation('market:stop','lake.stopFetch',{},true,false);
+ const schedule=useOperation<ContinuousFetch>('market:schedule','collection.automatic');
+ const task=useOperation<FetchJob>('market:task','collection.current');
+ const toggle=useOperation('market:toggle','collection.set_automatic',{},true,false);
+ const start=useOperation('market:start','collection.start',{},true,false);
+ const stop=useOperation('market:stop','collection.stop',{},true,false);
  const value=schedule.value,job=task.value;
  const busy=toggle.status==='pending'||start.status==='pending'||stop.status==='pending';
  const errors=[schedule.error,task.error,toggle.error,start.error,stop.error,value?.schedule_error,value?.latest_data_error,job?.error].filter(Boolean);

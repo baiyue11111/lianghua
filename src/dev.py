@@ -10,7 +10,7 @@ import time
 
 def create_app():
     from frontend.web import create_app as web_app
-    from protocal import build_backend
+    from backend import build_backend
 
     return web_app(build_backend(Path.cwd()))
 

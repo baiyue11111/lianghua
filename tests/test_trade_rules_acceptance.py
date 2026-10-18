@@ -4,7 +4,7 @@ from copy import deepcopy
 from datetime import date
 from decimal import Decimal as D
 
-from protocal import Bar, Order, Side
+from protocol import Bar, Order, Side
 from tests.fee_fixture import fees, tax_policy
 
 
@@ -150,7 +150,7 @@ class TradeRulesAcceptanceTests(unittest.TestCase):
 
     def test_execution_evidence_changes_when_the_selected_model_changes(self):
         from core.kernel import Kernel
-        from protocal import DataQuery
+        from protocol import DataQuery
         from tests.test_kernel_search import SearchData, SearchStrategy, SearchSettlement, request
         kernel = Kernel(
             SearchData(), lambda _name, params: SearchStrategy(params),

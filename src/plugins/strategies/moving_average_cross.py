@@ -4,7 +4,7 @@ from datetime import date
 from math import isfinite
 
 from core.calculation import Calculation
-from protocal import DataRequest, TargetSet
+from protocol import DataRequest, TargetSet
 from strategy import validate_params
 
 NAME='双均线'

@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal as D
 import unittest
-from protocal import Fill, Side
+from protocol import Fill, Side
 from core.calculation import normalize_dividend_records
 
 

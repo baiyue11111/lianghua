@@ -13,9 +13,29 @@ import unittest
 
 
 class RemoveOldContractsTests(unittest.TestCase):
+    def test_contract_data_and_backend_have_separate_owners(self):
+        import ast
+        root = Path(__file__).parents[1]
+        contract = root / "src/protocol.py"
+        self.assertTrue(contract.is_file())
+        tree = ast.parse(contract.read_text())
+        names = {node.name for node in tree.body
+                 if isinstance(node, (ast.ClassDef, ast.FunctionDef))}
+        self.assertIn("DataPort", names)
+        self.assertNotIn("DataBus", names)
+        self.assertNotIn("KernelBacktestPort", names)
+        self.assertNotIn("build_backend", names)
+        from market import DataBus
+        from backend import build_backend, export_operations
+        self.assertEqual(DataBus.__module__, "market")
+        self.assertEqual(build_backend.__module__, "backend")
+        self.assertTrue(all(not name.startswith(("lake.", "workbench."))
+                            for name in export_operations()))
+        self.assertFalse((root / "src/protocal.py").exists())
+
     def test_protocol_import_has_no_outer_runtime_side_effects(self):
         code = (
-            "import json, sys; import protocal; "
+            "import json, sys; import protocol; "
             "print(json.dumps({name: name in sys.modules for name in "
             "('core.kernel', 'application', 'frontend.ui-protocol')}))"
         )
@@ -32,7 +52,7 @@ class RemoveOldContractsTests(unittest.TestCase):
         )
 
     def test_public_contracts_are_defined_once_in_protocol(self):
-        protocol = importlib.import_module("protocal")
+        protocol = importlib.import_module("protocol")
         strategy = importlib.import_module("plugins.strategies.moving_average_cross")
         calculation = importlib.import_module("core.calculation")
 
@@ -43,7 +63,7 @@ class RemoveOldContractsTests(unittest.TestCase):
         self.assertIs(calculation.Fill, protocol.Fill)
 
     def test_data_port_declares_bus_operations(self):
-        protocol = importlib.import_module("protocal")
+        protocol = importlib.import_module("protocol")
         members = protocol.DataPort.__dict__
         self.assertIn("query", members)
         self.assertIn("read_ref", members)
@@ -71,10 +91,8 @@ class RemoveOldContractsTests(unittest.TestCase):
         self.assertFalse((Path(__file__).parents[1] / "tools/run_backtest.py").exists())
 
     def test_history_zero_records_dataset_history_in_effective_config(self):
-        from protocal import (
-            BacktestRequest, BacktestResponse, _result_data,
-            build_effective_config, required_fields,
-        )
+        from protocol import BacktestRequest, BacktestResponse, build_effective_config, required_fields
+        from backend import _result_data
         from strategy import load_strategy
 
         request = BacktestRequest(

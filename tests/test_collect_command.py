@@ -12,7 +12,9 @@ from unittest.mock import patch
 from collect.core import Collect
 from collect.methods import Methods
 from collect.sources import Sources
-from protocal import DataBus, DataError, Modules, Protocol
+from market import DataBus
+from protocol import DataError
+from backend import Modules, Protocol
 from storage import DataStore
 from frontend import cli
 
@@ -42,7 +44,7 @@ class CollectionCommandTests(unittest.TestCase):
         self.addCleanup(self.collect.close)
 
     def invoke(self, selector, **values):
-        from protocal import CollectionPort
+        from backend import CollectionPort
         class Port:
             def handle(self, operation, data): return {}
         port = Port()
@@ -56,7 +58,7 @@ class CollectionCommandTests(unittest.TestCase):
             return await original(request)
         backend.send = send
         action = ui.UiAction('test', 'invoke', 'cli', {'selector': selector, **values}, 'cli.collect')
-        with patch('protocal.build_backend', return_value=backend):
+        with patch('backend.build_backend', return_value=backend):
             state = ui.exchange(action)
         self.assertNotIn('cli.collect', [request.operation for request in seen])
         self.assertTrue(all('selector' not in request.data for request in seen))
@@ -121,7 +123,7 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(self.calls,[])
 
     def test_auto_runs_two_cycles_in_core_and_ctrl_c_stops_session(self):
-        from protocal import CollectionPort
+        from backend import CollectionPort
         self.collect.run({'source_id':'prices','codes':['X','Y'],'start':'2026-10-01','end':'2026-10-14'})
         self.calls.clear()
         class Port:
@@ -133,7 +135,7 @@ class CollectionCommandTests(unittest.TestCase):
             states.append(state)
             if len(states)==2:raise KeyboardInterrupt
         action=ui.UiAction('auto','invoke','cli',{'selector':'TEST:auto','interval':'1s'},'cli.collect')
-        with patch('protocal.build_backend',return_value=backend):
+        with patch('backend.build_backend',return_value=backend):
             with self.assertRaises(KeyboardInterrupt):ui.exchange(action,on_state=progress)
         self.assertEqual(len(self.calls),2)
         self.assertEqual(len(states),2)
@@ -193,7 +195,7 @@ class CollectCliTests(unittest.TestCase):
         self.assertNotIn('config',action.data)
 
     def test_backend_has_no_cli_collection_command(self):
-        from protocal import export_operations
+        from backend import export_operations
         self.assertNotIn('cli.collect',export_operations())
         self.assertFalse((Path(__file__).parents[1]/'src/collect/command.py').exists())
 
@@ -372,9 +374,9 @@ class HistoricalFillTests(unittest.TestCase):
             data=SimpleNamespace(transaction=lambda *a:contextlib.nullcontext(),path=lambda kind,identity,name:root/name)
             methods=Methods(data)
             context=({},[date(2003,1,2),date(2003,1,3),date(2003,1,6)],{},('sh.600000',),
-                     [('lake','old.parquet'),('lake','new.parquet')],'snapshot',('sh.600000',))
+                     [('cn_a','old.parquet'),('cn_a','new.parquet')],'snapshot',('sh.600000',))
             with patch.object(methods,'_daily_view_context',return_value=context):
-                page=methods.daily_collection_page({'id':'daily'},'lake')
+                page=methods.daily_collection_page({'id':'daily'},'cn_a')
             self.assertEqual(page['total'],2)
             self.assertIsNone(page['records'][1]['name'])
             self.assertEqual(page['records'][1]['peTTM'],10.)
@@ -437,7 +439,7 @@ class BridgeBatchTests(unittest.TestCase):
         def selector():
             selectors_created.append(True)
             return Ready() if len(selectors_created)==1 else real_selector()
-        with patch('protocal.build_backend',return_value=backend),patch.object(ui.subprocess,'Popen',side_effect=popen), \
+        with patch('backend.build_backend',return_value=backend),patch.object(ui.subprocess,'Popen',side_effect=popen), \
                 patch.object(ui.selectors,'DefaultSelector',side_effect=selector):
             state=ui.exchange(ui.UiAction('batch','invoke','cli',{'selector':'TEST:[2003,2012]'},'cli.collect'),on_state=lambda s:None)
         self.assertEqual(len(seen),1)

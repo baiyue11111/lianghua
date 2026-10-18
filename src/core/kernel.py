@@ -7,17 +7,7 @@ from dataclasses import dataclass, replace
 from math import isfinite
 from threading import Lock
 
-from protocal import (
-    BacktestError,
-    BacktestRequest,
-    BacktestResponse,
-    SearchResponse,
-    Trial,
-    _config_value,
-    _strategy_params,
-    build_effective_config,
-    build_execution_hash,
-)
+from protocol import BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Trial, _config_value, _strategy_params, build_effective_config, build_execution_hash
 from .calculation import Calculation, _candidate_parameters
 
 

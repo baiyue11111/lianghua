@@ -8,7 +8,8 @@ from decimal import Decimal
 from math import isfinite
 import duckdb
 import warnings
-from protocal import DataError, normalize_security_id, validate_facts
+from protocol import (DataError, normalize_security_id, validate_facts,
+                      _calendar_facts, _calendar_covers, _fact_date as fact_date)
 import re
 import calendar
 import hashlib
@@ -396,7 +397,7 @@ def _validate_cache(request: Request, payload: dict) -> None:
 
 
 def pending_requests(requests: list[Request], data) -> list[Request]:
-    from protocal import DataError
+    from protocol import DataError
     pending = []
     for request in requests:
         try:
@@ -801,7 +802,7 @@ class Methods:
         if (source.get("data_type") != "daily" and source.get('method') != 'daily') or request.get("force") is True:
             return None
         try:
-            from protocal import DataError
+            from protocol import DataError
             from datetime import date
             symbols = tuple(request.get("codes", ()))
             fields = tuple(request.get("fields") or source.get("fields") or
@@ -1206,21 +1207,21 @@ class Methods:
         if frequency in {"d", "日"}:
             frequency = "daily"
         if frequency != "daily":
-            raise DataError("canonical_daily", "only unadjusted daily packets may enter the daily lake")
+            raise DataError("canonical_daily", "only unadjusted daily packets may enter the daily source")
         basis = packet.get("price_basis", request.get("price_basis", "raw"))
         if basis in {"不复权", "unadjusted"}:
             basis = "raw"
         if basis != "raw":
-            raise DataError("canonical_daily", "adjusted prices cannot enter the raw daily lake")
+            raise DataError("canonical_daily", "adjusted prices cannot enter the raw daily source")
         adjustment = packet.get("adjustment", request.get("adjustment"))
         if adjustment not in (None, "3", 3, "不复权", "unadjusted"):
-            raise DataError("canonical_daily", "adjusted frequency cannot enter the raw daily lake")
+            raise DataError("canonical_daily", "adjusted frequency cannot enter the raw daily source")
         fields = packet.get("fields", request.get("fields"))
         if fields is not None:
             names = set(fields) if isinstance(fields, (list, tuple, set)) else set()
             required = {"open", "high", "low", "close", "volume", "amount"}
             if not required <= names:
-                raise DataError("canonical_daily", "daily lake packets require OHLCVA fields")
+                raise DataError("canonical_daily", "daily source packets require OHLCVA fields")
 
 
     def daily_collection_view(self, source: Mapping, dataset_id: str) -> Mapping[str, object]:
@@ -1375,6 +1376,77 @@ class Methods:
         )
 
 
+    def inspect(self, source, value):
+        result = {}
+        if 'codes' in value:
+            result['last_date'] = self.last_date(source, value['codes'])
+        if 'start' in value and 'end' in value:
+            request = self.prepare_request(source, value)
+            coverage = self.coverage(source, request)
+            if coverage is None:
+                raise ValueError('coverage is not registered for this source')
+            result['coverage'] = dict(coverage)
+            if source.get('method') == 'daily':
+                complete = self.calendar_coverage(source, value['start'], value['end'])
+                result['coverage']['calendar_evidence_complete'] = complete
+                result['coverage']['complete'] = coverage['complete'] and complete
+        return json.loads(json.dumps(result, allow_nan=False))
+
+
+    def last_date(self, source: Mapping, codes) -> str | None:
+        """Read the watermark for these securities, never an unrelated index."""
+        if source.get('method') == 'daily':
+            import duckdb
+            from copy import deepcopy
+            descriptor = deepcopy(dict(source))
+            descriptor['defaults'] = {k: v for k, v in source.get('defaults', {}).items() if k != 'codes'}
+            with self.data.transaction('sources'):
+                _, _, _, _, files, _, _ = self._daily_view_context(descriptor, source['dataset_id'])
+                paths = [str(self.data.path('sources', identity, name)) for identity, name in files]
+                aliases = sorted({v for code in codes for v in
+                                  (code, normalize_security_id(code), normalize_security_id(code).split('.')[-1])})
+                with duckdb.connect() as connection:
+                    row = connection.execute(
+                        'SELECT max(date) FROM read_parquet(?, union_by_name=true) WHERE code IN (SELECT unnest(?))',
+                        [paths, aliases]).fetchone()
+                return str(row[0]) if row and row[0] is not None else None
+        dates = [row['date'] for row in self.record_rows(source)
+                 if row.get('code') in codes and row.get('date')]
+        return max(dates) if dates else None
+
+
+    def calendar_coverage(self, source, start, end):
+        """Return whether registered calendar facts cover the requested range."""
+        dataset = source['dataset_id']
+        manifest = self.data.manifest(dataset)
+        name = manifest.get('inputs', {}).get('calendar')
+        if not isinstance(name, str):
+            return False
+        parts = Path(name).parts
+        payload = (self.data.read('sources', parts[1], Path(*parts[2:]).as_posix())
+                   if parts[0] == 'source' else self.data.read('sources', dataset, name))
+        _, coverage = _calendar_facts(json.loads(payload))
+        start_date = fact_date(start, 'calendar query start')
+        end_date = fact_date(end, 'calendar query end')
+        if start_date > end_date:
+            raise ValueError('calendar query range is reversed')
+        return _calendar_covers(coverage, start_date, end_date)
+
+
+    def record_rows(self, source):
+        with self.data.transaction('sources'):
+            offset = 0
+            while True:
+                view = self.records(source, offset, 1000)
+                if view is None:
+                    return
+                yield from view['records']
+                offset += len(view['records'])
+                if not view['records'] or offset >= view['total']:
+                    return
+
+
+
 class CollectionError(RuntimeError):
     def __init__(self, message, evidence=()):
         super().__init__(message)
@@ -1463,7 +1535,7 @@ class BaostockDaily:
 
     @staticmethod
     def _validate_request(request):
-        from protocal import normalize_security_id
+        from protocol import normalize_security_id
         codes = request.get("codes")
         try:
             codes = [normalize_security_id(code) for code in codes]
@@ -1718,7 +1790,7 @@ class Securities:
 
     def collect(self, request):
         import re
-        from protocal import normalize_security_id
+        from protocol import normalize_security_id
         raw, records = [], []
         provider = self.provider
         if provider is None:
@@ -2240,7 +2312,7 @@ def _sha(value):
 
 
 def _optional(data, identity, name):
-    from protocal import DataError
+    from protocol import DataError
     try:
         return data.read("sources", identity, name)
     except DataError as error:

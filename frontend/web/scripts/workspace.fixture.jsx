@@ -15,7 +15,7 @@ import Fields from '../src/shared/Fields';
 import BenchmarkChart from '../src/research/BenchmarkChart';
 export * from '../src/research/model';
 export * from '../src/shared/format';
-export {strategyGroups as originalGroups} from '../../display/src/workbench/research-model';
+export {strategyGroups as originalGroups} from '../../display/src/research/research-model';
 export {strategyGroups,runConfig} from '../src/research/groups';
 export function fixture(responses={}){
   const calls=[];

@@ -7,10 +7,10 @@ import unittest
 
 import numpy as np
 
-from protocal import BacktestError, BacktestRequest
+from protocol import BacktestError, BacktestRequest
 from core.calculation import Calculation
 from core.kernel import Kernel
-from protocal import DataQuery, Dataset
+from protocol import DataQuery, Dataset
 
 
 class FakeSettlement:

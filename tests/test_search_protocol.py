@@ -23,7 +23,8 @@ def await_protocol(protocol, operation, data):
 
 class SearchProtocolTests(unittest.TestCase):
     def _fixture_protocol(self, root):
-        from protocal import DataBus, KernelBacktestPort, Modules, Protocol
+        from market import DataBus
+        from backend import KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from tests.fee_fixture import configured_settlement
@@ -56,8 +57,8 @@ class SearchProtocolTests(unittest.TestCase):
             bus, protocol = self._fixture_protocol(root)
             payload = self._search_payload("empty-candidate", [{}])
             message = asyncio.run(protocol.send(ui.UiRequest(
-                "empty-candidate-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                "empty-candidate-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1", payload,
             )))[0]
 
             self.assertEqual(message.kind, "problem")
@@ -75,8 +76,8 @@ class SearchProtocolTests(unittest.TestCase):
                 {"fast_window": [], "slow_window": 3},
             ])
             message = asyncio.run(protocol.send(ui.UiRequest(
-                "bad-shape-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                "bad-shape-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1", payload,
             )))[0]
 
             self.assertEqual(message.kind, "problem")
@@ -95,7 +96,7 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertFalse(bus.path("runs", "bad-shape", "manifest.json").exists())
 
     def test_request_accepts_only_the_declared_search_shape(self):
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         value = parse_backtest_request({
             "run_id": "search",
@@ -112,12 +113,13 @@ class SearchProtocolTests(unittest.TestCase):
             },
         })
 
-        from protocal import BacktestRequest
+        from protocol import BacktestRequest
 
         self.assertIsInstance(value, BacktestRequest)
 
     def test_protocol_search_saves_each_trial_and_base_summary(self):
-        from protocal import DataBus, KernelBacktestPort, Modules, Protocol, _DIRECTORY
+        from market import DataBus
+        from backend import KernelBacktestPort, Modules, Protocol, _DIRECTORY
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from tests.fee_fixture import configured_settlement
@@ -130,8 +132,8 @@ class SearchProtocolTests(unittest.TestCase):
             empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
             protocol = Protocol(Modules(backtests, backtests, empty, empty, empty))
             request = ui.UiRequest(
-                "search-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1",
+                "search-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1",
                 {
                     "run_id": "search",
                     "module": "plugins.strategies.moving_average_cross",
@@ -163,9 +165,9 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertTrue({"search", "search-trial-0001", "search-trial-0002"} <= identities)
             manifest = json.loads(bus.read("runs", "search", "manifest.json"))
             self.assertEqual(manifest["parameters"], value["parameters"])
-            runs = await_protocol(protocol, "workbench.runs", {})
+            runs = await_protocol(protocol, "research.runs", {})
             self.assertIn("search", {item["id"] for item in runs["items"]})
-            detail = await_protocol(protocol, "workbench.run", {"id": "search"})
+            detail = await_protocol(protocol, "research.run", {"id": "search"})
             self.assertEqual(detail["parameters"], value["parameters"])
             json.dumps(value, allow_nan=False)
 
@@ -193,8 +195,8 @@ class SearchProtocolTests(unittest.TestCase):
             }
             with patch.object(plugin_data, "ProbeUpdater", ProbeUpdater, create=True):
                 message = asyncio.run(protocol.send(ui.UiRequest(
-                    "plugin-search-request", "workbench.backtest",
-                    "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                    "plugin-search-request", "backtest.run",
+                    "urn:lianghua:ui:input:backtest.run:v1", payload,
                 )))[0]
 
             self.assertEqual(message.kind, "resource")
@@ -227,8 +229,8 @@ class SearchProtocolTests(unittest.TestCase):
                 json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"],
                 summary_manifest["config_hash"],
             )
-            runs = await_protocol(protocol, "workbench.runs", {})
-            detail = await_protocol(protocol, "workbench.run", {"id": "plugin-search"})
+            runs = await_protocol(protocol, "research.runs", {})
+            detail = await_protocol(protocol, "research.run", {"id": "plugin-search"})
             self.assertIn("plugin-search", {item["id"] for item in runs["items"]})
             self.assertEqual(detail["parameters"], value["parameters"])
             self.assertGreaterEqual(len(detail["evidence"]), 4)
@@ -242,8 +244,8 @@ class SearchProtocolTests(unittest.TestCase):
                 ])
                 payload[field] = {"start": "2020-02-04", "end": "2020-02-04"}
                 message = asyncio.run(protocol.send(ui.UiRequest(
-                    f"old-{field}-request", "workbench.backtest",
-                    "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                    f"old-{field}-request", "backtest.run",
+                    "urn:lianghua:ui:input:backtest.run:v1", payload,
                 )))[0]
                 self.assertEqual(message.kind, "problem")
                 self.assertEqual(message.data["code"], "invalid_request")
@@ -255,8 +257,8 @@ class SearchProtocolTests(unittest.TestCase):
             payload = self._search_payload("parse-failure", [{"fast_window": 1, "slow_window": 3}])
             payload["search"]["updater"]["module"] = "math:ceil"
             message = asyncio.run(protocol.send(ui.UiRequest(
-                "parse-failure-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                "parse-failure-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1", payload,
             )))[0]
 
             self.assertEqual(message.kind, "problem")
@@ -265,8 +267,10 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertNotIn("extensions", message.data)
 
     def test_busy_does_not_write_failed_evidence(self):
-        from protocal import BacktestError
-        from protocal import DataBus, KernelBacktestPort, parse_backtest_request
+        from protocol import BacktestError
+        from market import DataBus
+        from backend import KernelBacktestPort
+        from protocol import parse_backtest_request
         from storage import DataStore
 
         class BusyKernel:
@@ -278,7 +282,7 @@ class SearchProtocolTests(unittest.TestCase):
             port = KernelBacktestPort(bus, lambda *args, **kwargs: object())
             port._kernel = BusyKernel()
             with self.assertRaises(BacktestError):
-                port.handle("workbench.backtest", {
+                port.handle("backtest.run", {
                     "run_id": "busy", "module": "strategy", "params": {},
                     "dataset_id": "fixture", "start": "2020-01-01",
                     "end": "2020-01-01", "initial_cash": "100",
@@ -286,11 +290,12 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertEqual(bus.list("runs"), ())
 
     def test_failed_second_trial_keeps_first_trial_and_failure_evidence(self):
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from tests.fee_fixture import configured_settlement
-        from protocal import BacktestError
+        from protocol import BacktestError
 
         with TemporaryDirectory() as root:
             root = Path(root)
@@ -313,7 +318,7 @@ class SearchProtocolTests(unittest.TestCase):
                 },
             }
             with self.assertRaises(BacktestError) as caught:
-                port.handle("workbench.backtest", payload)
+                port.handle("backtest.run", payload)
             self.assertEqual(caught.exception.code, "search_failed")
             self.assertEqual(json.loads(bus.read("runs", "failed-search", "failed.json"))["partial"]["completed_trials"][0]["run_id"],
                              "failed-search-trial-0001")
@@ -321,7 +326,8 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertFalse(bus.path("runs", "failed-search", "manifest.json").exists())
 
     def test_protocol_rejects_external_updater_module_and_unknown_search_field(self):
-        from protocal import parse_backtest_request, _search
+        from protocol import parse_backtest_request
+        from backend import _search
 
         base = {
             "run_id": "search", "module": "plugins.strategies.moving_average_cross",

@@ -6,10 +6,10 @@ from threading import Event, Thread
 from types import SimpleNamespace
 import unittest
 
-from protocal import BacktestError, BacktestRequest, Trial
+from protocol import BacktestError, BacktestRequest, Trial
 from core.calculation import Calculation
 from core.kernel import Kernel
-from protocal import DataQuery, Dataset
+from protocol import DataQuery, Dataset
 
 
 class SearchSettlement:

@@ -23,7 +23,7 @@ class ShiftSignalAdapter:
     @classmethod
     def validate(cls, frames, *, amount=1.0):
         from dataclasses import replace
-        from protocal import HistoryBar
+        from protocol import HistoryBar
 
         output = []
         for frame in frames:
@@ -45,7 +45,7 @@ class ExtraHistoryAdapter:
     @classmethod
     def validate(cls, frames):
         from dataclasses import replace
-        from protocal import HistoryBar
+        from protocol import HistoryBar
 
         frame = frames[0]
         symbol = next(iter(frame.history))
@@ -74,12 +74,12 @@ class InvalidScaler:
 
 class Task3ProtocolTests(unittest.TestCase):
     def test_backtest_request_uses_market_and_rejects_legacy_scope_fields(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.moving_average_cross",
             "params": {"fast_window": 2, "slow_window": 3},
-            "dataset_id": "lake", "start": "2024-01-01", "end": "2024-01-31",
+            "dataset_id": "cn_a", "start": "2024-01-01", "end": "2024-01-31",
             "initial_cash": "100000",
         }
         request = parse_backtest_request({
@@ -97,11 +97,11 @@ class Task3ProtocolTests(unittest.TestCase):
                 parse_backtest_request({**base, field: ["600009"] if field == "symbols" else "CN_A"})
 
     def test_backtest_market_rejects_empty_scope_empty_codes_and_unknown_keys(self):
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.moving_average_cross", "params": {},
-            "dataset_id": "lake", "start": "2024-01-01", "end": "2024-01-31",
+            "dataset_id": "cn_a", "start": "2024-01-01", "end": "2024-01-31",
             "initial_cash": "100000",
         }
         for market in ({"scope": ""}, {"scope": "CN_A", "codes": []},
@@ -111,11 +111,11 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_backtest_market_rejects_nonfinite_direct_python_scalars(self):
         from decimal import Decimal
-        from protocal import BacktestError, parse_backtest_request
+        from protocol import BacktestError, parse_backtest_request
 
         base = {
             "module": "plugins.strategies.moving_average_cross", "params": {},
-            "dataset_id": "lake", "start": "2024-01-01", "end": "2024-01-31",
+            "dataset_id": "cn_a", "start": "2024-01-01", "end": "2024-01-31",
             "initial_cash": "100000",
         }
         filters = (
@@ -132,7 +132,9 @@ class Task3ProtocolTests(unittest.TestCase):
                                                                "filters": [condition]}})
 
     def test_atomic_backtest_rejects_fixed_validation_and_oos_fields(self):
-        from protocal import BacktestError, DataBus, KernelBacktestPort
+        from protocol import BacktestError
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from plugins.data import Settlement
@@ -150,12 +152,13 @@ class Task3ProtocolTests(unittest.TestCase):
             }
             for field in ("validation", "out_of_sample"):
                 with self.subTest(field=field), self.assertRaises(BacktestError):
-                    port.handle("workbench.backtest", {
+                    port.handle("backtest.run", {
                         **base, field: {"start": "2020-02-03", "end": "2020-02-04"},
                     })
             self.assertEqual(bus.list("runs"), ())
     def test_data_query_declares_scope_and_bus_uses_one_reader(self):
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -177,7 +180,8 @@ class Task3ProtocolTests(unittest.TestCase):
         self.assertIsNone(query.symbols)
 
     def test_data_bus_rejects_truncated_query_and_accepts_full_coverage(self):
-        from protocal import DataBus, DataError, DataQuery
+        from market import DataBus
+        from protocol import DataError, DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -193,7 +197,8 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
 
     def test_data_bus_rejects_start_truncation_using_calendar_coverage(self):
-        from protocal import DataBus, DataError, DataQuery
+        from market import DataBus
+        from protocol import DataError, DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -208,7 +213,8 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_data_bus_requires_explicit_calendar_coverage(self):
         import json
-        from protocal import DataBus, DataError, DataQuery
+        from market import DataBus
+        from protocol import DataError, DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -226,7 +232,8 @@ class Task3ProtocolTests(unittest.TestCase):
                 )
 
     def test_backtest_data_request_has_no_market_scope_claim_and_market_routes_to_reader(self):
-        from protocal import _query, BacktestRequest
+        from backend import _query
+        from protocol import BacktestRequest
         from datetime import datetime
         from decimal import Decimal
 
@@ -244,8 +251,8 @@ class Task3ProtocolTests(unittest.TestCase):
     def test_query_always_keeps_execution_prices_with_strategy_fields(self):
         from datetime import datetime
         from decimal import Decimal
-        from protocal import BacktestRequest
-        from protocal import _query
+        from protocol import BacktestRequest
+        from backend import _query
 
         requirements = SimpleNamespace(fields=('signal_close',), history_bars=20,
                                        price_basis='adjusted', frequency='daily')
@@ -263,7 +270,8 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_pit_requires_calendar_file_binding_not_only_calendar_source(self):
         import json
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -285,9 +293,9 @@ class Task3ProtocolTests(unittest.TestCase):
                                     20, "adjusted", date(2020, 2, 5), universe="CN_A_SHARE"))
 
     def test_settlement_failure_is_sealed_and_keeps_partial_result(self):
-        from protocal import BacktestError
+        from protocol import BacktestError
         from core.kernel import Kernel
-        from protocal import DataQuery
+        from protocol import DataQuery
 
         class BadStrategy:
             strategy_id = "bad"
@@ -300,7 +308,7 @@ class Task3ProtocolTests(unittest.TestCase):
                 raise RuntimeError("decision failed")
 
         from tests.test_core_backtest import FakeData, FakeSettlement
-        from protocal import BacktestRequest
+        from protocol import BacktestRequest
         from decimal import Decimal
         kernel = Kernel(FakeData(), lambda _id, _params: BadStrategy(),
                         lambda req, requirements: DataQuery(
@@ -316,8 +324,9 @@ class Task3ProtocolTests(unittest.TestCase):
         self.assertIsNotNone(caught.exception.partial_result)
 
     def test_result_and_research_use_saved_json_trace_contract(self):
-        from protocal import DataBus
-        from protocal import BacktestRequest, Research, save_backtest
+        from market import DataBus
+        from protocol import BacktestRequest
+        from backend import Research, save_backtest
         from storage import DataStore
         from decimal import Decimal
 
@@ -342,7 +351,8 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertTrue(any(item["file"].endswith("result.json") for item in detail["evidence"]))
 
     def test_signal_plugins_are_explicit_and_keep_execution_bars_unchanged(self):
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -367,9 +377,9 @@ class Task3ProtocolTests(unittest.TestCase):
                                 for value in first.frame.fields.values()))
             self.assertIn("statistics_hash", dataset.provenance["signal_plugins"]["scaler"])
             self.assertIn("statistics", dataset.provenance["signal_plugins"]["scaler"])
-            from protocal import KernelBacktestPort
+            from backend import KernelBacktestPort
             result = KernelBacktestPort(bus, __import__("plugins.data", fromlist=["Settlement"]).Settlement).handle(
-                "workbench.backtest", {
+                "backtest.run", {
                     "run_id": "real-signal", "module": "plugins.strategies.breadth_low_amount_reversal",
                     "params": {"positions": 4}, "dataset_id": "fixture",
                     "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
@@ -378,7 +388,8 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(result["dataset_id"], "fixture")
 
     def test_signal_scaler_rejects_validation_window_and_missing_training_coverage(self):
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -404,7 +415,8 @@ class Task3ProtocolTests(unittest.TestCase):
                 bus.query(query)
 
     def test_signal_scaler_rejects_short_and_nonfinite_custom_output(self):
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -423,7 +435,8 @@ class Task3ProtocolTests(unittest.TestCase):
                                         20, "adjusted"))
 
     def test_signal_plugin_replacement_is_explicit_and_merged(self):
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -452,7 +465,8 @@ class Task3ProtocolTests(unittest.TestCase):
                              "tests.test_task3_protocol:ShiftSignalAdapter")
 
     def test_signal_adapter_rejects_history_row_addition(self):
-        from protocal import DataBus, DataQuery
+        from market import DataBus
+        from protocol import DataQuery
         from storage import DataStore
         from tests.history_fixture import make_snapshot, update_manifest
 
@@ -471,7 +485,8 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_failed_run_writes_evidence_without_success_manifest_and_retry_works(self):
         from plugins.data import Settlement
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
 
@@ -495,16 +510,17 @@ class Task3ProtocolTests(unittest.TestCase):
                        "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                        **settlement_payload()}
             with self.assertRaises(Exception):
-                port.handle("workbench.backtest", payload)
+                port.handle("backtest.run", payload)
             self.assertTrue(bus.path("runs", "retry", "failed.json").is_file())
             self.assertFalse(bus.path("runs", "retry", "manifest.json").exists())
-            port.handle("workbench.backtest", payload)
+            port.handle("backtest.run", payload)
             self.assertTrue(bus.path("runs", "retry", "manifest.json").is_file())
 
     def test_invalid_injected_metrics_write_failure_evidence(self):
         import json
         from plugins.data import Settlement
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from core.calculation import Calculation
@@ -523,14 +539,14 @@ class Task3ProtocolTests(unittest.TestCase):
                        "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                        **settlement_payload()}
             with self.assertRaises(Exception) as caught:
-                port.handle("workbench.backtest", payload)
+                port.handle("backtest.run", payload)
             self.assertEqual(caught.exception.code, "run_failed")
             failed = json.loads(bus.read("runs", "bad-metrics", "failed.json"))
             self.assertEqual(failed["code"], "run_failed")
             self.assertFalse(bus.path("runs", "bad-metrics", "manifest.json").exists())
 
     def test_data_query_rejects_invalid_scope_and_history(self):
-        from protocal import DataQuery
+        from protocol import DataQuery
 
         with self.assertRaises(ValueError):
             DataQuery("", date(2020, 1, 1), date(2020, 1, 2), ("close",), 1, "adjusted", date(2020, 1, 2))
@@ -542,8 +558,9 @@ class Task3ProtocolTests(unittest.TestCase):
             DataQuery("fixture", date(2020, 1, 1), date(2020, 1, 2), ("close",), True, "adjusted", date(2020, 1, 2))
 
     def test_data_bus_requires_reader_fields_and_history_to_match(self):
-        from protocal import DataBus, DataQuery, Dataset
-        from protocal import MarketFrame
+        from market import DataBus
+        from protocol import DataQuery, Dataset
+        from protocol import MarketFrame
 
         day = date(2020, 1, 1)
         record = SimpleNamespace(trade_date=day, frame=MarketFrame(
@@ -567,7 +584,7 @@ class Task3ProtocolTests(unittest.TestCase):
                     DataBus(object(), Reader(fields, history)).query(query)
 
     def test_date_only_request_covers_the_entire_end_date(self):
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         request = parse_backtest_request({
             "run_id": "one", "module": "strategy", "params": {}, "dataset_id": "fixture",
@@ -587,7 +604,7 @@ class Task3ProtocolTests(unittest.TestCase):
             parse_backtest_request({**request_data(), "limits": {"lot_size": True}})
 
     def test_request_rejects_unknown_fields_and_invalid_decimal_limits(self):
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         with self.assertRaises(Exception):
             parse_backtest_request({**request_data(), "limtis": {"lot_size": 10}})
@@ -597,7 +614,7 @@ class Task3ProtocolTests(unittest.TestCase):
             parse_backtest_request({**request_data(), "limits": {"adv_fraction": "NaN"}})
 
     def test_preflight_request_keeps_market_and_benchmark_inputs(self):
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         request = parse_backtest_request({
             **{key: value for key, value in request_data().items() if key != "run_id"},
@@ -613,7 +630,8 @@ class Task3ProtocolTests(unittest.TestCase):
 
     def test_config_plugin_params_merge_with_request_overrides(self):
         from core.calculation import AllocationLimits
-        from protocal import _load_plugin, parse_backtest_request
+        from backend import _load_plugin
+        from protocol import parse_backtest_request
 
         plugin = _load_plugin({"settlement": {
             "module": "tests.test_task3_protocol:ConfigSettlement",
@@ -634,7 +652,8 @@ class Task3ProtocolTests(unittest.TestCase):
     def test_backend_build_has_no_factory_parameter_and_factory_is_removed(self):
         import asyncio
         import json
-        from protocal import build_backend, build_data
+        from backend import build_backend
+        from market import build_data
         import importlib.util
         ui = importlib.import_module("frontend.ui-protocol")
 
@@ -643,8 +662,8 @@ class Task3ProtocolTests(unittest.TestCase):
         backend = build_backend(Path(__file__).resolve().parents[1])
         try:
             request = ui.UiRequest(
-                "sources", "workbench.sources",
-                "urn:lianghua:ui:input:workbench.sources:v1", {},
+                "sources", "collection.sources",
+                "urn:lianghua:ui:input:collection.sources:v1", {},
             )
             messages = asyncio.run(backend.send(request))
             self.assertEqual(messages[0].kind, "collection")
@@ -665,7 +684,7 @@ class Task3ProtocolTests(unittest.TestCase):
             backend.close()
 
     def test_kernel_port_uses_the_explicitly_injected_settlement_plugin(self):
-        from protocal import KernelBacktestPort
+        from backend import KernelBacktestPort
 
         class Replacement:
             pass
@@ -678,11 +697,12 @@ class Task3ProtocolTests(unittest.TestCase):
         from dataclasses import asdict
         from decimal import Decimal
         from plugins.data import Settlement
-        from protocal import _json_value
-        from protocal import DataBus, _query
+        from protocol import _json_value
+        from market import DataBus
+        from backend import _query
         from storage import DataStore
         from strategy import canonical_hash, load_strategy
-        from protocal import BacktestRequest
+        from protocol import BacktestRequest
         from core.kernel import Kernel
         from tests.history_fixture import make_snapshot
 
@@ -725,7 +745,8 @@ class Task3ProtocolTests(unittest.TestCase):
         from pathlib import Path
         from tests.history_fixture import make_snapshot
         from plugins.data import Settlement
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
 
         with TemporaryDirectory() as root:
@@ -733,7 +754,7 @@ class Task3ProtocolTests(unittest.TestCase):
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
             port = KernelBacktestPort(bus, Settlement)
-            value = port.handle("workbench.backtest", {
+            value = port.handle("backtest.run", {
                 "run_id": "saved", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
@@ -753,7 +774,7 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(manifest["effective_config"], value["effective_config"])
             self.assertEqual(manifest["config_hash"], value["config_hash"])
 
-            changed = port.handle("workbench.backtest", {
+            changed = port.handle("backtest.run", {
                 "run_id": "saved-lot", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
@@ -764,7 +785,7 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertNotEqual(value["config_hash"], changed["config_hash"])
             self.assertEqual(changed["effective_config"]["settlement"]["params"]["limits"]["lot_size"], 1)
 
-            changed_evaluation = port.handle("workbench.backtest", {
+            changed_evaluation = port.handle("backtest.run", {
                 "run_id": "saved-evaluation", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",

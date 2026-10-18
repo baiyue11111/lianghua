@@ -11,7 +11,7 @@ from pathlib import Path
 import pkgutil
 from typing import get_type_hints
 
-from protocal import DataRequest
+from protocol import DataRequest
 
 PACKAGE = 'plugins.strategies'
 

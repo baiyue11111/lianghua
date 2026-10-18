@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from core.calculation import AccountExecutionSession
 from core.calculation import AccountLedger
-from protocal import AccountSnapshot, HistoryBar, MarketFrame
+from protocol import AccountSnapshot, HistoryBar, MarketFrame
 from strategy import catalog, load_strategy
 from tests.fee_fixture import rules
 

@@ -7,7 +7,7 @@ import unittest
 import core.calculation as distribution_ledger
 from core.calculation import AccountLedger
 from core.calculation import AccountExecutionSession
-from protocal import Bar, Order, Side
+from protocol import Bar, Order, Side
 from core.calculation import calculate_entitlement, normalize_dividend_records
 
 

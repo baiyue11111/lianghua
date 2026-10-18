@@ -1,4 +1,4 @@
-import type {RecordData} from '@display/workbench/port';
+import type {RecordData} from '@display/research/port';
 import {amount,day,missing,number,security,status,tradeReason} from './format';
 export function RecordTable({rows}:{rows:RecordData[]}){
  if(!rows.length)return <div className="empty">没有成交记录</div>;

@@ -3,7 +3,7 @@ import {maSeries} from "@display/lib/ma-series";
 import { useMemo, useRef } from "react";
 import ReactECharts from "echarts-for-react";
 import type { ECharts } from "echarts";
-import type {KlineResp,StockItem} from "@display/lib/lake";
+import type {KlineResp,StockItem} from "@display/lib/market";
 import {useValue,useOperation} from "../interaction/model";
 
 const FREQS = ["日", "周", "月", "年"];
@@ -130,8 +130,8 @@ export default function ChartView() {
   const [freq,setFreq]=useValue('chart','freq','日'),[adj,setAdj]=useValue('chart','adj','不复权');
   const [startDate,setStartDate]=useValue('chart','start',''),[endDate,setEndDate]=useValue('chart','end','');
   const [maOn,setMaOn]=useValue<number[]>('chart','ma',[5,20]);
-  const search=useOperation<{items:StockItem[]}>('chart:search','lake.query',{q:kw.trim()},!!kw.trim());
-  const series=useOperation<KlineResp>('chart:series','lake.kline',{code:stock?.代码??'',freq,adj,...(startDate?{start:startDate}:{}),...(endDate?{end:endDate}:{})},!!stock);
+  const search=useOperation<{items:StockItem[]}>('chart:search','data.search',{q:kw.trim()},!!kw.trim());
+  const series=useOperation<KlineResp>('chart:series','data.bars',{code:stock?.代码??'',freq,adj,...(startDate?{start:startDate}:{}),...(endDate?{end:endDate}:{})},!!stock);
   const hits=search.value?.items??[],data=series.value??null,loading=series.status==='pending',error=search.error||series.error;
   const searchInput=useRef<HTMLInputElement>(null),chartRef=useRef<ReactECharts>(null);
   const load=()=>{if(stock)void series.invoke();};

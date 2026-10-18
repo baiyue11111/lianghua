@@ -1,4 +1,4 @@
-from protocal import normalize_security_id
+from protocol import normalize_security_id
 """Engineering inputs only. This never registers a production dataset."""
 from datetime import date, timedelta
 from pathlib import Path

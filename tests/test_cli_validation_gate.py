@@ -8,7 +8,7 @@ import unittest
 
 class CliValidationGateTests(unittest.TestCase):
     def test_config_decoder_rejects_nonstandard_json_numbers(self):
-        from protocal import _decode_backtest_config
+        from protocol import _decode_backtest_config
 
         for token in (b"NaN", b"Infinity", b"-Infinity", b"1e999"):
             with self.subTest(token=token), self.assertRaises(ValueError):
@@ -17,7 +17,7 @@ class CliValidationGateTests(unittest.TestCase):
     def test_real_cli_preserves_decimal_capital_from_numeric_json(self):
         import json
         from tests.history_fixture import make_snapshot
-        from protocal import build_data
+        from market import build_data
 
         project = Path(__file__).resolve().parents[1]
         with TemporaryDirectory() as folder:
@@ -47,7 +47,8 @@ class CliValidationGateTests(unittest.TestCase):
         import asyncio
         import json
         from tests.history_fixture import make_snapshot
-        from protocal import build_backend, build_data
+        from backend import build_backend
+        from market import build_data
         ui = __import__("frontend.ui-protocol", fromlist=["UiRequest"])
 
         project = Path(__file__).resolve().parents[1]
@@ -101,8 +102,8 @@ class CliValidationGateTests(unittest.TestCase):
             backend = build_backend(root)
             try:
                 messages = [asyncio.run(backend.send(ui.UiRequest(
-                    f"run-query-{item['index']}", "workbench.run",
-                    "urn:lianghua:ui:input:workbench.run:v1", {"id": item["run_id"]},
+                    f"run-query-{item['index']}", "research.run",
+                    "urn:lianghua:ui:input:research.run:v1", {"id": item["run_id"]},
                 )))[0] for item in output["intervals"]]
             finally:
                 backend.close()

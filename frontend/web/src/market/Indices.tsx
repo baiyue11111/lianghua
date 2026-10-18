@@ -1,14 +1,14 @@
 import {currency,day,errorMessage,text} from '../shared/format';
 import ReactECharts from 'echarts-for-react';
 import {useOperation,useValue} from '../interaction/model';
-import type {BenchmarkSpec,BenchmarkSeries} from '@display/workbench/port';
+import type {BenchmarkSpec,BenchmarkSeries} from '@display/research/port';
 export default function Indices(){
-  const catalog=useOperation<BenchmarkSpec[]>('market:indices','workbench.benchmarks');
+  const catalog=useOperation<BenchmarkSpec[]>('market:indices','research.benchmarks');
   const [id,setId]=useValue('market:index','id','');
   const [start,setStart]=useValue('market:index','start','');
   const [end,setEnd]=useValue('market:index','end','');
   const selected=catalog.value?.find(item=>item.id===id);
-  const series=useOperation<BenchmarkSeries>('market:index:series','workbench.benchmark',{id,start,end},!!selected&&!!start&&!!end&&start<=end);
+  const series=useOperation<BenchmarkSeries>('market:index:series','research.benchmark',{id,start,end},!!selected&&!!start&&!!end&&start<=end);
   if(catalog.error)return <div className="notice status-error" role="alert">{errorMessage(catalog.error)}</div>;
   if(!catalog.value?.length)return null;
   return <section className="panel" data-od-id="indices"><div className="panelhead"><h2>指数</h2></div>

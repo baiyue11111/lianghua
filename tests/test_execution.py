@@ -5,7 +5,7 @@ import unittest
 from core.calculation import (AccountExecutionSession, AccountLedger, AllocationLimits,
                               OpeningRiskSnapshot, TradeRules)
 from tests.fee_fixture import fees, tax_policy
-from protocal import Bar, Fill, Order, Side
+from protocol import Bar, Fill, Order, Side
 
 
 def rules(price=None, quantity=None):
@@ -146,7 +146,7 @@ class TradeExecutionTests(unittest.TestCase):
         self.assertEqual((account.cash, account.lots, value._tax_snapshot(), session.fills), before)
 
     def test_opening_risk_counts_transfer_fee_in_post_equity(self):
-        from protocal import Fill
+        from protocol import Fill
         fill = Fill('o', 'A', Side.BUY, date(2024, 1, 3), 10, 10, 100, 0, 0,
                     'filled', transfer_fee=100)
         snapshot = OpeningRiskSnapshot(date(2024, 1, 2), {'A': D('10')},

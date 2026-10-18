@@ -54,7 +54,7 @@ class CoreConsolidationTests(unittest.TestCase):
 
     def test_prepare_does_not_trade_and_run_uses_its_config(self):
         from core.kernel import Kernel
-        from protocal import DataQuery
+        from protocol import DataQuery
         from tests.test_kernel_search import (
             SearchData, SearchSettlement, SearchStrategy, ScoreCalculation, request,
         )

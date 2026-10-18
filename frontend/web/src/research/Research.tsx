@@ -1,6 +1,6 @@
 import {useMemo} from 'react';
 import {useValue,useOperation} from '../interaction/model';
-import type {Run,RunDetail,StrategyCatalog} from '@display/workbench/port';
+import type {Run,RunDetail,StrategyCatalog} from '@display/research/port';
 import {strategyGroups} from './groups';
 import {attemptNames,configuration,parameters,resultMetrics} from './model';
 import {errorMessage,percent,status,text} from '../shared/format';
@@ -18,9 +18,9 @@ export default function Research(){
  const [tab,setTab]=useValue('research','tab','overview');
  const [backtest,setBacktest]=useValue('research','backtest',false);
  const [savedNames,setSavedNames]=useValue<Record<string,string>>('research','names',{});
- const archives=useOperation<{items:Run[]}>('research:archives','workbench.runs');
- const plugins=useOperation<StrategyCatalog>('research:catalog','workbench.strategies');
- const selected=useOperation<RunDetail>('research:detail','workbench.run',{id:current,offset},!!current);
+ const archives=useOperation<{items:Run[]}>('research:archives','research.runs');
+ const plugins=useOperation<StrategyCatalog>('research:catalog','backtest.strategies');
+ const selected=useOperation<RunDetail>('research:detail','research.run',{id:current,offset},!!current);
  const runs=archives.value?.items??[],catalog=plugins.value;
  const groups=useMemo(()=>strategyGroups(runs,catalog?.items),[runs,catalog]);
  const group=groups.find(item=>item.key===groupId),names=attemptNames(group?.runs??[],savedNames);

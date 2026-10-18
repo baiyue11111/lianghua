@@ -1,5 +1,5 @@
-import type {Run,StrategySpec} from '@display/workbench/port';
-import {strategyGroups as summarize} from '@display/workbench/research-model';
+import type {Run,StrategySpec} from '@display/research/port';
+import {strategyGroups as summarize} from '@display/research/research-model';
 
 type ArchivedRun=Run&{effective_config?:Record<string,unknown>};
 export function runConfig(run:Run):Record<string,unknown> {

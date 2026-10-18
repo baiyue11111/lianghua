@@ -1,5 +1,5 @@
-import type {Run,StrategySpec,StrategyCatalog} from '@display/workbench/port';
-import {label} from '@display/workbench/locale';
+import type {Run,StrategySpec,StrategyCatalog} from '@display/research/port';
+import {label} from '@display/research/locale';
 import {runConfig} from './groups';
 import {amount,currency,day,missing,number,percent,record,security,status,text} from '../shared/format';
 export type Field={name:string;value:string};

@@ -16,12 +16,12 @@ class FrontendLayoutTests(unittest.TestCase):
 
     def test_display_owns_framework_independent_interaction_modules(self):
         expected = (
-            DISPLAY / "src" / "workbench" / "port.ts",
-            DISPLAY / "src" / "workbench" / "curves.ts",
-            DISPLAY / "src" / "workbench" / "format.ts",
-            DISPLAY / "src" / "workbench" / "locale.ts",
-            DISPLAY / "src" / "workbench" / "research-model.ts",
-            DISPLAY / "src" / "workbench" / "strategy-model.ts",
+            DISPLAY / "src" / "research" / "port.ts",
+            DISPLAY / "src" / "research" / "curves.ts",
+            DISPLAY / "src" / "research" / "format.ts",
+            DISPLAY / "src" / "research" / "locale.ts",
+            DISPLAY / "src" / "research" / "research-model.ts",
+            DISPLAY / "src" / "research" / "strategy-model.ts",
             DISPLAY / "src" / "lib" / "closed-loop.ts",
         )
         for path in expected:

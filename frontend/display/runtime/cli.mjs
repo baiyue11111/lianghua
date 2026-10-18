@@ -9051,7 +9051,7 @@ var collect = async (raw, { call, progress, signal }) => {
   if (markets.length !== 1) throw Error("\u5E02\u573A\u672A\u552F\u4E00\u767B\u8BB0\uFF1A" + name);
   const market = markets[0];
   if (typeof market.timezone !== "string" || !market.timezone) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u65F6\u533A");
-  if (command === "status") return { market: market.scope, sources: await call("workbench.sources", {}) };
+  if (command === "status") return { market: market.scope, sources: await call("collection.sources", {}) };
   const spec = market.collect;
   if (!spec?.data) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u6536\u96C6\u6570\u636E\u6E90");
   let types = items(values.data);
@@ -9082,7 +9082,7 @@ var collect = async (raw, { call, progress, signal }) => {
     }
     let rows = [], offset = 0;
     while (true) {
-      const page = await call("workbench.snapshot", { id: binding.source, offset });
+      const page = await call("collection.snapshot", { id: binding.source, offset });
       rows.push(...page.records);
       offset += page.records.length;
       if (offset >= page.total || !page.records.length) break;
@@ -9155,7 +9155,7 @@ var collect = async (raw, { call, progress, signal }) => {
   throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
 };
 
-// src/workbench/strategy-model.ts
+// src/research/strategy-model.ts
 function backtestInput(spec, values, capital, start, end, dataset) {
   const initial_cash = Number(capital);
   if (!capital.trim() || !Number.isFinite(initial_cash) || initial_cash <= 0) throw new Error("\u6295\u5165\u8D44\u91D1\u5FC5\u987B\u5927\u4E8E 0");
@@ -9191,46 +9191,41 @@ var text = { type: "string" };
 var integer = { type: "integer", minimum: 0 };
 var boolean = { type: "boolean" };
 var defs = {
-  "workbench.strategies": { input: object2() },
-  "workbench.runs": { input: object2() },
-  "workbench.run": { input: object2({ id: text, offset: integer }) },
-  "workbench.benchmarks": { input: object2() },
-  "workbench.benchmark": { input: object2({ id: text, start: text, end: text }) },
-  "workbench.sources": { input: object2(), poll: 3e3 },
-  "workbench.sync": { input: object2({ id: text, input: { type: "object" } }), mode: "write" },
-  "workbench.schedule": { input: object2({ id: text, enabled: boolean, interval_seconds: { type: "integer", minimum: 30 }, input: { type: "object" } }), mode: "write" },
-  "workbench.job": { input: object2({ id: text }), poll: 1e3 },
-  "workbench.snapshot": { input: object2({ id: text, offset: integer }) },
-  "workbench.evidence": { input: object2({ id: text, index: integer }), changes: (_state, _target, _request, messages) => {
+  "backtest.strategies": { input: object2() },
+  "research.runs": { input: object2() },
+  "research.run": { input: object2({ id: text, offset: integer }) },
+  "research.benchmarks": { input: object2() },
+  "research.benchmark": { input: object2({ id: text, start: text, end: text }) },
+  "collection.sources": { input: object2(), poll: 3e3 },
+  "collection.sync": { input: object2({ id: text, input: { type: "object" } }), mode: "write" },
+  "collection.schedule": { input: object2({ id: text, enabled: boolean, interval_seconds: { type: "integer", minimum: 30 }, input: { type: "object" } }), mode: "write" },
+  "collection.job": { input: object2({ id: text }), poll: 1e3 },
+  "collection.snapshot": { input: object2({ id: text, offset: integer }) },
+  "collection.evidence": { input: object2({ id: text, index: integer }), changes: (_state, _target, _request, messages) => {
     const record = messages[0]?.data;
     const review = record.reviews?.[0];
     return { audit: { status: review?.status ?? "pending", note: review?.note ?? "" } };
   } },
-  "workbench.reviews": { input: object2() },
-  "workbench.review": { input: object2({ snapshot_id: text, record_index: integer, status: { enum: ["correct", "pending", "anomaly"] }, note: text }), mode: "write" },
-  "lake.researchDaily": { input: object2({ asOf: text }, []) },
-  "lake.researchInputs": { input: object2() },
-  "lake.closedLoop": { input: object2() },
-  "lake.status": { input: object2({ rescan: boolean }), poll: 3e3 },
-  "lake.query": { input: object2({ q: text }) },
-  "lake.kline": { input: object2({ code: text, freq: text, adj: text, start: text, end: text }, ["code", "freq", "adj"]) },
-  "lake.startFetch": { input: { type: "object" }, mode: "write" },
-  "lake.fetchJob": { input: object2(), poll: 1e3 },
-  "lake.stopFetch": { input: object2(), mode: "write" },
-  "lake.continuousFetch": { input: object2(), poll: 1e3 },
-  "lake.setContinuousFetch": { input: object2({ enabled: boolean }), mode: "write" },
-  "lake.startMerge": { input: object2({ dryRun: boolean }), mode: "write" },
-  "lake.mergeJob": { input: object2(), poll: 1e3 },
-  "lake.doctor": { input: object2(), poll: 3e3 },
-  "lake.doctorFix": { input: object2({ id: text }), mode: "write" },
-  "lake.doctorJob": { input: object2(), poll: 1e3 },
+  "data.research_inputs": { input: object2() },
+  "data.status": { input: object2({ rescan: boolean }), poll: 3e3 },
+  "data.search": { input: object2({ q: text }) },
+  "data.bars": { input: object2({ code: text, freq: text, adj: text, start: text, end: text }, ["code", "freq", "adj"]) },
+  "collection.start": { input: { type: "object" }, mode: "write" },
+  "collection.current": { input: object2(), poll: 1e3 },
+  "collection.stop": { input: object2(), mode: "write" },
+  "collection.automatic": { input: object2(), poll: 1e3 },
+  "collection.set_automatic": { input: object2({ enabled: boolean }), mode: "write" },
+  "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },
+  "collection.merge_job": { input: object2(), poll: 1e3 },
+  "data.check": { input: object2(), poll: 3e3 },
+  "collection.repair": { input: object2({ id: text }), mode: "write" },
+  "collection.repair_job": { input: object2(), poll: 1e3 },
   "cli.ingest": { input: object2({ price: text, fundamentals: text, valuations: text, output: text, max_symbols: { anyOf: [integer, { type: "null" }] }, price_part: { anyOf: [{ type: "array", items: integer }, { type: "null" }] } }), mode: "write" },
   "cli.backtest": { input: object2({ config: text }), mode: "write" },
   "collection.describe": { input: object2() },
   "collection.inspect": { input: object2({ source_id: text, codes: { type: "array", items: text }, start: text, end: text, fields: { type: "array", items: text } }, ["source_id"]) },
   "collection.run": { input: { type: "object", required: ["source_id"], properties: { source_id: text }, additionalProperties: true }, mode: "write" },
-  "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, interval: text }, ["selector"]), mode: "write" },
-  "cli.report": { input: object2({ artifact: text, output: text, builder: text, ready_timeout_ms: integer, timeout_ms: integer }), mode: "write" }
+  "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, interval: text }, ["selector"]), mode: "write" }
 };
 var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;
 var outputSchema = (operation) => `urn:lianghua:ui:output:${operation}:v1`;
@@ -9247,7 +9242,7 @@ function features() {
     return { ...input2, initial_cash: data.capital.trim() };
   };
   const form = { type: "object", required: ["spec", "values", "capital", "start", "end", "dataset"] };
-  for (const operation of ["workbench.preflight", "workbench.backtest"]) {
+  for (const operation of ["backtest.prepare", "backtest.run"]) {
     schemas[inputSchema(operation)] = { type: "object", required: ["module", "params", "initial_cash", "start", "end", "dataset_id"], properties: { module: text, params: { type: "object" }, initial_cash: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)?$" }, start: text, end: text, dataset_id: text }, additionalProperties: false };
     schemas[outputSchema(operation)] = { type: "object" };
     operations.push({
@@ -9256,14 +9251,14 @@ function features() {
       response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"],
       mode: "write",
       prepare,
-      ...operation === "workbench.backtest" ? { requires: "workbench.preflight", changes: (state, target, request, messages) => {
+      ...operation === "backtest.run" ? { requires: "backtest.prepare", changes: (state, target, request, messages) => {
         const completed = { input: request.data, result: messages.find((m) => m.kind !== "problem").data };
         const comparison = state.targets[target + ":comparison"]?.values ?? {};
         const result = completed.result;
-        const runs = state.targets["research:archives"]?.values["workbench.runs"]?.[0] ?? [];
+        const runs = state.targets["research:archives"]?.values["research.runs"]?.[0] ?? [];
         return {
           [target + ":comparison"]: { baseline: comparison.baseline ?? completed, latest: completed },
-          "research:archives": { "workbench.runs": [[result, ...runs.filter((run) => run?.id !== result.id)]] },
+          "research:archives": { "research.runs": [[result, ...runs.filter((run) => run?.id !== result.id)]] },
           research: { current: result.id }
         };
       } } : { ready: (messages) => messages.some((m) => m.data?.ready === true) }

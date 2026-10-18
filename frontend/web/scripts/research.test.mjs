@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 
 
 test('Chinese display preserves original strategy and evidence data',async()=>{
-  const {label,localized,strategies}=await import('../../display/src/workbench/locale.ts');
+  const {label,localized,strategies}=await import('../../display/src/research/locale.ts');
   const original={strategy_id:'quality_trend',side:'buy',price:10.25,limitations:['CASH_DIVIDENDS_UNAVAILABLE']};
   const serialized=JSON.stringify(original);
   assert.deepEqual(localized(original),{'策略标识':'优质股趋势','买卖方向':'买入','价格':10.25,'数据限制':['缺少现金分红数据']});
@@ -14,7 +14,7 @@ test('Chinese display preserves original strategy and evidence data',async()=>{
 });
 
 test('audit table numbers use field precision while preserving integral quantities',async()=>{
-  const {show}=await import('../../display/src/workbench/format.ts');
+  const {show}=await import('../../display/src/research/format.ts');
   assert.equal(show(12.35233999,'price'),'12.35');
   assert.equal(show('12.35234000','commission'),'12.35');
   assert.equal(show(100,'shares'),'100');
@@ -23,7 +23,7 @@ test('audit table numbers use field precision while preserving integral quantiti
 });
 
 test('strategy research groups same identifiers, searches archived runs, and sorts group medians',async()=>{
-  const {strategyGroups,visibleStrategies,formatMetricRange,groupStatus}=await import('../../display/src/workbench/research-model.ts');
+  const {strategyGroups,visibleStrategies,formatMetricRange,groupStatus}=await import('../../display/src/research/research-model.ts');
   const run=(id,strategy_id,metrics)=>({id,run_id:id,strategy_id,status:'NO_QUALIFIED_STRATEGY',qualification:'unverified',limitations:[],metrics,manifest_file:'',manifest_sha256:'',metrics_sha256:'',source_hashes:{},config_hash:null,note:''});
   const groups=strategyGroups([
     run('run-b','quality_trend',{total_return:.20,max_drawdown:-.10,sharpe:3}),
@@ -46,7 +46,7 @@ test('strategy research groups same identifiers, searches archived runs, and sor
 });
 
 test('strategy research keeps unmeasured metrics last and shows all matches',async()=>{
-  const {strategyGroups,visibleStrategies}=await import('../../display/src/workbench/research-model.ts');
+  const {strategyGroups,visibleStrategies}=await import('../../display/src/research/research-model.ts');
   const run=(id,strategy_id,metrics)=>({id,run_id:id,strategy_id,status:'NO_QUALIFIED_STRATEGY',qualification:'unverified',limitations:[],metrics,manifest_file:'',manifest_sha256:'',metrics_sha256:'',source_hashes:{},config_hash:null,note:''});
   const runs=Array.from({length:21},(_,i)=>run(`run-${i}`,`strategy_${i+1}`,i===0?{}:{sharpe:i}));
   const groups=strategyGroups(runs);
