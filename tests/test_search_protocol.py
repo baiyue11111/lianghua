@@ -23,7 +23,8 @@ def await_protocol(protocol, operation, data):
 
 class SearchProtocolTests(unittest.TestCase):
     def _fixture_protocol(self, root):
-        from protocal import DataBus, KernelBacktestPort, Modules, Protocol
+        from market import DataBus
+        from backend import KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from tests.fee_fixture import configured_settlement
@@ -56,8 +57,8 @@ class SearchProtocolTests(unittest.TestCase):
             bus, protocol = self._fixture_protocol(root)
             payload = self._search_payload("empty-candidate", [{}])
             message = asyncio.run(protocol.send(ui.UiRequest(
-                "empty-candidate-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                "empty-candidate-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1", payload,
             )))[0]
 
             self.assertEqual(message.kind, "problem")
@@ -75,8 +76,8 @@ class SearchProtocolTests(unittest.TestCase):
                 {"fast_window": [], "slow_window": 3},
             ])
             message = asyncio.run(protocol.send(ui.UiRequest(
-                "bad-shape-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                "bad-shape-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1", payload,
             )))[0]
 
             self.assertEqual(message.kind, "problem")
@@ -95,7 +96,7 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertFalse(bus.path("runs", "bad-shape", "manifest.json").exists())
 
     def test_request_accepts_only_the_declared_search_shape(self):
-        from protocal import parse_backtest_request
+        from protocol import parse_backtest_request
 
         value = parse_backtest_request({
             "run_id": "search",
@@ -110,15 +111,15 @@ class SearchProtocolTests(unittest.TestCase):
                 },
                 "max_trials": 2, "metric": "total_return", "direction": "max",
             },
-            "validation": {"start": "2020-02-04", "end": "2020-02-04"},
         })
 
-        from protocal import BacktestRequest
+        from protocol import BacktestRequest
 
         self.assertIsInstance(value, BacktestRequest)
 
     def test_protocol_search_saves_each_trial_and_base_summary(self):
-        from protocal import DataBus, KernelBacktestPort, Modules, Protocol, _DIRECTORY
+        from market import DataBus
+        from backend import KernelBacktestPort, Modules, Protocol, _DIRECTORY
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from tests.fee_fixture import configured_settlement
@@ -131,8 +132,8 @@ class SearchProtocolTests(unittest.TestCase):
             empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
             protocol = Protocol(Modules(backtests, backtests, empty, empty, empty))
             request = ui.UiRequest(
-                "search-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1",
+                "search-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1",
                 {
                     "run_id": "search",
                     "module": "plugins.strategies.moving_average_cross",
@@ -149,7 +150,6 @@ class SearchProtocolTests(unittest.TestCase):
                         },
                         "max_trials": 2, "metric": "total_return", "direction": "max",
                     },
-                    "validation": {"start": "2020-02-04", "end": "2020-02-04"},
                 },
             )
 
@@ -159,18 +159,19 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertEqual(value["run_id"], "search")
             self.assertEqual(len(value["search"]["trials"]), 2)
             self.assertEqual(value["search"]["best_run_id"], value["search"]["trials"][value["search"]["best_index"]]["run_id"])
-            self.assertIsNotNone(value["search"]["validation"])
+            self.assertNotIn("validation", value["search"])
+            self.assertNotIn("out_of_sample", value["search"])
             identities = {ref.identity for ref in bus.list("runs")}
-            self.assertTrue({"search", "search-trial-0001", "search-trial-0002", "search-validation"} <= identities)
+            self.assertTrue({"search", "search-trial-0001", "search-trial-0002"} <= identities)
             manifest = json.loads(bus.read("runs", "search", "manifest.json"))
             self.assertEqual(manifest["parameters"], value["parameters"])
-            runs = await_protocol(protocol, "workbench.runs", {})
+            runs = await_protocol(protocol, "research.runs", {})
             self.assertIn("search", {item["id"] for item in runs["items"]})
-            detail = await_protocol(protocol, "workbench.run", {"id": "search"})
+            detail = await_protocol(protocol, "research.run", {"id": "search"})
             self.assertEqual(detail["parameters"], value["parameters"])
             json.dumps(value, allow_nan=False)
 
-    def test_second_local_staticmethod_uses_score_through_protocol_with_validation_summary_and_hash(self):
+    def test_second_local_staticmethod_uses_score_through_protocol_with_summary_and_hash(self):
         from plugins import data as plugin_data
 
         class ProbeUpdater:
@@ -192,28 +193,24 @@ class SearchProtocolTests(unittest.TestCase):
                 "method": "pick",
                 "params": {"candidates": candidates},
             }
-            payload["validation"] = {"start": "2020-02-04", "end": "2020-02-04"}
-
             with patch.object(plugin_data, "ProbeUpdater", ProbeUpdater, create=True):
                 message = asyncio.run(protocol.send(ui.UiRequest(
-                    "plugin-search-request", "workbench.backtest",
-                    "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                    "plugin-search-request", "backtest.run",
+                    "urn:lianghua:ui:input:backtest.run:v1", payload,
                 )))[0]
 
             self.assertEqual(message.kind, "resource")
             value = message.data
             self.assertEqual(len(value["search"]["trials"]), 2)
-            self.assertIsNotNone(value["search"]["validation"])
+            self.assertNotIn("validation", value["search"])
             self.assertEqual(value["parameters"], {"fast_window": 1, "slow_window": 3, "exposure": 0})
             self.assertEqual(value["search"]["best_run_id"], "plugin-search-trial-0002")
             identities = {ref.identity for ref in bus.list("runs")}
             self.assertTrue({
                 "plugin-search", "plugin-search-trial-0001", "plugin-search-trial-0002",
-                "plugin-search-validation",
             } <= identities)
             summary_manifest = json.loads(bus.read("runs", "plugin-search", "manifest.json"))
             saved_summary = json.loads(bus.read("runs", "plugin-search", "result.json"))
-            validation_manifest = json.loads(bus.read("runs", "plugin-search-validation", "manifest.json"))
             from strategy import canonical_hash
             self.assertEqual(summary_manifest["parameters"], value["parameters"])
             self.assertEqual(summary_manifest["config_hash"], value["config_hash"])
@@ -226,75 +223,33 @@ class SearchProtocolTests(unittest.TestCase):
                 canonical_hash(saved_summary["provenance"]["effective_config"]),
                 saved_summary["provenance"]["config_hash"],
             )
-            self.assertEqual(validation_manifest["parameters"], value["parameters"])
             self.assertEqual(value["search"]["trials"][0]["trial_config_hash"],
                              json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"])
             self.assertNotEqual(
                 json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"],
                 summary_manifest["config_hash"],
             )
-            runs = await_protocol(protocol, "workbench.runs", {})
-            detail = await_protocol(protocol, "workbench.run", {"id": "plugin-search"})
+            runs = await_protocol(protocol, "research.runs", {})
+            detail = await_protocol(protocol, "research.run", {"id": "plugin-search"})
             self.assertIn("plugin-search", {item["id"] for item in runs["items"]})
             self.assertEqual(detail["parameters"], value["parameters"])
             self.assertGreaterEqual(len(detail["evidence"]), 4)
 
-    def test_search_oos_failure_saves_main_stage_evidence_and_completed_runs(self):
+    def test_search_rejects_fixed_validation_and_oos_fields_before_running(self):
         with TemporaryDirectory() as root:
             bus, protocol = self._fixture_protocol(root)
-            payload = self._search_payload("oos-failure", [
-                {"fast_window": 1, "slow_window": 3},
-            ])
-            payload["validation"] = {"start": "2020-02-04", "end": "2020-02-04"}
-            payload["out_of_sample"] = {"start": "2020-02-06", "end": "2020-02-06"}
-            message = asyncio.run(protocol.send(ui.UiRequest(
-                "oos-failure-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
-            )))[0]
-
-            self.assertEqual(message.kind, "problem")
-            self.assertEqual(message.data["code"], "out_of_sample_failed")
-            failed = json.loads(bus.read("runs", "oos-failure", "failed.json"))
-            self.assertEqual(failed["code"], "out_of_sample_failed")
-            self.assertEqual(failed["partial"]["stage"], "out_of_sample")
-            self.assertEqual(
-                failed["partial"]["completed_runs"],
-                [
-                    {"run_id": "oos-failure-trial-0001", "stage": "search"},
-                    {"run_id": "oos-failure-validation", "stage": "validation"},
-                ],
-            )
-            self.assertEqual(failed["partial"]["validation_run_id"], "oos-failure-validation")
-            self.assertTrue(bus.path("runs", "oos-failure-trial-0001", "manifest.json").exists())
-            self.assertTrue(bus.path("runs", "oos-failure-validation", "manifest.json").exists())
-
-    def test_search_oos_result_conversion_failure_has_stage_evidence(self):
-        with TemporaryDirectory() as root:
-            bus, protocol = self._fixture_protocol(root)
-            payload = self._search_payload("oos-conversion-failure", [
-                {"fast_window": 1, "slow_window": 3},
-            ])
-            payload["out_of_sample"] = {"start": "2020-02-04", "end": "2020-02-04"}
-            from unittest.mock import patch
-            from protocal import _result_data
-            original = _result_data
-
-            def fail_oos(result, request=None, benchmarks=None):
-                if request is not None and request.run_id.endswith("-out_of_sample"):
-                    raise ValueError("benchmark unavailable in OOS")
-                return original(result, request, benchmarks)
-
-            with patch("protocal._result_data", side_effect=fail_oos):
+            for field in ("validation", "out_of_sample"):
+                payload = self._search_payload(f"old-{field}", [
+                    {"fast_window": 1, "slow_window": 3},
+                ])
+                payload[field] = {"start": "2020-02-04", "end": "2020-02-04"}
                 message = asyncio.run(protocol.send(ui.UiRequest(
-                    "oos-conversion-failure-request", "workbench.backtest",
-                    "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                    f"old-{field}-request", "backtest.run",
+                    "urn:lianghua:ui:input:backtest.run:v1", payload,
                 )))[0]
-
-            self.assertEqual(message.kind, "problem")
-            self.assertEqual(message.data["code"], "out_of_sample_failed")
-            failed = json.loads(bus.read("runs", "oos-conversion-failure", "failed.json"))
-            self.assertEqual(failed["partial"]["stage"], "out_of_sample")
-            self.assertEqual(failed["partial"]["completed_runs"][0]["stage"], "search")
+                self.assertEqual(message.kind, "problem")
+                self.assertEqual(message.data["code"], "invalid_request")
+            self.assertEqual(bus.list("runs"), ())
 
     def test_invalid_search_declaration_has_no_run_evidence(self):
         with TemporaryDirectory() as root:
@@ -302,8 +257,8 @@ class SearchProtocolTests(unittest.TestCase):
             payload = self._search_payload("parse-failure", [{"fast_window": 1, "slow_window": 3}])
             payload["search"]["updater"]["module"] = "math:ceil"
             message = asyncio.run(protocol.send(ui.UiRequest(
-                "parse-failure-request", "workbench.backtest",
-                "urn:lianghua:ui:input:workbench.backtest:v1", payload,
+                "parse-failure-request", "backtest.run",
+                "urn:lianghua:ui:input:backtest.run:v1", payload,
             )))[0]
 
             self.assertEqual(message.kind, "problem")
@@ -312,8 +267,10 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertNotIn("extensions", message.data)
 
     def test_busy_does_not_write_failed_evidence(self):
-        from protocal import BacktestError
-        from protocal import DataBus, KernelBacktestPort, parse_backtest_request
+        from protocol import BacktestError
+        from market import DataBus
+        from backend import KernelBacktestPort
+        from protocol import parse_backtest_request
         from storage import DataStore
 
         class BusyKernel:
@@ -325,7 +282,7 @@ class SearchProtocolTests(unittest.TestCase):
             port = KernelBacktestPort(bus, lambda *args, **kwargs: object())
             port._kernel = BusyKernel()
             with self.assertRaises(BacktestError):
-                port.handle("workbench.backtest", {
+                port.handle("backtest.run", {
                     "run_id": "busy", "module": "strategy", "params": {},
                     "dataset_id": "fixture", "start": "2020-01-01",
                     "end": "2020-01-01", "initial_cash": "100",
@@ -333,11 +290,12 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertEqual(bus.list("runs"), ())
 
     def test_failed_second_trial_keeps_first_trial_and_failure_evidence(self):
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
         from tests.fee_fixture import configured_settlement
-        from protocal import BacktestError
+        from protocol import BacktestError
 
         with TemporaryDirectory() as root:
             root = Path(root)
@@ -360,7 +318,7 @@ class SearchProtocolTests(unittest.TestCase):
                 },
             }
             with self.assertRaises(BacktestError) as caught:
-                port.handle("workbench.backtest", payload)
+                port.handle("backtest.run", payload)
             self.assertEqual(caught.exception.code, "search_failed")
             self.assertEqual(json.loads(bus.read("runs", "failed-search", "failed.json"))["partial"]["completed_trials"][0]["run_id"],
                              "failed-search-trial-0001")
@@ -368,7 +326,8 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertFalse(bus.path("runs", "failed-search", "manifest.json").exists())
 
     def test_protocol_rejects_external_updater_module_and_unknown_search_field(self):
-        from protocal import parse_backtest_request, _search
+        from protocol import parse_backtest_request
+        from backend import _search
 
         base = {
             "run_id": "search", "module": "plugins.strategies.moving_average_cross",

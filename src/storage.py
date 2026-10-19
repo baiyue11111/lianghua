@@ -14,7 +14,7 @@ from uuid import uuid4
 
 
 if TYPE_CHECKING:
-    from protocal import DataRef
+    from protocol import DataRef
 
 
 PHYSICAL_KINDS = {
@@ -191,7 +191,7 @@ class DataStore:
         return tuple(refs)
 
     def _ref(self, kind: str, identity: str, name: str, path: Path) -> DataRef:
-        from protocal import DataRef
+        from protocol import DataRef
         with path.open('rb') as stream:
             digest = sha256()
             size = 0

@@ -6,10 +6,10 @@ from threading import Event, Thread
 from types import SimpleNamespace
 import unittest
 
-from protocal import BacktestError, BacktestRequest, Trial
+from protocol import BacktestError, BacktestRequest, Trial
 from core.calculation import Calculation
 from core.kernel import Kernel
-from protocal import DataQuery, Dataset
+from protocol import DataQuery, Dataset
 
 
 class SearchSettlement:
@@ -47,7 +47,7 @@ class SearchStrategy:
 
     def requirements(self):
         return SimpleNamespace(fields=("close",), history_bars=self.parameters.get("history", 1), price_basis="adjusted",
-                               symbols=None, universe="fixture", frequency="daily")
+                               frequency="daily")
 
     def generate(self, frame, snapshot):
         return SimpleNamespace(score=self.parameters.get("score", 0))
@@ -67,7 +67,8 @@ class SearchData:
         return Dataset(
             "fixture", (record,), {"fees": object(), "tax_policy": object()},
             {"source": "test", "calendar_start": day.isoformat()},
-            {"universe": "fixture", "symbols": (), "calendar_start": day.isoformat()},
+            {"universe": "fixture", "symbols": (), "calendar_start": day.isoformat(),
+             "market": {"selection": {"scope": "CN_A"}, "execution": "fixture"}},
             (day, day.fromordinal(day.toordinal() + 1)), ("close",), query.history,
         )
 
@@ -99,8 +100,8 @@ class KernelSearchTests(unittest.TestCase):
             lambda req, requirements: DataQuery(
                 req.dataset_id, req.start.date(), req.end.date(), requirements.fields,
                 requirements.history_bars, requirements.price_basis,
-                req.as_of or req.end.date(), requirements.symbols,
-                requirements.universe, requirements.frequency,
+                req.as_of or req.end.date(), frequency=requirements.frequency,
+                market=req.market,
             ),
             SearchSettlement,
             calculation=ScoreCalculation(),
@@ -225,25 +226,12 @@ class KernelSearchTests(unittest.TestCase):
 
         self.assertEqual([query.history for query in self.data.queries], [1, 2])
 
-    def test_validation_runs_once_after_best_and_is_not_visible_to_updater(self):
-        seen = []
-
-        def updater(trials):
-            seen.append(tuple(trial.request.run_id for trial in trials))
-            return {"score": len(trials) + 1}
-
-        validation = request(
-            run_id="ignored", start=datetime(2020, 1, 3, tzinfo=timezone.utc),
-            end=datetime(2020, 1, 3, 23, 59, tzinfo=timezone.utc),
-            parameters={"score": 99},
-        )
-        result = self.kernel.search(
-            request(), updater, max_trials=2, metric="score", direction="max", validation=validation,
-        )
-
-        self.assertEqual(result.validation.run_id, "base-validation")
-        self.assertEqual(result.validation.final_equity, Decimal("102"))
-        self.assertEqual(seen, [(), ("base-trial-0001",)])
+    def test_search_rejects_fixed_validation_keyword(self):
+        with self.assertRaisesRegex(TypeError, "validation"):
+            self.kernel.search(
+                request(), lambda trials: {"score": 1}, max_trials=1,
+                metric="score", direction="max", validation=request(),
+            )
 
     def test_updater_block_keeps_atomic_run_busy(self):
         entered = Event()

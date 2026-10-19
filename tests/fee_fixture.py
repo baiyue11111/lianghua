@@ -35,7 +35,7 @@ def configuredSettlement(initial_cash, fees, tax_policy, *, limits, execution):
 
 
 def configured_settlement():
-    from protocal import _load_plugin
+    from backend import _load_plugin
     return _load_plugin({"settlement": {
         "module": "tests.fee_fixture:configuredSettlement",
         "params": {"limits": {"stock_weight": "0.4", "adv_fraction": "0.01"},

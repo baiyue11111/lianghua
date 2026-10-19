@@ -4,11 +4,12 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 import json
-from protocal import build_data
+from market import build_data
 
 from collect.methods import (
     StockBasicEvidenceError,
     collect_stock_basic,
+    normalize_facts,
     read_stock_basic,
     write_stock_basic,
 )
@@ -44,24 +45,27 @@ class _Provider:
 
 
 class StockBasicSnapshotTests(unittest.TestCase):
-    def test_collect_and_read_preserve_provider_ipo_evidence(self):
+    def test_collect_raw_is_logged_and_facts_are_stored(self):
         rows = [["sz.301116", "fixture", "2022-01-18", "", "1", "1"]]
         with TemporaryDirectory() as directory:
             data = build_data(Path(directory))
-            ref = write_stock_basic(data, collect_stock_basic(_Provider(rows), timeout=0, code="301116"))
-            snapshot = read_stock_basic(json.loads(data.read(ref.kind, ref.identity, ref.name)))
-            self.assertEqual(snapshot["raw_response"]["rows"], rows)
-            self.assertEqual(snapshot["schema"], 1)
-            self.assertEqual(len(snapshot["raw_response_sha256"]), 64)
-            write_stock_basic(data, collect_stock_basic(_Provider(rows), timeout=0, code="301116"))
-            self.assertEqual(read_stock_basic(json.loads(data.read(ref.kind, ref.identity, ref.name))), snapshot)
+            raw = collect_stock_basic(_Provider(rows), timeout=0, code="301116")
+            ref = write_stock_basic(data, raw)
+            facts = json.loads(data.read(ref.kind, ref.identity, ref.name))
+            logs = data.list("state", "collect")
+            logged = json.loads(data.read("state", "collect", logs[0].name))
+            self.assertEqual((ref.identity, ref.name), ("facts", "stock_basic_sz.301116.json"))
+            self.assertEqual(facts, normalize_facts(raw))
+            self.assertEqual(facts["records"], [{"listing_date": "2022-01-18", "delisting_date": None,
+                                                  "type": "1", "status": "1"}])
+            self.assertEqual(facts["source_hash"], logged["raw_response_sha256"])
+            self.assertEqual(logged["raw_response"]["rows"], rows)
 
     def test_tamper_duplicate_and_missing_ipo_fail_closed(self):
         rows = [["sz.301116", "fixture", "2022-01-18", "", "1", "1"]]
         with TemporaryDirectory() as directory:
             data = build_data(Path(directory))
-            ref = write_stock_basic(data, collect_stock_basic(_Provider(rows), timeout=0, code="301116"))
-            payload = read_stock_basic(json.loads(data.read(ref.kind, ref.identity, ref.name)))
+            payload = collect_stock_basic(_Provider(rows), timeout=0, code="301116")
             payload["raw_response"]["rows"][0][2] = "2021-01-18"
             with self.assertRaisesRegex(StockBasicEvidenceError, "hash"):
                 read_stock_basic(payload)
@@ -80,6 +84,7 @@ class StockBasicSnapshotTests(unittest.TestCase):
         self.assertEqual(provider.queries, ["sz.301116"])
         self.assertEqual(snapshot["request"], "query_stock_basic(sz.301116)")
         self.assertEqual(read_stock_basic(snapshot), snapshot)
+        self.assertEqual(normalize_facts(snapshot)["kind"], "security")
         for rows in ([], [["sz.301117", "other", "2022-01-17", "", "1", "1"]]):
             with self.subTest(rows=rows), self.assertRaises(StockBasicEvidenceError):
                 collect_stock_basic(_Provider(rows), timeout=0, code="301116")

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {benchmarkCurves} from '../../display/src/workbench/curves.ts';
+import {benchmarkCurves} from '../../display/src/research/curves.ts';
 const run=(name,points)=>({name,points});
 const baseline={name:'沪深300',points:[{at:'2026-09-28',close:100},{at:'2026-09-29',close:110},{at:'2026-09-30',close:121}]};
 test('strategy and index use one common date and normalize independently',()=>{

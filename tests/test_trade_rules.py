@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import core.calculation as calculation
 
 from core.calculation import FeePolicy, TaxPolicy, TradeRules
-from protocal import Bar, Fill, Order, Side
+from protocol import Bar, Fill, Order, Side
 
 
 def fee_policy(rounding='none'):

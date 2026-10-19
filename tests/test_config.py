@@ -1,7 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from protocal import build_effective_config, parse_backtest_request, required_fields
+from protocol import build_effective_config, parse_backtest_request, required_fields
 from strategy import load_strategy
 
 
@@ -16,6 +16,7 @@ class EffectiveConfigTests(unittest.TestCase):
         dataset = SimpleNamespace(
             fields=required_fields(requirements.fields),
             history=requirements.history_bars,
+            scope={"market": {"selection": {"scope": "CN_A"}}},
         )
         return build_effective_config(
             request, strategy, requirements, dataset,

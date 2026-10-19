@@ -1,4 +1,4 @@
-"""Public source snapshots are evidence, never an automatic lake replacement."""
+"""Public source snapshots are evidence, never an automatic cn_a replacement."""
 import copy
 import hashlib
 import json
@@ -8,7 +8,7 @@ import unittest
 from unittest.mock import patch
 
 import pandas as pd
-from protocal import build_data
+from market import build_data
 
 from collect.methods import canonical, digest, capture, make_request, parse_bars, snapshot, validate_snapshot
 
@@ -18,9 +18,9 @@ class EastmoneyEvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             data = build_data(root)
-            master = data.path("sources", "lake", "master.parquet")
+            master = data.path("sources", "cn_a", "master.parquet")
             output = data.path("sources", "bar_evidence", "manifest.json").parent
-            master_ref = data.write("sources", "lake", "master.parquet", pd.DataFrame({"code": ["600000", "000001", "920000"],
+            master_ref = data.write("sources", "cn_a", "master.parquet", pd.DataFrame({"code": ["600000", "000001", "920000"],
                           "exchange": ["SH", "SZ", "BJ"]}).to_parquet(index=False))
             for code, exchange in [("600000", "SH"), ("000001", "SZ"), ("920000", "BJ")]:
                 request = make_request(code, exchange, "20260901", "20260918", "raw")

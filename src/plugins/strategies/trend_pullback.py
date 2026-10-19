@@ -1,8 +1,9 @@
 """Trend pullback strategy with a declared signal price and tunable windows."""
 from dataclasses import dataclass, field
+from datetime import date
 
 from core.calculation import Calculation
-from protocal import AccountSnapshot, DataRequest, MarketFrame, TargetSet
+from protocol import AccountSnapshot, DataRequest, MarketFrame, TargetSet
 from strategy import validate_params
 from ._ranked_signal import histories, weights
 
@@ -18,6 +19,7 @@ class Params:
     exposure: float = field(default=1., metadata={'label': '总仓位', 'minimum': 0, 'maximum': 1})
     sort_by: str = field(default='drawdown', metadata={'label': '排序指标', 'options': ['drawdown', 'recovery']})
     sort_desc: bool = field(default=True, metadata={'label': '降序'})
+    rebalance: str = field(default='daily', metadata={'label': '调仓频率', 'options': ['daily', 'monthly']})
 
     def __post_init__(self):
         validate_params(self)
@@ -41,8 +43,44 @@ class Strategy:
         if not frame.context['trading']:
             return None
         p = self.params
+        if p.rebalance == 'monthly':
+            following = date.fromisoformat(frame.context['next_session'])
+            if following <= frame.at.date():
+                raise ValueError('next_session must follow decision session')
+            if (frame.at.year, frame.at.month) == (following.year, following.month):
+                return None
+        held_rows = {}
+        for symbol, shares in account.positions.items():
+            if shares <= 0:
+                continue
+            rows = frame.history[symbol]
+            for row in rows:
+                if 'signal_close' not in row.fields:
+                    raise KeyError('signal_close')
+            held_rows[symbol] = rows
+
+        prices_by_symbol = histories(frame, p.trend_window)
+        if any(symbol not in prices_by_symbol for symbol in held_rows):
+            return None
+
+        score_index = {'drawdown': 0, 'recovery': 1}[p.sort_by]
+        score = (lambda row: (row[0], row[1])) if p.sort_by == 'drawdown' else (lambda row: row[score_index])
+        held_candidates = []
+        for symbol in sorted(held_rows):
+            prices = prices_by_symbol[symbol]
+            trend = Calculation.sma(prices, p.trend_window)
+            if prices[-1] > trend:
+                recent = prices[-p.pullback_window:]
+                drawdown = 1 - recent[-1] / max(prices[-p.trend_window:])
+                recovery = recent[-1] / recent[0]
+                held_candidates.append((drawdown, recovery, symbol))
+        held = Calculation.select(held_candidates, p.positions, score, p.sort_desc,
+                                  symbol=lambda row: row[2])
+        held_symbols = set(held)
         candidates = []
-        for symbol, prices in histories(frame, p.trend_window).items():
+        for symbol, prices in prices_by_symbol.items():
+            if symbol in held_symbols:
+                continue
             trend = Calculation.sma(prices, p.trend_window)
             recent = prices[-p.pullback_window:]
             peak = max(prices[-p.trend_window:])
@@ -50,9 +88,9 @@ class Strategy:
             if recent[-1] > trend and drawdown >= p.drawdown:
                 recovery = recent[-1] / recent[0]
                 candidates.append((drawdown, recovery, symbol))
-        score_index = {'drawdown': 0, 'recovery': 1}[p.sort_by]
-        score = (lambda row: (row[0], row[1])) if p.sort_by == 'drawdown' else (lambda row: row[score_index])
-        selected = Calculation.select(candidates, p.positions, score, p.sort_desc)
+        added = Calculation.select(candidates, p.positions - len(held), score, p.sort_desc,
+                                   symbol=lambda row: row[2])
+        selected = tuple(held) + added
         if selected == self.selected:
             return None
         self.selected = selected

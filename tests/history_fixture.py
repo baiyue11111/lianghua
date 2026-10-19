@@ -1,3 +1,4 @@
+from protocol import normalize_security_id
 """Engineering inputs only. This never registers a production dataset."""
 from datetime import date, timedelta
 from pathlib import Path
@@ -9,7 +10,6 @@ from strategy import load_strategy, canonical_hash
 
 
 def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
-    from protocal import normalize_security_id
     folder=root/'data'/'source'/'fixture'; folder.mkdir(parents=True)
     (folder/'daily').mkdir(); (folder/'factors').mkdir(); (folder/'basic').mkdir()
     days=[]; day=history_start
@@ -34,27 +34,22 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
         path.write_text(json.dumps(value,ensure_ascii=False))
         files.append({'file':name,'sha256':hashlib.sha256(path.read_bytes()).hexdigest(),'role':role})
     files.append({'file':'daily/bars.parquet','sha256':hashlib.sha256((folder/'daily/bars.parquet').read_bytes()).hexdigest(),'role':'market'})
-    write('calendar_source.json',{'type':'engineering_fixture',
-        'request':{'start':history_start.isoformat(),'end':sessions[-1].isoformat()},
-        'sessions':[d.isoformat() for d in sessions]})
-    write('calendar.json',{'sessions':[d.isoformat() for d in sessions],'source_file':'calendar_source.json'})
+    write('calendar.json',{'sessions':[d.isoformat() for d in sessions],
+        'coverage':[{'start':history_start.isoformat(),'end':sessions[-1].isoformat()}]})
     write('code_changes.json',{'schema':1,'scope':'engineering_fixture','events':[]})
-    factor_start='1990-01-01'; factor_end='2020-02-05'; corp=[]
-    def cache(name,request,fields,rows):
-        raw={'code':request['code'],'error_code':'0','fields':fields,'rows':rows}
-        write(name,{'schema':2,'request':request,'request_sha256':canonical_hash(request),
-            'raw_response':raw,'raw_response_sha256':canonical_hash(raw),
-            'request_fields_sha256':hashlib.sha256(','.join(fields).encode()).hexdigest(),'status':'ok' if rows else 'empty'})
+    factor_start='1990-01-01'; factor_end='2020-02-05'
+    def fact(name,kind,code,start,end,year,records):
+        write(name,{'schema':1,'kind':kind,'code':code,'start':start,'end':end,'year':year,
+            'source_hash':canonical_hash(records),'records':records})
     for symbol in symbols:
-        identity=normalize_security_id(symbol)
-        request={'kind':'adjust','code':identity,'start':factor_start,'end':factor_end,'year':None}
-        cache(f'factors/adjust_{symbol}_{factor_start}_{factor_end}.json',request,
-            ['code','dividOperateDate','foreAdjustFactor','backAdjustFactor','adjustFactor'],[[identity,'1990-01-01','1','1','1']])
+        code='sh.'+symbol if symbol.startswith('6') else 'sz.'+symbol
+        fact(f'factors/adjust_{normalize_security_id(symbol)}_{factor_start}_{factor_end}.json','adjust',code,
+            factor_start,factor_end,None,[{'date':'1990-01-01','forward':1,'backward':1}])
+        fact(f'basic/stock_basic_{normalize_security_id(symbol)}.json','security',code,None,None,None,
+            [{'listing_date':history_start.isoformat(),'delisting_date':None,'type':'1','status':'1'}])
         for year in map(str,range(history_start.year,2021)):
-            name=f'corp/dividend_{symbol}_{year}.json'
-            cache(name,{'kind':'dividend','code':identity,'start':None,'end':None,'year':year},
-                ['code','dividOperateDate','dividRegistDate','dividPayDate','dividStockMarketDate','dividCashPsBeforeTax','dividStocksPs','dividReserveToStockPs'],[])
-            corp.append({'file':name})
+            name=f'corp/dividend_{normalize_security_id(symbol)}_{year}.json'
+            fact(name,'dividend',code,None,None,year,[])
     write('policy_source.json',{'type':'engineering_fee_and_tax_policy'},'account')
     policy={'schema':1,'investor':'domestic_individual_unrestricted_a_share',
         'sources':[{'file':'policy_source.json','sha256':files[-1]['sha256']}],
@@ -65,8 +60,24 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
                'liability':'current_holding_period','rounding':'none'}}
     write('account_policy.json',policy,'account')
     (folder/'manifest.json').write_text(json.dumps({'schema':2,'files':files,'fields':{},'calendar':'calendar.json',
-        'scope':{'symbols':symbols,'universe':'CN_A_SHARE'},'price':{'daily_dir':'daily','cache_dir':'factors','stock_basic_dir':'basic','code_changes':'code_changes.json','factor_start':factor_start,'factor_end':factor_end},
-        'corporate_action_sources':corp,'action_facts':[],'account_policy':'account_policy.json'}))
+        'scope':{'symbols':symbols,'universe':'CN_A_SHARE'},
+        'inputs':{'calendar':'calendar.json',
+                  'bars':'daily',
+                  'code_changes':'code_changes.json',
+                  'adjustments':{'template':'factors/adjust_{symbol}_{start}_{end}.json','start':factor_start,'end':factor_end},
+                  'distributions':{'template':'corp/dividend_{symbol}_{year}.json'},
+                  'securities':{'template':'basic/stock_basic_{symbol}.json'},
+                  'account_policy':'account_policy.json','action_facts':[]}}))
+    registry = root/'data'/'source'/'registry'/'sources.json'
+    registry.parent.mkdir(parents=True, exist_ok=True)
+    registry.write_text(json.dumps({'sources': [], 'datasets': [], 'benchmarks': [], 'markets': [{
+        'scope': 'CN_A', 'dataset_id': 'fixture', 'currency': 'CNY',
+        'calendar': 'calendar.json', 'timezone': 'Asia/Shanghai',
+        'session_open': '09:30', 'session_close': '15:00',
+        'execution': 'cn_a_share', 'code_normalizer': 'normalize_security_id',
+        'fields': {'close': {'source': 'daily', 'column': 'close', 'type': 'number'}},
+        'code_pattern': r'(?:sh\.(?:60|68)\d{4}|sz\.(?:00|30)\d{4})',
+    }]}))
     return {'dataset': 'fixture'}
 
 

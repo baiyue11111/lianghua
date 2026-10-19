@@ -1,4 +1,4 @@
-"""Contract tests for event-time BaoStock signal prices over raw lake bars."""
+"""Contract tests for event-time BaoStock signal prices over raw cn_a bars."""
 
 from __future__ import annotations
 
@@ -14,14 +14,11 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 
 from core.calculation import AdjustmentCoverageError
-from protocal import _load_adjusted_lake_panel
+from market.reader import _load_adjusted_panel
 
 
 FACTOR_START = date(1990, 1, 1)
 FACTOR_END = date(2026, 9, 18)
-FIELDS = ["code", "dividOperateDate", "foreAdjustFactor", "backAdjustFactor", "adjustFactor"]
-
-
 def _sha256_json(value: object) -> str:
     return hashlib.sha256(json.dumps(value, ensure_ascii=False, sort_keys=True,
                                      separators=(",", ":")).encode("utf-8")).hexdigest()
@@ -76,7 +73,7 @@ class AdjustedPanelTests(unittest.TestCase):
         with self.assertRaises(AdjustmentCoverageError) as caught: self.load()
         reasons={(issue.code,issue.reason) for issue in caught.exception.issues}
         self.assertIn(('600000','missing_factor_cache'),reasons)
-        self.assertIn(('600000','invalid_lake_price'),reasons)
+        self.assertIn(('600000','invalid_source_price'),reasons)
         self.assertIn(('600001','contradictory_trade_state'),reasons)
         self.assertEqual(caught.exception.checked_bars,2)
 
@@ -92,7 +89,7 @@ class AdjustedPanelTests(unittest.TestCase):
         panel = self.load()
         np.testing.assert_allclose(panel.back_factor[0],[2,2])
         np.testing.assert_allclose(panel.signal_close[0],[20,22])
-        self.assertTrue(any('adjust_600001_' in h.path for h in panel.source_hashes))
+        self.assertTrue(any('adjust_sh.600001_' in h.path for h in panel.source_hashes))
 
     def test_verified_multi_rename_chain_matches_final_code_factor_history(self):
         self.write_bars([
@@ -172,37 +169,49 @@ class AdjustedPanelTests(unittest.TestCase):
 
     def write_cache(self, rows: list[list[str]], *, code: str = "sh.600000",
                     status: str | None = None) -> Path:
-        request = {"kind": "adjust", "code": code, "start": FACTOR_START.isoformat(),
-                   "end": FACTOR_END.isoformat(), "year": None}
-        raw = {"error_code": "0", "error_msg": "success", "code": code,
-               "fields": FIELDS, "rows": rows}
-        payload = {"schema": 2, "status": status or ("ok" if rows else "empty"),
-                   "request": request, "request_sha256": _sha256_json(request),
-                   "request_fields_sha256": hashlib.sha256(",".join(FIELDS).encode()).hexdigest(),
-                   "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
-                   "collected_at": "2026-09-19T00:00:00+0800"}
-        path = self.cache / f"adjust_{code.split('.')[1]}_{FACTOR_START}_{FACTOR_END}.json"
+        records = [{"date": row[1], "forward": float(row[2]), "backward": float(row[3])}
+                   for row in rows]
+        payload = {"schema": 1, "kind": "adjust", "code": code, "start": FACTOR_START.isoformat(),
+                   "end": FACTOR_END.isoformat(), "year": None,
+                   "source_hash": _sha256_json(records), "records": records}
+        path = self.cache / f"adjust_{code}_{FACTOR_START}_{FACTOR_END}.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
         return path
 
     def write_stock_basic(self, *, code: str = "sh.600000",
                           ipo_date: str = "2020-01-02") -> Path:
-        fields = ["code", "code_name", "ipoDate", "outDate", "type", "status"]
-        raw = {"error_code": "0", "error_msg": "success", "fields": fields,
-               "rows": [[code, "浦发银行", ipo_date, "", "1", "1"]]}
-        payload = {"schema": 1, "request": f"query_stock_basic({code})",
-                   "raw_response": raw, "raw_response_sha256": _sha256_json(raw),
-                   "collected_at": "2026-09-24T00:00:00+00:00"}
+        records = [{"listing_date": ipo_date, "delisting_date": None, "type": "1", "status": "1"}]
+        payload = {"schema": 1, "kind": "security", "code": code, "start": None, "end": None,
+                   "year": None, "source_hash": _sha256_json(records), "records": records}
         path = self.stock_basic / f"stock_basic_{code}.json"
         path.write_text(json.dumps(payload), encoding="utf-8")
         return path
 
-    def load(self):
-        return _load_adjusted_lake_panel(
+    def load(self, **kwargs):
+        return _load_adjusted_panel(
             self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
             stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
             read=lambda path: path.read_bytes(),
-            list_files=lambda directory, pattern: tuple(directory.glob(pattern)))
+            list_files=lambda directory, pattern: tuple(directory.glob(pattern)), **kwargs)
+
+    def test_storage_code_forms_share_one_selected_history(self):
+        self.write_bars([
+            _bar('2020-01-02',close=10,open_=10,high=11,low=9,code='600000'),
+            _bar('2020-01-03',close=11,open_=11,high=12,low=10,code='sh.600000')])
+        self.write_cache([['sh.600000','2018-01-01','1','1','1']])
+        panel=self.load(symbols=('sh.600000',))
+        self.assertEqual(panel.symbols,('600000',))
+        self.assertEqual(panel.calendar,(date(2020,1,2),date(2020,1,3)))
+        np.testing.assert_array_equal(panel.raw_close,[[10,11]])
+
+    def test_market_qualified_filter_does_not_include_another_market(self):
+        self.write_bars([
+            _bar('2020-01-02',close=10,open_=10,high=11,low=9,code='000001'),
+            _bar('2020-01-02',close=3000,open_=3000,high=3100,low=2900,code='sh.000001')])
+        self.write_cache([['sz.000001','2018-01-01','1','1','1']],code='sz.000001')
+        panel=self.load(symbols=('sz.000001',))
+        self.assertEqual(panel.symbols,('000001',))
+        np.testing.assert_array_equal(panel.raw_close,[[10]])
 
     def test_factor_is_effective_on_event_day_for_signals_only(self):
         # Regressions caught: future factor leaks into yesterday, or execution
@@ -243,19 +252,19 @@ class AdjustedPanelTests(unittest.TestCase):
         self.assertIn(("600000", "missing_stock_basic_snapshot"),
                       {(item.code, item.reason) for item in caught.exception.issues})
 
-    def test_tampered_provider_response_is_not_trusted(self):
-        # Regressions caught: accepting status=ok while the saved response has
-        # changed after its original provider hash was recorded.
+    def test_invalid_standard_factor_value_is_rejected(self):
+        # Regressions caught: accepting a standard fact with an invalid factor.
         self.write_bars([_bar("2020-01-02", close=10, open_=10, high=10, low=10)])
         path = self.write_cache([["sh.600000", "2020-01-02", "1", "1", "1"]])
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["raw_response"]["rows"][0][3] = "2"
+        payload["records"][0]["backward"] = -2
+        payload["source_hash"] = _sha256_json(payload["records"])
         path.write_text(json.dumps(payload), encoding="utf-8")
 
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
 
-        self.assertIn(("600000", "invalid_factor_cache"),
+        self.assertIn(("600000", "invalid_factor_history"),
                       {(item.code, item.reason) for item in caught.exception.issues})
 
     def test_verified_per_code_ipo_snapshot_supplies_listing_anchor(self):
@@ -331,7 +340,7 @@ class AdjustedPanelTests(unittest.TestCase):
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
 
-        self.assertIn(("600000", "invalid_lake_price"),
+        self.assertIn(("600000", "invalid_source_price"),
                       {(item.code, item.reason) for item in caught.exception.issues})
 
     def test_explicit_suspension_keeps_valuation_close_but_not_signal_bar(self):
@@ -379,14 +388,14 @@ class AdjustedPanelTests(unittest.TestCase):
         self.assertIn(("600000", "unknown_trade_state"),
                       {(item.code, item.reason) for item in caught.exception.issues})
 
-    def test_tampered_ipo_snapshot_does_not_establish_anchor(self):
-        # Regressions caught: the adapter checks only the file path or schema,
-        # not the saved provider response's actual hash.
+    def test_invalid_standard_listing_date_does_not_establish_anchor(self):
+        # Regressions caught: an invalid standard listing date establishes an anchor.
         self.write_bars([_bar("2020-01-02", close=10, open_=10, high=10, low=10)])
         self.write_cache([["sh.600000", "2020-01-03", "0.9", "1", "1"]])
         path = self.write_stock_basic()
         payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["raw_response"]["rows"][0][2] = "2020-01-01"
+        payload["records"][0]["listing_date"] = "2020-02-30"
+        payload["source_hash"] = _sha256_json(payload["records"])
         path.write_text(json.dumps(payload), encoding="utf-8")
 
         with self.assertRaises(AdjustmentCoverageError) as caught:

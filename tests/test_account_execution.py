@@ -5,7 +5,7 @@ from decimal import Decimal as D
 import unittest
 
 from core.calculation import AccountLedger
-from protocal import Bar, Fill, Order, Side
+from protocol import Bar, Fill, Order, Side
 from core.calculation import AccountExecutionSession
 from core.calculation import OpeningRiskSnapshot
 

@@ -14,10 +14,10 @@ from core.calculation import (
 class CorporateActionTests(unittest.TestCase):
     def test_entitlement_uses_registration_snapshot_and_separate_due_dates(self):
         event = normalize_dividend_records([{
-            "code": "sz.000010", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-03",
-            "dividStockMarketDate": "2020-07-06", "dividCashPsBeforeTax": "0.3",
-            "dividStocksPs": "0.1", "dividReserveToStockPs": "0.2",
+            "code": "sz.000010", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-03",
+            "stock_market_date": "2020-07-06", "cash_per_share": "0.3",
+            "stock_dividend_per_share": "0.1", "reserve_to_stock_per_share": "0.2",
         }])[0]
         entitlement = actions.calculate_entitlement(event, date(2020, 7, 1), 150)
         self.assertEqual(entitlement.gross_cash, Decimal('45'))
@@ -36,10 +36,10 @@ class CorporateActionTests(unittest.TestCase):
         self.assertFalse(entitlement.requires_fractional_allocation)
 
     def test_alias_dividends_merge_once_with_both_sources(self):
-        event = normalize_dividend_records([{
-            "code": "sz.000010", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-02",
-            "dividCashPsBeforeTax": "0.3",
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'stock_dividend_per_share': 0,
+            "code": "sz.000010", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-02",
+            "cash_per_share": "0.3",
         }])[0]
         observations = (("old-source", "annual-2019", event),
                         ("new-source", "annual-2019", replace(event, code="sz.001010")))
@@ -57,10 +57,10 @@ class CorporateActionTests(unittest.TestCase):
             actions.reconcile_corporate_actions(observations, {})
 
     def test_distinct_plans_same_day_are_not_duplicate_or_conflicting(self):
-        event = normalize_dividend_records([{
-            "code": "sz.000010", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-02",
-            "dividCashPsBeforeTax": "0.021",
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'stock_dividend_per_share': 0,
+            "code": "sz.000010", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-02",
+            "cash_per_share": "0.021",
         }])[0]
         observations = (("source-row-0", "annual-2019", event),
                         ("source-row-1", "interim-2020", replace(event, cash_per_share=0.041)))
@@ -74,17 +74,17 @@ class CorporateActionTests(unittest.TestCase):
             actions.reconcile_corporate_actions((("source", "", event),), {event.code: "security-one"})
 
     def test_invalid_settlement_chronology_blocks_execution(self):
-        base = {
-            "code": "sh.600000", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-02",
-            "dividStockMarketDate": "2020-07-02", "dividCashPsBeforeTax": "1",
-            "dividStocksPs": "0.1",
+        base = {'reserve_to_stock_per_share': 0,
+            "code": "sh.600000", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-02",
+            "stock_market_date": "2020-07-02", "cash_per_share": "1",
+            "stock_dividend_per_share": "0.1",
         }
         for field, value, issue in (
-            ("dividRegistDate", "2020-07-03", "registration_not_before_operation"),
-            ("dividRegistDate", "2020-07-02", "registration_not_before_operation"),
-            ("dividPayDate", "2020-07-01", "payment_before_operation"),
-            ("dividStockMarketDate", "2020-07-01", "stock_market_before_operation"),
+            ("registration_date", "2020-07-03", "registration_not_before_operation"),
+            ("registration_date", "2020-07-02", "registration_not_before_operation"),
+            ("payment_date", "2020-07-01", "payment_before_operation"),
+            ("stock_market_date", "2020-07-01", "stock_market_before_operation"),
         ):
             with self.subTest(field=field, value=value):
                 event = normalize_dividend_records([{**base, field: value}])[0]
@@ -96,10 +96,10 @@ class CorporateActionTests(unittest.TestCase):
     def test_normalization_never_implies_tax_verification(self):
         for tax_text in (None, "", "0.9", "0.9或1"):
             with self.subTest(tax_text=tax_text):
-                event = normalize_dividend_records([{
-                    "code": "sh.600000", "dividRegistDate": "2020-07-01",
-                    "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-02",
-                    "dividCashPsBeforeTax": "1", "dividCashPsAfterTax": tax_text,
+                event = normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'stock_dividend_per_share': 0,
+                    "code": "sh.600000", "registration_date": "2020-07-01",
+                    "operation_date": "2020-07-02", "payment_date": "2020-07-02",
+                    "cash_per_share": "1", "cash_after_tax_text": tax_text,
                 }])[0]
                 self.assertIn("tax_unverified", event.issues)
                 self.assertEqual(event.cash_per_share, 1.0)
@@ -107,13 +107,13 @@ class CorporateActionTests(unittest.TestCase):
     def test_cash_only_event_does_not_change_share_ratio(self):
         event = normalize_dividend_records([{
             "code": "sh.600000",
-            "dividRegistDate": "2014-06-23",
-            "dividOperateDate": "2014-06-24",
-            "dividPayDate": "2014-06-24",
-            "dividStockMarketDate": "",
-            "dividCashPsBeforeTax": "0.66",
-            "dividStocksPs": "0",
-            "dividReserveToStockPs": "",
+            "registration_date": "2014-06-23",
+            "operation_date": "2014-06-24",
+            "payment_date": "2014-06-24",
+            "stock_market_date": "",
+            "cash_per_share": "0.66",
+            "stock_dividend_per_share": "0",
+            "reserve_to_stock_per_share": 0,
         }])[0]
         self.assertEqual(event.cash_per_share, 0.66)
         self.assertEqual(event.share_ratio, 1.0)
@@ -123,10 +123,10 @@ class CorporateActionTests(unittest.TestCase):
 
     def test_stock_distribution_and_cash_are_separate(self):
         event = normalize_dividend_records([{
-            "code": "sh.600000", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-03",
-            "dividStockMarketDate": "2020-07-06", "dividCashPsBeforeTax": "0.41",
-            "dividStocksPs": "0.2", "dividReserveToStockPs": "0.3",
+            "code": "sh.600000", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-03",
+            "stock_market_date": "2020-07-06", "cash_per_share": "0.41",
+            "stock_dividend_per_share": "0.2", "reserve_to_stock_per_share": "0.3",
         }])[0]
         self.assertEqual(event.cash_per_share, 0.41)
         self.assertEqual(event.share_ratio, 1.5)
@@ -135,11 +135,11 @@ class CorporateActionTests(unittest.TestCase):
 
     def test_real_2025_gross_cash_is_kept_when_net_tax_text_is_ambiguous(self):
         event = normalize_dividend_records([{
-            "code": "sh.600000", "dividRegistDate": "2025-07-15",
-            "dividOperateDate": "2025-07-16", "dividPayDate": "2025-07-16",
-            "dividStockMarketDate": "", "dividCashPsBeforeTax": "0.41",
-            "dividCashPsAfterTax": "0.369或0.41", "dividStocksPs": "0.000000",
-            "dividReserveToStockPs": "",
+            "code": "sh.600000", "registration_date": "2025-07-15",
+            "operation_date": "2025-07-16", "payment_date": "2025-07-16",
+            "stock_market_date": "", "cash_per_share": "0.41",
+            "cash_after_tax_text": "0.369或0.41", "stock_dividend_per_share": "0.000000",
+            "reserve_to_stock_per_share": 0,
         }])[0]
         self.assertEqual(event.cash_per_share, 0.41)
         self.assertEqual(event.share_ratio, 1.0)
@@ -149,10 +149,10 @@ class CorporateActionTests(unittest.TestCase):
 
     def test_stock_only_event_does_not_require_payment_date(self):
         event = normalize_dividend_records([{
-            "code": "sh.600000", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividStockMarketDate": "2020-07-06",
-            "dividCashPsBeforeTax": "", "dividStocksPs": "0.2",
-            "dividReserveToStockPs": "0.3",
+            "code": "sh.600000", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "stock_market_date": "2020-07-06",
+            "cash_per_share": 0, "stock_dividend_per_share": "0.2",
+            "reserve_to_stock_per_share": "0.3",
         }])[0]
         self.assertTrue(event.executable)
         self.assertIsNone(event.payment_date)
@@ -160,12 +160,42 @@ class CorporateActionTests(unittest.TestCase):
     def test_all_economic_terms_missing_are_rejected(self):
         with self.assertRaises(InvalidCorporateAction):
             normalize_dividend_records([{
-                "code": "sh.600000", "dividOperateDate": "2020-07-02",
+                "code": "sh.600000", "operation_date": "2020-07-02",
             }])
 
+    def test_missing_or_null_economic_values_are_rejected(self):
+        base = {
+            "code": "sh.600000", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-03",
+            "cash_per_share": 1, "stock_dividend_per_share": 0,
+            "reserve_to_stock_per_share": 0,
+        }
+        for field in ("cash_per_share", "stock_dividend_per_share", "reserve_to_stock_per_share"):
+            for missing in (True, False):
+                with self.subTest(field=field, missing=missing):
+                    row = dict(base)
+                    if missing:
+                        del row[field]
+                    else:
+                        row[field] = None
+                    with self.assertRaises(InvalidCorporateAction):
+                        normalize_dividend_records([row])
+
+    def test_supplier_field_names_are_not_accepted(self):
+        with self.assertRaises(InvalidCorporateAction):
+            normalize_dividend_records([{
+                "code": "sh.600000", "dividOperateDate": "2020-07-02",
+                "dividCashPsBeforeTax": "0.66",
+            }])
+        with self.assertRaises(InvalidCorporateAction):
+            adjustment_factor_asof("sh.600000", [{
+                "code": "sh.600000", "dividOperateDate": "2020-01-01",
+                "foreAdjustFactor": "2", "backAdjustFactor": "2",
+            }], date(2020, 1, 2), date(1990, 1, 1), date(2020, 12, 31), 0.5, 0.5)
+
     def test_factor_is_asof_and_not_effective_before_operation_date(self):
-        records = [{"code": "sh.600000", "dividOperateDate": "2020-07-02",
-                    "foreAdjustFactor": "2", "backAdjustFactor": "3"}]
+        records = [{"code": "sh.600000", "date": "2020-07-02",
+                    "forward": "2", "backward": "3"}]
         before = adjustment_factor_asof(
             "sh.600000", records, date(2020, 7, 1), date(1990, 1, 1), date(2020, 12, 31), 0.5, 0.75)
         after = adjustment_factor_asof(
@@ -186,26 +216,26 @@ class CorporateActionTests(unittest.TestCase):
 
     def test_factor_asof_rejects_mixed_or_empty_record_codes(self):
         with self.assertRaises(InvalidCorporateAction):
-            adjustment_factor_asof("sh.600000", [{"code": "", "dividOperateDate": "2020-01-01",
-                "foreAdjustFactor": "2", "backAdjustFactor": "2"}], date(2020, 1, 2),
+            adjustment_factor_asof("sh.600000", [{"code": "", "date": "2020-01-01",
+                "forward": "2", "backward": "2"}], date(2020, 1, 2),
                 date(1990, 1, 1), date(2020, 12, 31), 0.5, 0.5)
         with self.assertRaises(InvalidCorporateAction):
             adjustment_factor_asof("sh.600000", [
-                {"code": "sh.600000", "dividOperateDate": "2020-01-01", "foreAdjustFactor": "2", "backAdjustFactor": "2"},
-                {"code": "sh.600001", "dividOperateDate": "2020-02-01", "foreAdjustFactor": "3", "backAdjustFactor": "3"}],
+                {"code": "sh.600000", "date": "2020-01-01", "forward": "2", "backward": "2"},
+                {"code": "sh.600001", "date": "2020-02-01", "forward": "3", "backward": "3"}],
                 date(2020, 2, 2), date(1990, 1, 1), date(2020, 12, 31), 0.5, 0.5)
 
     def test_ambiguous_after_tax_value_is_rejected(self):
-        event = normalize_dividend_records([{
-            "code": "sh.600000", "dividRegistDate": "2020-07-01",
-            "dividOperateDate": "2020-07-02", "dividPayDate": "2020-07-03",
-            "dividCashPsBeforeTax": "0.66", "dividCashPsAfterTax": "0.594或0.627",
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'stock_dividend_per_share': 0,
+            "code": "sh.600000", "registration_date": "2020-07-01",
+            "operation_date": "2020-07-02", "payment_date": "2020-07-03",
+            "cash_per_share": "0.66", "cash_after_tax_text": "0.594或0.627",
         }])[0]
         self.assertEqual(event.cash_per_share, 0.66)
         self.assertIn("tax_unverified", event.issues)
 
     def test_duplicate_conflict_is_rejected(self):
-        row = {"code": "sh.600000", "dividOperateDate": "2020-07-02",
-               "dividCashPsBeforeTax": "0.66"}
+        row = {'reserve_to_stock_per_share': 0, 'stock_dividend_per_share': 0, "code": "sh.600000", "operation_date": "2020-07-02",
+               "cash_per_share": "0.66"}
         with self.assertRaises(InvalidCorporateAction):
-            normalize_dividend_records([row, {**row, "dividCashPsBeforeTax": "0.67"}])
+            normalize_dividend_records([row, {**row, "cash_per_share": "0.67"}])

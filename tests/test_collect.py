@@ -1,3 +1,4 @@
+from market.views import Views
 import asyncio
 import importlib
 import json
@@ -9,9 +10,17 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
-from protocal import DataBus, DataError, Modules, Protocol
+from market import DataBus
+from protocol import DataError
+from backend import Modules, Protocol
 from storage import DataStore
 from collect.methods import Methods
+
+
+def _calendar(sessions):
+    days = sorted(set(sessions))
+    return {"sessions": days,
+            "coverage": ([{"start": days[0], "end": days[-1]}] if days else [])}
 
 
 class CollectionTests(unittest.TestCase):
@@ -92,7 +101,7 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"fixture": lambda _source, _request: calls.append(True)})
             collect = Collect(sources, methods)
             with self.assertRaises(ValueError):
-                collect.handle("lake.startFetch", {"source_id": "fixture", "codes": " , "})
+                collect.handle("collection.start", {"source_id": "fixture", "codes": " , "})
             self.assertEqual(calls, [])
             self.assertIsNone(collect._fetch_thread)
 
@@ -118,8 +127,8 @@ class CollectionTests(unittest.TestCase):
                               "defaults": {}})
             collect = Collect(sources, Methods(bus))
             with patch.object(bus, "query", side_effect=AssertionError("no backtest query")):
-                views = collect.handle("workbench.sources", {})
-                page = collect.handle("workbench.snapshot", {
+                views = collect.handle("collection.sources", {})
+                page = collect.handle("collection.snapshot", {
                     "id": "daily", "offset": 50, "limit": 10,
                     "start": "2020-01-02", "end": "2020-02-04",
                     "symbols": ["600000", "600001", "600002", "600003"],
@@ -159,7 +168,7 @@ class CollectionTests(unittest.TestCase):
                               "frequency": "daily", "data_type": "daily", "modes": ["query"],
                               "defaults": {"codes": ["sh.600003"]}, "dataset_id": "fixture"})
             with patch.object(bus, "query", side_effect=AssertionError("no backtest query")):
-                view = Collect(sources, Methods(bus)).handle("workbench.sources", {})[0]
+                view = Collect(sources, Methods(bus)).handle("collection.sources", {})[0]
             self.assertEqual(view["records"], 157)
             self.assertEqual(view["snapshot"]["scope"]["symbols"], ["sh.600003"])
 
@@ -214,7 +223,7 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual({row["code"] for row in bank_page["records"]},
                              {"000001", "sz.000001"})
 
-    def test_daily_source_calendar_is_loaded_and_fix_enters_lake(self):
+    def test_daily_source_calendar_is_loaded_and_fix_enters_source(self):
         import pyarrow as pa
         import pyarrow.parquet as pq
         from collect.core import Collect
@@ -224,10 +233,10 @@ class CollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             bus = DataBus(DataStore(root))
-            calendar = {"sessions": ["2026-01-02", "2026-01-05", "2026-01-06"]}
-            calendar_ref = bus.write("sources", "lake", "calendar.json",
+            calendar = _calendar(["2026-01-02", "2026-01-05", "2026-01-06"])
+            calendar_ref = bus.write("sources", "cn_a", "calendar.json",
                                      json.dumps(calendar).encode())
-            bus.write("sources", "lake", "manifest.json", json.dumps({
+            bus.write("sources", "cn_a", "manifest.json", json.dumps({
                 "schema": 2,
                 "files": [{"file": "calendar.json", "sha256": calendar_ref.sha256,
                            "role": "market"}],
@@ -238,7 +247,7 @@ class CollectionTests(unittest.TestCase):
             sources.register({"id": "daily", "name": "Daily", "method": "fixture",
                               "frequency": "daily", "data_type": "daily",
                               "modes": ["fix"], "default": True,
-                              "storage_id": "lake", "dataset_id": "lake",
+                              "storage_id": "cn_a", "dataset_id": "cn_a",
                               "calendar": "calendar.json", "price_basis": "raw",
                               "defaults": {}})
             methods = Methods(bus, {"fixture": lambda source, request: {
@@ -247,23 +256,23 @@ class CollectionTests(unittest.TestCase):
                               "close": 10.5, "volume": 100.0, "amount": 1050.0}],
                 "raw": [], "scope": {"universe": "market"}}})
             collect = Collect(sources, methods)
-            fetched = collect.handle("lake.startFetch", {
+            fetched = collect.handle("collection.start", {
                 "mode": "fix", "codes": ["sh.600036"],
                 "start": "2026-01-05", "end": "2026-01-05",
             })
             self.assertTrue(fetched["ok"])
             collect._fetch_thread.join(2)
-            self.assertEqual(collect.handle("lake.fetchJob", {})["status"], "fetched")
-            self.assertTrue(collect.handle("lake.startMerge", {"dryRun": False})["ok"])
+            self.assertEqual(collect.handle("collection.current", {})["status"], "fetched")
+            self.assertTrue(collect.handle("collection.merge", {"dryRun": False})["ok"])
             collect._merge_thread.join(2)
             parquet = pq.read_table(pa.BufferReader(
-                bus.read("sources", "lake", "daily/2026.parquet")))
+                bus.read("sources", "cn_a", "daily/2026.parquet")))
             self.assertEqual(parquet.to_pylist()[0]["code"], "600036")
 
     def test_string_daily_provider_rows_close_the_standard_publish_query_loop(self):
         import sys
         from datetime import date
-        from protocal import DataQuery
+        from protocol import DataQuery
         from collect.core import Collect
         from collect.methods import Methods
         from collect.sources import Sources
@@ -271,10 +280,10 @@ class CollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             bus = DataBus(DataStore(root))
-            calendar = {"sessions": ["2026-01-02", "2026-01-05", "2026-01-06"]}
-            calendar_ref = bus.write("sources", "lake", "calendar.json",
+            calendar = _calendar(["2026-01-02", "2026-01-05", "2026-01-06"])
+            calendar_ref = bus.write("sources", "cn_a", "calendar.json",
                                      json.dumps(calendar).encode())
-            bus.write("sources", "lake", "manifest.json", json.dumps({
+            bus.write("sources", "cn_a", "manifest.json", json.dumps({
                 "schema": 2,
                 "files": [{"file": "calendar.json", "sha256": calendar_ref.sha256,
                            "role": "market"}],
@@ -285,7 +294,7 @@ class CollectionTests(unittest.TestCase):
             sources.register({"id": "daily", "name": "Daily", "method": "daily",
                               "frequency": "manual", "data_type": "daily",
                               "modes": ["fix"], "default": True,
-                              "storage_id": "lake", "dataset_id": "lake",
+                              "storage_id": "cn_a", "dataset_id": "cn_a",
                               "calendar": "calendar.json", "price_basis": "raw",
                               "defaults": {}})
             fields = ["date", "code", "open", "high", "low", "close", "volume",
@@ -306,8 +315,11 @@ class CollectionTests(unittest.TestCase):
                 error_code = "0"
                 error_msg = ""
                 fields = trade_dates
-                def __init__(self):
-                    self.rows = [["2026-01-07", "1"], ["2026-01-08", "1"]]
+                def __init__(self, start, end):
+                    from datetime import date, timedelta
+                    first, last = date.fromisoformat(start), date.fromisoformat(end)
+                    self.rows = [[(first + timedelta(days=offset)).isoformat(), "1"]
+                                 for offset in range((last - first).days + 1)]
                 def next(self):
                     return bool(self.rows)
                 def get_row_data(self):
@@ -315,35 +327,37 @@ class CollectionTests(unittest.TestCase):
             provider = SimpleNamespace(
                 login=lambda: SimpleNamespace(error_code="0", error_msg=""),
                 logout=lambda: None,
-                query_trade_dates=lambda *args, **kwargs: TradeDates(),
+                query_trade_dates=lambda *args, **kwargs: TradeDates(kwargs["start_date"], kwargs["end_date"]),
                 query_history_k_data_plus=lambda *args, **kwargs: Rows())
             methods = Methods(bus)
             collect = Collect(sources, methods)
             with patch.dict(sys.modules, {"baostock": provider}):
-                fetched = collect.handle("lake.startFetch", {
+                fetched = collect.handle("collection.start", {
                     "source_id": "daily", "codes": "600036", "fields": "basic",
                     "start": "2026-01-07", "end": "2026-01-07",
                     "calendar_end": "2026-01-08"})
                 self.assertTrue(fetched["ok"])
                 collect._fetch_thread.join(2)
-                self.assertEqual(collect.handle("lake.fetchJob", {})["status"], "fetched")
+                self.assertEqual(collect.handle("collection.current", {})["status"], "fetched")
                 packet = collect._packets[collect._current_job_id]
                 history = next(item for item in packet["raw"]
                                if item["response"]["fields"][0] == "date")
                 self.assertEqual(history["response"]["rows"][0][2], "10.0")
-                self.assertEqual(packet["calendar"], ["2026-01-02", "2026-01-05",
-                                                       "2026-01-06", "2026-01-07",
-                                                       "2026-01-08"])
+                self.assertEqual(packet["calendar"], {
+                    "sessions": ["2026-01-02", "2026-01-05", "2026-01-06",
+                                 "2026-01-07", "2026-01-08"],
+                    "coverage": [{"start": "2026-01-02", "end": "2026-01-08"}],
+                })
                 self.assertEqual(packet["records"][0]["open"], 10.0)
                 self.assertIsInstance(packet["records"][0]["close"], float)
-                self.assertTrue(collect.handle("lake.startMerge", {"dryRun": True})["ok"])
+                self.assertTrue(collect.handle("collection.merge", {"dryRun": True})["ok"])
                 collect._merge_thread.join(2)
-                self.assertIsNone(collect.handle("lake.mergeJob", {})["error"])
-                self.assertTrue(collect.handle("lake.startMerge", {"dryRun": False})["ok"])
+                self.assertIsNone(collect.handle("collection.merge_job", {})["error"])
+                self.assertTrue(collect.handle("collection.merge", {"dryRun": False})["ok"])
                 collect._merge_thread.join(2)
-                self.assertIsNone(collect.handle("lake.mergeJob", {})["error"])
+                self.assertIsNone(collect.handle("collection.merge_job", {})["error"])
             dataset = bus.query(DataQuery(
-                "lake", date(2026, 1, 7), date(2026, 1, 7),
+                "cn_a", date(2026, 1, 7), date(2026, 1, 7),
                 ("open", "high", "low", "close", "volume", "amount"), 1, "raw",
                 symbols=("sh.600036",), universe="market"))
             values = dataset.records[0].frame.fields["sh.600036"]
@@ -363,17 +377,17 @@ class CollectionTests(unittest.TestCase):
             ):
                 with self.subTest(request=request), self.assertRaises(DataError) as caught:
                     Methods(bus).publish({'id': 'fixture', 'data_type': 'daily',
-                                          'storage_id': 'lake', 'dataset_id': 'fixture'}, {
-                        "records": [row], "calendar": ["2026-01-02"],
+                                          'storage_id': 'cn_a', 'dataset_id': 'fixture'}, {
+                        "records": [row], "calendar": _calendar(["2026-01-02"]),
                         "raw": [],
                         "request": request, "scope": {"universe": "market"},
                     })
                 self.assertEqual(caught.exception.code, "canonical_daily")
             self.assertEqual(bus._store.publish_states(), ())
             with self.assertRaises(DataError):
-                bus.read("sources", "lake", "daily/2026.parquet")
+                bus.read("sources", "cn_a", "daily/2026.parquet")
 
-    def test_lake_query_keeps_frontend_security_search_shape(self):
+    def test_source_query_keeps_frontend_security_search_shape(self):
         import pyarrow as pa
         import pyarrow.parquet as pq
         from collect.core import Collect
@@ -382,19 +396,22 @@ class CollectionTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
-            lake = root / "data/source/lake"
-            lake.mkdir(parents=True)
+            cn_a = root / "data/source/cn_a"
+            cn_a.mkdir(parents=True)
             pq.write_table(pa.Table.from_pylist([{
                 "code": "600036", "name": "招商银行", "exchange": "SH",
                 "status": "listed", "first_date": "2002-04-09", "last_date": None,
-            }]), lake / "stock_info.parquet")
+            }]), cn_a / "stock_info.parquet")
             pq.write_table(pa.Table.from_pylist([{
                 "code": "600036", "date": "2026-09-11", "close": 42.5,
                 "pctChg": 1.25, "amount": 123456789.0,
-            }]), lake / "latest_snapshot.parquet")
+            }]), cn_a / "latest_snapshot.parquet")
             bus = DataBus(DataStore(root))
+            bus.write("sources", "registry", "sources.json", json.dumps({
+                "sources": [], "datasets": [{"id": "market", "storage_id": "cn_a"}],
+                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
             sources = Sources(bus)
-            result = Collect(sources, Methods(bus)).handle("lake.query", {"q": "招商"})
+            result = Views(bus, sources).handle("data.search", {"q": "招商"})
             self.assertEqual(result["items"][0]["代码"], "600036")
             self.assertEqual(result["items"][0]["名称"], "招商银行")
             self.assertEqual(result["items"][0]["最新收盘"], 42.5)
@@ -402,11 +419,11 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(result["items"][0]["行情日期"], "2026-09-11")
             self.assertAlmostEqual(result["items"][0]["成交额亿"], 1.23456789)
 
-    def test_lake_kline_keeps_frontend_curve_shape(self):
+    def test_source_kline_keeps_frontend_curve_shape(self):
         from collect.core import Collect
         from collect.methods import Methods
         from collect.sources import Sources
-        from protocal import Bar, Dataset, HistoryDay, MarketFrame, HistoryBar
+        from protocol import Bar, Dataset, HistoryDay, MarketFrame, HistoryBar
         from datetime import date, datetime, timezone
 
         with tempfile.TemporaryDirectory() as root:
@@ -418,7 +435,7 @@ class CollectionTests(unittest.TestCase):
                               "dataset_id": "market", "calendar": "calendar.json",
                               "defaults": {}})
             bus.write("sources", "market", "calendar.json",
-                      json.dumps({"sessions": ["2026-01-02", "2026-01-03"]}).encode())
+                      json.dumps(_calendar(["2026-01-02", "2026-01-03"])).encode())
             collect = Collect(sources, Methods(bus))
             at = datetime(2026, 1, 2, 15, tzinfo=timezone.utc)
             frame = MarketFrame(at, "MARKET",
@@ -438,12 +455,12 @@ class CollectionTests(unittest.TestCase):
                                (date(2026, 1, 2), date(2026, 1, 3)),
                                ("open", "high", "low", "close", "volume", "amount"), 1)
             bus.query = lambda query: dataset
-            result = collect.handle("lake.kline", {"code": "600036", "freq": "日",
+            result = Views(bus, sources).handle("data.bars", {"code": "600036", "freq": "日",
                                                      "adj": "不复权"})
             self.assertEqual(result["dates"], ["2026-01-02"])
             self.assertEqual(result["candles"], [[10.0, 10.5, 9.0, 11.0]])
 
-    def test_lake_fetch_and_merge_share_current_task_and_dry_run_does_not_publish(self):
+    def test_source_fetch_and_merge_share_current_task_and_dry_run_does_not_publish(self):
         from collect.core import Collect
         from collect.methods import Methods
         from collect.sources import Sources
@@ -464,7 +481,7 @@ class CollectionTests(unittest.TestCase):
             methods.publish = lambda source, packet: published.append(packet)
             methods.prepare = lambda source, packet: {"records": len(packet["records"]), "incoming": len(packet["records"])}
             collect = Collect(sources, methods)
-            fetched = collect.handle("lake.startFetch", {
+            fetched = collect.handle("collection.start", {
                 "mode": "fix", "start": "2026-01-02", "end": "2026-01-02",
                 "codes": "600036", "fields": "basic", "force": False,
                 "sleep": 0.0, "max_tasks": 0,
@@ -472,11 +489,11 @@ class CollectionTests(unittest.TestCase):
             self.assertTrue(fetched["ok"])
             self.assertEqual(published, [])
             collect._fetch_thread.join(2)
-            self.assertEqual(collect.handle("lake.fetchJob", {} )["status"], "fetched")
-            self.assertTrue(collect.handle("lake.startMerge", {"dryRun": True})["ok"])
+            self.assertEqual(collect.handle("collection.current", {} )["status"], "fetched")
+            self.assertTrue(collect.handle("collection.merge", {"dryRun": True})["ok"])
             collect._merge_thread.join(2)
             self.assertEqual(published, [])
-            self.assertTrue(collect.handle("lake.startMerge", {"dryRun": False})["ok"])
+            self.assertTrue(collect.handle("collection.merge", {"dryRun": False})["ok"])
             collect._merge_thread.join(2)
             self.assertEqual(len(published), 1)
 
@@ -513,7 +530,7 @@ class CollectionTests(unittest.TestCase):
             sources.register({"id": "fixture", "name": "Fixture", "method": "fixture",
                               "frequency": "daily", "defaults": {}})
             collect = Collect(sources, Methods(bus, {}))
-            result = collect.handle("workbench.sources", {})
+            result = collect.handle("collection.sources", {})
             self.assertIsInstance(result, list)
             self.assertEqual(set(result[0]), {
                 "id", "name", "frequency", "defaults", "job", "schedule",
@@ -525,7 +542,7 @@ class CollectionTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as root:
             bus = DataBus(DataStore(Path(root)))
-            registry = {"sources": [], "datasets": [{"id": "history_holdout"}],
+            registry = {"sources": [], "datasets": [{"id": "fixture_dataset"}],
                         "benchmarks": [{"id": "hs300"}]}
             bus.write("sources", "registry", "sources.json",
                       json.dumps(registry).encode())
@@ -565,7 +582,7 @@ class CollectionTests(unittest.TestCase):
                 "id": "market_daily", "name": "Market daily", "method": "daily",
                 "frequency": "daily", "data_type": "daily", "provider": "fixture",
                 "fields": ["open", "high", "low", "close", "volume", "amount"],
-                "storage_id": "lake", "dataset_id": "market", "calendar": "market_calendar",
+                "storage_id": "cn_a", "dataset_id": "market", "calendar": "market_calendar",
                 "defaults": {"codes": ["sh.600000"]},
             }
             self.assertEqual(sources.register(descriptor), descriptor)
@@ -588,13 +605,13 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(methods.fetch(right, {})["records"][0]["value"], 2)
 
     def test_backend_starts_with_empty_registry_and_new_source_needs_no_rebuild(self):
-        from protocal import build_backend
+        from backend import build_backend
 
         with tempfile.TemporaryDirectory() as root:
             backend = build_backend(Path(root))
             try:
-                self.assertEqual(backend._modules.sources.sources.list(), [])
-                backend._modules.sources.sources.register({
+                self.assertEqual(backend._modules.sources.collect.sources.list(), [])
+                backend._modules.sources.collect.sources.register({
                     "id": "new_quotes", "name": "New quotes", "method": "quotes",
                     "frequency": "daily", "defaults": {"codes": ["1.600000"]},
                 })
@@ -602,7 +619,7 @@ class CollectionTests(unittest.TestCase):
                         "records": [{"code": "1.600000", "data_at": "2026-10-14T15:00:00+08:00",
                                      "source": "new_quotes"}], "raw": [],
                         "scope": {"kind": "fixture"}}):
-                    result = backend._modules.sources.run({"source_id": "new_quotes"})
+                    result = backend._modules.sources.handle("collection.run", {"source_id": "new_quotes"})
                 self.assertEqual(result["status"], "succeeded")
             finally:
                 backend.close()
@@ -738,23 +755,23 @@ class CollectionTests(unittest.TestCase):
             ])
             output = pa.BufferOutputStream()
             pq.write_table(existing, output)
-            daily_ref = bus.write("sources", "lake", "daily/2025.parquet",
+            daily_ref = bus.write("sources", "cn_a", "daily/2025.parquet",
                                   output.getvalue().to_pybytes())
-            calendar = {"sessions": ["2025-01-02"], "source_file": "calendar_source.json"}
+            calendar = _calendar(["2025-01-02", "2025-01-03"])
             calendar_ref = bus.write("sources", "fixture", "calendar.json",
                                      json.dumps(calendar).encode())
             manifest = {"schema": 2,
                         "files": [
                             {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
-                            {"file": "source/lake/daily/2025.parquet",
+                            {"file": "source/cn_a/daily/2025.parquet",
                              "sha256": daily_ref.sha256, "role": "market"},
                         ],
                         "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
                         "calendar": "calendar.json"}
             bus.write("sources", "fixture", "manifest.json", json.dumps(manifest).encode())
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture",
-                      "calendar": ["2025-01-02", "2025-01-03"],
+                      "storage_id": "cn_a", "dataset_id": "fixture",
+                      "calendar": "calendar.json",
                       "name": "Daily", "frequency": "daily", "defaults": {}}
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
@@ -766,7 +783,7 @@ class CollectionTests(unittest.TestCase):
                  "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.5,
                  "volume": 120.0, "amount": 1380.0},
             ]}))
-            table = pq.read_table(bus.path("sources", "lake", "daily/2025.parquet"))
+            table = pq.read_table(bus.path("sources", "cn_a", "daily/2025.parquet"))
             self.assertEqual(table.schema.names, existing.schema.names)
             self.assertEqual(len(table), 2)
             self.assertEqual(sorted(row["date"] for row in table.to_pylist()),
@@ -793,13 +810,13 @@ class CollectionTests(unittest.TestCase):
                                            "close": 10.0, "volume": 1.0, "amount": 10.0}])
             output = pa.BufferOutputStream()
             pq.write_table(table, output)
-            before = bus.write("sources", "lake", "daily/2025.parquet",
+            before = bus.write("sources", "cn_a", "daily/2025.parquet",
                                output.getvalue().to_pybytes())
             calendar_ref = bus.write("sources", "fixture", "calendar.json",
-                                     b'{"sessions":["2025-01-02"]}')
+                json.dumps(_calendar(["2025-01-02"])).encode())
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
-                {"file": "source/lake/daily/2025.parquet",
+                {"file": "source/cn_a/daily/2025.parquet",
                  "sha256": before.sha256, "role": "market"}],
                 "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
                 "calendar": "calendar.json"}
@@ -807,15 +824,14 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture",
-                      "calendar": ["2025-01-02"]}
+                      "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
             with self.assertRaises(DataError) as error:
                 methods.publish(source, methods.fetch(source, {"records": [{
                     "code": "600000", "date": "2025-01-02", "open": 10.0,
                     "high": 11.0, "low": 9.0, "close": 99.0,
                     "volume": 1.0, "amount": 10.0}]}))
             self.assertEqual(error.exception.code, "data_conflict")
-            self.assertEqual(bus.read_ref(before), bus.read("sources", "lake", "daily/2025.parquet"))
+            self.assertEqual(bus.read_ref(before), bus.read("sources", "cn_a", "daily/2025.parquet"))
             self.assertEqual(bus._store.publish_states(), ())
 
     def test_daily_schema_error_writes_nothing_and_leaves_no_publication_marker(self):
@@ -833,15 +849,15 @@ class CollectionTests(unittest.TestCase):
             }])
             output = pa.BufferOutputStream()
             pq.write_table(table, output)
-            before_daily = bus.write("sources", "lake", "daily/2025.parquet",
+            before_daily = bus.write("sources", "cn_a", "daily/2025.parquet",
                                      output.getvalue().to_pybytes())
             before_calendar = bus.write(
                 "sources", "fixture", "calendar.json",
-                b'{"sessions":["2025-01-02"],"source_file":"calendar.json"}',
+                json.dumps(_calendar(["2025-01-02"])).encode(),
             )
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": before_calendar.sha256, "role": "market"},
-                {"file": "source/lake/daily/2025.parquet",
+                {"file": "source/cn_a/daily/2025.parquet",
                  "sha256": before_daily.sha256, "role": "market"}],
                 "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
                 "calendar": "calendar.json"}
@@ -850,8 +866,7 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture",
-                      "calendar": ["2025-01-02", "2025-01-03"]}
+                      "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
             with self.assertRaises((TypeError, ValueError)):
                 methods.publish(source, methods.fetch(source, {"records": [{
                     "code": "600000", "date": "2025-01-03", "name": {"bad": "schema"},
@@ -859,7 +874,7 @@ class CollectionTests(unittest.TestCase):
                     "volume": 2.0, "amount": 22.0,
                 }]}))
             self.assertEqual(bus.read_ref(before_daily),
-                             bus.read("sources", "lake", "daily/2025.parquet"))
+                             bus.read("sources", "cn_a", "daily/2025.parquet"))
             self.assertEqual(bus.read_ref(before_calendar),
                              bus.read("sources", "fixture", "calendar.json"))
             self.assertEqual(bus.read_ref(before_manifest),
@@ -870,7 +885,7 @@ class CollectionTests(unittest.TestCase):
         import pyarrow as pa
         import pyarrow.parquet as pq
         from collect.methods import Methods
-        from protocal import DataQuery
+        from protocol import DataQuery
         from datetime import date
 
         with tempfile.TemporaryDirectory() as root:
@@ -879,7 +894,7 @@ class CollectionTests(unittest.TestCase):
             def write_year(year, rows):
                 output = pa.BufferOutputStream()
                 pq.write_table(pa.Table.from_pylist(rows), output)
-                return bus.write("sources", "lake", f"daily/{year}.parquet",
+                return bus.write("sources", "cn_a", f"daily/{year}.parquet",
                                  output.getvalue().to_pybytes())
             first = write_year(2024, [{
                 "code": "600000", "date": "2024-12-31", "name": "A",
@@ -891,20 +906,20 @@ class CollectionTests(unittest.TestCase):
                 "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.5,
                 "volume": 120.0, "amount": 1380.0,
             }])
-            calendar = {"sessions": ["2024-12-31", "2025-01-02", "2025-01-03", "2025-01-04"]}
+            calendar = _calendar(["2024-12-31", "2025-01-02", "2025-01-03", "2025-01-04"])
             calendar_ref = bus.write("sources", "fixture", "calendar.json",
                                      json.dumps(calendar).encode())
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
-                {"file": "source/lake/daily/2024.parquet", "sha256": first.sha256, "role": "market"},
-                {"file": "source/lake/daily/2025.parquet", "sha256": second.sha256, "role": "market"}],
+                {"file": "source/cn_a/daily/2024.parquet", "sha256": first.sha256, "role": "market"},
+                {"file": "source/cn_a/daily/2025.parquet", "sha256": second.sha256, "role": "market"}],
                 "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
                 "calendar": "calendar.json"}
             bus.write("sources", "fixture", "manifest.json", json.dumps(manifest).encode())
             methods = Methods(bus, {"daily": lambda _source, request: {
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "lake", "dataset_id": "fixture", "calendar": calendar["sessions"]}
+                      "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
             packet = {"records": [{
                 "code": "600000", "date": "2025-01-03", "name": "A",
                 "open": 12.0, "high": 13.0, "low": 11.0, "close": 12.5,
@@ -921,7 +936,7 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(dataset.records[-1].bars["600000"].close, 12.5)
             self.assertEqual(len(dataset.records[-1].frame.history["600000"]), 1)
 
-    def test_daily_publish_exposes_workbench_view_without_snapshot_copy(self):
+    def test_daily_publish_exposes_data_view_without_snapshot_copy(self):
         from collect.core import Collect
         from collect.methods import Methods
         from collect.sources import Sources
@@ -937,7 +952,7 @@ class CollectionTests(unittest.TestCase):
                 "high": 11.0, "low": 9.0, "close": 10.5, "volume": 100.0,
                 "amount": 1050.0, "close_hfq": 10.5,
             }]), output)
-            old = bus.write("sources", "lake", "daily/2026.parquet", output.getvalue().to_pybytes())
+            old = bus.write("sources", "cn_a", "daily/2026.parquet", output.getvalue().to_pybytes())
             for name, rows in (
                 ("stock_info.parquet", [{"code": "600000", "status": "listed"}]),
                 ("valuation_factors.parquet", [{"code": "600000", "quarter": "2026Q1"}]),
@@ -945,47 +960,50 @@ class CollectionTests(unittest.TestCase):
             ):
                 table_output = pa.BufferOutputStream()
                 pq.write_table(pa.Table.from_pylist(rows), table_output)
-                bus.write("sources", "lake", name, table_output.getvalue().to_pybytes())
-            bus.write("sources", "research", "security_code_changes.json",
+                bus.write("sources", "cn_a", name, table_output.getvalue().to_pybytes())
+            bus.write("sources", "facts", "security_code_changes.json",
                       json.dumps({"events": []}).encode())
             calendar = bus.write("sources", "market", "calendar.json",
-                                 json.dumps({"sessions": ["2026-01-02", "2026-01-05", "2026-01-06"]}).encode())
+                                 json.dumps(_calendar(["2026-01-02", "2026-01-05", "2026-01-06"])).encode())
             manifest = {"schema": 2, "files": [
                 {"file": "calendar.json", "sha256": calendar.sha256, "role": "market"},
-                {"file": "source/lake/daily/2026.parquet", "sha256": old.sha256, "role": "market"}],
+                {"file": "source/cn_a/daily/2026.parquet", "sha256": old.sha256, "role": "market"}],
                 "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
                 "calendar": "calendar.json"}
             bus.write("sources", "market", "manifest.json", json.dumps(manifest).encode())
             sources = Sources(bus)
             sources.register({"id": "market", "name": "Market", "method": "fixture",
-                              "frequency": "daily", "data_type": "daily", "storage_id": "lake",
+                              "frequency": "daily", "data_type": "daily", "storage_id": "cn_a",
                               "dataset_id": "market", "calendar": "calendar.json", "defaults": {}})
             methods = Methods(bus, {"fixture": lambda source, request: {
                 "records": [{"code": "600000", "date": "2026-01-05", "open": 11.0,
                               "high": 12.0, "low": 10.0, "close": 11.5, "volume": 120.0,
-                              "amount": 1380.0, "close_hfq": 11.5}], "calendar": ["2026-01-02", "2026-01-05", "2026-01-06"],
+                              "amount": 1380.0, "close_hfq": 11.5}], "calendar": _calendar(["2026-01-02", "2026-01-05", "2026-01-06"]),
                 "raw": [], "scope": {"symbols": ["600000"]}}})
             job = Collect(sources, methods).run({"source_id": "market", "force": True})
             self.assertEqual(job["status"], "succeeded")
             self.assertTrue(job["snapshot_id"])
             self.assertGreater(job["records"], 0)
             collect = Collect(sources, methods)
-            source_view = collect.handle("workbench.sources", {})[0]
+            source_view = collect.handle("collection.sources", {})[0]
             self.assertGreater(source_view["records"], 0)
-            page = collect.handle("workbench.snapshot", {"id": "market", "offset": 0, "limit": 1})
+            page = collect.handle("collection.snapshot", {"id": "market", "offset": 0, "limit": 1})
             self.assertEqual(job["snapshot_id"], page["snapshot_id"])
             self.assertEqual(page["total"], 2)
-            evidence = collect.handle("workbench.evidence", {"id": "market", "index": 0})
+            evidence = collect.handle("collection.evidence", {"id": "market", "index": 0})
             self.assertEqual(evidence["snapshot_id"], page["snapshot_id"])
             self.assertIn("close", evidence["record"])
             self.assertEqual(bus.list("sources", "snapshots"), ())
-            profile = collect.handle("lake.status", {"rescan": True})
+            bus.write("sources", "registry", "sources.json", json.dumps({
+                "sources": [], "datasets": [{"id": "market", "storage_id": "cn_a"}],
+                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
+            profile = Views(bus, sources).handle("data.status", {"rescan": True})
             self.assertEqual(profile["总览"]["日线行情"]["股票数"], 1)
-            inputs = collect.handle("lake.researchInputs", {})
+            inputs = Views(bus, sources).handle("data.research_inputs", {})
             self.assertEqual(inputs["summary"]["symbols"], 1)
-            self.assertEqual(collect.handle("lake.doctor", {})["items"], [])
+            self.assertEqual(Views(bus, sources).handle("data.check", {})["items"], [])
 
-    def test_lake_reports_use_actual_databus_facts(self):
+    def test_source_reports_use_actual_databus_facts(self):
         import pyarrow as pa
         import pyarrow.parquet as pq
 
@@ -996,7 +1014,7 @@ class CollectionTests(unittest.TestCase):
             def write_table(name, rows):
                 output = pa.BufferOutputStream()
                 pq.write_table(pa.Table.from_pylist(rows), output)
-                bus.write("sources", "lake", name, output.getvalue().to_pybytes())
+                bus.write("sources", "cn_a", name, output.getvalue().to_pybytes())
 
             write_table("daily/2025.parquet", [
                 {"code": "600036", "date": "2025-01-02", "open": 10.0,
@@ -1022,16 +1040,19 @@ class CollectionTests(unittest.TestCase):
             write_table("fundamentals.parquet", [
                 {"code": "600036", "quarter": "2025Q1", "roe": None},
             ])
-            bus.write("sources", "research", "security_code_changes.json", json.dumps({
+            bus.write("sources", "facts", "security_code_changes.json", json.dumps({
                 "events": [{"old_code": "600036", "new_code": "600037",
                             "effective_date": "2025-01-03",
                             "factor_basis_continuity_verified": False}]
             }).encode())
-            bus.write("sources", "research_cache_verified", "adjust_600036.json", json.dumps({
+            bus.write("sources", "facts", "adjust_sh.600036.json", json.dumps({
                 "schema": 2, "status": "ok", "raw_response": {"rows": []}
             }).encode())
 
-            facts = bus.lake_facts()
+            bus.write("sources", "registry", "sources.json", json.dumps({
+                "sources": [], "datasets": [{"id": "market", "storage_id": "cn_a"}],
+                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
+            facts = bus.source_facts()
             self.assertEqual(facts["daily"]["rows"], 4)
             self.assertEqual(facts["daily"]["symbols"], 2)
             self.assertEqual(facts["daily"]["duplicate_keys"], 1)
@@ -1057,12 +1078,15 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(len(inputs["price_basis_issues"]), 0)
             self.assertEqual(len(inputs["unverified_code_changes"]), 1)
             self.assertEqual(inputs["saved_factor_files"], 1)
-            self.assertEqual(inputs["factor_cache_check"]["check_scope"], "all")
+            self.assertEqual(inputs["fact_check"]["check_scope"], "all")
             bus.write("sources", "registry", "sources.json", json.dumps({"sources": [{
                 "id": "daily_fix", "name": "Daily fix", "method": "fixture",
                 "frequency": "daily", "data_type": "daily", "modes": ["fix"],
                 "default": True, "defaults": {}
             }]}).encode())
+            bus.update_registry(lambda registry: {**registry,
+                "datasets": [{"id": "market", "storage_id": "cn_a"}],
+                "markets": [{"dataset_id": "market"}]})
             doctor = bus.doctor_report()
             self.assertTrue(any(item["可修复"] and item["fix"]["source_id"] == "daily_fix"
                                 for item in doctor["items"]))
@@ -1071,7 +1095,7 @@ class CollectionTests(unittest.TestCase):
         import pyarrow as pa
         import pyarrow.parquet as pq
         from datetime import date
-        from protocal import DataQuery, normalize_security_id
+        from protocol import DataQuery, normalize_security_id
 
         self.assertEqual(normalize_security_id("600036"), "sh.600036")
         self.assertEqual(normalize_security_id("sh.600036"), "sh.600036")
@@ -1082,7 +1106,7 @@ class CollectionTests(unittest.TestCase):
             root = Path(root)
             bus = DataBus(DataStore(root))
             calendar = bus.write("sources", "market", "calendar.json",
-                                 json.dumps({"sessions": ["2026-01-02", "2026-01-05"]}).encode())
+                                 json.dumps(_calendar(["2026-01-02", "2026-01-05"])).encode())
             bus.write("sources", "market", "manifest.json", json.dumps({
                 "schema": 2, "files": [{"file": "calendar.json", "sha256": calendar.sha256,
                                          "role": "market"}], "fields": {},
@@ -1090,13 +1114,13 @@ class CollectionTests(unittest.TestCase):
                           "universe": "market"}, "calendar": "calendar.json"}).encode())
             row = {"date": "2026-01-02", "open": 10.0, "high": 11.0,
                    "low": 9.0, "close": 10.5, "volume": 100.0, "amount": 1050.0}
-            packet = {"calendar": ["2026-01-02", "2026-01-05"], "records": [
+            packet = {"calendar": _calendar(["2026-01-02", "2026-01-05"]), "records": [
                 {**row, "code": "600036"}, {**row, "code": "sh.600036"},
                 {**row, "code": "sh.000001"}, {**row, "code": "sz.000001"}],
                 "fields": ["open", "high", "low", "close", "volume", "amount"],
                 "scope": {"universe": "market"}}
             Methods(bus).publish({'id': 'market', 'data_type': 'daily',
-                                  'storage_id': 'lake', 'dataset_id': 'market'}, {**packet, 'raw': []})
+                                  'storage_id': 'cn_a', 'dataset_id': 'market'}, {**packet, 'raw': []})
             dataset = bus.query(DataQuery(
                 "market", date(2026, 1, 2), date(2026, 1, 2),
                 ("open", "high", "low", "close", "volume", "amount"), 1, "raw",
@@ -1401,12 +1425,16 @@ class CollectionTests(unittest.TestCase):
         class TradeDates:
             error_code = '0'; error_msg = ''
             fields = ['calendar_date', 'is_trading_day']
-            def __init__(self): self.rows = [['2026-09-30', '1'], ['2026-10-01', '1']]
+            def __init__(self, start, end):
+                from datetime import date, timedelta
+                first, last = date.fromisoformat(start), date.fromisoformat(end)
+                self.rows = [[(first + timedelta(days=offset)).isoformat(), '1']
+                             for offset in range((last - first).days + 1)]
             def next(self): return bool(self.rows)
             def get_row_data(self): return self.rows.pop(0)
         provider = SimpleNamespace(
             login=lambda: SimpleNamespace(error_code='0'), logout=lambda: None,
-            query_trade_dates=lambda *args, **kwargs: TradeDates(),
+            query_trade_dates=lambda *args, **kwargs: TradeDates(kwargs['start_date'], kwargs['end_date']),
             query_history_k_data_plus=lambda *args, **kwargs: calls.append((args, kwargs)) or Rows())
         with patch.dict('sys.modules', {'baostock': provider}):
             collect_daily({'codes': ['600036', 'sh.000001'],
@@ -1465,11 +1493,15 @@ class CollectionTests(unittest.TestCase):
         class TradeDates:
             error_code = '0'; error_msg = ''
             fields = ['calendar_date', 'is_trading_day']
-            def __init__(self): self.rows = [['2026-10-01', '1'], ['2026-10-02', '1'], ['2026-10-03', '1']]
+            def __init__(self, start, end):
+                from datetime import date, timedelta
+                first, last = date.fromisoformat(start), date.fromisoformat(end)
+                self.rows = [[(first + timedelta(days=offset)).isoformat(), '1']
+                             for offset in range((last - first).days + 1)]
             def next(self): return bool(self.rows)
             def get_row_data(self): return self.rows.pop(0)
         provider = SimpleNamespace(login=lambda: SimpleNamespace(error_code='0'), logout=lambda: None,
-                                   query_trade_dates=lambda *args, **kwargs: TradeDates(),
+                                   query_trade_dates=lambda *args, **kwargs: TradeDates(kwargs['start_date'], kwargs['end_date']),
                                    query_history_k_data_plus=lambda *args, **kwargs: Rows())
         with patch.dict('sys.modules', {'baostock': provider}):
             result = collect_daily({'codes': ['sz.301001'], 'start': '2026-10-01', 'end': '2026-10-02', 'fields': Rows.fields})

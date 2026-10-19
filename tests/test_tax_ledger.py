@@ -1,7 +1,7 @@
 from datetime import date
 from decimal import Decimal as D
 import unittest
-from protocal import Fill, Side
+from protocol import Fill, Side
 from core.calculation import normalize_dividend_records
 
 
@@ -9,9 +9,9 @@ def fill(identity,side,day,shares,symbol='A'):
     return Fill(identity,symbol,side,date.fromisoformat(day),shares,10.,shares*10.,0.,0.,'filled')
 
 def event(identity,registration,payment,cash='1',stock='0'):
-    return normalize_dividend_records([{'code':identity,'dividRegistDate':registration,
-        'dividOperateDate':(date.fromisoformat(registration).replace(day=date.fromisoformat(registration).day+1)).isoformat(),
-        'dividPayDate':payment,'dividStockMarketDate':payment,'dividCashPsBeforeTax':cash,'dividStocksPs':stock}])[0]
+    return normalize_dividend_records([{'reserve_to_stock_per_share': 0, 'code':identity,'registration_date':registration,
+        'operation_date':(date.fromisoformat(registration).replace(day=date.fromisoformat(registration).day+1)).isoformat(),
+        'payment_date':payment,'stock_market_date':payment,'cash_per_share':cash,'stock_dividend_per_share':stock}])[0]
 
 class DynamicTaxTests(unittest.TestCase):
     def ledger(self):
@@ -104,6 +104,55 @@ class DynamicTaxTests(unittest.TestCase):
         self.assertEqual(amount(date(2020,2,29),date(2021,2,28),D(0)),D('.1'))
         self.assertEqual(amount(date(2020,2,29),date(2021,3,1),D(0)),D(0))
         self.assertEqual(amount(date(2014,1,1),date(2016,1,1),D('.05')),D('.05'))
+
+    def historical(self):
+        from core.calculation import TaxPolicy
+        ledger = self.ledger()
+        ledger.rules.tax_policy = TaxPolicy.from_mapping({
+            'effective':'2013-01-01','policy':'财税2012-85+财税2015-101',
+            'payment_timing':'later_of_disposal_and_income','liability':'current_holding_period',
+            'rounding':'none'}, 'd'*64)
+        ledger.ledger.policy = ledger.rules.tax_policy
+        return ledger
+
+    def test_historical_withholding_and_supplement_are_separate(self):
+        ledger=self.historical()
+        self.day(ledger,[fill('buy',Side.BUY,'2014-01-02',100)])
+        ledger.register('old',event('A','2014-01-10','2014-01-20'),D(1),D(0),'b'*64)
+        self.assertEqual(ledger.liability(date(2014,1,20)),D(20))
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2014,1,20))),D(5))
+        self.assertEqual(ledger.liability(date(2014,1,20)),D(15))
+        self.day(ledger,[fill('sell',Side.SELL,'2014-01-21',100)])
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2014,1,21))),D(15))
+        self.assertEqual(ledger.liability(date(2014,1,21)),D(0))
+
+    def test_old_distribution_keeps_old_tax_after_regime_changes(self):
+        ledger=self.historical()
+        self.day(ledger,[fill('buy',Side.BUY,'2014-01-02',100)])
+        ledger.register('old',event('A','2015-09-08','2015-09-15'),D(1),D(0),'b'*64)
+        self.assertEqual(sum(p.amount for p in ledger.settle(date(2015,9,15))),D(5))
+        self.assertEqual(ledger.liability(date(2016,1,4)),D(0))
+        self.day(ledger,[fill('sell',Side.SELL,'2016-01-04',100)])
+        self.assertEqual(ledger.settle(date(2016,1,4)),())
+
+    def test_modern_distribution_has_no_withholding(self):
+        ledger=self.historical()
+        self.day(ledger,[fill('buy',Side.BUY,'2015-09-01',100)])
+        ledger.register('new',event('A','2015-09-09','2015-09-15'),D(1),D(0),'b'*64)
+        self.assertEqual(ledger.settle(date(2015,9,15)),())
+        self.assertEqual(ledger.liability(date(2015,9,15)),D(20))
+
+    def test_fractional_tax_cash_replay_remains_strict(self):
+        from core.calculation import AccountLedger
+        ledger=AccountLedger(D('1000000'))
+        day=date(2014,7,10)
+        ledger.record_cash('first',day,'dividend_tax',D('-999215.359337'),'a'*64)
+        ledger.record_cash('supplement',day,'dividend_tax',
+                           D('-729.9999999999999999999999998'),'b'*64)
+        self.assertEqual(ledger.mark(day,{},D(0),D(0)).cash,ledger.cash)
+        ledger._cash += D('1e-25')
+        with self.assertRaisesRegex(ValueError,'account conservation'):
+            ledger.mark(day,{},D(0),D(0))
 
 
 class TaxHarness:

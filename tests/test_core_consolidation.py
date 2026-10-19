@@ -54,7 +54,7 @@ class CoreConsolidationTests(unittest.TestCase):
 
     def test_prepare_does_not_trade_and_run_uses_its_config(self):
         from core.kernel import Kernel
-        from protocal import DataQuery
+        from protocol import DataQuery
         from tests.test_kernel_search import (
             SearchData, SearchSettlement, SearchStrategy, ScoreCalculation, request,
         )
@@ -65,8 +65,8 @@ class CoreConsolidationTests(unittest.TestCase):
             lambda req, requirements: DataQuery(
                 req.dataset_id, req.start.date(), req.end.date(), requirements.fields,
                 requirements.history_bars, requirements.price_basis,
-                req.as_of or req.end.date(), requirements.symbols,
-                requirements.universe, requirements.frequency,
+                req.as_of or req.end.date(), frequency=requirements.frequency,
+                market=req.market,
             ), SearchSettlement, calculation=ScoreCalculation(),
         )
         value = request(parameters={"score": 2})

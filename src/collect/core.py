@@ -328,21 +328,21 @@ class Collect:
 
     def handle(self, operation, value):
         value = value if isinstance(value, dict) else {}
-        if operation == "workbench.sources":
+        if operation == "collection.sources":
             return [self._source_view(source) for source in self.sources.list()]
-        if operation == "workbench.sync":
+        if operation == "collection.sync":
             request = dict(value.get("input", {}))
             request["source_id"] = value.get("id")
             return self.run(request)
-        if operation == "workbench.schedule":
+        if operation == "collection.schedule":
             source_id = value["id"]
             self.sources.get(source_id)
             return self.schedule(source_id, value)
-        if operation == "workbench.job":
+        if operation == "collection.job":
             return self.status(value["id"])
-        if operation in {"workbench.snapshot", "workbench.evidence"}:
+        if operation in {"collection.snapshot", "collection.evidence"}:
             source = self.sources.get(value["id"])
-            evidence = operation == "workbench.evidence"
+            evidence = operation == "collection.evidence"
             offset = value.get("index") if evidence else value.get("offset", 0)
             limit = 1 if evidence else value.get("limit", 50)
             scope = {name: value[name] for name in ("start", "end", "symbols", "keyword", "fields") if name in value}
@@ -357,68 +357,40 @@ class Collect:
                     "request": page.get("request", {}), "record_index": offset,
                     "record": page["records"][0], "raw": page.get("raw", []),
                     "scope": page.get("scope", {}), "reviews": page.get("reviews", [])}
-        if operation == "lake.researchInputs":
-            return self._research_inputs()
-        if operation == "lake.status":
-            return self._profile()
-        if operation == "lake.query":
-            return self._lake_search(value["q"])
-        if operation == "lake.kline":
-            return self._lake_kline(value)
-        if operation == "lake.startFetch":
+        if operation == "collection.start":
             return self._fetch_only(value)
-        if operation == "lake.fetchJob":
+        if operation == "collection.current":
             if self._current_job_id is None:
                 return {"running": False, "status": "idle", "done": 0, "total": 0,
                         "rows": 0, "empty": 0, "failed": [], "current": "",
                         "finished_at": None, "error": None, "log": []}
             return self._fetch_view(self.status(self._current_job_id))
-        if operation == "lake.stopFetch":
+        if operation == "collection.stop":
             if self._current_job_id is None:
                 return {"ok": False, "message": "no active collection task"}
             job = self.status(self._current_job_id)
             if job.get("status") != "running":
                 return {"ok": False, "message": "collection task is not running", **self._fetch_view(job)}
             return {"ok": True, **self._fetch_view(self.cancel(self._current_job_id))}
-        if operation == "lake.continuousFetch":
+        if operation == "collection.automatic":
             return self._continuous_fetch()
-        if operation == "lake.setContinuousFetch":
+        if operation == "collection.set_automatic":
             source = self._source({"mode": "auto"})
             self.schedule(source["id"], {"enabled": value["enabled"],
                                           "interval_seconds": value.get("interval_seconds", 86400),
                                           "input": source.get("defaults", {})})
             return self._continuous_fetch()
-        if operation == "lake.startMerge":
+        if operation == "collection.merge":
             return self._merge_current(value["dryRun"])
-        if operation == "lake.mergeJob":
+        if operation == "collection.merge_job":
             return dict(self._merge_state)
-        if operation == "lake.doctor":
-            return self._lake_doctor()
-        if operation == "lake.doctorFix":
+        if operation == "collection.repair":
             return self._doctor_fix(value["id"], value.get("max_tasks", 0))
-        if operation == "lake.doctorJob":
+        if operation == "collection.repair_job":
             return self._doctor_job()
         raise ValueError(f"unsupported collection operation: {operation}")
 
-    def _lake_query(self, value):
-        from protocal import DataQuery
-        dataset = value.get("dataset_id", value.get("dataset"))
-        fields = tuple(value.get("fields") or ("open", "high", "low", "close", "volume", "amount"))
-        symbols = value.get("symbols", value.get("codes"))
-        query = DataQuery(dataset, date.fromisoformat(value["start"]),
-                          date.fromisoformat(value["end"]), fields,
-                          int(value.get("history", 1)), value.get("price_basis", "raw"),
-                          symbols=None if symbols is None else tuple(symbols),
-                          universe=value.get("universe", "dataset"))
-        result = self.data.query(query)
-        rows = []
-        for record in result.records:
-            for symbol, values in record.frame.fields.items():
-                rows.append({"code": symbol, "date": record.trade_date.isoformat(), **values})
-        return {"items": rows}
 
-    def _lake_search(self, query):
-        return self.data.search(query)
 
     def _doctor_fix(self, identity, max_tasks):
         plan = self._doctor_plan()
@@ -433,13 +405,9 @@ class Collect:
         return self._fetch_only(request)
 
     def _doctor_plan(self):
-        return self._lake_doctor()["items"]
+        return self.data.doctor_report()["items"]
 
-    def _profile(self):
-        return self.data.profile_report()
 
-    def _research_inputs(self):
-        return self.data.research_report()
 
     def _continuous_fetch(self):
         schedules = self._schedule_list()["items"]
@@ -471,69 +439,12 @@ class Collect:
                 "finished_at": self.status(self._current_job_id).get("finished_at"),
                 "fetch": self._fetch_view(self.status(self._current_job_id))}
 
-    def _lake_kline(self, value):
-        frequencies = {"分时", "日", "周", "月", "年"}
-        adjustments = {"不复权", "前复权", "后复权"}
-        freq, adj = value.get("freq", "日"), value.get("adj", "不复权")
-        if freq not in frequencies or adj not in adjustments:
-            raise ValueError("非法参数")
-        if freq == "分时":
-            source = self._source({"mode": "kline", "data_type": "minute"})
-            if source.get("frequency") not in {"minute", "intraday"}:
-                raise ValueError("分时源频率无效")
-            raise ValueError("分时源尚未提供标准查询字段")
-        source = self._source({"mode": "kline", "data_type": "daily"})
-        dataset = source.get("dataset_id")
-        calendar_name = source.get("calendar")
-        if not isinstance(dataset, str) or not isinstance(calendar_name, str):
-            raise ValueError("daily kline source must declare dataset_id and calendar")
-        calendar = json.loads(self.data.read("sources", dataset, calendar_name))
-        sessions = [date.fromisoformat(str(item)) for item in calendar.get("sessions", ())]
-        if len(sessions) < 2:
-            raise ValueError("daily kline calendar is missing")
-        value = {**value, "dataset": dataset, "symbols": [value["code"]],
-                 "start": value.get("start", sessions[0].isoformat()),
-                 "end": value.get("end", sessions[-2].isoformat())}
-        value["price_basis"] = "raw" if adj == "不复权" else "adjusted"
-        result = self._lake_query(value)
-        rows = result["items"]
-        rows.sort(key=lambda row: row["date"])
-        if freq != "日":
-            groups = {}
-            for row in rows:
-                day = date.fromisoformat(row["date"])
-                if freq == "周":
-                    key = day.isocalendar()[:2]
-                elif freq == "月":
-                    key = (day.year, day.month)
-                else:
-                    key = (day.year,)
-                groups.setdefault(key, []).append(row)
-            rows = []
-            for values in groups.values():
-                values.sort(key=lambda item: item["date"])
-                first, last = values[0], values[-1]
-                rows.append({"date": last["date"],
-                             "open": first.get("open"),
-                             "high": max(item["high"] for item in values),
-                             "low": min(item["low"] for item in values),
-                             "close": last.get("close"),
-                             "volume": sum(item.get("volume") or 0 for item in values),
-                             "amount": sum(item.get("amount") or 0 for item in values)})
-        return {
-            "dates": [row["date"] for row in rows],
-            "candles": [[row.get("open"), row.get("close"), row.get("low"), row.get("high")]
-                        for row in rows],
-            "volumes": [row.get("volume") for row in rows],
-        }
 
     def _schedule_list(self):
         return {"items": [json.loads(self.data.read("state", "collect", ref.name))
                            for ref in self.data.list("state", "collect")
                            if ref.name.startswith("schedules/")]}
 
-    def _lake_doctor(self):
-        return self.data.doctor_report()
 
     def _source_view(self, source):
         source_id = source["id"]

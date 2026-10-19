@@ -2,7 +2,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal as D
 
 from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
-from protocal import Bar, HistoryBar, HistoryDay, MarketFrame
+from protocol import Bar, HistoryBar, HistoryDay, MarketFrame
 from tests.fee_fixture import settlement as make_settlement
 
 

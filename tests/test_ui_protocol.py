@@ -20,7 +20,7 @@ class UiProtocolTest(unittest.TestCase):
 
         backend = Backend()
         action = protocol.UiAction("a1", "invoke", "cli", {}, "example.read")
-        with patch("protocal.build_backend", return_value=backend), \
+        with patch("backend.build_backend", return_value=backend), \
              patch.object(protocol.subprocess, "Popen", side_effect=OSError("node missing")):
             with self.assertRaises(OSError):
                 protocol.exchange(action)
@@ -43,6 +43,9 @@ class UiProtocolTest(unittest.TestCase):
 
             def readline(self):
                 return self.lines.pop(0) if self.lines else ""
+
+            def fileno(self):
+                return 101
 
             def read(self):
                 return ""
@@ -89,10 +92,11 @@ class UiProtocolTest(unittest.TestCase):
             Clock.value = 31
             return []
 
-        with patch("protocal.build_backend", return_value=backend), \
+        with patch("backend.build_backend", return_value=backend), \
              patch.object(protocol.subprocess, "Popen", return_value=process), \
              patch.object(protocol.selectors, "DefaultSelector", Selector), \
              patch.object(protocol.asyncio, "run", side_effect=run_backend), \
+             patch.object(protocol.os, "read", side_effect=lambda fd, size: stdout.readline().encode()), \
              patch.object(protocol.time, "monotonic", side_effect=lambda: Clock.value):
             result = protocol.exchange(action)
 

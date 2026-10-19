@@ -20,7 +20,7 @@ class Sources:
         self._refresh()
 
     def _read_registry(self) -> dict:
-        from protocal import DataError
+        from protocol import DataError
 
         try:
             value = json.loads(self.data.read("sources", self.identity, self.filename))
@@ -118,6 +118,10 @@ class Sources:
             return registry
         registry = self.data.update_registry(change)
         self._refresh(registry)
+
+    def describe(self) -> dict:
+        self._refresh()
+        return deepcopy(self._registry)
 
     def get(self, source_id: str) -> dict:
         self._refresh()

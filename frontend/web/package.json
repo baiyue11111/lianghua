@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && vite build --configLoader runner",
     "lint": "eslint .",
     "test:dev": "node --test scripts/*.test.mjs",
     "preview": "vite preview"

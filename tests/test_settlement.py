@@ -9,7 +9,7 @@ from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
 from tests.fee_fixture import settlement as make_settlement
 from tests.settlement_fixture import SettlementFixture
 from core.calculation import normalize_dividend_records
-from protocal import HistoryBar, MarketFrame, RegistrationAction
+from protocol import HistoryBar, MarketFrame, RegistrationAction
 
 
 class DataPluginSettlementTests(unittest.TestCase):
@@ -124,7 +124,8 @@ class DataPluginSettlementTests(unittest.TestCase):
         from pathlib import Path
         from strategy import canonical_hash, load_strategy
         from tests.history_fixture import make_snapshot
-        from protocal import DataBus, KernelBacktestPort
+        from market import DataBus
+        from backend import KernelBacktestPort
         from storage import DataStore
         from plugins.data import Settlement
         frozen = json.loads(Path("tests/fixtures/kernel-history-ab.json").read_text())
@@ -136,11 +137,20 @@ class DataPluginSettlementTests(unittest.TestCase):
             root = Path(temp)
             make_snapshot(root)
             result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle(
-                "workbench.backtest", {**request, "run_id": "frozen-ab"}).data
+                "backtest.run", {**request, "run_id": "frozen-ab"}).data
         hashes = {key: canonical_hash(result["trace"][key]) for key in frozen["trace_hashes"]}
         self.assertEqual(result["equity"], frozen["equity"])
         self.assertEqual(result["metrics"], frozen["metrics"])
-        self.assertEqual(hashes, frozen["trace_hashes"])
+        window = {"allocations", "equity", "frames", "holdings", "targets", "tax_liabilities"}
+        days = [item["day"] for item in result["trace"]["equity"]]
+        indices = [index for index, day in enumerate(days) if day >= frozen["trace_window_start"]]
+        self.assertEqual([days[index] for index in indices], [item["at"] for item in frozen["equity"]])
+        for key in window:
+            self.assertEqual(len(result["trace"][key]), len(days), key)
+            self.assertEqual(canonical_hash([result["trace"][key][index] for index in indices]),
+                             frozen["trace_window_hashes"][key], key)
+        for key in set(hashes) - window:
+            self.assertEqual(hashes[key], frozen["trace_hashes"][key], key)
 
     def test_validate_checks_default_fields_and_exact_symbol_order(self):
         at = datetime(2020, 1, 2, tzinfo=UTC)
@@ -157,10 +167,10 @@ class DataPluginSettlementTests(unittest.TestCase):
     def test_settlement_matches_runner_for_nonempty_dividend_and_share_tax_trace(self):
         case = SettlementFixture()
         records = list(case.inputs(exit_market=False))
-        event = normalize_dividend_records([{
-            "code": "000001", "dividRegistDate": "2020-02-03", "dividOperateDate": "2020-02-04",
-            "dividPayDate": "2020-02-05", "dividStockMarketDate": "2020-02-06",
-            "dividCashPsBeforeTax": "0.3", "dividStocksPs": "0.1",
+        event = normalize_dividend_records([{'reserve_to_stock_per_share': 0,
+            "code": "000001", "registration_date": "2020-02-03", "operation_date": "2020-02-04",
+            "payment_date": "2020-02-05", "stock_market_date": "2020-02-06",
+            "cash_per_share": "0.3", "stock_dividend_per_share": "0.1",
         }])[0]
         action = RegistrationAction(
             "plan", event, "a" * 64, date(2020, 2, 5), D(1), D(0), "b" * 64

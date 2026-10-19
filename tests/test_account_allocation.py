@@ -5,7 +5,7 @@ import unittest
 
 import core.calculation as account_execution
 from core.calculation import AccountLedger
-from protocal import Side, TargetSet
+from protocol import Side, TargetSet
 from core.calculation import AllocationLimits, OpeningRiskSnapshot
 
 

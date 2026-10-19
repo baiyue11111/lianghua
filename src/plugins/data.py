@@ -3,13 +3,386 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
+from datetime import date, datetime, time
+from decimal import Decimal
+from bisect import bisect_right
 from numbers import Real
 from types import MappingProxyType
+from zoneinfo import ZoneInfo
+
+import re
 
 import numpy as np
 from core.calculation import AllocationLimits
-from protocal import HistoryResult, RegistrationRecord
+from protocol import HistoryResult, RegistrationRecord
+
+
+_MARKET_OPS = {"eq", "ne", "gt", "gte", "lt", "lte", "in", "between"}
+
+
+def _known_at(value):
+    if not isinstance(value, str):
+        raise ValueError("market known_at must be an explicit timestamp")
+    try:
+        result = datetime.fromisoformat(value)
+    except ValueError as error:
+        raise ValueError("market known_at must include date and time") from error
+    if result.tzinfo is None or result.utcoffset() is None:
+        raise ValueError("market known_at must include a timezone")
+    return result
+
+
+def _effective(value):
+    if isinstance(value, date) and not isinstance(value, datetime):
+        return value
+    if isinstance(value, str):
+        try:
+            if len(value) == 10:
+                return date.fromisoformat(value)
+            parsed = datetime.fromisoformat(value)
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                raise ValueError
+            return parsed.date()
+        except ValueError:
+            pass
+    raise ValueError("market effective date is invalid")
+
+
+def _market_value(value, kind):
+    if kind == "number":
+        if type(value) not in (int, float, Decimal) or not np.isfinite(float(value)):
+            raise ValueError("market filter requires a finite number")
+    elif kind == "string":
+        if not isinstance(value, str):
+            raise ValueError("market filter requires a string")
+    elif kind == "boolean":
+        if type(value) is not bool:
+            raise ValueError("market filter requires a boolean")
+    elif kind == "date":
+        _effective(value)
+    else:
+        raise ValueError("unsupported market field type")
+    return value
+
+
+def _matches(actual, condition, kind):
+    op, expected = condition["op"], condition["value"]
+    actual = _market_value(actual, kind)
+    if op == "in":
+        values = tuple(_market_value(value, kind) for value in expected)
+        return actual in values
+    if op == "between":
+        low, high = (_market_value(value, kind) for value in expected)
+        if low > high:
+            raise ValueError("market between bounds must be ordered")
+        return low <= actual <= high
+    expected = _market_value(expected, kind)
+    return {
+        "eq": lambda: actual == expected,
+        "ne": lambda: actual != expected,
+        "gt": lambda: actual > expected,
+        "gte": lambda: actual >= expected,
+        "lt": lambda: actual < expected,
+        "lte": lambda: actual <= expected,
+    }[op]()
+
+
+def _resolve_eligible(market, registry, days, symbols, daily_values,
+                      membership_rows, fact_rows=None):
+    """Resolve daily close and opening eligibility using only known evidence."""
+    from protocol import _market_selection
+
+    selection = _market_selection(market)
+    if selection["scope"] != registry.get("scope"):
+        raise ValueError("market scope is not registered")
+    fields = registry.get("fields")
+    members = registry.get("members")
+    if not isinstance(fields, Mapping):
+        raise ValueError("market fields are not registered")
+    if not isinstance(members, Mapping):
+        members = {}
+    timezone_name = registry.get("timezone")
+    try:
+        zone = ZoneInfo(timezone_name)
+        opening_time = time.fromisoformat(registry["session_open"])
+        closing_time = time.fromisoformat(registry["session_close"])
+    except (KeyError, TypeError, ValueError) as error:
+        raise ValueError("market session calendar readiness is missing") from error
+    days = tuple(days)
+    symbols = tuple(symbols)
+    if not days or not symbols or len(set(symbols)) != len(symbols):
+        raise ValueError("market resolution requires ordered days and unique symbols")
+    code_column = members.get("code")
+    index_column = members.get("index")
+    effective_column = members.get("effective")
+    known_column = members.get("known")
+    included_column = members.get("included")
+    codes = selection.get("codes")
+    if codes is not None and not set(codes) <= set(symbols):
+        raise ValueError("market codes are outside available source data")
+    index = selection.get("index")
+    if index is not None and not (code_column and effective_column
+            and known_column and included_column):
+        raise ValueError("market membership data is missing")
+    if index is not None and not index_column:
+        raise ValueError("index membership data is missing")
+    membership_rows = tuple(membership_rows or ())
+    if index is not None and not any(row.get(index_column) == index for row in membership_rows):
+        raise ValueError("market membership data is missing")
+    fact_rows = fact_rows or {}
+    daily_index = {}
+    for field_name, spec in fields.items():
+        if spec.get("source") != "daily":
+            continue
+        column = spec.get("column")
+        for observed_day, rows in daily_values.items():
+            for code, values in rows.items():
+                cell = values.get(column)
+                if cell is not None:
+                    if not isinstance(cell, Mapping) or "value" not in cell or "known_at" not in cell:
+                        raise ValueError(f"market daily field needs value and known_at: {field_name}")
+                    daily_index.setdefault((field_name, code), []).append(
+                        (observed_day, _known_at(cell["known_at"]), cell["value"]))
+    daily_dates = {}
+    for key, records in daily_index.items():
+        records.sort(key=lambda item: item[0])
+        daily_dates[key] = tuple(item[0] for item in records)
+    fact_index = {}
+    for field_name, spec in fields.items():
+        if spec.get("source") != "facts":
+            continue
+        for row in fact_rows.get(field_name, ()):
+            code = row.get(spec.get("code"))
+            fact_index.setdefault((field_name, code), []).append(
+                (_effective(row.get(spec.get("effective"))),
+                 _known_at(row.get(spec.get("known"))), row.get(spec.get("column"))))
+    fact_effective = {}
+    for key, records in fact_index.items():
+        records.sort(key=lambda item: (item[0], item[1]))
+        fact_effective[key] = tuple(item[0] for item in records)
+    conditions = selection.get("filters", ())
+    for condition in conditions:
+        spec = fields.get(condition["field"])
+        if not isinstance(spec, Mapping) or spec.get("source") not in {"daily", "facts"}:
+            raise ValueError(f"market filter field is not registered: {condition['field']}")
+        if condition["op"] not in _MARKET_OPS:
+            raise ValueError("unsupported market filter operator")
+        kind = spec.get("type")
+        expected = condition["value"]
+        if condition["op"] in {"in", "between"}:
+            values = tuple(_market_value(value, kind) for value in expected)
+            if condition["op"] == "between":
+                low, high = values
+                if kind == "date":
+                    low, high = _effective(low), _effective(high)
+                if low > high:
+                    raise ValueError("market between bounds must be ordered")
+        else:
+            _market_value(expected, kind)
+        if spec["source"] == "facts" and not all(spec.get(key) for key in
+                ("code", "column", "effective", "known")):
+            raise ValueError("market fact field needs code, value, effective and known columns")
+
+    def active_members(day, cutoff, selected_index):
+        grouped = {}
+        for row in membership_rows:
+            if selected_index is None:
+                if index_column and row.get(index_column) not in (None, ""):
+                    continue
+            elif row.get(index_column) != selected_index:
+                continue
+            code = row.get(code_column)
+            effective = _effective(row.get(effective_column))
+            known = _known_at(row.get(known_column))
+            if code not in symbols or effective > day or known > cutoff:
+                continue
+            prior = grouped.get(code)
+            if prior is None or (effective, known) > prior[:2]:
+                included = row.get(included_column)
+                if type(included) is not bool:
+                    raise ValueError("market membership included value must be boolean")
+                grouped[code] = (effective, known, included)
+        if not grouped:
+            raise ValueError(f"index membership history is missing at {cutoff.isoformat()}")
+        return {code for code, state in grouped.items() if state[2]}
+
+    def fact_value(field, code, day, cutoff):
+        spec = fields[field]
+        if spec["source"] == "daily":
+            key = (field, code)
+            records = daily_index.get(key, ())
+            position = bisect_right(daily_dates.get(key, ()), day) - 1
+            while position >= 0:
+                observed, known, value = records[position]
+                if known <= cutoff:
+                    return value
+                position -= 1
+            return None
+        key = (field, code)
+        records = fact_index.get(key, ())
+        position = bisect_right(fact_effective.get(key, ()), day) - 1
+        best = None
+        while position >= 0:
+            item = records[position]
+            if item[1] <= cutoff and (best is None or item[:2] > best[:2]):
+                best = item
+            position -= 1
+        return None if best is None else best[2]
+
+    def for_time(day, cutoff):
+        candidates = set(codes if codes is not None else symbols)
+        pattern = registry.get("code_pattern")
+        if pattern is not None:
+            candidates = {code for code in candidates if re.fullmatch(pattern, code)}
+        if index is not None:
+            candidates &= active_members(day, cutoff, index)
+        result = []
+        ordered = codes if codes is not None else symbols
+        for code in ordered:
+            if code not in candidates:
+                continue
+            if all((value := fact_value(condition["field"], code, day, cutoff)) is not None
+                   and _matches(value, condition, fields[condition["field"]]["type"])
+                   for condition in conditions):
+                result.append(code)
+        return tuple(result)
+
+    closing, opening = {}, {}
+    for day in days:
+        close_at = datetime.combine(day, closing_time, zone)
+        open_at = datetime.combine(day, opening_time, zone)
+        closing[day] = for_time(day, close_at)
+        opening[day] = for_time(day, open_at)
+    return closing, opening
+
+
+def _prepare_market(data, query, dataset):
+    """Apply a registered market selector to daily strategy inputs."""
+    import json
+    from dataclasses import replace
+    from hashlib import sha256
+    from protocol import DataError, normalize_security_id
+
+    registry = json.loads(data.read("sources", "registry", "sources.json"))
+    entries = registry.get("markets")
+    if not isinstance(entries, list):
+        raise DataError("market_not_registered", "market registry is missing")
+    matches = [item for item in entries if isinstance(item, Mapping)
+               and item.get("scope") == query.market["scope"]]
+    if len(matches) != 1:
+        raise DataError("market_not_registered", "market scope must have one registry entry")
+    entry = matches[0]
+    manifest = data.manifest(query.dataset)
+    if (entry.get("dataset_id") != query.dataset
+            or entry.get("calendar") != manifest.get("calendar")
+            or not isinstance(entry.get("currency"), str) or not entry["currency"].strip()
+            or not isinstance(entry.get("execution"), str) or not entry["execution"].strip()):
+        raise DataError("market_not_ready", "market dataset, currency, calendar or execution is not ready")
+    if entry.get("code_normalizer") not in (None, "normalize_security_id"):
+        raise DataError("market_not_ready", "market code normalizer is not registered")
+    normalize = normalize_security_id if entry.get("code_normalizer") else lambda value: value
+
+    native_symbols = tuple(dataset.scope.get("symbols", ()))
+    if not native_symbols:
+        raise DataError("market_data_missing", "market source has no declared securities")
+    symbol_map = {}
+    for symbol in native_symbols:
+        identity = normalize(symbol)
+        if identity in symbol_map:
+            raise DataError("market_data_invalid", "market source has duplicate security identities")
+        symbol_map[identity] = symbol
+    days = tuple(record.trade_date for record in dataset.records)
+    used_fields = {condition["field"] for condition in query.market.get("filters", ())}
+    fields = entry.get("fields", {})
+    daily = {}
+    for record in dataset.records:
+        daily[record.trade_date] = {
+            normalize(symbol): {
+                spec["column"]: {"value": values.get(spec["column"]),
+                                 "known_at": datetime.combine(
+                                     record.trade_date,
+                                     time.fromisoformat(entry["session_close"]),
+                                     ZoneInfo(entry["timezone"]),
+                                 ).isoformat()}
+                for name, spec in fields.items() if name in used_fields
+                and isinstance(spec, Mapping) and spec.get("source") == "daily"
+            }
+            for symbol, values in record.frame.fields.items()
+        }
+    source_hashes = {"registry/market": sha256(json.dumps(
+        entry, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
+
+    def read_rows(binding, label):
+        if binding is None:
+            return ()
+        if not isinstance(binding, Mapping) or not isinstance(binding.get("source"), str) \
+                or not isinstance(binding.get("file"), str):
+            raise DataError("market_data_invalid", f"market {label} source binding is invalid")
+        payload = data.read("sources", binding["source"], binding["file"])
+        source_hashes[binding["source"] + "/" + binding["file"]] = sha256(payload).hexdigest()
+        value = json.loads(payload)
+        rows = value.get("records") if isinstance(value, Mapping) else value
+        if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
+            raise DataError("market_data_invalid", f"market {label} rows are invalid")
+        return tuple(dict(row) for row in rows)
+
+    member_binding = entry.get("members") if query.market.get("index") is not None else None
+    membership = read_rows(member_binding, "membership")
+    if membership and entry.get("code_normalizer"):
+        for row in membership:
+            if member_binding.get("code") not in row:
+                raise DataError("market_data_invalid", "market membership code column is missing")
+            row[member_binding["code"]] = normalize(str(row[member_binding["code"]]))
+    facts = {}
+    for field_name, spec in fields.items():
+        if field_name not in used_fields:
+            continue
+        if isinstance(spec, Mapping) and spec.get("source") == "facts":
+            facts[field_name] = read_rows(spec.get("binding"), field_name)
+            if entry.get("code_normalizer"):
+                for row in facts[field_name]:
+                    row[spec["code"]] = normalize(str(row[spec["code"]]))
+    try:
+        selection = dict(query.market)
+        if selection.get("codes") is not None:
+            selection["codes"] = tuple(normalize(code) for code in selection["codes"])
+        selected, opening = Adapter.eligible(
+            selection, {**entry, "members": member_binding}, days,
+            tuple(symbol_map), daily, membership, facts,
+        )
+        normalized_codes = query.market.get("codes")
+        if normalized_codes is not None:
+            requested = tuple(normalize(code) for code in normalized_codes)
+            if any(code not in symbol_map for code in requested):
+                raise ValueError("market codes are outside available source data")
+        if query.market.get("index") is not None and not membership:
+            raise ValueError("index membership data is missing")
+    except (KeyError, TypeError, ValueError) as error:
+        raise DataError("market_data_missing", str(error)) from error
+
+    records = []
+    counts = {}
+    for record in dataset.records:
+        current = tuple(symbol_map[code] for code in selected[record.trade_date])
+        opening_symbols = tuple(symbol_map[code] for code in opening[record.trade_date])
+        frame = replace(
+            record.frame,
+            fields={symbol: record.frame.fields[symbol] for symbol in current},
+            history={symbol: record.frame.history[symbol] for symbol in current},
+        )
+        records.append(replace(record, frame=frame, opening_eligible=opening_symbols))
+        counts[record.trade_date.isoformat()] = len(current)
+    resolved = {
+        "selection": {key: list(value) if isinstance(value, tuple) else
+                      [dict(item) for item in value] if key == "filters" else value
+                      for key, value in query.market.items()},
+        "currency": entry["currency"], "calendar": entry["calendar"],
+        "execution": entry["execution"], "eligible_counts": counts,
+        "source_hashes": source_hashes,
+    }
+    return replace(dataset, records=tuple(records),
+                   scope={**dict(dataset.scope), "market": resolved},
+                   provenance={**dict(dataset.provenance), "market": resolved})
 
 
 class Scaler:
@@ -123,8 +496,80 @@ class Adapter:
     """
 
     @classmethod
+    def candidates(cls, data, market, dataset_id, start, end):
+        import json
+        from protocol import normalize_security_id
+        registry = json.loads(data.read("sources", "registry", "sources.json"))
+        entries = registry.get("markets")
+        matches = [item for item in entries or () if isinstance(item, Mapping)
+                   and item.get("scope") == market["scope"]]
+        if len(matches) != 1 or matches[0].get("dataset_id") != dataset_id:
+            raise ValueError("market scope is not registered for this dataset")
+        entry = matches[0]
+        binding = entry.get("members")
+        codes = market.get("codes")
+        index = market.get("index")
+        normalize = (normalize_security_id if entry.get("code_normalizer")
+                     == "normalize_security_id" else lambda value: value)
+        pattern = entry.get("code_pattern")
+        if pattern is None and codes is None and index is None:
+            raise ValueError("market code pattern is missing")
+        if codes is not None and pattern is not None and any(
+                not re.fullmatch(pattern, normalize(code)) for code in codes):
+            raise ValueError("requested codes are outside the registered market")
+        if index is None:
+            if codes is not None:
+                return tuple(codes)
+            symbols = data.manifest(dataset_id)["scope"]["symbols"]
+            return tuple(code for code in symbols if re.fullmatch(pattern, normalize(code)))
+        if not isinstance(binding, Mapping):
+            raise ValueError("market membership data is missing")
+        payload = data.read("sources", binding["source"], binding["file"])
+        rows = json.loads(payload)
+        rows = rows.get("records") if isinstance(rows, Mapping) else rows
+        if not isinstance(rows, list):
+            raise ValueError("market membership rows are invalid")
+        code_key, index_key = binding.get("code"), binding.get("index")
+        index_codes = []
+        for row in rows:
+            if not isinstance(row, Mapping) or not isinstance(row.get(code_key), str):
+                raise ValueError("market membership code is invalid")
+            if row.get(binding.get("included")) is not True:
+                continue
+            code = row[code_key]
+            if pattern is not None and not re.fullmatch(pattern, normalize(code)):
+                continue
+            try:
+                if _effective(row.get(binding.get("effective"))) > end:
+                    continue
+                if _known_at(row.get(binding.get("known"))).date() > end:
+                    continue
+            except (TypeError, ValueError):
+                raise ValueError("market membership effective/known dates are invalid")
+            if (row.get(index_key) == index
+                    and normalize(code) not in {normalize(item) for item in index_codes}):
+                index_codes.append(code)
+        if codes is not None:
+            base = list(codes)
+            allowed = set(index_codes)
+            allowed_by_id = {normalize(code): code for code in allowed}
+            return tuple(allowed_by_id[normalize(code)] for code in base
+                         if normalize(code) in allowed_by_id)
+        return tuple(index_codes)
+
+    @classmethod
+    def eligible(cls, market, registry, days, symbols, daily_values,
+                 membership_rows, fact_rows=None):
+        return _resolve_eligible(market, registry, days, symbols, daily_values,
+                                 membership_rows, fact_rows)
+
+    @classmethod
+    def market(cls, data, query, dataset):
+        return _prepare_market(data, query, dataset)
+
+    @classmethod
     def validate(cls, frames, *, symbols=None, fields=None, missing="reject"):
-        from protocal import MarketFrame
+        from protocol import MarketFrame
 
         frames = tuple(frames)
         if not frames or any(not isinstance(frame, MarketFrame) for frame in frames):
@@ -249,7 +694,7 @@ class Adapter:
     def adjust(cls, frames, *, basis, as_of, factors, anchor="back", volume_field="volume"):
         from dataclasses import replace
         from datetime import date
-        from protocal import HistoryBar
+        from protocol import HistoryBar
 
         if basis == "adjusted":
             raise ValueError("total adjusted basis is not implemented")
@@ -364,7 +809,7 @@ class Settlement:
     @classmethod
     def resolve(cls, *, limits=None, execution=None):
         from core.calculation import AllocationLimits
-        from protocal import _limits, validate_execution
+        from protocol import _limits, validate_execution
 
         if execution is None:
             execution = cls._copy(cls.DEFAULT_EXECUTION)
@@ -429,6 +874,9 @@ class Settlement:
         from core.calculation import TradeRules
 
         limits, execution = Settlement.resolve(limits=limits, execution=execution)
+        market = dataset.scope.get("market")
+        if isinstance(market, Mapping) and market.get("execution") != execution["check"]["model"]:
+            raise ValueError("market execution readiness does not match settlement")
         rules = TradeRules(execution, dataset.policies['fees'], dataset.policies['tax_policy'])
         return rules.check(phase='dataset', dataset=dataset, start=request.start.date())
 
@@ -500,7 +948,7 @@ class Settlement:
     def _apply(self, record, following, trade_start=None):
         from dataclasses import replace
         from decimal import Decimal
-        from protocal import AccountSnapshot
+        from protocol import AccountSnapshot
         from core.calculation import OpeningRiskSnapshot
 
         if self._pending is not None:
@@ -538,6 +986,7 @@ class Settlement:
             ),
             volume20=record.opening_volume20,
             cash_reserve=Decimal(0),
+            eligible=record.opening_eligible,
         )
         self.trade_rules.tax(day, new_fills, phase='end')
         for payment in self.taxes.settle(day):
@@ -586,7 +1035,7 @@ class Settlement:
             raise
 
     def _plan(self, target, strategy_id):
-        from protocal import TargetSet
+        from protocol import TargetSet
         from dataclasses import replace
 
         if self._pending is None:

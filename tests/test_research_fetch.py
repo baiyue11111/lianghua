@@ -5,7 +5,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest import TestCase, mock
-from protocal import build_data, DataBus, DataError
+from market import build_data, DataBus
+from protocol import DataError
 
 
 def bus(directory):
@@ -13,7 +14,7 @@ def bus(directory):
 
 
 def cache(request, directory):
-    return bus(directory).path("sources", "research_cache", f"{request.key}.json")
+    return bus(directory).path("sources", "facts", f"{request.key}.json")
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -26,12 +27,13 @@ spec.loader.exec_module(fetch)
 class Result:
     error_code = "0"
     error_msg = "success"
-    fields = ["code", "dividOperateDate", "foreAdjustFactor"]
-    data = [["sh.600000", "2020-01-01", "1.2"]]
+    fields = ["code", "dividOperateDate", "foreAdjustFactor", "backAdjustFactor"]
+    data = [["sh.600000", "2020-01-01", "1.2", "1.1"]]
     code = "sh.600000"
 
-    def __init__(self, rows=None, fail_after=None):
+    def __init__(self, rows=None, fail_after=None, fields=None):
         self.data = rows if rows is not None else self.data
+        self.fields = fields if fields is not None else type(self).fields
         self.index = 0
         self.fail_after = fail_after
 
@@ -47,6 +49,77 @@ class Result:
 
 
 class ResearchFetchTests(TestCase):
+    def dividend_base(self):
+        return {"schema": 1, "kind": "dividend", "code": "sh.600000",
+                "start": None, "end": None, "year": "2014", "source_hash": "a"*64,
+                "records": [{"announce_date": "2014-03-01", "registration_date": "2014-06-01",
+                  "operation_date": "2014-06-02", "payment_date": "2014-06-03",
+                  "stock_market_date": None, "cash_per_share": 0.5,
+                  "stock_dividend_per_share": 0, "reserve_to_stock_per_share": None,
+                  "cash_after_tax_text": None}]}
+
+    def dividend_html(self, *, reserve="0", day="2014-06-02", duplicate=False):
+        row=f"<tr><td>0</td><td>{reserve}</td><td>7.25</td><td>实施</td><td>{day}</td><td>2014-06-01</td><td>--</td></tr>"
+        return ("<table><thead><tr><th colspan=7>分红方案(每10股)</th></tr><tr><th>送股(股)</th><th>转增(股)</th><th>派息(税前)(元)</th>"
+                "<th>进度</th><th>除权除息日</th><th>股权登记日</th><th>红股上市日</th></tr></thead>"
+                +row+(row if duplicate else "")+"</table>")
+
+    def test_dividend_adapter_uses_explicit_public_market_quantities(self):
+        base=self.dividend_base()
+        fact=fetch.DividendHistory.normalize(base,self.dividend_html())
+        self.assertEqual(fact["records"][0]["reserve_to_stock_per_share"],0)
+        self.assertEqual(fact["records"][0]["cash_per_share"],0.725)
+        self.assertEqual(fact["records"][0]["payment_date"],"2014-06-03")
+        self.assertIsNone(base["records"][0]["reserve_to_stock_per_share"])
+        self.assertNotEqual(fact["source_hash"],base["source_hash"])
+
+    def test_dividend_adapter_rejects_missing_quantities_and_ambiguous_dates(self):
+        for html in (self.dividend_html(reserve="--"), self.dividend_html(day="2014-06-03"),
+                     self.dividend_html(duplicate=True), self.dividend_html().replace("每10股","每股")):
+            with self.subTest(html=html), self.assertRaises((ValueError,fetch.CacheIntegrityError)):
+                fetch.DividendHistory.normalize(self.dividend_base(),html)
+
+    def test_stock_basic_raw_becomes_security_fact_and_round_trips(self):
+        fields = ["code", "ipoDate", "outDate", "type", "status"]
+        raw = {"error_code": "0", "error_msg": "success", "fields": fields,
+               "rows": [["sz.301116", "2022-01-18", "", "1", "1"]]}
+        payload = {"schema": 1, "request": "query_stock_basic(sz.301116)",
+                   "raw_response": raw, "raw_response_sha256": fetch._sha256(raw)}
+        facts = fetch.normalize_facts(payload)
+        self.assertEqual(facts["kind"], "security")
+        self.assertEqual(facts["records"], [{"listing_date": "2022-01-18", "delisting_date": None,
+                                            "type": "1", "status": "1"}])
+        with TemporaryDirectory() as directory:
+            ref = fetch.write_stock_basic(bus(directory), payload)
+            saved = json.loads(bus(directory).read(ref.kind, ref.identity, ref.name))
+            self.assertEqual(saved, facts)
+            self.assertEqual(ref.identity, "facts")
+            self.assertEqual(ref.name, "stock_basic_sz.301116.json")
+
+    def test_stock_basic_adapter_rejects_changed_raw_and_wrong_code(self):
+        fields = ["code", "ipoDate", "outDate", "type", "status"]
+        raw = {"error_code": "0", "error_msg": "success", "fields": fields,
+               "rows": [["sz.301116", "2022-01-18", "", "1", "1"]]}
+        payload = {"schema": 1, "request": "query_stock_basic(sz.301116)",
+                   "raw_response": raw, "raw_response_sha256": fetch._sha256(raw)}
+        broken = dict(payload, raw_response_sha256="0" * 64)
+        with self.assertRaises(fetch.CacheIntegrityError):
+            fetch.normalize_facts(broken)
+        raw["rows"][0][0] = "sz.301117"
+        payload["raw_response_sha256"] = fetch._sha256(raw)
+        with self.assertRaises(fetch.CacheIntegrityError):
+            fetch.normalize_facts(payload)
+
+    def test_adjust_facts_are_written_and_read_from_standard_store(self):
+        request = fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None)
+        provider = SimpleNamespace(query_adjust_factor=mock.Mock(return_value=Result()))
+        with TemporaryDirectory() as directory:
+            fetch.fetch_and_cache(request, provider, bus(directory), timeout=5)
+            path = cache(request, directory)
+            payload = json.loads(path.read_text())
+            self.assertEqual(payload["records"], [{"date": "2020-01-01", "forward": 1.2, "backward": 1.1}])
+            self.assertEqual(fetch.pending_requests([request], bus(directory)), [])
+
     def test_provider_errors_stop_without_retry_or_cache(self):
         for error in ('10002007', '10001001'):
             provider = SimpleNamespace(
@@ -54,29 +127,27 @@ class ResearchFetchTests(TestCase):
                 logout=mock.Mock(),
                 query_adjust_factor=mock.Mock(return_value=SimpleNamespace(error_code=error, error_msg='failed')))
             with self.subTest(error=error), TemporaryDirectory() as directory, mock.patch.dict(sys.modules, {'baostock': provider}):
-                status = fetch.main(['adjust', '--codes', '600000,600001', '--start', '2020-01-01',
-                                     '--end', '2020-12-31'], data=bus(directory))
-                self.assertEqual(status, 1)
+                with self.assertRaises(fetch.ProviderError):
+                    fetch.fetch_and_cache(fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None), provider, bus(directory))
                 self.assertEqual(list(Path(directory).rglob('*.json')), [])
-                provider.login.assert_called_once()
                 provider.query_adjust_factor.assert_called_once()
 
     def test_timeout_stops_batch_instead_of_using_broken_connection(self):
         provider = SimpleNamespace(login=mock.Mock(return_value=SimpleNamespace(error_code='0')),
                                    logout=mock.Mock(), query_adjust_factor=mock.Mock(side_effect=TimeoutError('timeout')))
         with TemporaryDirectory() as directory, mock.patch.dict(sys.modules, {'baostock': provider}):
-            status = fetch.main(['adjust', '--codes', '600000,600001', '--start', '2020-01-01',
-                                 '--end', '2020-12-31'], data=bus(directory))
-            self.assertEqual(status, 1)
+            with self.assertRaises(TimeoutError):
+                fetch.fetch_and_cache(fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None), provider, bus(directory))
             provider.query_adjust_factor.assert_called_once()
 
-    def test_successful_adjustment_records_request_hash_and_raw_rows(self):
+    def test_successful_adjustment_normalizes_raw_rows(self):
         result = Result()
         bs = SimpleNamespace(query_adjust_factor=mock.Mock(return_value=result))
         request = fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None)
         envelope = fetch.fetch_one(request, bs, timeout=5)
         self.assertEqual(envelope["status"], "ok")
-        self.assertEqual(envelope["raw_response"]["rows"], result.data)
+        self.assertEqual(fetch.normalize_facts(envelope)["records"], [
+            {"date": "2020-01-01", "forward": 1.2, "backward": 1.1}])
         self.assertEqual(len(envelope["request_fields_sha256"]), 64)
         bs.query_adjust_factor.assert_called_once_with(
             code="sh.600000", start_date="2020-01-01", end_date="2020-12-31")
@@ -99,13 +170,17 @@ class ResearchFetchTests(TestCase):
             self.assertEqual(list(Path(directory).iterdir()), [])
 
     def test_successful_empty_response_is_distinct_and_resumable(self):
-        bs = SimpleNamespace(query_dividend_data=mock.Mock(return_value=Result(rows=[])))
+        fields = ["code", "dividPlanAnnounceDate", "dividRegistDate", "dividOperateDate",
+                  "dividPayDate", "dividStockMarketDate", "dividCashPsBeforeTax", "dividStocksPs",
+                  "dividReserveToStockPs", "dividCashPsAfterTax"]
+        bs = SimpleNamespace(query_dividend_data=mock.Mock(return_value=Result(rows=[], fields=fields)))
         request = fetch.Request("dividend", "600000", None, None, "2020")
         with TemporaryDirectory() as directory:
             ref = fetch.fetch_and_cache(request, bs, bus(directory), timeout=5)
             path = cache(request, directory)
             payload = json.loads(path.read_text())
-            self.assertEqual(payload["status"], "empty")
+            self.assertEqual(payload["kind"], "dividend")
+            self.assertEqual(payload["records"], [])
             self.assertEqual(fetch.pending_requests([request], bus(directory)), [])
             bs.query_dividend_data.assert_called_once_with(
                 code="sh.600000", year="2020", yearType="operate")
@@ -118,10 +193,7 @@ class ResearchFetchTests(TestCase):
             fetch.fetch_and_cache(original, bs, bus(directory), timeout=5)
             path = cache(original, directory)
             payload = json.loads(path.read_text())
-            payload["request"] = {
-                "kind": wrong.kind, "code": "sh.600000", "start": wrong.start,
-                "end": wrong.end, "year": wrong.year,
-            }
+            payload["start"] = wrong.start
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaises(fetch.CacheIntegrityError):
                 fetch.pending_requests([original], bus(directory))
@@ -133,7 +205,7 @@ class ResearchFetchTests(TestCase):
             ref = fetch.fetch_and_cache(request, bs, bus(directory), timeout=5)
             path = cache(request, directory)
             payload = json.loads(path.read_text())
-            payload["raw_response"]["rows"][0][1] = "9.9"
+            payload["records"][0]["forward"] = -9.9
             path.write_text(json.dumps(payload), encoding="utf-8")
             with self.assertRaises(fetch.CacheIntegrityError):
                 fetch.pending_requests([request], bus(directory))
@@ -165,17 +237,16 @@ class ResearchFetchTests(TestCase):
                     fetch.pending_requests([request], bus(directory))
 
     def test_nonzero_raw_error_code_is_rejected(self):
-        bs = SimpleNamespace(query_adjust_factor=mock.Mock(return_value=Result()))
         request = fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None)
-        with TemporaryDirectory() as directory:
-            ref = fetch.fetch_and_cache(request, bs, bus(directory), timeout=5)
-            path = cache(request, directory)
-            payload = json.loads(path.read_text())
-            payload["raw_response"]["error_code"] = "10001"
-            payload["raw_response_sha256"] = fetch._sha256(payload["raw_response"])
-            path.write_text(json.dumps(payload), encoding="utf-8")
-            with self.assertRaises(fetch.CacheIntegrityError):
-                fetch.pending_requests([request], bus(directory))
+        raw = {"error_code": "10001", "error_msg": "bad", "code": "sh.600000",
+               "fields": Result.fields, "rows": Result.data}
+        request_payload = {"kind": request.kind, "code": "sh.600000", "start": request.start,
+                           "end": request.end, "year": request.year}
+        payload = {"schema": 2, "request": request_payload, "request_sha256": fetch._sha256(request_payload),
+                   "request_fields_sha256": fetch.hashlib.sha256(",".join(Result.fields).encode()).hexdigest(),
+                   "raw_response": raw, "raw_response_sha256": fetch._sha256(raw), "status": "ok"}
+        with self.assertRaises(fetch.CacheIntegrityError):
+            fetch.normalize_facts(payload)
 
     def test_only_pending_tasks_count_towards_limit(self):
         first = fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None)
@@ -184,17 +255,15 @@ class ResearchFetchTests(TestCase):
         with TemporaryDirectory() as directory:
             path = cache(first, directory)
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"schema": 2, "status": "ok"}), encoding="utf-8")
+            path.write_text(json.dumps({"schema": 1, "kind": "adjust"}), encoding="utf-8")
             with mock.patch.object(fetch, "_validate_cache"):
                 self.assertEqual(fetch.limit_pending([first, second, third], bus(directory), 1), [second])
 
-    def test_codes_are_required_and_stably_deduplicated(self):
-        args = SimpleNamespace(kind="adjust", codes="600001,600000,600001", codes_file=None,
-                               start="2020-01-01", end="2020-12-31", year=None)
-        self.assertEqual([r.code for r in fetch.build_requests(args)], ["600001", "600000"])
-        args.codes = ''
-        with self.assertRaises(ValueError):
-            fetch.build_requests(args)
+    def test_request_identity_uses_standard_market_code(self):
+        plain = fetch.Request("adjust", "600000", "2020-01-01", "2020-12-31", None)
+        qualified = fetch.Request("adjust", "sh.600000", "2020-01-01", "2020-12-31", None)
+        self.assertEqual(plain.key, qualified.key)
+        self.assertFalse(hasattr(fetch, "main"))
 
     def test_login_is_wrapped_by_query_timeout(self):
         bs = SimpleNamespace(login=mock.Mock(return_value=SimpleNamespace(

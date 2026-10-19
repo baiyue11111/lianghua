@@ -5,7 +5,7 @@ import unittest
 from core.calculation import (AccountExecutionSession, AccountLedger, AllocationLimits,
                               OpeningRiskSnapshot, TradeRules)
 from tests.fee_fixture import fees, tax_policy
-from protocal import Bar, Fill, Order, Side
+from protocol import Bar, Fill, Order, Side
 
 
 def rules(price=None, quantity=None):
@@ -75,6 +75,39 @@ class TradeExecutionTests(unittest.TestCase):
             session.execute_open(date(2024, 1, 3), bars, {'A': 10}, risk=risk,
                                  volume20={'A': D('1000')}, cash_reserve=D('1'))
 
+    def test_opening_market_exclusion_cancels_pending_buy_before_fill(self):
+        account = AccountLedger(D('100000'))
+        session = AccountExecutionSession(account, rules())
+        session.submit(self.order(shares=100))
+        day = date(2024, 1, 3)
+        risk = OpeningRiskSnapshot(date(2024, 1, 2), {'A': D('10')},
+                                   {'A': D('100000')}, D('0'), D('0'))
+
+        fills = session.execute_open(day, {'A': self.bar()}, {'A': 10}, risk=risk,
+                                     eligible=())
+
+        self.assertEqual(fills, ())
+        self.assertEqual(session.pending, ())
+        self.assertEqual(account.order_cancellations[0].reason, 'market_ineligible')
+        self.assertEqual(account.cash, D('100000'))
+        replay = session.execute_open(day, {'A': self.bar()}, {'A': 10}, risk=risk,
+                                     eligible=())
+        self.assertEqual(replay, fills)
+        self.assertEqual(len(account.order_cancellations), 1)
+
+    def test_invalid_opening_risk_does_not_cancel_ineligible_buy(self):
+        account = AccountLedger(D('100000'))
+        session = AccountExecutionSession(account, rules())
+        session.submit(self.order(shares=100))
+        day = date(2024, 1, 3)
+        risk = OpeningRiskSnapshot(day, {'A': D('10')}, {'A': D('100000')}, D('0'), D('0'))
+
+        with self.assertRaisesRegex(ValueError, 'liquidity must be observed before execution day'):
+            session.execute_open(day, {'A': self.bar()}, {'A': 10}, risk=risk, eligible=())
+
+        self.assertEqual(len(session.pending), 1)
+        self.assertEqual(account.order_cancellations, ())
+
     def test_opening_reserve_rejects_callable_and_is_part_of_replay_inputs(self):
         account = AccountLedger(D('100000'))
         value = rules()
@@ -99,7 +132,7 @@ class TradeExecutionTests(unittest.TestCase):
                                          100, 10, 1000, 0, 0, 'filled'))
         value._tax_ledger.lots = (TaxHolding(
             'lot', 'A', date(2024, 1, 2), 100,
-            (TaxRight('div', 'cash', date(2024, 1, 2), date(2024, 1, 5), D('1'), 'a' * 64),)),)
+            (TaxRight(date(2024, 1, 2), 'div', 'cash', date(2024, 1, 2), date(2024, 1, 5), D('1'), 'a' * 64),)),)
         day = date(2024, 1, 3)
         value.tax(day, phase='begin')
         sell = self.order(side=Side.SELL, shares=100)
@@ -113,7 +146,7 @@ class TradeExecutionTests(unittest.TestCase):
         self.assertEqual((account.cash, account.lots, value._tax_snapshot(), session.fills), before)
 
     def test_opening_risk_counts_transfer_fee_in_post_equity(self):
-        from protocal import Fill
+        from protocol import Fill
         fill = Fill('o', 'A', Side.BUY, date(2024, 1, 3), 10, 10, 100, 0, 0,
                     'filled', transfer_fee=100)
         snapshot = OpeningRiskSnapshot(date(2024, 1, 2), {'A': D('10')},

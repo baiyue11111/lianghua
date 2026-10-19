@@ -16,6 +16,8 @@ import inspect
 import collections.abc
 import json
 import asyncio
+import os
+from contextlib import contextmanager
 import subprocess
 import selectors
 import time
@@ -369,12 +371,19 @@ def parse_wire(name: str, value: object):
     return TypeAdapter(_MODELS[name]).validate_json(json.dumps(value, allow_nan=False))
 
 
-def exchange(action: UiAction) -> UiState:
+def exchange(action: UiAction, on_state=None) -> UiState:
     """运行共用交互核心，并在此处连接唯一 backend protocol。"""
+    with session() as send:
+        return send(action, on_state=on_state)
+
+
+@contextmanager
+def session():
+    """Keep one interaction core and protocol connection for foreground commands."""
     core = Path(__file__).parent / "display" / "runtime" / "cli.mjs"
     if not core.is_file():
         raise OSError("交互核心发布产物缺失；请运行 npm run build --prefix frontend/display")
-    from protocal import build_backend
+    from backend import build_backend
     backend = build_backend(Path.cwd())
     process = None
     try:
@@ -382,6 +391,7 @@ def exchange(action: UiAction) -> UiState:
             ["node", str(core), "--connected"], stdin=subprocess.PIPE,
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
             encoding="utf-8", bufsize=1,
+            start_new_session=True,
         )
         def write(frame: object) -> None:
             parse_wire("UiFrame", frame)
@@ -390,37 +400,56 @@ def exchange(action: UiAction) -> UiState:
             process.stdin.write(json.dumps(frame, ensure_ascii=False, allow_nan=False) + "\n")
             process.stdin.flush()
 
-        write({"kind": "action", "action": action.to_dict()})
-        deadline = time.monotonic() + 30
-        if process.stdout is None:
-            raise RuntimeError("交互核心输出不可用")
-        with selectors.DefaultSelector() as ready:
-            ready.register(process.stdout, selectors.EVENT_READ)
-            while True:
-                if not ready.select(max(0, deadline - time.monotonic())):
-                    raise TimeoutError("交互核心响应超时")
-                line = process.stdout.readline()
-                if not line:
-                    detail = process.stderr.read().strip() if process.stderr else ""
-                    raise RuntimeError(detail or "交互核心提前结束")
-                frame = parse_wire("UiFrame", json.loads(line))
-                if frame.kind == "state" and frame.state is not None:
-                    write({"kind": "close"})
-                    return frame.state
-                if frame.kind != "request" or frame.request is None:
-                    raise ValueError("无效桥接消息")
-                try:
-                    messages = asyncio.run(backend.send(frame.request))
-                except Exception as exc:
-                    issue = UiProblem("urn:lianghua:ui:problem", "backend_failed", str(exc))
-                    messages = [UiMessage(
-                        "failure", "problem", "urn:lianghua:ui:problem",
-                        "urn:lianghua:ui:problem:v1", issue.to_dict(),
-                        correlation_id=frame.request.request_id,
-                    )]
-                write({"kind": "response", "request": frame.request.to_dict(),
-                       "messages": [message.to_dict() for message in messages]})
-                deadline = time.monotonic() + 30
+        buffer = bytearray()
+        def send(action, on_state=None):
+            write({"kind": "action", "action": action.to_dict()})
+            deadline = time.monotonic() + 30
+            if process.stdout is None:
+                raise RuntimeError("交互核心输出不可用")
+            with selectors.DefaultSelector() as ready:
+                ready.register(process.stdout, selectors.EVENT_READ)
+                while True:
+                    while b'\n' not in buffer:
+                        if not ready.select(max(0, deadline - time.monotonic())):
+                            if on_state is None:
+                                raise TimeoutError("交互核心响应超时")
+                            if process.poll() is not None:
+                                raise RuntimeError("交互核心提前结束")
+                            deadline = time.monotonic() + 30
+                            continue
+                        chunk = os.read(process.stdout.fileno(), 65536)
+                        if not chunk:
+                            detail = process.stderr.read().strip() if process.stderr else ""
+                            raise RuntimeError(detail or "交互核心提前结束")
+                        buffer.extend(chunk)
+                    end = buffer.index(b'\n')
+                    line = bytes(buffer[:end]).decode('utf-8')
+                    del buffer[:end + 1]
+                    frame = parse_wire("UiFrame", json.loads(line))
+                    if frame.kind == "state" and frame.state is not None:
+                        if any(op.status == 'pending' for slot in frame.state.targets.values()
+                               for op in slot.operations.values()):
+                            if on_state is not None:
+                                on_state(frame.state)
+                            deadline = time.monotonic() + 30
+                            continue
+                        return frame.state
+                    if frame.kind != "request" or frame.request is None:
+                        raise ValueError("无效桥接消息")
+                    try:
+                        messages = asyncio.run(backend.send(frame.request))
+                    except Exception as exc:
+                        issue = UiProblem("urn:lianghua:ui:problem", "backend_failed", str(exc))
+                        messages = [UiMessage(
+                            "failure", "problem", "urn:lianghua:ui:problem",
+                            "urn:lianghua:ui:problem:v1", issue.to_dict(),
+                            correlation_id=frame.request.request_id,
+                        )]
+                    write({"kind": "response", "request": frame.request.to_dict(),
+                           "messages": [message.to_dict() for message in messages]})
+                    deadline = time.monotonic() + 30
+        yield send
+        write({"kind": "close"})
     finally:
         try:
             backend.close()

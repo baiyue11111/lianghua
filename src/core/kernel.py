@@ -7,17 +7,7 @@ from dataclasses import dataclass, replace
 from math import isfinite
 from threading import Lock
 
-from protocal import (
-    BacktestError,
-    BacktestRequest,
-    BacktestResponse,
-    SearchResponse,
-    Trial,
-    _config_value,
-    _strategy_params,
-    build_effective_config,
-    build_execution_hash,
-)
+from protocol import BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Trial, _config_value, _strategy_params, build_effective_config, build_execution_hash
 from .calculation import Calculation, _candidate_parameters
 
 
@@ -82,9 +72,11 @@ class Kernel:
             validate_dataset(dataset, request, **dict(request.settlement_parameters))
         if not dataset.records[-1].trade_date <= query.end < dataset.calendar[-1]:
             raise ValueError("dataset does not cover query end before following-session sentinel")
-        if (requirements.universe != "dataset" and request.universe != "dataset"
-                and request.universe != requirements.universe):
-            raise ValueError("custom universe cannot lower or replace strategy universe")
+        market = dataset.scope.get("market")
+        if (not isinstance(market, Mapping)
+                or not isinstance(market.get("selection"), Mapping)
+                or market["selection"].get("scope") != request.market["scope"]):
+            raise ValueError("market resolution is missing")
         effective_config, config_hash = build_effective_config(
             request, strategy, requirements, dataset, settlement_config,
         )
@@ -106,7 +98,6 @@ class Kernel:
         max_trials: int,
         metric: str,
         direction: str,
-        validation: BacktestRequest | None = None,
     ) -> SearchResponse:
         self._check_request(request)
         if not callable(updater):
@@ -117,9 +108,6 @@ class Kernel:
             raise BacktestError("invalid_search", "metric must be a non-empty string")
         if not isinstance(direction, str) or direction not in {"max", "min"}:
             raise BacktestError("invalid_search", "direction must be max or min")
-        if validation is not None:
-            self._check_request(validation)
-            self._check_validation(request, validation)
         self._claim()
         completed: list[Trial] = []
         try:
@@ -169,20 +157,7 @@ class Kernel:
                         best_index = index
             if best_index is None:
                 raise self._search_failure(request, completed, "search produced no trials")
-            validation_response = None
-            if validation is not None:
-                best = completed[best_index]
-                validation_request = self._validation_request(
-                    request, validation, best.request.parameters,
-                )
-                try:
-                    validation_response = self._run(validation_request)
-                except Exception as error:
-                    partial = getattr(error, "partial_result", None)
-                    raise self._search_failure(
-                        validation_request, completed, str(error), partial,
-                    ) from error
-            return SearchResponse(tuple(completed), best_index, validation_response)
+            return SearchResponse(tuple(completed), best_index)
         finally:
             self._lock.release()
 
@@ -260,31 +235,6 @@ class Kernel:
         if not isinstance(values, Mapping):
             raise TypeError("updater must return a mapping or None")
         return _candidate_parameters(values)
-
-    @staticmethod
-    def _check_validation(request: BacktestRequest, validation: BacktestRequest) -> None:
-        if validation.start.date() <= request.end.date():
-            raise BacktestError("invalid_search", "validation must start after search end")
-        for name in (
-            "strategy_id", "dataset_id", "initial_cash", "fields", "history", "price_basis",
-            "as_of", "symbols", "universe", "settlement_parameters", "evaluation_parameters",
-        ):
-            if getattr(validation, name) != getattr(request, name):
-                raise BacktestError("invalid_search", f"validation changes {name}")
-
-    @staticmethod
-    def _validation_request(
-        request: BacktestRequest,
-        validation: BacktestRequest,
-        parameters: Mapping,
-    ) -> BacktestRequest:
-        return replace(
-            validation,
-            run_id=f"{request.run_id}-validation",
-            strategy_id=request.strategy_id,
-            dataset_id=request.dataset_id,
-            parameters=dict(parameters),
-        )
 
     @staticmethod
     def _search_failure(

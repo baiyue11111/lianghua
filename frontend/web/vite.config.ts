@@ -1,4 +1,4 @@
-import path from "path"
+import {fileURLToPath} from "node:url"
 import react from "@vitejs/plugin-react"
 import { defineConfig } from "vite"
 
@@ -9,11 +9,14 @@ export default defineConfig({
   server: {
     port: 3000,
     host: "127.0.0.1",
+    proxy: {
+      "/api": "http://127.0.0.1:8000",
+    },
   },
   resolve: {
     alias: {
-      "@": path.resolve(__dirname, "./src"),
-      "@display": path.resolve(__dirname, "../display/src"),
+      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@display": fileURLToPath(new URL("../display/src", import.meta.url)),
     },
   },
 });

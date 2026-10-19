@@ -22,6 +22,7 @@ dependencies = [
 
 [project.scripts]
 lianghua = "frontend.cli:main"
+lianghua-dev = "dev:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -32,13 +33,15 @@ package-dir = {"" = "src", "frontend" = "frontend"}
 packages = [
   "collect",
   "core",
-  "data",
+  "market",
   "plugins",
   "plugins.strategies",
   "frontend",
 ]
 py-modules = [
-  "protocal",
+  "dev",
+  "protocol",
+  "backend",
   "storage",
   "strategy",
 ]

@@ -2,7 +2,7 @@ from io import BytesIO
 import unittest
 from zipfile import ZipFile
 
-from data.xlsx_matrix import iter_sheet_rows, sheet_paths
+from market.xlsx_matrix import iter_sheet_rows, sheet_paths
 
 
 class XlsxMatrixTests(unittest.TestCase):

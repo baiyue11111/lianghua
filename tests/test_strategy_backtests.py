@@ -6,8 +6,8 @@ import unittest
 from unittest.mock import patch
 
 from strategy import load_strategy
-from protocal import build_data
-from protocal import KernelBacktestPort
+from market import build_data
+from backend import KernelBacktestPort
 
 
 class EmptyResearch:
@@ -35,7 +35,7 @@ class BacktestPortTests(unittest.TestCase):
         self.temp.cleanup()
 
     def test_catalog_uses_declared_parameter_schema(self):
-        response = self.port.handle("workbench.strategies", {})
+        response = self.port.handle("backtest.strategies", {})
         item = response["items"][0]
         self.assertEqual(item["defaults"]["positions"], 8)
         self.assertEqual(
@@ -51,7 +51,7 @@ class BacktestPortTests(unittest.TestCase):
 
     def test_catalog_keeps_fixed_slot_default(self):
         item = next(
-            value for value in self.port.handle("workbench.strategies", {})["items"]
+            value for value in self.port.handle("backtest.strategies", {})["items"]
             if value["module"] == "plugins.strategies.breadth_low_amount_reversal"
         )
         self.assertEqual(item["defaults"]["positions"], 8)
@@ -61,9 +61,9 @@ class BacktestPortTests(unittest.TestCase):
         )
 
     def test_preflight_has_effective_parameters_requirements_and_hash(self):
-        first = self.port.handle("workbench.preflight", self.request)
+        first = self.port.handle("backtest.prepare", self.request)
         second = self.port.handle(
-            "workbench.preflight", {**self.request, "params": {"trend_window": 160}}
+            "backtest.prepare", {**self.request, "params": {"trend_window": 160}}
         )
         self.assertFalse(first["ready"])
         self.assertIsNone(first["config_hash"])
@@ -75,16 +75,16 @@ class BacktestPortTests(unittest.TestCase):
 
     def test_preflight_accepts_the_public_decimal_string(self):
         result = self.port.handle(
-            "workbench.preflight", {**self.request, "initial_cash": "100000.00"}
+            "backtest.prepare", {**self.request, "initial_cash": "100000.00"}
         )
         self.assertEqual(result["effective_config"]["initial_cash"], "100000.00")
 
     def test_preflight_uses_the_protocol_request_contract(self):
-        result = self.port.handle("workbench.preflight", self.request)
+        result = self.port.handle("backtest.prepare", self.request)
         self.assertIn("requirements", result)
 
     def test_preflight_reports_unavailable_history_as_a_public_problem(self):
-        result = self.port.handle("workbench.preflight", self.request)
+        result = self.port.handle("backtest.prepare", self.request)
         self.assertFalse(result["ready"])
         self.assertTrue(result["issues"])
 
@@ -92,7 +92,7 @@ class BacktestPortTests(unittest.TestCase):
         for params in ({"positions": "8"}, {"positions": True}, {"wrong": 3}):
             with self.subTest(params=params):
                 result = self.port.handle(
-                    "workbench.preflight", {**self.request, "params": params}
+                    "backtest.prepare", {**self.request, "params": params}
                 )
                 self.assertFalse(result["ready"])
                 self.assertTrue(result["issues"])
@@ -110,12 +110,12 @@ class BacktestPortTests(unittest.TestCase):
                 load_strategy(name, {})
                 source.unlink()
                 result = self.port.handle(
-                    "workbench.preflight", {**self.request, "module": name}
+                    "backtest.prepare", {**self.request, "module": name}
                 )
                 self.assertFalse(result["ready"])
                 self.assertTrue(result["issues"])
                 self.assertEqual(
-                    self.port.handle("workbench.strategies", {})["items"], []
+                    self.port.handle("backtest.strategies", {})["items"], []
                 )
         finally:
             sys.modules.pop(name, None)

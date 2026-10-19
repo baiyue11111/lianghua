@@ -4,7 +4,7 @@ from decimal import Decimal
 import unittest
 from zoneinfo import ZoneInfo
 
-from protocal import AccountSnapshot, HistoryBar, MarketFrame
+from protocol import AccountSnapshot, HistoryBar, MarketFrame
 from strategy import load_strategy
 
 

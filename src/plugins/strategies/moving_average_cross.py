@@ -1,9 +1,10 @@
 """双均线：短均线高于长均线时持有，选中集合变化时等权调仓。"""
 from dataclasses import dataclass, field
+from datetime import date
 from math import isfinite
 
 from core.calculation import Calculation
-from protocal import DataRequest, TargetSet
+from protocol import DataRequest, TargetSet
 from strategy import validate_params
 
 NAME='双均线'
@@ -13,6 +14,7 @@ NAME='双均线'
 class Params:
     fast_window:int=field(default=20,metadata={'label':'短均线窗口','minimum':1,'maximum':2000,'unit':'交易日'})
     slow_window:int=field(default=60,metadata={'label':'长均线窗口','minimum':2,'maximum':2000,'unit':'交易日'})
+    rebalance:str=field(default='daily',metadata={'label':'调仓频率','options':('daily','monthly')})
     exposure:float=field(default=1.,metadata={'label':'总仓位','minimum':0,'maximum':1})
 
     def __post_init__(self):
@@ -34,10 +36,23 @@ class Strategy:
     def generate(self,frame,account):
         if type(frame.context['trading']) is not bool:
             raise ValueError('trading phase must be explicit')
+        if self.params.rebalance=='monthly':
+            if 'next_session' not in frame.context: raise ValueError('next_session is required for monthly rebalance')
+            following=date.fromisoformat(frame.context['next_session'])
+            if following<=frame.at.date(): raise ValueError('next_session must follow decision session')
+            if (frame.at.year,frame.at.month)==(following.year,following.month): return None
         if not frame.context['trading']:
             return None
         if not frame.history:
+            if not frame.fields:
+                return None
             raise ValueError('strategy requires observed history')
+        for symbol, shares in account.positions.items():
+            if shares <= 0:
+                continue
+            value = frame.history[symbol][-1].fields['signal_close']
+            if value is None:
+                return None
         selected=[]
         p=self.params
         for symbol,rows in sorted(frame.history.items()):
