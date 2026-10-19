@@ -36,11 +36,6 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
     files.append({'file':'daily/bars.parquet','sha256':hashlib.sha256((folder/'daily/bars.parquet').read_bytes()).hexdigest(),'role':'market'})
     write('calendar.json',{'sessions':[d.isoformat() for d in sessions],
         'coverage':[{'start':history_start.isoformat(),'end':sessions[-1].isoformat()}]})
-    write('market_members.json', {'records': [
-        {'code': symbol, 'index': None, 'effective': history_start.isoformat(),
-         'known_at': f'{history_start.isoformat()}T08:00:00+08:00', 'included': True}
-        for symbol in symbols
-    ]})
     write('code_changes.json',{'schema':1,'scope':'engineering_fixture','events':[]})
     factor_start='1990-01-01'; factor_end='2020-02-05'
     def fact(name,kind,code,start,end,year,records):
@@ -81,9 +76,7 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
         'session_open': '09:30', 'session_close': '15:00',
         'execution': 'cn_a_share', 'code_normalizer': 'normalize_security_id',
         'fields': {'close': {'source': 'daily', 'column': 'close', 'type': 'number'}},
-        'members': {'source': 'fixture', 'file': 'market_members.json',
-                    'code': 'code', 'index': 'index', 'effective': 'effective',
-                    'known': 'known_at', 'included': 'included'},
+        'code_pattern': r'(?:sh\.(?:60|68)\d{4}|sz\.(?:00|30)\d{4})',
     }]}))
     return {'dataset': 'fixture'}
 

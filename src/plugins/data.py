@@ -10,6 +10,8 @@ from numbers import Real
 from types import MappingProxyType
 from zoneinfo import ZoneInfo
 
+import re
+
 import numpy as np
 from core.calculation import AllocationLimits
 from protocol import HistoryResult, RegistrationRecord
@@ -119,15 +121,13 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
     if codes is not None and not set(codes) <= set(symbols):
         raise ValueError("market codes are outside available source data")
     index = selection.get("index")
-    if (index is not None or codes is None) and not (code_column and effective_column
+    if index is not None and not (code_column and effective_column
             and known_column and included_column):
         raise ValueError("market membership data is missing")
     if index is not None and not index_column:
         raise ValueError("index membership data is missing")
     membership_rows = tuple(membership_rows or ())
-    if (index is not None and not any(row.get(index_column) == index for row in membership_rows)
-            or codes is None and index is None and not any(
-                row.get(index_column) in (None, "") for row in membership_rows)):
+    if index is not None and not any(row.get(index_column) == index for row in membership_rows):
         raise ValueError("market membership data is missing")
     fact_rows = fact_rows or {}
     daily_index = {}
@@ -202,6 +202,8 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
                 if type(included) is not bool:
                     raise ValueError("market membership included value must be boolean")
                 grouped[code] = (effective, known, included)
+        if not grouped:
+            raise ValueError(f"index membership history is missing at {cutoff.isoformat()}")
         return {code for code, state in grouped.items() if state[2]}
 
     def fact_value(field, code, day, cutoff):
@@ -228,15 +230,12 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
         return None if best is None else best[2]
 
     def for_time(day, cutoff):
-        if codes is not None:
-            candidates = set(codes)
-            if index is not None:
-                candidates &= active_members(day, cutoff, index)
-            elif code_column and effective_column and known_column and included_column:
-                scope_members = active_members(day, cutoff, None)
-                candidates &= scope_members
-        else:
-            candidates = active_members(day, cutoff, index)
+        candidates = set(codes if codes is not None else symbols)
+        pattern = registry.get("code_pattern")
+        if pattern is not None:
+            candidates = {code for code in candidates if re.fullmatch(pattern, code)}
+        if index is not None:
+            candidates &= active_members(day, cutoff, index)
         result = []
         ordered = codes if codes is not None else symbols
         for code in ordered:
@@ -310,7 +309,8 @@ def _prepare_market(data, query, dataset):
             }
             for symbol, values in record.frame.fields.items()
         }
-    source_hashes = {}
+    source_hashes = {"registry/market": sha256(json.dumps(
+        entry, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
 
     def read_rows(binding, label):
         if binding is None:
@@ -326,7 +326,7 @@ def _prepare_market(data, query, dataset):
             raise DataError("market_data_invalid", f"market {label} rows are invalid")
         return tuple(dict(row) for row in rows)
 
-    member_binding = entry.get("members")
+    member_binding = entry.get("members") if query.market.get("index") is not None else None
     membership = read_rows(member_binding, "membership")
     if membership and entry.get("code_normalizer"):
         for row in membership:
@@ -511,8 +511,17 @@ class Adapter:
         index = market.get("index")
         normalize = (normalize_security_id if entry.get("code_normalizer")
                      == "normalize_security_id" else lambda value: value)
-        if codes is not None and index is None and binding is None:
-            return tuple(codes)
+        pattern = entry.get("code_pattern")
+        if pattern is None and codes is None and index is None:
+            raise ValueError("market code pattern is missing")
+        if codes is not None and pattern is not None and any(
+                not re.fullmatch(pattern, normalize(code)) for code in codes):
+            raise ValueError("requested codes are outside the registered market")
+        if index is None:
+            if codes is not None:
+                return tuple(codes)
+            symbols = data.manifest(dataset_id)["scope"]["symbols"]
+            return tuple(code for code in symbols if re.fullmatch(pattern, normalize(code)))
         if not isinstance(binding, Mapping):
             raise ValueError("market membership data is missing")
         payload = data.read("sources", binding["source"], binding["file"])
@@ -521,13 +530,15 @@ class Adapter:
         if not isinstance(rows, list):
             raise ValueError("market membership rows are invalid")
         code_key, index_key = binding.get("code"), binding.get("index")
-        scope_codes, index_codes = [], []
+        index_codes = []
         for row in rows:
             if not isinstance(row, Mapping) or not isinstance(row.get(code_key), str):
                 raise ValueError("market membership code is invalid")
             if row.get(binding.get("included")) is not True:
                 continue
             code = row[code_key]
+            if pattern is not None and not re.fullmatch(pattern, normalize(code)):
+                continue
             try:
                 if _effective(row.get(binding.get("effective"))) > end:
                     continue
@@ -535,19 +546,16 @@ class Adapter:
                     continue
             except (TypeError, ValueError):
                 raise ValueError("market membership effective/known dates are invalid")
-            if row.get(index_key) in (None, ""):
-                if normalize(code) not in {normalize(item) for item in scope_codes}:
-                    scope_codes.append(code)
-            if (index is not None and row.get(index_key) == index
+            if (row.get(index_key) == index
                     and normalize(code) not in {normalize(item) for item in index_codes}):
                 index_codes.append(code)
         if codes is not None:
             base = list(codes)
-            allowed = set(index_codes if index is not None else scope_codes)
+            allowed = set(index_codes)
             allowed_by_id = {normalize(code): code for code in allowed}
             return tuple(allowed_by_id[normalize(code)] for code in base
                          if normalize(code) in allowed_by_id)
-        return tuple(index_codes if index is not None else scope_codes)
+        return tuple(index_codes)
 
     @classmethod
     def eligible(cls, market, registry, days, symbols, daily_values,

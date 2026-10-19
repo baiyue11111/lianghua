@@ -1,9319 +1,2301 @@
-// Generated from frontend/display/src and frontend/cli.mjs. Do not edit.
-var __create = Object.create;
-var __defProp = Object.defineProperty;
-var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
-var __getOwnPropNames = Object.getOwnPropertyNames;
-var __getProtoOf = Object.getPrototypeOf;
-var __hasOwnProp = Object.prototype.hasOwnProperty;
-var __commonJS = (cb, mod) => function __require() {
-  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-};
-var __copyProps = (to, from, except, desc) => {
-  if (from && typeof from === "object" || typeof from === "function") {
-    for (let key of __getOwnPropNames(from))
-      if (!__hasOwnProp.call(to, key) && key !== except)
-        __defProp(to, key, { get: () => from[key], enumerable: !(desc = __getOwnPropDesc(from, key)) || desc.enumerable });
-  }
-  return to;
-};
-var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
-  // If the importer is in node compatibility mode or this is not an ESM
-  // file that has been converted to a CommonJS file using a Babel-
-  // compatible transform (i.e. "__esModule" has not been set), then set
-  // "default" to the CommonJS "module.exports" for node compatibility.
-  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
-  mod
-));
+YªçŠx-®éÜj×¢ëiºÚ+Š§j[h‘éÜ¢éí×_7óÄèµ©hºÚn¶X§zÍKËÈÙ[™\˜]Yœ›ÛHœ›Û[™Ù\Ü^KÜÜ˜È[™œ›Û[™ØÛK›ZœËˆÈ›ÝY]‚˜\ˆ×ØÜ™X]HHØš™XÝ˜Ü™X]NÂ˜\ˆ×ÙY”›ÜHØš™XÝ™Yš[™T›Ü\NÂ˜\ˆ×ÙÙ]ÝÛ”›Ü\ØÈHØš™XÝ™Ù]ÝÛ”›Ü\Q\ØÜš\ÜŽÂ˜\ˆ×ÙÙ]ÝÛ”›Ü˜[Y\ÈHØš™XÝ™Ù]ÝÛ”›Ü\S˜[Y\ÎÂ˜\ˆ×ÙÙ]›ÝÓÙˆHØš™XÝ™Ù]›ÝÝ\SÙŽÂ˜\ˆ×Ú\ÓÝÛ”›ÜHØš™XÝœ›ÝÝ\Kš\ÓÝÛ”›Ü\NÂ˜\ˆ×ØÛÛ[[Û’”ÈH
+Ø‹[Ù
+HOˆ[˜Ý[Ûˆ×Ü™\]Z\™J
+HÂˆ™]\›ˆ[Ù
+Ø–××ÙÙ]ÝÛ”›Ü˜[Y\ÊØŠVÌWJJ
+[ÙHÈ^ÜÎˆßHJK™^ÜË[Ù
+K[Ù™^ÜÎÂŸNÂ˜\ˆ×ØÛÜT›ÜÈH
+Ëœ›ÛK^Ù\\ØÊHOˆÂˆYˆ
+œ›ÛH	‰ˆ\[Ùˆœ›ÛHOOH›Øš™XÝˆ\[Ùˆœ›ÛHOOH™[˜Ý[ÛˆŠHÂˆ›Üˆ
+]Ù^HÙˆ×ÙÙ]ÝÛ”›Ü˜[Y\Êœ›ÛJJBˆYˆ
+W×Ú\ÓÝÛ”›Ü˜Ø[
+ËÙ^JH	‰ˆÙ^HOOH^Ù\
+Bˆ×ÙY”›Ü
+ËÙ^KÈÙ]ˆ
+
+HOˆœ›ÛVÚÙ^WK[[Y\˜X›NˆJ\ØÈH×ÙÙ]ÝÛ”›Ü\ØÊœ›ÛKÙ^JJH\ØË™[[Y\˜X›HJNÂˆBˆ™]\›ˆÎÂŸNÂ˜\ˆ×ÝÑTÓHH
+[Ù\Ó›ÙS[ÙK\™Ù]
+HOˆ
+\™Ù]H[ÙOH[È×ØÜ™X]J×ÙÙ]›ÝÓÙŠ[Ù
+JHˆßK×ØÛÜT›ÜÊˆËÈYˆH[\Ü\ˆ\È[ˆ›ÙHÛÛ\]Xš[]H[ÙHÜˆ\È\È›Ý[ˆTÓBˆËÈš[H]\È™Y[ˆÛÛ™\YÈHÛÛ[[Û’”Èš[H\Ú[™ÈH˜X™[BˆËÈÛÛ\]X›H˜[œÙ›Ü›H
+K™Kˆ—×Ù\Ó[Ù[Hˆ\È›Ý™Y[ˆÙ]
+K[ˆÙ]ˆËÈ™Y˜][ˆÈHÛÛ[[Û’”È›[Ù[K™^ÜÈˆ›Üˆ›ÙHÛÛ\]Xš[]K‚ˆ\Ó›ÙS[ÙH[[Ù[[Ù—×Ù\Ó[Ù[HÈ×ÙY”›Ü
+\™Ù]™Y˜][‹È˜[YNˆ[Ù[[Y\˜X›NˆYHJHˆ\™Ù]ˆ[ÙŠJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KØÛÙYÙ[‹ØÛÙKšœÂ˜\ˆ™\]Z\™WØÛÙHH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KØÛÙYÙ[‹ØÛÙKšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜËœ™YÙ^ÛÙHH^ÜË™Ù]\ÛQ^Ü˜[YHH^ÜË™Ù]›Ü\HH^ÜËœØY™TÝš[™ÚYžHH^ÜËœÝš[™ÚYžHH^ÜËœÝÛÛ˜Ø]H^ÜË˜YÛÙP\™ÈH^ÜËœÝˆH^ÜË—ÈH^ÜË›š[H^ÜË—ÐÛÙHH^ÜË“˜[YHH^ÜË’QS•Q’QTˆH^ÜË—ÐÛÙSÜ“˜[YHH›ÚYÂˆ˜\ˆÐÛÙSÜ“˜[YHHÛ\ÜÈÂˆNÂˆ^ÜË—ÐÛÙSÜ“˜[YHHÐÛÙSÜ“˜[YNÂˆ^ÜË’QS•Q’QTˆH×–ØK^‰×VØK^‰ÌNWJ‰ÚNÂˆ˜\ˆ˜[YHHÛ\ÜÈ^[™ÈÐÛÙSÜ“˜[YHÂˆÛÛœÝXÝÜŠÊHÂˆÝ\\Š
+NÂˆYˆ
+Y^ÜË’QS•Q’QT‹\Ý
+ÊJBˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ˜[YH]\Ý™HH˜[YY[YšY\ˆŠNÂˆ\ËœÝˆHÎÂˆBˆÔÝš[™Ê
+HÂˆ™]\›ˆ\ËœÝŽÂˆBˆ[\TÝŠ
+HÂˆ™]\›ˆ˜[ÙNÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆÈÝ\ËœÝ—NˆHNÂˆBˆNÂˆ^ÜË“˜[YHH˜[YNÂˆ˜\ˆÐÛÙHHÛ\ÜÈ^[™ÈÐÛÙSÜ“˜[YHÂˆÛÛœÝXÝÜŠÛÙJHÂˆÝ\\Š
+NÂˆ\Ë—Ú][\ÈH\[ÙˆÛÙHOOHœÝš[™ÈˆÈØÛÙWHˆÛÙNÂˆBˆÔÝš[™Ê
+HÂˆ™]\›ˆ\ËœÝŽÂˆBˆ[\TÝŠ
+HÂˆYˆ
+\Ë—Ú][\Ë›[™ÝˆJBˆ™]\›ˆ˜[ÙNÂˆÛÛœÝ][HH\Ë—Ú][\ÖÌNÂˆ™]\›ˆ][HOOHˆˆ][HOOH	Èˆ‰ÎÂˆBˆÙ]ÝŠ
+HÂˆ˜\ˆØNÂˆ™]\›ˆ
+ØHH\Ë—ÜÝŠHOOH[	‰ˆØHOOH›ÚYÈØHˆ\Ë—ÜÝˆH\Ë—Ú][\Ëœ™YXÙJ
+ËÊHOˆ	ÜßIØßXˆŠNÂˆBˆÙ]˜[Y\Ê
+HÂˆ˜\ˆØNÂˆ™]\›ˆ
+ØHH\Ë—Û˜[Y\ÊHOOH[	‰ˆØHOOH›ÚYÈØHˆ\Ë—Û˜[Y\ÈH\Ë—Ú][\Ëœ™YXÙJ
+˜[Y\ËÊHOˆÂˆYˆ
+È[œÝ[˜Ù[Ùˆ˜[YJBˆ˜[Y\ÖØËœÝ—HH
+˜[Y\ÖØËœÝ—H
+H
+ÈNÂˆ™]\›ˆ˜[Y\ÎÂˆKßJNÂˆBˆNÂˆ^ÜË—ÐÛÙHHÐÛÙNÂˆ^ÜË›š[H™]ÈÐÛÙJˆŠNÂˆ[˜Ý[ÛˆÊÝœË‹‹˜\™ÜÊHÂˆÛÛœÝÛÙHHÜÝœÖÌWNÂˆ]HHÂˆÚ[H
+H\™ÜË›[™Ý
+HÂˆYÛÙP\™ÊÛÙK\™ÜÖÚWJNÂˆÛÙKœ\Ú
+ÝœÖÊÊÚWJNÂˆBˆ™]\›ˆ™]ÈÐÛÙJÛÙJNÂˆBˆ^ÜË—ÈHÎÂˆ˜\ˆ\ÈH™]ÈÐÛÙJŠÈŠNÂˆ[˜Ý[ÛˆÝŠÝœË‹‹˜\™ÜÊHÂˆÛÛœÝ^ˆHÜØY™TÝš[™ÚYžJÝœÖÌJWNÂˆ]HHÂˆÚ[H
+H\™ÜË›[™Ý
+HÂˆ^‹œ\Ú
+\ÊNÂˆYÛÙP\™Ê^‹\™ÜÖÚWJNÂˆ^‹œ\Ú
+\ËØY™TÝš[™ÚYžJÝœÖÊÊÚWJJNÂˆBˆÜ[Z^™J^ŠNÂˆ™]\›ˆ™]ÈÐÛÙJ^ŠNÂˆBˆ^ÜËœÝˆHÝŽÂˆ[˜Ý[ÛˆYÛÙP\™ÊÛÙK\™ÊHÂˆYˆ
+\™È[œÝ[˜Ù[ÙˆÐÛÙJBˆÛÙKœ\Ú
+‹‹˜\™Ë—Ú][\ÊNÂˆ[ÙHYˆ
+\™È[œÝ[˜Ù[Ùˆ˜[YJBˆÛÙKœ\Ú
+\™ÊNÂˆ[ÙBˆÛÙKœ\Ú
+[\œÛ]J\™ÊJNÂˆBˆ^ÜË˜YÛÙP\™ÈHYÛÙP\™ÎÂˆ[˜Ý[ÛˆÜ[Z^™J^ŠHÂˆ]HHNÂˆÚ[H
+H^‹›[™ÝHJHÂˆYˆ
+^–ÚWHOOH\ÊHÂˆÛÛœÝ™\ÈHY\™ÙQ^’][\Ê^–ÚHHWK^–ÚH
+ÈWJNÂˆYˆ
+™\ÈOOH›ÚY
+HÂˆ^‹œÜXÙJHHKË™\ÊNÂˆÛÛ[YNÂˆBˆ^–ÚJÊ×HHŠÈŽÂˆBˆJÊÎÂˆBˆBˆ[˜Ý[ÛˆY\™ÙQ^’][\ÊKŠHÂˆYˆ
+ˆOOH	Èˆ‰ÊBˆ™]\›ˆNÂˆYˆ
+HOOH	Èˆ‰ÊBˆ™]\›ˆŽÂˆYˆ
+\[ÙˆHOHœÝš[™ÈŠHÂˆYˆ
+ˆ[œÝ[˜Ù[Ùˆ˜[YHVØK›[™ÝHWHOOH	È‰ÊBˆ™]\›ŽÂˆYˆ
+\[ÙˆˆOHœÝš[™ÈŠBˆ™]\›ˆ	ØKœÛXÙJLJ_IØŸH˜ÂˆYˆ
+–ÌHOOH	È‰ÊBˆ™]\›ˆKœÛXÙJLJH
+È‹œÛXÙJJNÂˆ™]\›ŽÂˆBˆYˆ
+\[ÙˆˆOHœÝš[™Èˆ	‰ˆ–ÌHOOH	È‰È	‰ˆJH[œÝ[˜Ù[Ùˆ˜[YJJBˆ™]\›ˆ‰Ø_IØ‹œÛXÙJJ_XÂˆ™]\›ŽÂˆBˆ[˜Ý[ÛˆÝÛÛ˜Ø]
+ÌKÌŠHÂˆ™]\›ˆÌ‹™[\TÝŠ
+HÈÌHˆÌK™[\TÝŠ
+HÈÌˆˆÝ˜	ØÌ_IØÌŸXÂˆBˆ^ÜËœÝÛÛ˜Ø]HÝÛÛ˜Ø]Âˆ[˜Ý[Ûˆ[\œÛ]J
+HÂˆ™]\›ˆ\[ÙˆOH›[X™\ˆˆ\[ÙˆOH˜›ÛÛX[ˆˆOOH[ÈˆØY™TÝš[™ÚYžJ\œ˜^Kš\Ð\œ˜^J
+HÈš›Ú[Š‹ŠHˆ
+NÂˆBˆ[˜Ý[ÛˆÝš[™ÚYžJ
+HÂˆ™]\›ˆ™]ÈÐÛÙJØY™TÝš[™ÚYžJ
+JNÂˆBˆ^ÜËœÝš[™ÚYžHHÝš[™ÚYžNÂˆ[˜Ý[ÛˆØY™TÝš[™ÚYžJ
+HÂˆ™]\›ˆ”ÓÓ‹œÝš[™ÚYžJ
+Kœ™\XÙJ×LŒŽÙË—LŒŽŠKœ™\XÙJ×LŒŽKÙË—LŒŽHŠNÂˆBˆ^ÜËœØY™TÝš[™ÚYžHHØY™TÝš[™ÚYžNÂˆ[˜Ý[ÛˆÙ]›Ü\JÙ^JHÂˆ™]\›ˆ\[ÙˆÙ^HOHœÝš[™Èˆ	‰ˆ^ÜË’QS•Q’QT‹\Ý
+Ù^JHÈ™]ÈÐÛÙJ‰ÚÙ^_X
+HˆØÉÚÙ^_WXÂˆBˆ^ÜË™Ù]›Ü\HHÙ]›Ü\NÂˆ[˜Ý[ÛˆÙ]\ÛQ^Ü˜[YJÙ^JHÂˆYˆ
+\[ÙˆÙ^HOHœÝš[™Èˆ	‰ˆ^ÜË’QS•Q’QT‹\Ý
+Ù^JJHÂˆ™]\›ˆ™]ÈÐÛÙJ	ÚÙ^_X
+NÂˆBˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ[˜[Y^Ü˜[YNˆ	ÚÙ^_K\ÙH^XÚ]	Y˜[YHX\[™Ø
+NÂˆBˆ^ÜË™Ù]\ÛQ^Ü˜[YHHÙ]\ÛQ^Ü˜[YNÂˆ[˜Ý[Ûˆ™YÙ^ÛÙJž
+HÂˆ™]\›ˆ™]ÈÐÛÙJžÔÝš[™Ê
+JNÂˆBˆ^ÜËœ™YÙ^ÛÙHH™YÙ^ÛÙNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KØÛÙYÙ[‹ÜØÛÜKšœÂ˜\ˆ™\]Z\™WÜØÛÜHH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KØÛÙYÙ[‹ÜØÛÜKšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË•˜[YTØÛÜHH^ÜË•˜[YTØÛÜS˜[YHH^ÜË”ØÛÜHH^ÜË˜\’Ú[™ÈH^ÜË•\ÙY˜[YTÝ]HH›ÚYÂˆ˜\ˆÛÙWÌHH™\]Z\™WØÛÙJ
+NÂˆ˜\ˆ˜[YQ\œ›ÜˆHÛ\ÜÈ^[™È\œ›ÜˆÂˆÛÛœÝXÝÜŠ˜[YJHÂˆÝ\\ŠÛÙQÙ[Žˆ˜ÛÙHˆ›Üˆ	Û˜[Y_H›ÝYš[™Y
+NÂˆ\Ë˜[YHH˜[YK˜[YNÂˆBˆNÂˆ˜\ˆ\ÙY˜[YTÝ]NÂˆ
+[˜Ý[ÛŠ\ÙY˜[YTÝ]LŠHÂˆ\ÙY˜[YTÝ]L–Õ\ÙY˜[YTÝ]L–È”Ý\Y—HHHH”Ý\YŽÂˆ\ÙY˜[YTÝ]L–Õ\ÙY˜[YTÝ]L–ÈÛÛ\]Y—HHWHHÛÛ\]YŽÂˆJJ\ÙY˜[YTÝ]H
+^ÜË•\ÙY˜[YTÝ]HH\ÙY˜[YTÝ]HHßJJNÂˆ^ÜË˜\’Ú[™ÈHÂˆÛÛœÝˆ™]ÈÛÙWÌK“˜[YJ˜ÛÛœÝŠKˆ]ˆ™]ÈÛÙWÌK“˜[YJ›]ŠKˆ˜\Žˆ™]ÈÛÙWÌK“˜[YJ˜\ˆŠBˆNÂˆ˜\ˆØÛÜHHÛ\ÜÈÂˆÛÛœÝXÝÜŠÈ™Yš^\Ë\™[HHßJHÂˆ\Ë—Û˜[Y\ÈHßNÂˆ\Ë—Ü™Yš^\ÈH™Yš^\ÎÂˆ\Ë—Ü\™[H\™[ÂˆBˆÓ˜[YJ˜[YSÜ”™Yš^
+HÂˆ™]\›ˆ˜[YSÜ”™Yš^[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YHÈ˜[YSÜ”™Yš^ˆ\Ë›˜[YJ˜[YSÜ”™Yš^
+NÂˆBˆ˜[YJ™Yš^
+HÂˆ™]\›ˆ™]ÈÛÙWÌK“˜[YJ\Ë—Û™]Ó˜[YJ™Yš^
+JNÂˆBˆÛ™]Ó˜[YJ™Yš^
+HÂˆÛÛœÝ™ÈH\Ë—Û˜[Y\ÖÜ™Yš^H\Ë—Û˜[YQÜ›Ý\
+™Yš^
+NÂˆ™]\›ˆ	Ü™Yš^IÛ™Ëš[™^
+ÊßXÂˆBˆÛ˜[YQÜ›Ý\
+™Yš^
+HÂˆ˜\ˆØKØŽÂˆYˆ
+
 
-// node_modules/ajv/dist/compile/codegen/code.js
-var require_code = __commonJS({
-  "node_modules/ajv/dist/compile/codegen/code.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.regexpCode = exports.getEsmExportName = exports.getProperty = exports.safeStringify = exports.stringify = exports.strConcat = exports.addCodeArg = exports.str = exports._ = exports.nil = exports._Code = exports.Name = exports.IDENTIFIER = exports._CodeOrName = void 0;
-    var _CodeOrName = class {
-    };
-    exports._CodeOrName = _CodeOrName;
-    exports.IDENTIFIER = /^[a-z$_][a-z$_0-9]*$/i;
-    var Name = class extends _CodeOrName {
-      constructor(s) {
-        super();
-        if (!exports.IDENTIFIER.test(s))
-          throw new Error("CodeGen: name must be a valid identifier");
-        this.str = s;
-      }
-      toString() {
-        return this.str;
-      }
-      emptyStr() {
-        return false;
-      }
-      get names() {
-        return { [this.str]: 1 };
-      }
-    };
-    exports.Name = Name;
-    var _Code = class extends _CodeOrName {
-      constructor(code) {
-        super();
-        this._items = typeof code === "string" ? [code] : code;
-      }
-      toString() {
-        return this.str;
-      }
-      emptyStr() {
-        if (this._items.length > 1)
-          return false;
-        const item = this._items[0];
-        return item === "" || item === '""';
-      }
-      get str() {
-        var _a;
-        return (_a = this._str) !== null && _a !== void 0 ? _a : this._str = this._items.reduce((s, c) => `${s}${c}`, "");
-      }
-      get names() {
-        var _a;
-        return (_a = this._names) !== null && _a !== void 0 ? _a : this._names = this._items.reduce((names, c) => {
-          if (c instanceof Name)
-            names[c.str] = (names[c.str] || 0) + 1;
-          return names;
-        }, {});
-      }
-    };
-    exports._Code = _Code;
-    exports.nil = new _Code("");
-    function _(strs, ...args) {
-      const code = [strs[0]];
-      let i = 0;
-      while (i < args.length) {
-        addCodeArg(code, args[i]);
-        code.push(strs[++i]);
-      }
-      return new _Code(code);
-    }
-    exports._ = _;
-    var plus = new _Code("+");
-    function str(strs, ...args) {
-      const expr = [safeStringify(strs[0])];
-      let i = 0;
-      while (i < args.length) {
-        expr.push(plus);
-        addCodeArg(expr, args[i]);
-        expr.push(plus, safeStringify(strs[++i]));
-      }
-      optimize(expr);
-      return new _Code(expr);
-    }
-    exports.str = str;
-    function addCodeArg(code, arg) {
-      if (arg instanceof _Code)
-        code.push(...arg._items);
-      else if (arg instanceof Name)
-        code.push(arg);
-      else
-        code.push(interpolate(arg));
-    }
-    exports.addCodeArg = addCodeArg;
-    function optimize(expr) {
-      let i = 1;
-      while (i < expr.length - 1) {
-        if (expr[i] === plus) {
-          const res = mergeExprItems(expr[i - 1], expr[i + 1]);
-          if (res !== void 0) {
-            expr.splice(i - 1, 3, res);
-            continue;
-          }
-          expr[i++] = "+";
-        }
-        i++;
-      }
-    }
-    function mergeExprItems(a, b) {
-      if (b === '""')
-        return a;
-      if (a === '""')
-        return b;
-      if (typeof a == "string") {
-        if (b instanceof Name || a[a.length - 1] !== '"')
-          return;
-        if (typeof b != "string")
-          return `${a.slice(0, -1)}${b}"`;
-        if (b[0] === '"')
-          return a.slice(0, -1) + b.slice(1);
-        return;
-      }
-      if (typeof b == "string" && b[0] === '"' && !(a instanceof Name))
-        return `"${a}${b.slice(1)}`;
-      return;
-    }
-    function strConcat(c1, c2) {
-      return c2.emptyStr() ? c1 : c1.emptyStr() ? c2 : str`${c1}${c2}`;
-    }
-    exports.strConcat = strConcat;
-    function interpolate(x) {
-      return typeof x == "number" || typeof x == "boolean" || x === null ? x : safeStringify(Array.isArray(x) ? x.join(",") : x);
-    }
-    function stringify(x) {
-      return new _Code(safeStringify(x));
-    }
-    exports.stringify = stringify;
-    function safeStringify(x) {
-      return JSON.stringify(x).replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
-    }
-    exports.safeStringify = safeStringify;
-    function getProperty(key) {
-      return typeof key == "string" && exports.IDENTIFIER.test(key) ? new _Code(`.${key}`) : _`[${key}]`;
-    }
-    exports.getProperty = getProperty;
-    function getEsmExportName(key) {
-      if (typeof key == "string" && exports.IDENTIFIER.test(key)) {
-        return new _Code(`${key}`);
-      }
-      throw new Error(`CodeGen: invalid export name: ${key}, use explicit $id name mapping`);
-    }
-    exports.getEsmExportName = getEsmExportName;
-    function regexpCode(rx) {
-      return new _Code(rx.toString());
-    }
-    exports.regexpCode = regexpCode;
-  }
-});
-
-// node_modules/ajv/dist/compile/codegen/scope.js
-var require_scope = __commonJS({
-  "node_modules/ajv/dist/compile/codegen/scope.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.ValueScope = exports.ValueScopeName = exports.Scope = exports.varKinds = exports.UsedValueState = void 0;
-    var code_1 = require_code();
-    var ValueError = class extends Error {
-      constructor(name) {
-        super(`CodeGen: "code" for ${name} not defined`);
-        this.value = name.value;
-      }
-    };
-    var UsedValueState;
-    (function(UsedValueState2) {
-      UsedValueState2[UsedValueState2["Started"] = 0] = "Started";
-      UsedValueState2[UsedValueState2["Completed"] = 1] = "Completed";
-    })(UsedValueState || (exports.UsedValueState = UsedValueState = {}));
-    exports.varKinds = {
-      const: new code_1.Name("const"),
-      let: new code_1.Name("let"),
-      var: new code_1.Name("var")
-    };
-    var Scope = class {
-      constructor({ prefixes, parent } = {}) {
-        this._names = {};
-        this._prefixes = prefixes;
-        this._parent = parent;
-      }
-      toName(nameOrPrefix) {
-        return nameOrPrefix instanceof code_1.Name ? nameOrPrefix : this.name(nameOrPrefix);
-      }
-      name(prefix) {
-        return new code_1.Name(this._newName(prefix));
-      }
-      _newName(prefix) {
-        const ng = this._names[prefix] || this._nameGroup(prefix);
-        return `${prefix}${ng.index++}`;
-      }
-      _nameGroup(prefix) {
-        var _a, _b;
-        if (((_b = (_a = this._parent) === null || _a === void 0 ? void 0 : _a._prefixes) === null || _b === void 0 ? void 0 : _b.has(prefix)) || this._prefixes && !this._prefixes.has(prefix)) {
-          throw new Error(`CodeGen: prefix "${prefix}" is not allowed in this scope`);
-        }
-        return this._names[prefix] = { prefix, index: 0 };
-      }
-    };
-    exports.Scope = Scope;
-    var ValueScopeName = class extends code_1.Name {
-      constructor(prefix, nameStr) {
-        super(nameStr);
-        this.prefix = prefix;
-      }
-      setValue(value, { property, itemIndex }) {
-        this.value = value;
-        this.scopePath = (0, code_1._)`.${new code_1.Name(property)}[${itemIndex}]`;
-      }
-    };
-    exports.ValueScopeName = ValueScopeName;
-    var line = (0, code_1._)`\n`;
-    var ValueScope = class extends Scope {
-      constructor(opts) {
-        super(opts);
-        this._values = {};
-        this._scope = opts.scope;
-        this.opts = { ...opts, _n: opts.lines ? line : code_1.nil };
-      }
-      get() {
-        return this._scope;
-      }
-      name(prefix) {
-        return new ValueScopeName(prefix, this._newName(prefix));
-      }
-      value(nameOrPrefix, value) {
-        var _a;
-        if (value.ref === void 0)
-          throw new Error("CodeGen: ref must be passed in value");
-        const name = this.toName(nameOrPrefix);
-        const { prefix } = name;
-        const valueKey = (_a = value.key) !== null && _a !== void 0 ? _a : value.ref;
-        let vs = this._values[prefix];
-        if (vs) {
-          const _name = vs.get(valueKey);
-          if (_name)
-            return _name;
-        } else {
-          vs = this._values[prefix] = /* @__PURE__ */ new Map();
-        }
-        vs.set(valueKey, name);
-        const s = this._scope[prefix] || (this._scope[prefix] = []);
-        const itemIndex = s.length;
-        s[itemIndex] = value.ref;
-        name.setValue(value, { property: prefix, itemIndex });
-        return name;
-      }
-      getValue(prefix, keyOrRef) {
-        const vs = this._values[prefix];
-        if (!vs)
-          return;
-        return vs.get(keyOrRef);
-      }
-      scopeRefs(scopeName, values = this._values) {
-        return this._reduceValues(values, (name) => {
-          if (name.scopePath === void 0)
-            throw new Error(`CodeGen: name "${name}" has no value`);
-          return (0, code_1._)`${scopeName}${name.scopePath}`;
-        });
-      }
-      scopeCode(values = this._values, usedValues, getCode) {
-        return this._reduceValues(values, (name) => {
-          if (name.value === void 0)
-            throw new Error(`CodeGen: name "${name}" has no value`);
-          return name.value.code;
-        }, usedValues, getCode);
-      }
-      _reduceValues(values, valueCode, usedValues = {}, getCode) {
-        let code = code_1.nil;
-        for (const prefix in values) {
-          const vs = values[prefix];
-          if (!vs)
-            continue;
-          const nameSet = usedValues[prefix] = usedValues[prefix] || /* @__PURE__ */ new Map();
-          vs.forEach((name) => {
-            if (nameSet.has(name))
-              return;
-            nameSet.set(name, UsedValueState.Started);
-            let c = valueCode(name);
-            if (c) {
-              const def = this.opts.es5 ? exports.varKinds.var : exports.varKinds.const;
-              code = (0, code_1._)`${code}${def} ${name} = ${c};${this.opts._n}`;
-            } else if (c = getCode === null || getCode === void 0 ? void 0 : getCode(name)) {
-              code = (0, code_1._)`${code}${c}${this.opts._n}`;
-            } else {
-              throw new ValueError(name);
-            }
-            nameSet.set(name, UsedValueState.Completed);
-          });
-        }
-        return code;
-      }
-    };
-    exports.ValueScope = ValueScope;
-  }
-});
-
-// node_modules/ajv/dist/compile/codegen/index.js
-var require_codegen = __commonJS({
-  "node_modules/ajv/dist/compile/codegen/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.or = exports.and = exports.not = exports.CodeGen = exports.operators = exports.varKinds = exports.ValueScopeName = exports.ValueScope = exports.Scope = exports.Name = exports.regexpCode = exports.stringify = exports.getProperty = exports.nil = exports.strConcat = exports.str = exports._ = void 0;
-    var code_1 = require_code();
-    var scope_1 = require_scope();
-    var code_2 = require_code();
-    Object.defineProperty(exports, "_", { enumerable: true, get: function() {
-      return code_2._;
-    } });
-    Object.defineProperty(exports, "str", { enumerable: true, get: function() {
-      return code_2.str;
-    } });
-    Object.defineProperty(exports, "strConcat", { enumerable: true, get: function() {
-      return code_2.strConcat;
-    } });
-    Object.defineProperty(exports, "nil", { enumerable: true, get: function() {
-      return code_2.nil;
-    } });
-    Object.defineProperty(exports, "getProperty", { enumerable: true, get: function() {
-      return code_2.getProperty;
-    } });
-    Object.defineProperty(exports, "stringify", { enumerable: true, get: function() {
-      return code_2.stringify;
-    } });
-    Object.defineProperty(exports, "regexpCode", { enumerable: true, get: function() {
-      return code_2.regexpCode;
-    } });
-    Object.defineProperty(exports, "Name", { enumerable: true, get: function() {
-      return code_2.Name;
-    } });
-    var scope_2 = require_scope();
-    Object.defineProperty(exports, "Scope", { enumerable: true, get: function() {
-      return scope_2.Scope;
-    } });
-    Object.defineProperty(exports, "ValueScope", { enumerable: true, get: function() {
-      return scope_2.ValueScope;
-    } });
-    Object.defineProperty(exports, "ValueScopeName", { enumerable: true, get: function() {
-      return scope_2.ValueScopeName;
-    } });
-    Object.defineProperty(exports, "varKinds", { enumerable: true, get: function() {
-      return scope_2.varKinds;
-    } });
-    exports.operators = {
-      GT: new code_1._Code(">"),
-      GTE: new code_1._Code(">="),
-      LT: new code_1._Code("<"),
-      LTE: new code_1._Code("<="),
-      EQ: new code_1._Code("==="),
-      NEQ: new code_1._Code("!=="),
-      NOT: new code_1._Code("!"),
-      OR: new code_1._Code("||"),
-      AND: new code_1._Code("&&"),
-      ADD: new code_1._Code("+")
-    };
-    var Node = class {
-      optimizeNodes() {
-        return this;
-      }
-      optimizeNames(_names, _constants) {
-        return this;
-      }
-    };
-    var Def = class extends Node {
-      constructor(varKind, name, rhs) {
-        super();
-        this.varKind = varKind;
-        this.name = name;
-        this.rhs = rhs;
-      }
-      render({ es5, _n }) {
-        const varKind = es5 ? scope_1.varKinds.var : this.varKind;
-        const rhs = this.rhs === void 0 ? "" : ` = ${this.rhs}`;
-        return `${varKind} ${this.name}${rhs};` + _n;
-      }
-      optimizeNames(names, constants) {
-        if (!names[this.name.str])
-          return;
-        if (this.rhs)
-          this.rhs = optimizeExpr(this.rhs, names, constants);
-        return this;
-      }
-      get names() {
-        return this.rhs instanceof code_1._CodeOrName ? this.rhs.names : {};
-      }
-    };
-    var Assign = class extends Node {
-      constructor(lhs, rhs, sideEffects) {
-        super();
-        this.lhs = lhs;
-        this.rhs = rhs;
-        this.sideEffects = sideEffects;
-      }
-      render({ _n }) {
-        return `${this.lhs} = ${this.rhs};` + _n;
-      }
-      optimizeNames(names, constants) {
-        if (this.lhs instanceof code_1.Name && !names[this.lhs.str] && !this.sideEffects)
-          return;
-        this.rhs = optimizeExpr(this.rhs, names, constants);
-        return this;
-      }
-      get names() {
-        const names = this.lhs instanceof code_1.Name ? {} : { ...this.lhs.names };
-        return addExprNames(names, this.rhs);
-      }
-    };
-    var AssignOp = class extends Assign {
-      constructor(lhs, op, rhs, sideEffects) {
-        super(lhs, rhs, sideEffects);
-        this.op = op;
-      }
-      render({ _n }) {
-        return `${this.lhs} ${this.op}= ${this.rhs};` + _n;
-      }
-    };
-    var Label = class extends Node {
-      constructor(label) {
-        super();
-        this.label = label;
-        this.names = {};
-      }
-      render({ _n }) {
-        return `${this.label}:` + _n;
-      }
-    };
-    var Break = class extends Node {
-      constructor(label) {
-        super();
-        this.label = label;
-        this.names = {};
-      }
-      render({ _n }) {
-        const label = this.label ? ` ${this.label}` : "";
-        return `break${label};` + _n;
-      }
-    };
-    var Throw = class extends Node {
-      constructor(error) {
-        super();
-        this.error = error;
-      }
-      render({ _n }) {
-        return `throw ${this.error};` + _n;
-      }
-      get names() {
-        return this.error.names;
-      }
-    };
-    var AnyCode = class extends Node {
-      constructor(code) {
-        super();
-        this.code = code;
-      }
-      render({ _n }) {
-        return `${this.code};` + _n;
-      }
-      optimizeNodes() {
-        return `${this.code}` ? this : void 0;
-      }
-      optimizeNames(names, constants) {
-        this.code = optimizeExpr(this.code, names, constants);
-        return this;
-      }
-      get names() {
-        return this.code instanceof code_1._CodeOrName ? this.code.names : {};
-      }
-    };
-    var ParentNode = class extends Node {
-      constructor(nodes = []) {
-        super();
-        this.nodes = nodes;
-      }
-      render(opts) {
-        return this.nodes.reduce((code, n) => code + n.render(opts), "");
-      }
-      optimizeNodes() {
-        const { nodes } = this;
-        let i = nodes.length;
-        while (i--) {
-          const n = nodes[i].optimizeNodes();
-          if (Array.isArray(n))
-            nodes.splice(i, 1, ...n);
-          else if (n)
-            nodes[i] = n;
-          else
-            nodes.splice(i, 1);
-        }
-        return nodes.length > 0 ? this : void 0;
-      }
-      optimizeNames(names, constants) {
-        const { nodes } = this;
-        let i = nodes.length;
-        while (i--) {
-          const n = nodes[i];
-          if (n.optimizeNames(names, constants))
-            continue;
-          subtractNames(names, n.names);
-          nodes.splice(i, 1);
-        }
-        return nodes.length > 0 ? this : void 0;
-      }
-      get names() {
-        return this.nodes.reduce((names, n) => addNames(names, n.names), {});
-      }
-    };
-    var BlockNode = class extends ParentNode {
-      render(opts) {
-        return "{" + opts._n + super.render(opts) + "}" + opts._n;
-      }
-    };
-    var Root = class extends ParentNode {
-    };
-    var Else = class extends BlockNode {
-    };
-    Else.kind = "else";
-    var If = class _If extends BlockNode {
-      constructor(condition, nodes) {
-        super(nodes);
-        this.condition = condition;
-      }
-      render(opts) {
-        let code = `if(${this.condition})` + super.render(opts);
-        if (this.else)
-          code += "else " + this.else.render(opts);
-        return code;
-      }
-      optimizeNodes() {
-        super.optimizeNodes();
-        const cond = this.condition;
-        if (cond === true)
-          return this.nodes;
-        let e = this.else;
-        if (e) {
-          const ns = e.optimizeNodes();
-          e = this.else = Array.isArray(ns) ? new Else(ns) : ns;
-        }
-        if (e) {
-          if (cond === false)
-            return e instanceof _If ? e : e.nodes;
-          if (this.nodes.length)
-            return this;
-          return new _If(not(cond), e instanceof _If ? [e] : e.nodes);
-        }
-        if (cond === false || !this.nodes.length)
-          return void 0;
-        return this;
-      }
-      optimizeNames(names, constants) {
-        var _a;
-        this.else = (_a = this.else) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants);
-        if (!(super.optimizeNames(names, constants) || this.else))
-          return;
-        this.condition = optimizeExpr(this.condition, names, constants);
-        return this;
-      }
-      get names() {
-        const names = super.names;
-        addExprNames(names, this.condition);
-        if (this.else)
-          addNames(names, this.else.names);
-        return names;
-      }
-    };
-    If.kind = "if";
-    var For = class extends BlockNode {
-    };
-    For.kind = "for";
-    var ForLoop = class extends For {
-      constructor(iteration) {
-        super();
-        this.iteration = iteration;
-      }
-      render(opts) {
-        return `for(${this.iteration})` + super.render(opts);
-      }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
-          return;
-        this.iteration = optimizeExpr(this.iteration, names, constants);
-        return this;
-      }
-      get names() {
-        return addNames(super.names, this.iteration.names);
-      }
-    };
-    var ForRange = class extends For {
-      constructor(varKind, name, from, to) {
-        super();
-        this.varKind = varKind;
-        this.name = name;
-        this.from = from;
-        this.to = to;
-      }
-      render(opts) {
-        const varKind = opts.es5 ? scope_1.varKinds.var : this.varKind;
-        const { name, from, to } = this;
-        return `for(${varKind} ${name}=${from}; ${name}<${to}; ${name}++)` + super.render(opts);
-      }
-      get names() {
-        const names = addExprNames(super.names, this.from);
-        return addExprNames(names, this.to);
-      }
-    };
-    var ForIter = class extends For {
-      constructor(loop, varKind, name, iterable) {
-        super();
-        this.loop = loop;
-        this.varKind = varKind;
-        this.name = name;
-        this.iterable = iterable;
-      }
-      render(opts) {
-        return `for(${this.varKind} ${this.name} ${this.loop} ${this.iterable})` + super.render(opts);
-      }
-      optimizeNames(names, constants) {
-        if (!super.optimizeNames(names, constants))
-          return;
-        this.iterable = optimizeExpr(this.iterable, names, constants);
-        return this;
-      }
-      get names() {
-        return addNames(super.names, this.iterable.names);
-      }
-    };
-    var Func = class extends BlockNode {
-      constructor(name, args, async) {
-        super();
-        this.name = name;
-        this.args = args;
-        this.async = async;
-      }
-      render(opts) {
-        const _async = this.async ? "async " : "";
-        return `${_async}function ${this.name}(${this.args})` + super.render(opts);
-      }
-    };
-    Func.kind = "func";
-    var Return = class extends ParentNode {
-      render(opts) {
-        return "return " + super.render(opts);
-      }
-    };
-    Return.kind = "return";
-    var Try = class extends BlockNode {
-      render(opts) {
-        let code = "try" + super.render(opts);
-        if (this.catch)
-          code += this.catch.render(opts);
-        if (this.finally)
-          code += this.finally.render(opts);
-        return code;
-      }
-      optimizeNodes() {
-        var _a, _b;
-        super.optimizeNodes();
-        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNodes();
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNodes();
-        return this;
-      }
-      optimizeNames(names, constants) {
-        var _a, _b;
-        super.optimizeNames(names, constants);
-        (_a = this.catch) === null || _a === void 0 ? void 0 : _a.optimizeNames(names, constants);
-        (_b = this.finally) === null || _b === void 0 ? void 0 : _b.optimizeNames(names, constants);
-        return this;
-      }
-      get names() {
-        const names = super.names;
-        if (this.catch)
-          addNames(names, this.catch.names);
-        if (this.finally)
-          addNames(names, this.finally.names);
-        return names;
-      }
-    };
-    var Catch = class extends BlockNode {
-      constructor(error) {
-        super();
-        this.error = error;
-      }
-      render(opts) {
-        return `catch(${this.error})` + super.render(opts);
-      }
-    };
-    Catch.kind = "catch";
-    var Finally = class extends BlockNode {
-      render(opts) {
-        return "finally" + super.render(opts);
-      }
-    };
-    Finally.kind = "finally";
-    var CodeGen = class {
-      constructor(extScope, opts = {}) {
-        this._values = {};
-        this._blockStarts = [];
-        this._constants = {};
-        this.opts = { ...opts, _n: opts.lines ? "\n" : "" };
-        this._extScope = extScope;
-        this._scope = new scope_1.Scope({ parent: extScope });
-        this._nodes = [new Root()];
-      }
-      toString() {
-        return this._root.render(this.opts);
-      }
-      // returns unique name in the internal scope
-      name(prefix) {
-        return this._scope.name(prefix);
-      }
-      // reserves unique name in the external scope
-      scopeName(prefix) {
-        return this._extScope.name(prefix);
-      }
-      // reserves unique name in the external scope and assigns value to it
-      scopeValue(prefixOrName, value) {
-        const name = this._extScope.value(prefixOrName, value);
-        const vs = this._values[name.prefix] || (this._values[name.prefix] = /* @__PURE__ */ new Set());
-        vs.add(name);
-        return name;
-      }
-      getScopeValue(prefix, keyOrRef) {
-        return this._extScope.getValue(prefix, keyOrRef);
-      }
-      // return code that assigns values in the external scope to the names that are used internally
-      // (same names that were returned by gen.scopeName or gen.scopeValue)
-      scopeRefs(scopeName) {
-        return this._extScope.scopeRefs(scopeName, this._values);
-      }
-      scopeCode() {
-        return this._extScope.scopeCode(this._values);
-      }
-      _def(varKind, nameOrPrefix, rhs, constant) {
-        const name = this._scope.toName(nameOrPrefix);
-        if (rhs !== void 0 && constant)
-          this._constants[name.str] = rhs;
-        this._leafNode(new Def(varKind, name, rhs));
-        return name;
-      }
-      // `const` declaration (`var` in es5 mode)
-      const(nameOrPrefix, rhs, _constant) {
-        return this._def(scope_1.varKinds.const, nameOrPrefix, rhs, _constant);
-      }
-      // `let` declaration with optional assignment (`var` in es5 mode)
-      let(nameOrPrefix, rhs, _constant) {
-        return this._def(scope_1.varKinds.let, nameOrPrefix, rhs, _constant);
-      }
-      // `var` declaration with optional assignment
-      var(nameOrPrefix, rhs, _constant) {
-        return this._def(scope_1.varKinds.var, nameOrPrefix, rhs, _constant);
-      }
-      // assignment code
-      assign(lhs, rhs, sideEffects) {
-        return this._leafNode(new Assign(lhs, rhs, sideEffects));
-      }
-      // `+=` code
-      add(lhs, rhs) {
-        return this._leafNode(new AssignOp(lhs, exports.operators.ADD, rhs));
-      }
-      // appends passed SafeExpr to code or executes Block
-      code(c) {
-        if (typeof c == "function")
-          c();
-        else if (c !== code_1.nil)
-          this._leafNode(new AnyCode(c));
-        return this;
-      }
-      // returns code for object literal for the passed argument list of key-value pairs
-      object(...keyValues) {
-        const code = ["{"];
-        for (const [key, value] of keyValues) {
-          if (code.length > 1)
-            code.push(",");
-          code.push(key);
-          if (key !== value || this.opts.es5) {
-            code.push(":");
-            (0, code_1.addCodeArg)(code, value);
-          }
-        }
-        code.push("}");
-        return new code_1._Code(code);
-      }
-      // `if` clause (or statement if `thenBody` and, optionally, `elseBody` are passed)
-      if(condition, thenBody, elseBody) {
-        this._blockNode(new If(condition));
-        if (thenBody && elseBody) {
-          this.code(thenBody).else().code(elseBody).endIf();
-        } else if (thenBody) {
-          this.code(thenBody).endIf();
-        } else if (elseBody) {
-          throw new Error('CodeGen: "else" body without "then" body');
-        }
-        return this;
-      }
-      // `else if` clause - invalid without `if` or after `else` clauses
-      elseIf(condition) {
-        return this._elseNode(new If(condition));
-      }
-      // `else` clause - only valid after `if` or `else if` clauses
-      else() {
-        return this._elseNode(new Else());
-      }
-      // end `if` statement (needed if gen.if was used only with condition)
-      endIf() {
-        return this._endBlockNode(If, Else);
-      }
-      _for(node, forBody) {
-        this._blockNode(node);
-        if (forBody)
-          this.code(forBody).endFor();
-        return this;
-      }
-      // a generic `for` clause (or statement if `forBody` is passed)
-      for(iteration, forBody) {
-        return this._for(new ForLoop(iteration), forBody);
-      }
-      // `for` statement for a range of values
-      forRange(nameOrPrefix, from, to, forBody, varKind = this.opts.es5 ? scope_1.varKinds.var : scope_1.varKinds.let) {
-        const name = this._scope.toName(nameOrPrefix);
-        return this._for(new ForRange(varKind, name, from, to), () => forBody(name));
-      }
-      // `for-of` statement (in es5 mode replace with a normal for loop)
-      forOf(nameOrPrefix, iterable, forBody, varKind = scope_1.varKinds.const) {
-        const name = this._scope.toName(nameOrPrefix);
-        if (this.opts.es5) {
-          const arr = iterable instanceof code_1.Name ? iterable : this.var("_arr", iterable);
-          return this.forRange("_i", 0, (0, code_1._)`${arr}.length`, (i) => {
-            this.var(name, (0, code_1._)`${arr}[${i}]`);
-            forBody(name);
-          });
-        }
-        return this._for(new ForIter("of", varKind, name, iterable), () => forBody(name));
-      }
-      // `for-in` statement.
-      // With option `ownProperties` replaced with a `for-of` loop for object keys
-      forIn(nameOrPrefix, obj, forBody, varKind = this.opts.es5 ? scope_1.varKinds.var : scope_1.varKinds.const) {
-        if (this.opts.ownProperties) {
-          return this.forOf(nameOrPrefix, (0, code_1._)`Object.keys(${obj})`, forBody);
-        }
-        const name = this._scope.toName(nameOrPrefix);
-        return this._for(new ForIter("in", varKind, name, obj), () => forBody(name));
-      }
-      // end `for` loop
-      endFor() {
-        return this._endBlockNode(For);
-      }
-      // `label` statement
-      label(label) {
-        return this._leafNode(new Label(label));
-      }
-      // `break` statement
-      break(label) {
-        return this._leafNode(new Break(label));
-      }
-      // `return` statement
-      return(value) {
-        const node = new Return();
-        this._blockNode(node);
-        this.code(value);
-        if (node.nodes.length !== 1)
-          throw new Error('CodeGen: "return" should have one node');
-        return this._endBlockNode(Return);
-      }
-      // `try` statement
-      try(tryBody, catchCode, finallyCode) {
-        if (!catchCode && !finallyCode)
-          throw new Error('CodeGen: "try" without "catch" and "finally"');
-        const node = new Try();
-        this._blockNode(node);
-        this.code(tryBody);
-        if (catchCode) {
-          const error = this.name("e");
-          this._currNode = node.catch = new Catch(error);
-          catchCode(error);
-        }
-        if (finallyCode) {
-          this._currNode = node.finally = new Finally();
-          this.code(finallyCode);
-        }
-        return this._endBlockNode(Catch, Finally);
-      }
-      // `throw` statement
-      throw(error) {
-        return this._leafNode(new Throw(error));
-      }
-      // start self-balancing block
-      block(body, nodeCount) {
-        this._blockStarts.push(this._nodes.length);
-        if (body)
-          this.code(body).endBlock(nodeCount);
-        return this;
-      }
-      // end the current self-balancing block
-      endBlock(nodeCount) {
-        const len = this._blockStarts.pop();
-        if (len === void 0)
-          throw new Error("CodeGen: not in self-balancing block");
-        const toClose = this._nodes.length - len;
-        if (toClose < 0 || nodeCount !== void 0 && toClose !== nodeCount) {
-          throw new Error(`CodeGen: wrong number of nodes: ${toClose} vs ${nodeCount} expected`);
-        }
-        this._nodes.length = len;
-        return this;
-      }
-      // `function` heading (or definition if funcBody is passed)
-      func(name, args = code_1.nil, async, funcBody) {
-        this._blockNode(new Func(name, args, async));
-        if (funcBody)
-          this.code(funcBody).endFunc();
-        return this;
-      }
-      // end function definition
-      endFunc() {
-        return this._endBlockNode(Func);
-      }
-      optimize(n = 1) {
-        while (n-- > 0) {
-          this._root.optimizeNodes();
-          this._root.optimizeNames(this._root.names, this._constants);
-        }
-      }
-      _leafNode(node) {
-        this._currNode.nodes.push(node);
-        return this;
-      }
-      _blockNode(node) {
-        this._currNode.nodes.push(node);
-        this._nodes.push(node);
-      }
-      _endBlockNode(N1, N2) {
-        const n = this._currNode;
-        if (n instanceof N1 || N2 && n instanceof N2) {
-          this._nodes.pop();
-          return this;
-        }
-        throw new Error(`CodeGen: not in block "${N2 ? `${N1.kind}/${N2.kind}` : N1.kind}"`);
-      }
-      _elseNode(node) {
-        const n = this._currNode;
-        if (!(n instanceof If)) {
-          throw new Error('CodeGen: "else" without "if"');
-        }
-        this._currNode = n.else = node;
-        return this;
-      }
-      get _root() {
-        return this._nodes[0];
-      }
-      get _currNode() {
-        const ns = this._nodes;
-        return ns[ns.length - 1];
-      }
-      set _currNode(node) {
-        const ns = this._nodes;
-        ns[ns.length - 1] = node;
-      }
-    };
-    exports.CodeGen = CodeGen;
-    function addNames(names, from) {
-      for (const n in from)
-        names[n] = (names[n] || 0) + (from[n] || 0);
-      return names;
-    }
-    function addExprNames(names, from) {
-      return from instanceof code_1._CodeOrName ? addNames(names, from.names) : names;
-    }
-    function optimizeExpr(expr, names, constants) {
-      if (expr instanceof code_1.Name)
-        return replaceName(expr);
-      if (!canOptimize(expr))
-        return expr;
-      return new code_1._Code(expr._items.reduce((items2, c) => {
-        if (c instanceof code_1.Name)
-          c = replaceName(c);
-        if (c instanceof code_1._Code)
-          items2.push(...c._items);
-        else
-          items2.push(c);
-        return items2;
-      }, []));
-      function replaceName(n) {
-        const c = constants[n.str];
-        if (c === void 0 || names[n.str] !== 1)
-          return n;
-        delete names[n.str];
-        return c;
-      }
-      function canOptimize(e) {
-        return e instanceof code_1._Code && e._items.some((c) => c instanceof code_1.Name && names[c.str] === 1 && constants[c.str] !== void 0);
-      }
-    }
-    function subtractNames(names, from) {
-      for (const n in from)
-        names[n] = (names[n] || 0) - (from[n] || 0);
-    }
-    function not(x) {
-      return typeof x == "boolean" || typeof x == "number" || x === null ? !x : (0, code_1._)`!${par(x)}`;
-    }
-    exports.not = not;
-    var andCode = mappend(exports.operators.AND);
-    function and(...args) {
-      return args.reduce(andCode);
-    }
-    exports.and = and;
-    var orCode = mappend(exports.operators.OR);
-    function or(...args) {
-      return args.reduce(orCode);
-    }
-    exports.or = or;
-    function mappend(op) {
-      return (x, y) => x === code_1.nil ? y : y === code_1.nil ? x : (0, code_1._)`${par(x)} ${op} ${par(y)}`;
-    }
-    function par(x) {
-      return x instanceof code_1.Name ? x : (0, code_1._)`(${x})`;
-    }
-  }
-});
-
-// node_modules/ajv/dist/compile/util.js
-var require_util = __commonJS({
-  "node_modules/ajv/dist/compile/util.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.checkStrictMode = exports.getErrorPath = exports.Type = exports.useFunc = exports.setEvaluated = exports.evaluatedPropsToName = exports.mergeEvaluated = exports.eachItem = exports.unescapeJsonPointer = exports.escapeJsonPointer = exports.escapeFragment = exports.unescapeFragment = exports.schemaRefOrVal = exports.schemaHasRulesButRef = exports.schemaHasRules = exports.checkUnknownRules = exports.alwaysValidSchema = exports.toHash = void 0;
-    var codegen_1 = require_codegen();
-    var code_1 = require_code();
-    function toHash(arr) {
-      const hash = {};
-      for (const item of arr)
-        hash[item] = true;
-      return hash;
-    }
-    exports.toHash = toHash;
-    function alwaysValidSchema(it, schema) {
-      if (typeof schema == "boolean")
-        return schema;
-      if (Object.keys(schema).length === 0)
-        return true;
-      checkUnknownRules(it, schema);
-      return !schemaHasRules(schema, it.self.RULES.all);
-    }
-    exports.alwaysValidSchema = alwaysValidSchema;
-    function checkUnknownRules(it, schema = it.schema) {
-      const { opts, self } = it;
-      if (!opts.strictSchema)
-        return;
-      if (typeof schema === "boolean")
-        return;
-      const rules = self.RULES.keywords;
-      for (const key in schema) {
-        if (!rules[key])
-          checkStrictMode(it, `unknown keyword: "${key}"`);
-      }
-    }
-    exports.checkUnknownRules = checkUnknownRules;
-    function schemaHasRules(schema, rules) {
-      if (typeof schema == "boolean")
-        return !schema;
-      for (const key in schema)
-        if (rules[key])
-          return true;
-      return false;
-    }
-    exports.schemaHasRules = schemaHasRules;
-    function schemaHasRulesButRef(schema, RULES) {
-      if (typeof schema == "boolean")
-        return !schema;
-      for (const key in schema)
-        if (key !== "$ref" && RULES.all[key])
-          return true;
-      return false;
-    }
-    exports.schemaHasRulesButRef = schemaHasRulesButRef;
-    function schemaRefOrVal({ topSchemaRef, schemaPath }, schema, keyword, $data) {
-      if (!$data) {
-        if (typeof schema == "number" || typeof schema == "boolean")
-          return schema;
-        if (typeof schema == "string")
-          return (0, codegen_1._)`${schema}`;
-      }
-      return (0, codegen_1._)`${topSchemaRef}${schemaPath}${(0, codegen_1.getProperty)(keyword)}`;
-    }
-    exports.schemaRefOrVal = schemaRefOrVal;
-    function unescapeFragment(str) {
-      return unescapeJsonPointer(decodeURIComponent(str));
-    }
-    exports.unescapeFragment = unescapeFragment;
-    function escapeFragment(str) {
-      return encodeURIComponent(escapeJsonPointer(str));
-    }
-    exports.escapeFragment = escapeFragment;
-    function escapeJsonPointer(str) {
-      if (typeof str == "number")
-        return `${str}`;
-      return str.replace(/~/g, "~0").replace(/\//g, "~1");
-    }
-    exports.escapeJsonPointer = escapeJsonPointer;
-    function unescapeJsonPointer(str) {
-      return str.replace(/~1/g, "/").replace(/~0/g, "~");
-    }
-    exports.unescapeJsonPointer = unescapeJsonPointer;
-    function eachItem(xs, f) {
-      if (Array.isArray(xs)) {
-        for (const x of xs)
-          f(x);
-      } else {
-        f(xs);
-      }
-    }
-    exports.eachItem = eachItem;
-    function makeMergeEvaluated({ mergeNames, mergeToName, mergeValues, resultToName }) {
-      return (gen, from, to, toName) => {
-        const res = to === void 0 ? from : to instanceof codegen_1.Name ? (from instanceof codegen_1.Name ? mergeNames(gen, from, to) : mergeToName(gen, from, to), to) : from instanceof codegen_1.Name ? (mergeToName(gen, to, from), from) : mergeValues(from, to);
-        return toName === codegen_1.Name && !(res instanceof codegen_1.Name) ? resultToName(gen, res) : res;
-      };
-    }
-    exports.mergeEvaluated = {
-      props: makeMergeEvaluated({
-        mergeNames: (gen, from, to) => gen.if((0, codegen_1._)`${to} !== true && ${from} !== undefined`, () => {
-          gen.if((0, codegen_1._)`${from} === true`, () => gen.assign(to, true), () => gen.assign(to, (0, codegen_1._)`${to} || {}`).code((0, codegen_1._)`Object.assign(${to}, ${from})`));
-        }),
-        mergeToName: (gen, from, to) => gen.if((0, codegen_1._)`${to} !== true`, () => {
-          if (from === true) {
-            gen.assign(to, true);
-          } else {
-            gen.assign(to, (0, codegen_1._)`${to} || {}`);
-            setEvaluated(gen, to, from);
-          }
-        }),
-        mergeValues: (from, to) => from === true ? true : { ...from, ...to },
-        resultToName: evaluatedPropsToName
-      }),
-      items: makeMergeEvaluated({
-        mergeNames: (gen, from, to) => gen.if((0, codegen_1._)`${to} !== true && ${from} !== undefined`, () => gen.assign(to, (0, codegen_1._)`${from} === true ? true : ${to} > ${from} ? ${to} : ${from}`)),
-        mergeToName: (gen, from, to) => gen.if((0, codegen_1._)`${to} !== true`, () => gen.assign(to, from === true ? true : (0, codegen_1._)`${to} > ${from} ? ${to} : ${from}`)),
-        mergeValues: (from, to) => from === true ? true : Math.max(from, to),
-        resultToName: (gen, items2) => gen.var("items", items2)
-      })
-    };
-    function evaluatedPropsToName(gen, ps) {
-      if (ps === true)
-        return gen.var("props", true);
-      const props = gen.var("props", (0, codegen_1._)`{}`);
-      if (ps !== void 0)
-        setEvaluated(gen, props, ps);
-      return props;
-    }
-    exports.evaluatedPropsToName = evaluatedPropsToName;
-    function setEvaluated(gen, props, ps) {
-      Object.keys(ps).forEach((p) => gen.assign((0, codegen_1._)`${props}${(0, codegen_1.getProperty)(p)}`, true));
-    }
-    exports.setEvaluated = setEvaluated;
-    var snippets = {};
-    function useFunc(gen, f) {
-      return gen.scopeValue("func", {
-        ref: f,
-        code: snippets[f.code] || (snippets[f.code] = new code_1._Code(f.code))
-      });
-    }
-    exports.useFunc = useFunc;
-    var Type;
-    (function(Type2) {
-      Type2[Type2["Num"] = 0] = "Num";
-      Type2[Type2["Str"] = 1] = "Str";
-    })(Type || (exports.Type = Type = {}));
-    function getErrorPath(dataProp, dataPropType, jsPropertySyntax) {
-      if (dataProp instanceof codegen_1.Name) {
-        const isNumber = dataPropType === Type.Num;
-        return jsPropertySyntax ? isNumber ? (0, codegen_1._)`"[" + ${dataProp} + "]"` : (0, codegen_1._)`"['" + ${dataProp} + "']"` : isNumber ? (0, codegen_1._)`"/" + ${dataProp}` : (0, codegen_1._)`"/" + ${dataProp}.replace(/~/g, "~0").replace(/\\//g, "~1")`;
-      }
-      return jsPropertySyntax ? (0, codegen_1.getProperty)(dataProp).toString() : "/" + escapeJsonPointer(dataProp);
-    }
-    exports.getErrorPath = getErrorPath;
-    function checkStrictMode(it, msg, mode = it.opts.strictSchema) {
-      if (!mode)
-        return;
-      msg = `strict mode: ${msg}`;
-      if (mode === true)
-        throw new Error(msg);
-      it.self.logger.warn(msg);
-    }
-    exports.checkStrictMode = checkStrictMode;
-  }
-});
-
-// node_modules/ajv/dist/compile/names.js
-var require_names = __commonJS({
-  "node_modules/ajv/dist/compile/names.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var names = {
-      // validation function arguments
-      data: new codegen_1.Name("data"),
-      // data passed to validation function
-      // args passed from referencing schema
-      valCxt: new codegen_1.Name("valCxt"),
-      // validation/data context - should not be used directly, it is destructured to the names below
-      instancePath: new codegen_1.Name("instancePath"),
-      parentData: new codegen_1.Name("parentData"),
-      parentDataProperty: new codegen_1.Name("parentDataProperty"),
-      rootData: new codegen_1.Name("rootData"),
-      // root data - same as the data passed to the first/top validation function
-      dynamicAnchors: new codegen_1.Name("dynamicAnchors"),
-      // used to support recursiveRef and dynamicRef
-      // function scoped variables
-      vErrors: new codegen_1.Name("vErrors"),
-      // null or array of validation errors
-      errors: new codegen_1.Name("errors"),
-      // counter of validation errors
-      this: new codegen_1.Name("this"),
-      // "globals"
-      self: new codegen_1.Name("self"),
-      scope: new codegen_1.Name("scope"),
-      // JTD serialize/parse name for JSON string and position
-      json: new codegen_1.Name("json"),
-      jsonPos: new codegen_1.Name("jsonPos"),
-      jsonLen: new codegen_1.Name("jsonLen"),
-      jsonPart: new codegen_1.Name("jsonPart")
-    };
-    exports.default = names;
-  }
-});
-
-// node_modules/ajv/dist/compile/errors.js
-var require_errors = __commonJS({
-  "node_modules/ajv/dist/compile/errors.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.extendErrors = exports.resetErrorsCount = exports.reportExtraError = exports.reportError = exports.keyword$DataError = exports.keywordError = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var names_1 = require_names();
-    exports.keywordError = {
-      message: ({ keyword }) => (0, codegen_1.str)`must pass "${keyword}" keyword validation`
-    };
-    exports.keyword$DataError = {
-      message: ({ keyword, schemaType }) => schemaType ? (0, codegen_1.str)`"${keyword}" keyword must be ${schemaType} ($data)` : (0, codegen_1.str)`"${keyword}" keyword is invalid ($data)`
-    };
-    function reportError(cxt, error = exports.keywordError, errorPaths, overrideAllErrors) {
-      const { it } = cxt;
-      const { gen, compositeRule, allErrors } = it;
-      const errObj = errorObjectCode(cxt, error, errorPaths);
-      if (overrideAllErrors !== null && overrideAllErrors !== void 0 ? overrideAllErrors : compositeRule || allErrors) {
-        addError(gen, errObj);
-      } else {
-        returnErrors(it, (0, codegen_1._)`[${errObj}]`);
-      }
-    }
-    exports.reportError = reportError;
-    function reportExtraError(cxt, error = exports.keywordError, errorPaths) {
-      const { it } = cxt;
-      const { gen, compositeRule, allErrors } = it;
-      const errObj = errorObjectCode(cxt, error, errorPaths);
-      addError(gen, errObj);
-      if (!(compositeRule || allErrors)) {
-        returnErrors(it, names_1.default.vErrors);
-      }
-    }
-    exports.reportExtraError = reportExtraError;
-    function resetErrorsCount(gen, errsCount) {
-      gen.assign(names_1.default.errors, errsCount);
-      gen.if((0, codegen_1._)`${names_1.default.vErrors} !== null`, () => gen.if(errsCount, () => gen.assign((0, codegen_1._)`${names_1.default.vErrors}.length`, errsCount), () => gen.assign(names_1.default.vErrors, null)));
-    }
-    exports.resetErrorsCount = resetErrorsCount;
-    function extendErrors({ gen, keyword, schemaValue, data, errsCount, it }) {
-      if (errsCount === void 0)
-        throw new Error("ajv implementation error");
-      const err = gen.name("err");
-      gen.forRange("i", errsCount, names_1.default.errors, (i) => {
-        gen.const(err, (0, codegen_1._)`${names_1.default.vErrors}[${i}]`);
-        gen.if((0, codegen_1._)`${err}.instancePath === undefined`, () => gen.assign((0, codegen_1._)`${err}.instancePath`, (0, codegen_1.strConcat)(names_1.default.instancePath, it.errorPath)));
-        gen.assign((0, codegen_1._)`${err}.schemaPath`, (0, codegen_1.str)`${it.errSchemaPath}/${keyword}`);
-        if (it.opts.verbose) {
-          gen.assign((0, codegen_1._)`${err}.schema`, schemaValue);
-          gen.assign((0, codegen_1._)`${err}.data`, data);
-        }
-      });
-    }
-    exports.extendErrors = extendErrors;
-    function addError(gen, errObj) {
-      const err = gen.const("err", errObj);
-      gen.if((0, codegen_1._)`${names_1.default.vErrors} === null`, () => gen.assign(names_1.default.vErrors, (0, codegen_1._)`[${err}]`), (0, codegen_1._)`${names_1.default.vErrors}.push(${err})`);
-      gen.code((0, codegen_1._)`${names_1.default.errors}++`);
-    }
-    function returnErrors(it, errs) {
-      const { gen, validateName, schemaEnv } = it;
-      if (schemaEnv.$async) {
-        gen.throw((0, codegen_1._)`new ${it.ValidationError}(${errs})`);
-      } else {
-        gen.assign((0, codegen_1._)`${validateName}.errors`, errs);
-        gen.return(false);
-      }
-    }
-    var E = {
-      keyword: new codegen_1.Name("keyword"),
-      schemaPath: new codegen_1.Name("schemaPath"),
-      // also used in JTD errors
-      params: new codegen_1.Name("params"),
-      propertyName: new codegen_1.Name("propertyName"),
-      message: new codegen_1.Name("message"),
-      schema: new codegen_1.Name("schema"),
-      parentSchema: new codegen_1.Name("parentSchema")
-    };
-    function errorObjectCode(cxt, error, errorPaths) {
-      const { createErrors } = cxt.it;
-      if (createErrors === false)
-        return (0, codegen_1._)`{}`;
-      return errorObject(cxt, error, errorPaths);
-    }
-    function errorObject(cxt, error, errorPaths = {}) {
-      const { gen, it } = cxt;
-      const keyValues = [
-        errorInstancePath(it, errorPaths),
-        errorSchemaPath(cxt, errorPaths)
-      ];
-      extraErrorProps(cxt, error, keyValues);
-      return gen.object(...keyValues);
-    }
-    function errorInstancePath({ errorPath }, { instancePath }) {
-      const instPath = instancePath ? (0, codegen_1.str)`${errorPath}${(0, util_1.getErrorPath)(instancePath, util_1.Type.Str)}` : errorPath;
-      return [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, instPath)];
-    }
-    function errorSchemaPath({ keyword, it: { errSchemaPath } }, { schemaPath, parentSchema }) {
-      let schPath = parentSchema ? errSchemaPath : (0, codegen_1.str)`${errSchemaPath}/${keyword}`;
-      if (schemaPath) {
-        schPath = (0, codegen_1.str)`${schPath}${(0, util_1.getErrorPath)(schemaPath, util_1.Type.Str)}`;
-      }
-      return [E.schemaPath, schPath];
-    }
-    function extraErrorProps(cxt, { params, message }, keyValues) {
-      const { keyword, data, schemaValue, it } = cxt;
-      const { opts, propertyName, topSchemaRef, schemaPath } = it;
-      keyValues.push([E.keyword, keyword], [E.params, typeof params == "function" ? params(cxt) : params || (0, codegen_1._)`{}`]);
-      if (opts.messages) {
-        keyValues.push([E.message, typeof message == "function" ? message(cxt) : message]);
-      }
-      if (opts.verbose) {
-        keyValues.push([E.schema, schemaValue], [E.parentSchema, (0, codegen_1._)`${topSchemaRef}${schemaPath}`], [names_1.default.data, data]);
-      }
-      if (propertyName)
-        keyValues.push([E.propertyName, propertyName]);
-    }
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/boolSchema.js
-var require_boolSchema = __commonJS({
-  "node_modules/ajv/dist/compile/validate/boolSchema.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.boolOrEmptySchema = exports.topBoolOrEmptySchema = void 0;
-    var errors_1 = require_errors();
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var boolError = {
-      message: "boolean schema is false"
-    };
-    function topBoolOrEmptySchema(it) {
-      const { gen, schema, validateName } = it;
-      if (schema === false) {
-        falseSchemaError(it, false);
-      } else if (typeof schema == "object" && schema.$async === true) {
-        gen.return(names_1.default.data);
-      } else {
-        gen.assign((0, codegen_1._)`${validateName}.errors`, null);
-        gen.return(true);
-      }
-    }
-    exports.topBoolOrEmptySchema = topBoolOrEmptySchema;
-    function boolOrEmptySchema(it, valid) {
-      const { gen, schema } = it;
-      if (schema === false) {
-        gen.var(valid, false);
-        falseSchemaError(it);
-      } else {
-        gen.var(valid, true);
-      }
-    }
-    exports.boolOrEmptySchema = boolOrEmptySchema;
-    function falseSchemaError(it, overrideAllErrors) {
-      const { gen, data } = it;
-      const cxt = {
-        gen,
-        keyword: "false schema",
-        data,
-        schema: false,
-        schemaCode: false,
-        schemaValue: false,
-        params: {},
-        it
-      };
-      (0, errors_1.reportError)(cxt, boolError, void 0, overrideAllErrors);
-    }
-  }
-});
-
-// node_modules/ajv/dist/compile/rules.js
-var require_rules = __commonJS({
-  "node_modules/ajv/dist/compile/rules.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getRules = exports.isJSONType = void 0;
-    var _jsonTypes = ["string", "number", "integer", "boolean", "null", "object", "array"];
-    var jsonTypes = new Set(_jsonTypes);
-    function isJSONType(x) {
-      return typeof x == "string" && jsonTypes.has(x);
-    }
-    exports.isJSONType = isJSONType;
-    function getRules() {
-      const groups = {
-        number: { type: "number", rules: [] },
-        string: { type: "string", rules: [] },
-        array: { type: "array", rules: [] },
-        object: { type: "object", rules: [] }
-      };
-      return {
-        types: { ...groups, integer: true, boolean: true, null: true },
-        rules: [{ rules: [] }, groups.number, groups.string, groups.array, groups.object],
-        post: { rules: [] },
-        all: {},
-        keywords: {}
-      };
-    }
-    exports.getRules = getRules;
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/applicability.js
-var require_applicability = __commonJS({
-  "node_modules/ajv/dist/compile/validate/applicability.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.shouldUseRule = exports.shouldUseGroup = exports.schemaHasRulesForType = void 0;
-    function schemaHasRulesForType({ schema, self }, type) {
-      const group = self.RULES.types[type];
-      return group && group !== true && shouldUseGroup(schema, group);
-    }
-    exports.schemaHasRulesForType = schemaHasRulesForType;
-    function shouldUseGroup(schema, group) {
-      return group.rules.some((rule) => shouldUseRule(schema, rule));
-    }
-    exports.shouldUseGroup = shouldUseGroup;
-    function shouldUseRule(schema, rule) {
-      var _a;
-      return schema[rule.keyword] !== void 0 || ((_a = rule.definition.implements) === null || _a === void 0 ? void 0 : _a.some((kwd) => schema[kwd] !== void 0));
-    }
-    exports.shouldUseRule = shouldUseRule;
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/dataType.js
-var require_dataType = __commonJS({
-  "node_modules/ajv/dist/compile/validate/dataType.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.reportTypeError = exports.checkDataTypes = exports.checkDataType = exports.coerceAndCheckDataType = exports.getJSONTypes = exports.getSchemaTypes = exports.DataType = void 0;
-    var rules_1 = require_rules();
-    var applicability_1 = require_applicability();
-    var errors_1 = require_errors();
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var DataType;
-    (function(DataType2) {
-      DataType2[DataType2["Correct"] = 0] = "Correct";
-      DataType2[DataType2["Wrong"] = 1] = "Wrong";
-    })(DataType || (exports.DataType = DataType = {}));
-    function getSchemaTypes(schema) {
-      const types = getJSONTypes(schema.type);
-      const hasNull = types.includes("null");
-      if (hasNull) {
-        if (schema.nullable === false)
-          throw new Error("type: null contradicts nullable: false");
-      } else {
-        if (!types.length && schema.nullable !== void 0) {
-          throw new Error('"nullable" cannot be used without "type"');
-        }
-        if (schema.nullable === true)
-          types.push("null");
-      }
-      return types;
-    }
-    exports.getSchemaTypes = getSchemaTypes;
-    function getJSONTypes(ts) {
-      const types = Array.isArray(ts) ? ts : ts ? [ts] : [];
-      if (types.every(rules_1.isJSONType))
-        return types;
-      throw new Error("type must be JSONType or JSONType[]: " + types.join(","));
-    }
-    exports.getJSONTypes = getJSONTypes;
-    function coerceAndCheckDataType(it, types) {
-      const { gen, data, opts } = it;
-      const coerceTo = coerceToTypes(types, opts.coerceTypes);
-      const checkTypes = types.length > 0 && !(coerceTo.length === 0 && types.length === 1 && (0, applicability_1.schemaHasRulesForType)(it, types[0]));
-      if (checkTypes) {
-        const wrongType = checkDataTypes(types, data, opts.strictNumbers, DataType.Wrong);
-        gen.if(wrongType, () => {
-          if (coerceTo.length)
-            coerceData(it, types, coerceTo);
-          else
-            reportTypeError(it);
-        });
-      }
-      return checkTypes;
-    }
-    exports.coerceAndCheckDataType = coerceAndCheckDataType;
-    var COERCIBLE = /* @__PURE__ */ new Set(["string", "number", "integer", "boolean", "null"]);
-    function coerceToTypes(types, coerceTypes) {
-      return coerceTypes ? types.filter((t) => COERCIBLE.has(t) || coerceTypes === "array" && t === "array") : [];
-    }
-    function coerceData(it, types, coerceTo) {
-      const { gen, data, opts } = it;
-      const dataType = gen.let("dataType", (0, codegen_1._)`typeof ${data}`);
-      const coerced = gen.let("coerced", (0, codegen_1._)`undefined`);
-      if (opts.coerceTypes === "array") {
-        gen.if((0, codegen_1._)`${dataType} == 'object' && Array.isArray(${data}) && ${data}.length == 1`, () => gen.assign(data, (0, codegen_1._)`${data}[0]`).assign(dataType, (0, codegen_1._)`typeof ${data}`).if(checkDataTypes(types, data, opts.strictNumbers), () => gen.assign(coerced, data)));
-      }
-      gen.if((0, codegen_1._)`${coerced} !== undefined`);
-      for (const t of coerceTo) {
-        if (COERCIBLE.has(t) || t === "array" && opts.coerceTypes === "array") {
-          coerceSpecificType(t);
-        }
-      }
-      gen.else();
-      reportTypeError(it);
-      gen.endIf();
-      gen.if((0, codegen_1._)`${coerced} !== undefined`, () => {
-        gen.assign(data, coerced);
-        assignParentData(it, coerced);
-      });
-      function coerceSpecificType(t) {
-        switch (t) {
-          case "string":
-            gen.elseIf((0, codegen_1._)`${dataType} == "number" || ${dataType} == "boolean"`).assign(coerced, (0, codegen_1._)`"" + ${data}`).elseIf((0, codegen_1._)`${data} === null`).assign(coerced, (0, codegen_1._)`""`);
-            return;
-          case "number":
-            gen.elseIf((0, codegen_1._)`${dataType} == "boolean" || ${data} === null
-              || (${dataType} == "string" && ${data} && ${data} == +${data})`).assign(coerced, (0, codegen_1._)`+${data}`);
-            return;
-          case "integer":
-            gen.elseIf((0, codegen_1._)`${dataType} === "boolean" || ${data} === null
-              || (${dataType} === "string" && ${data} && ${data} == +${data} && !(${data} % 1))`).assign(coerced, (0, codegen_1._)`+${data}`);
-            return;
-          case "boolean":
-            gen.elseIf((0, codegen_1._)`${data} === "false" || ${data} === 0 || ${data} === null`).assign(coerced, false).elseIf((0, codegen_1._)`${data} === "true" || ${data} === 1`).assign(coerced, true);
-            return;
-          case "null":
-            gen.elseIf((0, codegen_1._)`${data} === "" || ${data} === 0 || ${data} === false`);
-            gen.assign(coerced, null);
-            return;
-          case "array":
-            gen.elseIf((0, codegen_1._)`${dataType} === "string" || ${dataType} === "number"
-              || ${dataType} === "boolean" || ${data} === null`).assign(coerced, (0, codegen_1._)`[${data}]`);
-        }
-      }
-    }
-    function assignParentData({ gen, parentData, parentDataProperty }, expr) {
-      gen.if((0, codegen_1._)`${parentData} !== undefined`, () => gen.assign((0, codegen_1._)`${parentData}[${parentDataProperty}]`, expr));
-    }
-    function checkDataType(dataType, data, strictNums, correct = DataType.Correct) {
-      const EQ = correct === DataType.Correct ? codegen_1.operators.EQ : codegen_1.operators.NEQ;
-      let cond;
-      switch (dataType) {
-        case "null":
-          return (0, codegen_1._)`${data} ${EQ} null`;
-        case "array":
-          cond = (0, codegen_1._)`Array.isArray(${data})`;
-          break;
-        case "object":
-          cond = (0, codegen_1._)`${data} && typeof ${data} == "object" && !Array.isArray(${data})`;
-          break;
-        case "integer":
-          cond = numCond((0, codegen_1._)`!(${data} % 1) && !isNaN(${data})`);
-          break;
-        case "number":
-          cond = numCond();
-          break;
-        default:
-          return (0, codegen_1._)`typeof ${data} ${EQ} ${dataType}`;
-      }
-      return correct === DataType.Correct ? cond : (0, codegen_1.not)(cond);
-      function numCond(_cond = codegen_1.nil) {
-        return (0, codegen_1.and)((0, codegen_1._)`typeof ${data} == "number"`, _cond, strictNums ? (0, codegen_1._)`isFinite(${data})` : codegen_1.nil);
-      }
-    }
-    exports.checkDataType = checkDataType;
-    function checkDataTypes(dataTypes, data, strictNums, correct) {
-      if (dataTypes.length === 1) {
-        return checkDataType(dataTypes[0], data, strictNums, correct);
-      }
-      let cond;
-      const types = (0, util_1.toHash)(dataTypes);
-      if (types.array && types.object) {
-        const notObj = (0, codegen_1._)`typeof ${data} != "object"`;
-        cond = types.null ? notObj : (0, codegen_1._)`!${data} || ${notObj}`;
-        delete types.null;
-        delete types.array;
-        delete types.object;
-      } else {
-        cond = codegen_1.nil;
-      }
-      if (types.number)
-        delete types.integer;
-      for (const t in types)
-        cond = (0, codegen_1.and)(cond, checkDataType(t, data, strictNums, correct));
-      return cond;
-    }
-    exports.checkDataTypes = checkDataTypes;
-    var typeError = {
-      message: ({ schema }) => `must be ${schema}`,
-      params: ({ schema, schemaValue }) => typeof schema == "string" ? (0, codegen_1._)`{type: ${schema}}` : (0, codegen_1._)`{type: ${schemaValue}}`
-    };
-    function reportTypeError(it) {
-      const cxt = getTypeErrorContext(it);
-      (0, errors_1.reportError)(cxt, typeError);
-    }
-    exports.reportTypeError = reportTypeError;
-    function getTypeErrorContext(it) {
-      const { gen, data, schema } = it;
-      const schemaCode = (0, util_1.schemaRefOrVal)(it, schema, "type");
-      return {
-        gen,
-        keyword: "type",
-        data,
-        schema: schema.type,
-        schemaCode,
-        schemaValue: schemaCode,
-        parentSchema: schema,
-        params: {},
-        it
-      };
-    }
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/defaults.js
-var require_defaults = __commonJS({
-  "node_modules/ajv/dist/compile/validate/defaults.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.assignDefaults = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    function assignDefaults(it, ty) {
-      const { properties, items: items2 } = it.schema;
-      if (ty === "object" && properties) {
-        for (const key in properties) {
-          assignDefault(it, key, properties[key].default);
-        }
-      } else if (ty === "array" && Array.isArray(items2)) {
-        items2.forEach((sch, i) => assignDefault(it, i, sch.default));
-      }
-    }
-    exports.assignDefaults = assignDefaults;
-    function assignDefault(it, prop, defaultValue) {
-      const { gen, compositeRule, data, opts } = it;
-      if (defaultValue === void 0)
-        return;
-      const childData = (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(prop)}`;
-      if (compositeRule) {
-        (0, util_1.checkStrictMode)(it, `default is ignored for: ${childData}`);
-        return;
-      }
-      let condition = (0, codegen_1._)`${childData} === undefined`;
-      if (opts.useDefaults === "empty") {
-        condition = (0, codegen_1._)`${condition} || ${childData} === null || ${childData} === ""`;
-      }
-      gen.if(condition, (0, codegen_1._)`${childData} = ${(0, codegen_1.stringify)(defaultValue)}`);
-    }
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/code.js
-var require_code2 = __commonJS({
-  "node_modules/ajv/dist/vocabularies/code.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.validateUnion = exports.validateArray = exports.usePattern = exports.callValidateCode = exports.schemaProperties = exports.allSchemaProperties = exports.noPropertyInData = exports.propertyInData = exports.isOwnProperty = exports.hasPropFunc = exports.reportMissingProp = exports.checkMissingProp = exports.checkReportMissingProp = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var names_1 = require_names();
-    var util_2 = require_util();
-    function checkReportMissingProp(cxt, prop) {
-      const { gen, data, it } = cxt;
-      gen.if(noPropertyInData(gen, data, prop, it.opts.ownProperties), () => {
-        cxt.setParams({ missingProperty: (0, codegen_1._)`${prop}` }, true);
-        cxt.error();
-      });
-    }
-    exports.checkReportMissingProp = checkReportMissingProp;
-    function checkMissingProp({ gen, data, it: { opts } }, properties, missing) {
-      return (0, codegen_1.or)(...properties.map((prop) => (0, codegen_1.and)(noPropertyInData(gen, data, prop, opts.ownProperties), (0, codegen_1._)`${missing} = ${prop}`)));
-    }
-    exports.checkMissingProp = checkMissingProp;
-    function reportMissingProp(cxt, missing) {
-      cxt.setParams({ missingProperty: missing }, true);
-      cxt.error();
-    }
-    exports.reportMissingProp = reportMissingProp;
-    function hasPropFunc(gen) {
-      return gen.scopeValue("func", {
-        // eslint-disable-next-line @typescript-eslint/unbound-method
-        ref: Object.prototype.hasOwnProperty,
-        code: (0, codegen_1._)`Object.prototype.hasOwnProperty`
-      });
-    }
-    exports.hasPropFunc = hasPropFunc;
-    function isOwnProperty(gen, data, property) {
-      return (0, codegen_1._)`${hasPropFunc(gen)}.call(${data}, ${property})`;
-    }
-    exports.isOwnProperty = isOwnProperty;
-    function propertyInData(gen, data, property, ownProperties) {
-      const cond = (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(property)} !== undefined`;
-      return ownProperties ? (0, codegen_1._)`${cond} && ${isOwnProperty(gen, data, property)}` : cond;
-    }
-    exports.propertyInData = propertyInData;
-    function noPropertyInData(gen, data, property, ownProperties) {
-      const cond = (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(property)} === undefined`;
-      return ownProperties ? (0, codegen_1.or)(cond, (0, codegen_1.not)(isOwnProperty(gen, data, property))) : cond;
-    }
-    exports.noPropertyInData = noPropertyInData;
-    function allSchemaProperties(schemaMap) {
-      return schemaMap ? Object.keys(schemaMap).filter((p) => p !== "__proto__") : [];
-    }
-    exports.allSchemaProperties = allSchemaProperties;
-    function schemaProperties(it, schemaMap) {
-      return allSchemaProperties(schemaMap).filter((p) => !(0, util_1.alwaysValidSchema)(it, schemaMap[p]));
-    }
-    exports.schemaProperties = schemaProperties;
-    function callValidateCode({ schemaCode, data, it: { gen, topSchemaRef, schemaPath, errorPath }, it }, func, context, passSchema) {
-      const dataAndSchema = passSchema ? (0, codegen_1._)`${schemaCode}, ${data}, ${topSchemaRef}${schemaPath}` : data;
-      const valCxt = [
-        [names_1.default.instancePath, (0, codegen_1.strConcat)(names_1.default.instancePath, errorPath)],
-        [names_1.default.parentData, it.parentData],
-        [names_1.default.parentDataProperty, it.parentDataProperty],
-        [names_1.default.rootData, names_1.default.rootData]
-      ];
-      if (it.opts.dynamicRef)
-        valCxt.push([names_1.default.dynamicAnchors, names_1.default.dynamicAnchors]);
-      const args = (0, codegen_1._)`${dataAndSchema}, ${gen.object(...valCxt)}`;
-      return context !== codegen_1.nil ? (0, codegen_1._)`${func}.call(${context}, ${args})` : (0, codegen_1._)`${func}(${args})`;
-    }
-    exports.callValidateCode = callValidateCode;
-    var newRegExp = (0, codegen_1._)`new RegExp`;
-    function usePattern({ gen, it: { opts } }, pattern) {
-      const u = opts.unicodeRegExp ? "u" : "";
-      const { regExp } = opts.code;
-      const rx = regExp(pattern, u);
-      return gen.scopeValue("pattern", {
-        key: rx.toString(),
-        ref: rx,
-        code: (0, codegen_1._)`${regExp.code === "new RegExp" ? newRegExp : (0, util_2.useFunc)(gen, regExp)}(${pattern}, ${u})`
-      });
-    }
-    exports.usePattern = usePattern;
-    function validateArray(cxt) {
-      const { gen, data, keyword, it } = cxt;
-      const valid = gen.name("valid");
-      if (it.allErrors) {
-        const validArr = gen.let("valid", true);
-        validateItems(() => gen.assign(validArr, false));
-        return validArr;
-      }
-      gen.var(valid, true);
-      validateItems(() => gen.break());
-      return valid;
-      function validateItems(notValid) {
-        const len = gen.const("len", (0, codegen_1._)`${data}.length`);
-        gen.forRange("i", 0, len, (i) => {
-          cxt.subschema({
-            keyword,
-            dataProp: i,
-            dataPropType: util_1.Type.Num
-          }, valid);
-          gen.if((0, codegen_1.not)(valid), notValid);
-        });
-      }
-    }
-    exports.validateArray = validateArray;
-    function validateUnion(cxt) {
-      const { gen, schema, keyword, it } = cxt;
-      if (!Array.isArray(schema))
-        throw new Error("ajv implementation error");
-      const alwaysValid = schema.some((sch) => (0, util_1.alwaysValidSchema)(it, sch));
-      if (alwaysValid && !it.opts.unevaluated)
-        return;
-      const valid = gen.let("valid", false);
-      const schValid = gen.name("_valid");
-      gen.block(() => schema.forEach((_sch, i) => {
-        const schCxt = cxt.subschema({
-          keyword,
-          schemaProp: i,
-          compositeRule: true
-        }, schValid);
-        gen.assign(valid, (0, codegen_1._)`${valid} || ${schValid}`);
-        const merged = cxt.mergeValidEvaluated(schCxt, schValid);
-        if (!merged)
-          gen.if((0, codegen_1.not)(valid));
-      }));
-      cxt.result(valid, () => cxt.reset(), () => cxt.error(true));
-    }
-    exports.validateUnion = validateUnion;
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/keyword.js
-var require_keyword = __commonJS({
-  "node_modules/ajv/dist/compile/validate/keyword.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.validateKeywordUsage = exports.validSchemaType = exports.funcKeywordCode = exports.macroKeywordCode = void 0;
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var code_1 = require_code2();
-    var errors_1 = require_errors();
-    function macroKeywordCode(cxt, def) {
-      const { gen, keyword, schema, parentSchema, it } = cxt;
-      const macroSchema = def.macro.call(it.self, schema, parentSchema, it);
-      const schemaRef = useKeyword(gen, keyword, macroSchema);
-      if (it.opts.validateSchema !== false)
-        it.self.validateSchema(macroSchema, true);
-      const valid = gen.name("valid");
-      cxt.subschema({
-        schema: macroSchema,
-        schemaPath: codegen_1.nil,
-        errSchemaPath: `${it.errSchemaPath}/${keyword}`,
-        topSchemaRef: schemaRef,
-        compositeRule: true
-      }, valid);
-      cxt.pass(valid, () => cxt.error(true));
-    }
-    exports.macroKeywordCode = macroKeywordCode;
-    function funcKeywordCode(cxt, def) {
-      var _a;
-      const { gen, keyword, schema, parentSchema, $data, it } = cxt;
-      checkAsyncKeyword(it, def);
-      const validate = !$data && def.compile ? def.compile.call(it.self, schema, parentSchema, it) : def.validate;
-      const validateRef = useKeyword(gen, keyword, validate);
-      const valid = gen.let("valid");
-      cxt.block$data(valid, validateKeyword);
-      cxt.ok((_a = def.valid) !== null && _a !== void 0 ? _a : valid);
-      function validateKeyword() {
-        if (def.errors === false) {
-          assignValid();
-          if (def.modifying)
-            modifyData(cxt);
-          reportErrs(() => cxt.error());
-        } else {
-          const ruleErrs = def.async ? validateAsync() : validateSync();
-          if (def.modifying)
-            modifyData(cxt);
-          reportErrs(() => addErrs(cxt, ruleErrs));
-        }
-      }
-      function validateAsync() {
-        const ruleErrs = gen.let("ruleErrs", null);
-        gen.try(() => assignValid((0, codegen_1._)`await `), (e) => gen.assign(valid, false).if((0, codegen_1._)`${e} instanceof ${it.ValidationError}`, () => gen.assign(ruleErrs, (0, codegen_1._)`${e}.errors`), () => gen.throw(e)));
-        return ruleErrs;
-      }
-      function validateSync() {
-        const validateErrs = (0, codegen_1._)`${validateRef}.errors`;
-        gen.assign(validateErrs, null);
-        assignValid(codegen_1.nil);
-        return validateErrs;
-      }
-      function assignValid(_await = def.async ? (0, codegen_1._)`await ` : codegen_1.nil) {
-        const passCxt = it.opts.passContext ? names_1.default.this : names_1.default.self;
-        const passSchema = !("compile" in def && !$data || def.schema === false);
-        gen.assign(valid, (0, codegen_1._)`${_await}${(0, code_1.callValidateCode)(cxt, validateRef, passCxt, passSchema)}`, def.modifying);
-      }
-      function reportErrs(errors) {
-        var _a2;
-        gen.if((0, codegen_1.not)((_a2 = def.valid) !== null && _a2 !== void 0 ? _a2 : valid), errors);
-      }
-    }
-    exports.funcKeywordCode = funcKeywordCode;
-    function modifyData(cxt) {
-      const { gen, data, it } = cxt;
-      gen.if(it.parentData, () => gen.assign(data, (0, codegen_1._)`${it.parentData}[${it.parentDataProperty}]`));
-    }
-    function addErrs(cxt, errs) {
-      const { gen } = cxt;
-      gen.if((0, codegen_1._)`Array.isArray(${errs})`, () => {
-        gen.assign(names_1.default.vErrors, (0, codegen_1._)`${names_1.default.vErrors} === null ? ${errs} : ${names_1.default.vErrors}.concat(${errs})`).assign(names_1.default.errors, (0, codegen_1._)`${names_1.default.vErrors}.length`);
-        (0, errors_1.extendErrors)(cxt);
-      }, () => cxt.error());
-    }
-    function checkAsyncKeyword({ schemaEnv }, def) {
-      if (def.async && !schemaEnv.$async)
-        throw new Error("async keyword in sync schema");
-    }
-    function useKeyword(gen, keyword, result) {
-      if (result === void 0)
-        throw new Error(`keyword "${keyword}" failed to compile`);
-      return gen.scopeValue("keyword", typeof result == "function" ? { ref: result } : { ref: result, code: (0, codegen_1.stringify)(result) });
-    }
-    function validSchemaType(schema, schemaType, allowUndefined = false) {
-      return !schemaType.length || schemaType.some((st) => st === "array" ? Array.isArray(schema) : st === "object" ? schema && typeof schema == "object" && !Array.isArray(schema) : typeof schema == st || allowUndefined && typeof schema == "undefined");
-    }
-    exports.validSchemaType = validSchemaType;
-    function validateKeywordUsage({ schema, opts, self, errSchemaPath }, def, keyword) {
-      if (Array.isArray(def.keyword) ? !def.keyword.includes(keyword) : def.keyword !== keyword) {
-        throw new Error("ajv implementation error");
-      }
-      const deps = def.dependencies;
-      if (deps === null || deps === void 0 ? void 0 : deps.some((kwd) => !Object.prototype.hasOwnProperty.call(schema, kwd))) {
-        throw new Error(`parent schema must have dependencies of ${keyword}: ${deps.join(",")}`);
-      }
-      if (def.validateSchema) {
-        const valid = def.validateSchema(schema[keyword]);
-        if (!valid) {
-          const msg = `keyword "${keyword}" value is invalid at path "${errSchemaPath}": ` + self.errorsText(def.validateSchema.errors);
-          if (opts.validateSchema === "log")
-            self.logger.error(msg);
-          else
-            throw new Error(msg);
-        }
-      }
-    }
-    exports.validateKeywordUsage = validateKeywordUsage;
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/subschema.js
-var require_subschema = __commonJS({
-  "node_modules/ajv/dist/compile/validate/subschema.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.extendSubschemaMode = exports.extendSubschemaData = exports.getSubschema = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    function getSubschema(it, { keyword, schemaProp, schema, schemaPath, errSchemaPath, topSchemaRef }) {
-      if (keyword !== void 0 && schema !== void 0) {
-        throw new Error('both "keyword" and "schema" passed, only one allowed');
-      }
-      if (keyword !== void 0) {
-        const sch = it.schema[keyword];
-        return schemaProp === void 0 ? {
-          schema: sch,
-          schemaPath: (0, codegen_1._)`${it.schemaPath}${(0, codegen_1.getProperty)(keyword)}`,
-          errSchemaPath: `${it.errSchemaPath}/${keyword}`
-        } : {
-          schema: sch[schemaProp],
-          schemaPath: (0, codegen_1._)`${it.schemaPath}${(0, codegen_1.getProperty)(keyword)}${(0, codegen_1.getProperty)(schemaProp)}`,
-          errSchemaPath: `${it.errSchemaPath}/${keyword}/${(0, util_1.escapeFragment)(schemaProp)}`
-        };
-      }
-      if (schema !== void 0) {
-        if (schemaPath === void 0 || errSchemaPath === void 0 || topSchemaRef === void 0) {
-          throw new Error('"schemaPath", "errSchemaPath" and "topSchemaRef" are required with "schema"');
-        }
-        return {
-          schema,
-          schemaPath,
-          topSchemaRef,
-          errSchemaPath
-        };
-      }
-      throw new Error('either "keyword" or "schema" must be passed');
-    }
-    exports.getSubschema = getSubschema;
-    function extendSubschemaData(subschema, it, { dataProp, dataPropType: dpType, data, dataTypes, propertyName }) {
-      if (data !== void 0 && dataProp !== void 0) {
-        throw new Error('both "data" and "dataProp" passed, only one allowed');
-      }
-      const { gen } = it;
-      if (dataProp !== void 0) {
-        const { errorPath, dataPathArr, opts } = it;
-        const nextData = gen.let("data", (0, codegen_1._)`${it.data}${(0, codegen_1.getProperty)(dataProp)}`, true);
-        dataContextProps(nextData);
-        subschema.errorPath = (0, codegen_1.str)`${errorPath}${(0, util_1.getErrorPath)(dataProp, dpType, opts.jsPropertySyntax)}`;
-        subschema.parentDataProperty = (0, codegen_1._)`${dataProp}`;
-        subschema.dataPathArr = [...dataPathArr, subschema.parentDataProperty];
-      }
-      if (data !== void 0) {
-        const nextData = data instanceof codegen_1.Name ? data : gen.let("data", data, true);
-        dataContextProps(nextData);
-        if (propertyName !== void 0)
-          subschema.propertyName = propertyName;
-      }
-      if (dataTypes)
-        subschema.dataTypes = dataTypes;
-      function dataContextProps(_nextData) {
-        subschema.data = _nextData;
-        subschema.dataLevel = it.dataLevel + 1;
-        subschema.dataTypes = [];
-        it.definedProperties = /* @__PURE__ */ new Set();
-        subschema.parentData = it.data;
-        subschema.dataNames = [...it.dataNames, _nextData];
-      }
-    }
-    exports.extendSubschemaData = extendSubschemaData;
-    function extendSubschemaMode(subschema, { jtdDiscriminator, jtdMetadata, compositeRule, createErrors, allErrors }) {
-      if (compositeRule !== void 0)
-        subschema.compositeRule = compositeRule;
-      if (createErrors !== void 0)
-        subschema.createErrors = createErrors;
-      if (allErrors !== void 0)
-        subschema.allErrors = allErrors;
-      subschema.jtdDiscriminator = jtdDiscriminator;
-      subschema.jtdMetadata = jtdMetadata;
-    }
-    exports.extendSubschemaMode = extendSubschemaMode;
-  }
-});
-
-// node_modules/fast-deep-equal/index.js
-var require_fast_deep_equal = __commonJS({
-  "node_modules/fast-deep-equal/index.js"(exports, module) {
-    "use strict";
-    module.exports = function equal(a, b) {
-      if (a === b) return true;
-      if (a && b && typeof a == "object" && typeof b == "object") {
-        if (a.constructor !== b.constructor) return false;
-        var length, i, keys;
-        if (Array.isArray(a)) {
-          length = a.length;
-          if (length != b.length) return false;
-          for (i = length; i-- !== 0; )
-            if (!equal(a[i], b[i])) return false;
-          return true;
-        }
-        if (a.constructor === RegExp) return a.source === b.source && a.flags === b.flags;
-        if (a.valueOf !== Object.prototype.valueOf) return a.valueOf() === b.valueOf();
-        if (a.toString !== Object.prototype.toString) return a.toString() === b.toString();
-        keys = Object.keys(a);
-        length = keys.length;
-        if (length !== Object.keys(b).length) return false;
-        for (i = length; i-- !== 0; )
-          if (!Object.prototype.hasOwnProperty.call(b, keys[i])) return false;
-        for (i = length; i-- !== 0; ) {
-          var key = keys[i];
-          if (!equal(a[key], b[key])) return false;
-        }
-        return true;
-      }
-      return a !== a && b !== b;
-    };
-  }
-});
-
-// node_modules/json-schema-traverse/index.js
-var require_json_schema_traverse = __commonJS({
-  "node_modules/json-schema-traverse/index.js"(exports, module) {
-    "use strict";
-    var traverse = module.exports = function(schema, opts, cb) {
-      if (typeof opts == "function") {
-        cb = opts;
-        opts = {};
-      }
-      cb = opts.cb || cb;
-      var pre = typeof cb == "function" ? cb : cb.pre || function() {
-      };
-      var post = cb.post || function() {
-      };
-      _traverse(opts, pre, post, schema, "", schema);
-    };
-    traverse.keywords = {
-      additionalItems: true,
-      items: true,
-      contains: true,
-      additionalProperties: true,
-      propertyNames: true,
-      not: true,
-      if: true,
-      then: true,
-      else: true
-    };
-    traverse.arrayKeywords = {
-      items: true,
-      allOf: true,
-      anyOf: true,
-      oneOf: true
-    };
-    traverse.propsKeywords = {
-      $defs: true,
-      definitions: true,
-      properties: true,
-      patternProperties: true,
-      dependencies: true
-    };
-    traverse.skipKeywords = {
-      default: true,
-      enum: true,
-      const: true,
-      required: true,
-      maximum: true,
-      minimum: true,
-      exclusiveMaximum: true,
-      exclusiveMinimum: true,
-      multipleOf: true,
-      maxLength: true,
-      minLength: true,
-      pattern: true,
-      format: true,
-      maxItems: true,
-      minItems: true,
-      uniqueItems: true,
-      maxProperties: true,
-      minProperties: true
-    };
-    function _traverse(opts, pre, post, schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex) {
-      if (schema && typeof schema == "object" && !Array.isArray(schema)) {
-        pre(schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex);
-        for (var key in schema) {
-          var sch = schema[key];
-          if (Array.isArray(sch)) {
-            if (key in traverse.arrayKeywords) {
-              for (var i = 0; i < sch.length; i++)
-                _traverse(opts, pre, post, sch[i], jsonPtr + "/" + key + "/" + i, rootSchema, jsonPtr, key, schema, i);
-            }
-          } else if (key in traverse.propsKeywords) {
-            if (sch && typeof sch == "object") {
-              for (var prop in sch)
-                _traverse(opts, pre, post, sch[prop], jsonPtr + "/" + key + "/" + escapeJsonPtr(prop), rootSchema, jsonPtr, key, schema, prop);
-            }
-          } else if (key in traverse.keywords || opts.allKeys && !(key in traverse.skipKeywords)) {
-            _traverse(opts, pre, post, sch, jsonPtr + "/" + key, rootSchema, jsonPtr, key, schema);
-          }
-        }
-        post(schema, jsonPtr, rootSchema, parentJsonPtr, parentKeyword, parentSchema, keyIndex);
-      }
-    }
-    function escapeJsonPtr(str) {
-      return str.replace(/~/g, "~0").replace(/\//g, "~1");
-    }
-  }
-});
-
-// node_modules/ajv/dist/compile/resolve.js
-var require_resolve = __commonJS({
-  "node_modules/ajv/dist/compile/resolve.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getSchemaRefs = exports.resolveUrl = exports.normalizeId = exports._getFullPath = exports.getFullPath = exports.inlineRef = void 0;
-    var util_1 = require_util();
-    var equal = require_fast_deep_equal();
-    var traverse = require_json_schema_traverse();
-    var SIMPLE_INLINED = /* @__PURE__ */ new Set([
-      "type",
-      "format",
-      "pattern",
-      "maxLength",
-      "minLength",
-      "maxProperties",
-      "minProperties",
-      "maxItems",
-      "minItems",
-      "maximum",
-      "minimum",
-      "uniqueItems",
-      "multipleOf",
-      "required",
-      "enum",
-      "const"
-    ]);
-    function inlineRef(schema, limit = true) {
-      if (typeof schema == "boolean")
-        return true;
-      if (limit === true)
-        return !hasRef(schema);
-      if (!limit)
-        return false;
-      return countKeys(schema) <= limit;
-    }
-    exports.inlineRef = inlineRef;
-    var REF_KEYWORDS = /* @__PURE__ */ new Set([
-      "$ref",
-      "$recursiveRef",
-      "$recursiveAnchor",
-      "$dynamicRef",
-      "$dynamicAnchor"
-    ]);
-    function hasRef(schema) {
-      for (const key in schema) {
-        if (REF_KEYWORDS.has(key))
-          return true;
-        const sch = schema[key];
-        if (Array.isArray(sch) && sch.some(hasRef))
-          return true;
-        if (typeof sch == "object" && hasRef(sch))
-          return true;
-      }
-      return false;
-    }
-    function countKeys(schema) {
-      let count = 0;
-      for (const key in schema) {
-        if (key === "$ref")
-          return Infinity;
-        count++;
-        if (SIMPLE_INLINED.has(key))
-          continue;
-        if (typeof schema[key] == "object") {
-          (0, util_1.eachItem)(schema[key], (sch) => count += countKeys(sch));
-        }
-        if (count === Infinity)
-          return Infinity;
-      }
-      return count;
-    }
-    function getFullPath(resolver, id = "", normalize) {
-      if (normalize !== false)
-        id = normalizeId(id);
-      const p = resolver.parse(id);
-      return _getFullPath(resolver, p);
-    }
-    exports.getFullPath = getFullPath;
-    function _getFullPath(resolver, p) {
-      const serialized = resolver.serialize(p);
-      return serialized.split("#")[0] + "#";
-    }
-    exports._getFullPath = _getFullPath;
-    var TRAILING_SLASH_HASH = /#\/?$/;
-    function normalizeId(id) {
-      return id ? id.replace(TRAILING_SLASH_HASH, "") : "";
-    }
-    exports.normalizeId = normalizeId;
-    function resolveUrl(resolver, baseId, id) {
-      id = normalizeId(id);
-      return resolver.resolve(baseId, id);
-    }
-    exports.resolveUrl = resolveUrl;
-    var ANCHOR = /^[a-z_][-a-z0-9._]*$/i;
-    function getSchemaRefs(schema, baseId) {
-      if (typeof schema == "boolean")
-        return {};
-      const { schemaId, uriResolver } = this.opts;
-      const schId = normalizeId(schema[schemaId] || baseId);
-      const baseIds = { "": schId };
-      const pathPrefix = getFullPath(uriResolver, schId, false);
-      const localRefs = {};
-      const schemaRefs = /* @__PURE__ */ new Set();
-      traverse(schema, { allKeys: true }, (sch, jsonPtr, _, parentJsonPtr) => {
-        if (parentJsonPtr === void 0)
-          return;
-        const fullPath = pathPrefix + jsonPtr;
-        let innerBaseId = baseIds[parentJsonPtr];
-        if (typeof sch[schemaId] == "string")
-          innerBaseId = addRef.call(this, sch[schemaId]);
-        addAnchor.call(this, sch.$anchor);
-        addAnchor.call(this, sch.$dynamicAnchor);
-        baseIds[jsonPtr] = innerBaseId;
-        function addRef(ref) {
-          const _resolve = this.opts.uriResolver.resolve;
-          ref = normalizeId(innerBaseId ? _resolve(innerBaseId, ref) : ref);
-          if (schemaRefs.has(ref))
-            throw ambiguos(ref);
-          schemaRefs.add(ref);
-          let schOrRef = this.refs[ref];
-          if (typeof schOrRef == "string")
-            schOrRef = this.refs[schOrRef];
-          if (typeof schOrRef == "object") {
-            checkAmbiguosRef(sch, schOrRef.schema, ref);
-          } else if (ref !== normalizeId(fullPath)) {
-            if (ref[0] === "#") {
-              checkAmbiguosRef(sch, localRefs[ref], ref);
-              localRefs[ref] = sch;
-            } else {
-              this.refs[ref] = fullPath;
-            }
-          }
-          return ref;
-        }
-        function addAnchor(anchor) {
-          if (typeof anchor == "string") {
-            if (!ANCHOR.test(anchor))
-              throw new Error(`invalid anchor "${anchor}"`);
-            addRef.call(this, `#${anchor}`);
-          }
-        }
-      });
-      return localRefs;
-      function checkAmbiguosRef(sch1, sch2, ref) {
-        if (sch2 !== void 0 && !equal(sch1, sch2))
-          throw ambiguos(ref);
-      }
-      function ambiguos(ref) {
-        return new Error(`reference "${ref}" resolves to more than one schema`);
-      }
-    }
-    exports.getSchemaRefs = getSchemaRefs;
-  }
-});
-
-// node_modules/ajv/dist/compile/validate/index.js
-var require_validate = __commonJS({
-  "node_modules/ajv/dist/compile/validate/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.getData = exports.KeywordCxt = exports.validateFunctionCode = void 0;
-    var boolSchema_1 = require_boolSchema();
-    var dataType_1 = require_dataType();
-    var applicability_1 = require_applicability();
-    var dataType_2 = require_dataType();
-    var defaults_1 = require_defaults();
-    var keyword_1 = require_keyword();
-    var subschema_1 = require_subschema();
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var resolve_1 = require_resolve();
-    var util_1 = require_util();
-    var errors_1 = require_errors();
-    function validateFunctionCode(it) {
-      if (isSchemaObj(it)) {
-        checkKeywords(it);
-        if (schemaCxtHasRules(it)) {
-          topSchemaObjCode(it);
-          return;
-        }
-      }
-      validateFunction(it, () => (0, boolSchema_1.topBoolOrEmptySchema)(it));
-    }
-    exports.validateFunctionCode = validateFunctionCode;
-    function validateFunction({ gen, validateName, schema, schemaEnv, opts }, body) {
-      if (opts.code.es5) {
-        gen.func(validateName, (0, codegen_1._)`${names_1.default.data}, ${names_1.default.valCxt}`, schemaEnv.$async, () => {
-          gen.code((0, codegen_1._)`"use strict"; ${funcSourceUrl(schema, opts)}`);
-          destructureValCxtES5(gen, opts);
-          gen.code(body);
-        });
-      } else {
-        gen.func(validateName, (0, codegen_1._)`${names_1.default.data}, ${destructureValCxt(opts)}`, schemaEnv.$async, () => gen.code(funcSourceUrl(schema, opts)).code(body));
-      }
-    }
-    function destructureValCxt(opts) {
-      return (0, codegen_1._)`{${names_1.default.instancePath}="", ${names_1.default.parentData}, ${names_1.default.parentDataProperty}, ${names_1.default.rootData}=${names_1.default.data}${opts.dynamicRef ? (0, codegen_1._)`, ${names_1.default.dynamicAnchors}={}` : codegen_1.nil}}={}`;
-    }
-    function destructureValCxtES5(gen, opts) {
-      gen.if(names_1.default.valCxt, () => {
-        gen.var(names_1.default.instancePath, (0, codegen_1._)`${names_1.default.valCxt}.${names_1.default.instancePath}`);
-        gen.var(names_1.default.parentData, (0, codegen_1._)`${names_1.default.valCxt}.${names_1.default.parentData}`);
-        gen.var(names_1.default.parentDataProperty, (0, codegen_1._)`${names_1.default.valCxt}.${names_1.default.parentDataProperty}`);
-        gen.var(names_1.default.rootData, (0, codegen_1._)`${names_1.default.valCxt}.${names_1.default.rootData}`);
-        if (opts.dynamicRef)
-          gen.var(names_1.default.dynamicAnchors, (0, codegen_1._)`${names_1.default.valCxt}.${names_1.default.dynamicAnchors}`);
-      }, () => {
-        gen.var(names_1.default.instancePath, (0, codegen_1._)`""`);
-        gen.var(names_1.default.parentData, (0, codegen_1._)`undefined`);
-        gen.var(names_1.default.parentDataProperty, (0, codegen_1._)`undefined`);
-        gen.var(names_1.default.rootData, names_1.default.data);
-        if (opts.dynamicRef)
-          gen.var(names_1.default.dynamicAnchors, (0, codegen_1._)`{}`);
-      });
-    }
-    function topSchemaObjCode(it) {
-      const { schema, opts, gen } = it;
-      validateFunction(it, () => {
-        if (opts.$comment && schema.$comment)
-          commentKeyword(it);
-        checkNoDefault(it);
-        gen.let(names_1.default.vErrors, null);
-        gen.let(names_1.default.errors, 0);
-        if (opts.unevaluated)
-          resetEvaluated(it);
-        typeAndKeywords(it);
-        returnResults(it);
-      });
-      return;
-    }
-    function resetEvaluated(it) {
-      const { gen, validateName } = it;
-      it.evaluated = gen.const("evaluated", (0, codegen_1._)`${validateName}.evaluated`);
-      gen.if((0, codegen_1._)`${it.evaluated}.dynamicProps`, () => gen.assign((0, codegen_1._)`${it.evaluated}.props`, (0, codegen_1._)`undefined`));
-      gen.if((0, codegen_1._)`${it.evaluated}.dynamicItems`, () => gen.assign((0, codegen_1._)`${it.evaluated}.items`, (0, codegen_1._)`undefined`));
-    }
-    function funcSourceUrl(schema, opts) {
-      const schId = typeof schema == "object" && schema[opts.schemaId];
-      return schId && (opts.code.source || opts.code.process) ? (0, codegen_1._)`/*# sourceURL=${schId} */` : codegen_1.nil;
-    }
-    function subschemaCode(it, valid) {
-      if (isSchemaObj(it)) {
-        checkKeywords(it);
-        if (schemaCxtHasRules(it)) {
-          subSchemaObjCode(it, valid);
-          return;
-        }
-      }
-      (0, boolSchema_1.boolOrEmptySchema)(it, valid);
-    }
-    function schemaCxtHasRules({ schema, self }) {
-      if (typeof schema == "boolean")
-        return !schema;
-      for (const key in schema)
-        if (self.RULES.all[key])
-          return true;
-      return false;
-    }
-    function isSchemaObj(it) {
-      return typeof it.schema != "boolean";
-    }
-    function subSchemaObjCode(it, valid) {
-      const { schema, gen, opts } = it;
-      if (opts.$comment && schema.$comment)
-        commentKeyword(it);
-      updateContext(it);
-      checkAsyncSchema(it);
-      const errsCount = gen.const("_errs", names_1.default.errors);
-      typeAndKeywords(it, errsCount);
-      gen.var(valid, (0, codegen_1._)`${errsCount} === ${names_1.default.errors}`);
-    }
-    function checkKeywords(it) {
-      (0, util_1.checkUnknownRules)(it);
-      checkRefsAndKeywords(it);
-    }
-    function typeAndKeywords(it, errsCount) {
-      if (it.opts.jtd)
-        return schemaKeywords(it, [], false, errsCount);
-      const types = (0, dataType_1.getSchemaTypes)(it.schema);
-      const checkedTypes = (0, dataType_1.coerceAndCheckDataType)(it, types);
-      schemaKeywords(it, types, !checkedTypes, errsCount);
-    }
-    function checkRefsAndKeywords(it) {
-      const { schema, errSchemaPath, opts, self } = it;
-      if (schema.$ref && opts.ignoreKeywordsWithRef && (0, util_1.schemaHasRulesButRef)(schema, self.RULES)) {
-        self.logger.warn(`$ref: keywords ignored in schema at path "${errSchemaPath}"`);
-      }
-    }
-    function checkNoDefault(it) {
-      const { schema, opts } = it;
-      if (schema.default !== void 0 && opts.useDefaults && opts.strictSchema) {
-        (0, util_1.checkStrictMode)(it, "default is ignored in the schema root");
-      }
-    }
-    function updateContext(it) {
-      const schId = it.schema[it.opts.schemaId];
-      if (schId)
-        it.baseId = (0, resolve_1.resolveUrl)(it.opts.uriResolver, it.baseId, schId);
-    }
-    function checkAsyncSchema(it) {
-      if (it.schema.$async && !it.schemaEnv.$async)
-        throw new Error("async schema in sync schema");
-    }
-    function commentKeyword({ gen, schemaEnv, schema, errSchemaPath, opts }) {
-      const msg = schema.$comment;
-      if (opts.$comment === true) {
-        gen.code((0, codegen_1._)`${names_1.default.self}.logger.log(${msg})`);
-      } else if (typeof opts.$comment == "function") {
-        const schemaPath = (0, codegen_1.str)`${errSchemaPath}/$comment`;
-        const rootName = gen.scopeValue("root", { ref: schemaEnv.root });
-        gen.code((0, codegen_1._)`${names_1.default.self}.opts.$comment(${msg}, ${schemaPath}, ${rootName}.schema)`);
-      }
-    }
-    function returnResults(it) {
-      const { gen, schemaEnv, validateName, ValidationError, opts } = it;
-      if (schemaEnv.$async) {
-        gen.if((0, codegen_1._)`${names_1.default.errors} === 0`, () => gen.return(names_1.default.data), () => gen.throw((0, codegen_1._)`new ${ValidationError}(${names_1.default.vErrors})`));
-      } else {
-        gen.assign((0, codegen_1._)`${validateName}.errors`, names_1.default.vErrors);
-        if (opts.unevaluated)
-          assignEvaluated(it);
-        gen.return((0, codegen_1._)`${names_1.default.errors} === 0`);
-      }
-    }
-    function assignEvaluated({ gen, evaluated, props, items: items2 }) {
-      if (props instanceof codegen_1.Name)
-        gen.assign((0, codegen_1._)`${evaluated}.props`, props);
-      if (items2 instanceof codegen_1.Name)
-        gen.assign((0, codegen_1._)`${evaluated}.items`, items2);
-    }
-    function schemaKeywords(it, types, typeErrors, errsCount) {
-      const { gen, schema, data, allErrors, opts, self } = it;
-      const { RULES } = self;
-      if (schema.$ref && (opts.ignoreKeywordsWithRef || !(0, util_1.schemaHasRulesButRef)(schema, RULES))) {
-        gen.block(() => keywordCode(it, "$ref", RULES.all.$ref.definition));
-        return;
-      }
-      if (!opts.jtd)
-        checkStrictTypes(it, types);
-      gen.block(() => {
-        for (const group of RULES.rules)
-          groupKeywords(group);
-        groupKeywords(RULES.post);
-      });
-      function groupKeywords(group) {
-        if (!(0, applicability_1.shouldUseGroup)(schema, group))
-          return;
-        if (group.type) {
-          gen.if((0, dataType_2.checkDataType)(group.type, data, opts.strictNumbers));
-          iterateKeywords(it, group);
-          if (types.length === 1 && types[0] === group.type && typeErrors) {
-            gen.else();
-            (0, dataType_2.reportTypeError)(it);
-          }
-          gen.endIf();
-        } else {
-          iterateKeywords(it, group);
-        }
-        if (!allErrors)
-          gen.if((0, codegen_1._)`${names_1.default.errors} === ${errsCount || 0}`);
-      }
-    }
-    function iterateKeywords(it, group) {
-      const { gen, schema, opts: { useDefaults } } = it;
-      if (useDefaults)
-        (0, defaults_1.assignDefaults)(it, group.type);
-      gen.block(() => {
-        for (const rule of group.rules) {
-          if ((0, applicability_1.shouldUseRule)(schema, rule)) {
-            keywordCode(it, rule.keyword, rule.definition, group.type);
-          }
-        }
-      });
-    }
-    function checkStrictTypes(it, types) {
-      if (it.schemaEnv.meta || !it.opts.strictTypes)
-        return;
-      checkContextTypes(it, types);
-      if (!it.opts.allowUnionTypes)
-        checkMultipleTypes(it, types);
-      checkKeywordTypes(it, it.dataTypes);
-    }
-    function checkContextTypes(it, types) {
-      if (!types.length)
-        return;
-      if (!it.dataTypes.length) {
-        it.dataTypes = types;
-        return;
-      }
-      types.forEach((t) => {
-        if (!includesType(it.dataTypes, t)) {
-          strictTypesError(it, `type "${t}" not allowed by context "${it.dataTypes.join(",")}"`);
-        }
-      });
-      narrowSchemaTypes(it, types);
-    }
-    function checkMultipleTypes(it, ts) {
-      if (ts.length > 1 && !(ts.length === 2 && ts.includes("null"))) {
-        strictTypesError(it, "use allowUnionTypes to allow union type keyword");
-      }
-    }
-    function checkKeywordTypes(it, ts) {
-      const rules = it.self.RULES.all;
-      for (const keyword in rules) {
-        const rule = rules[keyword];
-        if (typeof rule == "object" && (0, applicability_1.shouldUseRule)(it.schema, rule)) {
-          const { type } = rule.definition;
-          if (type.length && !type.some((t) => hasApplicableType(ts, t))) {
-            strictTypesError(it, `missing type "${type.join(",")}" for keyword "${keyword}"`);
-          }
-        }
-      }
-    }
-    function hasApplicableType(schTs, kwdT) {
-      return schTs.includes(kwdT) || kwdT === "number" && schTs.includes("integer");
-    }
-    function includesType(ts, t) {
-      return ts.includes(t) || t === "integer" && ts.includes("number");
-    }
-    function narrowSchemaTypes(it, withTypes) {
-      const ts = [];
-      for (const t of it.dataTypes) {
-        if (includesType(withTypes, t))
-          ts.push(t);
-        else if (withTypes.includes("integer") && t === "number")
-          ts.push("integer");
-      }
-      it.dataTypes = ts;
-    }
-    function strictTypesError(it, msg) {
-      const schemaPath = it.schemaEnv.baseId + it.errSchemaPath;
-      msg += ` at "${schemaPath}" (strictTypes)`;
-      (0, util_1.checkStrictMode)(it, msg, it.opts.strictTypes);
-    }
-    var KeywordCxt = class {
-      constructor(it, def, keyword) {
-        (0, keyword_1.validateKeywordUsage)(it, def, keyword);
-        this.gen = it.gen;
-        this.allErrors = it.allErrors;
-        this.keyword = keyword;
-        this.data = it.data;
-        this.schema = it.schema[keyword];
-        this.$data = def.$data && it.opts.$data && this.schema && this.schema.$data;
-        this.schemaValue = (0, util_1.schemaRefOrVal)(it, this.schema, keyword, this.$data);
-        this.schemaType = def.schemaType;
-        this.parentSchema = it.schema;
-        this.params = {};
-        this.it = it;
-        this.def = def;
-        if (this.$data) {
-          this.schemaCode = it.gen.const("vSchema", getData(this.$data, it));
-        } else {
-          this.schemaCode = this.schemaValue;
-          if (!(0, keyword_1.validSchemaType)(this.schema, def.schemaType, def.allowUndefined)) {
-            throw new Error(`${keyword} value must be ${JSON.stringify(def.schemaType)}`);
-          }
-        }
-        if ("code" in def ? def.trackErrors : def.errors !== false) {
-          this.errsCount = it.gen.const("_errs", names_1.default.errors);
-        }
-      }
-      result(condition, successAction, failAction) {
-        this.failResult((0, codegen_1.not)(condition), successAction, failAction);
-      }
-      failResult(condition, successAction, failAction) {
-        this.gen.if(condition);
-        if (failAction)
-          failAction();
-        else
-          this.error();
-        if (successAction) {
-          this.gen.else();
-          successAction();
-          if (this.allErrors)
-            this.gen.endIf();
-        } else {
-          if (this.allErrors)
-            this.gen.endIf();
-          else
-            this.gen.else();
-        }
-      }
-      pass(condition, failAction) {
-        this.failResult((0, codegen_1.not)(condition), void 0, failAction);
-      }
-      fail(condition) {
-        if (condition === void 0) {
-          this.error();
-          if (!this.allErrors)
-            this.gen.if(false);
-          return;
-        }
-        this.gen.if(condition);
-        this.error();
-        if (this.allErrors)
-          this.gen.endIf();
-        else
-          this.gen.else();
-      }
-      fail$data(condition) {
-        if (!this.$data)
-          return this.fail(condition);
-        const { schemaCode } = this;
-        this.fail((0, codegen_1._)`${schemaCode} !== undefined && (${(0, codegen_1.or)(this.invalid$data(), condition)})`);
-      }
-      error(append, errorParams, errorPaths) {
-        if (errorParams) {
-          this.setParams(errorParams);
-          this._error(append, errorPaths);
-          this.setParams({});
-          return;
-        }
-        this._error(append, errorPaths);
-      }
-      _error(append, errorPaths) {
-        ;
-        (append ? errors_1.reportExtraError : errors_1.reportError)(this, this.def.error, errorPaths);
-      }
-      $dataError() {
-        (0, errors_1.reportError)(this, this.def.$dataError || errors_1.keyword$DataError);
-      }
-      reset() {
-        if (this.errsCount === void 0)
-          throw new Error('add "trackErrors" to keyword definition');
-        (0, errors_1.resetErrorsCount)(this.gen, this.errsCount);
-      }
-      ok(cond) {
-        if (!this.allErrors)
-          this.gen.if(cond);
-      }
-      setParams(obj, assign) {
-        if (assign)
-          Object.assign(this.params, obj);
-        else
-          this.params = obj;
-      }
-      block$data(valid, codeBlock, $dataValid = codegen_1.nil) {
-        this.gen.block(() => {
-          this.check$data(valid, $dataValid);
-          codeBlock();
-        });
-      }
-      check$data(valid = codegen_1.nil, $dataValid = codegen_1.nil) {
-        if (!this.$data)
-          return;
-        const { gen, schemaCode, schemaType, def } = this;
-        gen.if((0, codegen_1.or)((0, codegen_1._)`${schemaCode} === undefined`, $dataValid));
-        if (valid !== codegen_1.nil)
-          gen.assign(valid, true);
-        if (schemaType.length || def.validateSchema) {
-          gen.elseIf(this.invalid$data());
-          this.$dataError();
-          if (valid !== codegen_1.nil)
-            gen.assign(valid, false);
-        }
-        gen.else();
-      }
-      invalid$data() {
-        const { gen, schemaCode, schemaType, def, it } = this;
-        return (0, codegen_1.or)(wrong$DataType(), invalid$DataSchema());
-        function wrong$DataType() {
-          if (schemaType.length) {
-            if (!(schemaCode instanceof codegen_1.Name))
-              throw new Error("ajv implementation error");
-            const st = Array.isArray(schemaType) ? schemaType : [schemaType];
-            return (0, codegen_1._)`${(0, dataType_2.checkDataTypes)(st, schemaCode, it.opts.strictNumbers, dataType_2.DataType.Wrong)}`;
-          }
-          return codegen_1.nil;
-        }
-        function invalid$DataSchema() {
-          if (def.validateSchema) {
-            const validateSchemaRef = gen.scopeValue("validate$data", { ref: def.validateSchema });
-            return (0, codegen_1._)`!${validateSchemaRef}(${schemaCode})`;
-          }
-          return codegen_1.nil;
-        }
-      }
-      subschema(appl, valid) {
-        const subschema = (0, subschema_1.getSubschema)(this.it, appl);
-        (0, subschema_1.extendSubschemaData)(subschema, this.it, appl);
-        (0, subschema_1.extendSubschemaMode)(subschema, appl);
-        const nextContext = { ...this.it, ...subschema, items: void 0, props: void 0 };
-        subschemaCode(nextContext, valid);
-        return nextContext;
-      }
-      mergeEvaluated(schemaCxt, toName) {
-        const { it, gen } = this;
-        if (!it.opts.unevaluated)
-          return;
-        if (it.props !== true && schemaCxt.props !== void 0) {
-          it.props = util_1.mergeEvaluated.props(gen, schemaCxt.props, it.props, toName);
-        }
-        if (it.items !== true && schemaCxt.items !== void 0) {
-          it.items = util_1.mergeEvaluated.items(gen, schemaCxt.items, it.items, toName);
-        }
-      }
-      mergeValidEvaluated(schemaCxt, valid) {
-        const { it, gen } = this;
-        if (it.opts.unevaluated && (it.props !== true || it.items !== true)) {
-          gen.if(valid, () => this.mergeEvaluated(schemaCxt, codegen_1.Name));
-          return true;
-        }
-      }
-    };
-    exports.KeywordCxt = KeywordCxt;
-    function keywordCode(it, keyword, def, ruleType) {
-      const cxt = new KeywordCxt(it, def, keyword);
-      if ("code" in def) {
-        def.code(cxt, ruleType);
-      } else if (cxt.$data && def.validate) {
-        (0, keyword_1.funcKeywordCode)(cxt, def);
-      } else if ("macro" in def) {
-        (0, keyword_1.macroKeywordCode)(cxt, def);
-      } else if (def.compile || def.validate) {
-        (0, keyword_1.funcKeywordCode)(cxt, def);
-      }
-    }
-    var JSON_POINTER = /^\/(?:[^~]|~0|~1)*$/;
-    var RELATIVE_JSON_POINTER = /^([0-9]+)(#|\/(?:[^~]|~0|~1)*)?$/;
-    function getData($data, { dataLevel, dataNames, dataPathArr }) {
-      let jsonPointer;
-      let data;
-      if ($data === "")
-        return names_1.default.rootData;
-      if ($data[0] === "/") {
-        if (!JSON_POINTER.test($data))
-          throw new Error(`Invalid JSON-pointer: ${$data}`);
-        jsonPointer = $data;
-        data = names_1.default.rootData;
-      } else {
-        const matches = RELATIVE_JSON_POINTER.exec($data);
-        if (!matches)
-          throw new Error(`Invalid JSON-pointer: ${$data}`);
-        const up = +matches[1];
-        jsonPointer = matches[2];
-        if (jsonPointer === "#") {
-          if (up >= dataLevel)
-            throw new Error(errorMsg("property/index", up));
-          return dataPathArr[dataLevel - up];
-        }
-        if (up > dataLevel)
-          throw new Error(errorMsg("data", up));
-        data = dataNames[dataLevel - up];
-        if (!jsonPointer)
-          return data;
-      }
-      let expr = data;
-      const segments = jsonPointer.split("/");
-      for (const segment of segments) {
-        if (segment) {
-          data = (0, codegen_1._)`${data}${(0, codegen_1.getProperty)((0, util_1.unescapeJsonPointer)(segment))}`;
-          expr = (0, codegen_1._)`${expr} && ${data}`;
-        }
-      }
-      return expr;
-      function errorMsg(pointerType, up) {
-        return `Cannot access ${pointerType} ${up} levels up, current level is ${dataLevel}`;
-      }
-    }
-    exports.getData = getData;
-  }
-});
-
-// node_modules/ajv/dist/runtime/validation_error.js
-var require_validation_error = __commonJS({
-  "node_modules/ajv/dist/runtime/validation_error.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var ValidationError = class extends Error {
-      constructor(errors) {
-        super("validation failed");
-        this.errors = errors;
-        this.ajv = this.validation = true;
-      }
-    };
-    exports.default = ValidationError;
-  }
-});
-
-// node_modules/ajv/dist/compile/ref_error.js
-var require_ref_error = __commonJS({
-  "node_modules/ajv/dist/compile/ref_error.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var resolve_1 = require_resolve();
-    var MissingRefError = class extends Error {
-      constructor(resolver, baseId, ref, msg) {
-        super(msg || `can't resolve reference ${ref} from id ${baseId}`);
-        this.missingRef = (0, resolve_1.resolveUrl)(resolver, baseId, ref);
-        this.missingSchema = (0, resolve_1.normalizeId)((0, resolve_1.getFullPath)(resolver, this.missingRef));
-      }
-    };
-    exports.default = MissingRefError;
-  }
-});
-
-// node_modules/ajv/dist/compile/index.js
-var require_compile = __commonJS({
-  "node_modules/ajv/dist/compile/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.resolveSchema = exports.getCompilingSchema = exports.resolveRef = exports.compileSchema = exports.SchemaEnv = void 0;
-    var codegen_1 = require_codegen();
-    var validation_error_1 = require_validation_error();
-    var names_1 = require_names();
-    var resolve_1 = require_resolve();
-    var util_1 = require_util();
-    var validate_1 = require_validate();
-    var SchemaEnv = class {
-      constructor(env) {
-        var _a;
-        this.refs = {};
-        this.dynamicAnchors = {};
-        let schema;
-        if (typeof env.schema == "object")
-          schema = env.schema;
-        this.schema = env.schema;
-        this.schemaId = env.schemaId;
-        this.root = env.root || this;
-        this.baseId = (_a = env.baseId) !== null && _a !== void 0 ? _a : (0, resolve_1.normalizeId)(schema === null || schema === void 0 ? void 0 : schema[env.schemaId || "$id"]);
-        this.schemaPath = env.schemaPath;
-        this.localRefs = env.localRefs;
-        this.meta = env.meta;
-        this.$async = schema === null || schema === void 0 ? void 0 : schema.$async;
-        this.refs = {};
-      }
-    };
-    exports.SchemaEnv = SchemaEnv;
-    function compileSchema(sch) {
-      const _sch = getCompilingSchema.call(this, sch);
-      if (_sch)
-        return _sch;
-      const rootId = (0, resolve_1.getFullPath)(this.opts.uriResolver, sch.root.baseId);
-      const { es5, lines } = this.opts.code;
-      const { ownProperties } = this.opts;
-      const gen = new codegen_1.CodeGen(this.scope, { es5, lines, ownProperties });
-      let _ValidationError;
-      if (sch.$async) {
-        _ValidationError = gen.scopeValue("Error", {
-          ref: validation_error_1.default,
-          code: (0, codegen_1._)`require("ajv/dist/runtime/validation_error").default`
-        });
-      }
-      const validateName = gen.scopeName("validate");
-      sch.validateName = validateName;
-      const schemaCxt = {
-        gen,
-        allErrors: this.opts.allErrors,
-        data: names_1.default.data,
-        parentData: names_1.default.parentData,
-        parentDataProperty: names_1.default.parentDataProperty,
-        dataNames: [names_1.default.data],
-        dataPathArr: [codegen_1.nil],
-        // TODO can its length be used as dataLevel if nil is removed?
-        dataLevel: 0,
-        dataTypes: [],
-        definedProperties: /* @__PURE__ */ new Set(),
-        topSchemaRef: gen.scopeValue("schema", this.opts.code.source === true ? { ref: sch.schema, code: (0, codegen_1.stringify)(sch.schema) } : { ref: sch.schema }),
-        validateName,
-        ValidationError: _ValidationError,
-        schema: sch.schema,
-        schemaEnv: sch,
-        rootId,
-        baseId: sch.baseId || rootId,
-        schemaPath: codegen_1.nil,
-        errSchemaPath: sch.schemaPath || (this.opts.jtd ? "" : "#"),
-        errorPath: (0, codegen_1._)`""`,
-        opts: this.opts,
-        self: this
-      };
-      let sourceCode;
-      try {
-        this._compilations.add(sch);
-        (0, validate_1.validateFunctionCode)(schemaCxt);
-        gen.optimize(this.opts.code.optimize);
-        const validateCode = gen.toString();
-        sourceCode = `${gen.scopeRefs(names_1.default.scope)}return ${validateCode}`;
-        if (this.opts.code.process)
-          sourceCode = this.opts.code.process(sourceCode, sch);
-        const makeValidate = new Function(`${names_1.default.self}`, `${names_1.default.scope}`, sourceCode);
-        const validate = makeValidate(this, this.scope.get());
-        this.scope.value(validateName, { ref: validate });
-        validate.errors = null;
-        validate.schema = sch.schema;
-        validate.schemaEnv = sch;
-        if (sch.$async)
-          validate.$async = true;
-        if (this.opts.code.source === true) {
-          validate.source = { validateName, validateCode, scopeValues: gen._values };
-        }
-        if (this.opts.unevaluated) {
-          const { props, items: items2 } = schemaCxt;
-          validate.evaluated = {
-            props: props instanceof codegen_1.Name ? void 0 : props,
-            items: items2 instanceof codegen_1.Name ? void 0 : items2,
-            dynamicProps: props instanceof codegen_1.Name,
-            dynamicItems: items2 instanceof codegen_1.Name
-          };
-          if (validate.source)
-            validate.source.evaluated = (0, codegen_1.stringify)(validate.evaluated);
-        }
-        sch.validate = validate;
-        return sch;
-      } catch (e) {
-        delete sch.validate;
-        delete sch.validateName;
-        if (sourceCode)
-          this.logger.error("Error compiling schema, function code:", sourceCode);
-        throw e;
-      } finally {
-        this._compilations.delete(sch);
-      }
-    }
-    exports.compileSchema = compileSchema;
-    function resolveRef(root, baseId, ref) {
-      var _a;
-      ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, ref);
-      const schOrFunc = root.refs[ref];
-      if (schOrFunc)
-        return schOrFunc;
-      let _sch = resolve.call(this, root, ref);
-      if (_sch === void 0) {
-        const schema = (_a = root.localRefs) === null || _a === void 0 ? void 0 : _a[ref];
-        const { schemaId } = this.opts;
-        if (schema)
-          _sch = new SchemaEnv({ schema, schemaId, root, baseId });
-      }
-      if (_sch === void 0)
-        return;
-      return root.refs[ref] = inlineOrCompile.call(this, _sch);
-    }
-    exports.resolveRef = resolveRef;
-    function inlineOrCompile(sch) {
-      if ((0, resolve_1.inlineRef)(sch.schema, this.opts.inlineRefs))
-        return sch.schema;
-      return sch.validate ? sch : compileSchema.call(this, sch);
-    }
-    function getCompilingSchema(schEnv) {
-      for (const sch of this._compilations) {
-        if (sameSchemaEnv(sch, schEnv))
-          return sch;
-      }
-    }
-    exports.getCompilingSchema = getCompilingSchema;
-    function sameSchemaEnv(s1, s2) {
-      return s1.schema === s2.schema && s1.root === s2.root && s1.baseId === s2.baseId;
-    }
-    function resolve(root, ref) {
-      let sch;
-      while (typeof (sch = this.refs[ref]) == "string")
-        ref = sch;
-      return sch || this.schemas[ref] || resolveSchema.call(this, root, ref);
-    }
-    function resolveSchema(root, ref) {
-      const p = this.opts.uriResolver.parse(ref);
-      const refPath = (0, resolve_1._getFullPath)(this.opts.uriResolver, p);
-      let baseId = (0, resolve_1.getFullPath)(this.opts.uriResolver, root.baseId, void 0);
-      if (Object.keys(root.schema).length > 0 && refPath === baseId) {
-        return getJsonPointer.call(this, p, root);
-      }
-      const id = (0, resolve_1.normalizeId)(refPath);
-      const schOrRef = this.refs[id] || this.schemas[id];
-      if (typeof schOrRef == "string") {
-        const sch = resolveSchema.call(this, root, schOrRef);
-        if (typeof (sch === null || sch === void 0 ? void 0 : sch.schema) !== "object")
-          return;
-        return getJsonPointer.call(this, p, sch);
-      }
-      if (typeof (schOrRef === null || schOrRef === void 0 ? void 0 : schOrRef.schema) !== "object")
-        return;
-      if (!schOrRef.validate)
-        compileSchema.call(this, schOrRef);
-      if (id === (0, resolve_1.normalizeId)(ref)) {
-        const { schema } = schOrRef;
-        const { schemaId } = this.opts;
-        const schId = schema[schemaId];
-        if (schId)
-          baseId = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schId);
-        return new SchemaEnv({ schema, schemaId, root, baseId });
-      }
-      return getJsonPointer.call(this, p, schOrRef);
-    }
-    exports.resolveSchema = resolveSchema;
-    var PREVENT_SCOPE_CHANGE = /* @__PURE__ */ new Set([
-      "properties",
-      "patternProperties",
-      "enum",
-      "dependencies",
-      "definitions"
-    ]);
-    function getJsonPointer(parsedRef, { baseId, schema, root }) {
-      var _a;
-      if (((_a = parsedRef.fragment) === null || _a === void 0 ? void 0 : _a[0]) !== "/")
-        return;
-      for (const part of parsedRef.fragment.slice(1).split("/")) {
-        if (typeof schema === "boolean")
-          return;
-        const partSchema = schema[(0, util_1.unescapeFragment)(part)];
-        if (partSchema === void 0)
-          return;
-        schema = partSchema;
-        const schId = typeof schema === "object" && schema[this.opts.schemaId];
-        if (!PREVENT_SCOPE_CHANGE.has(part) && schId) {
-          baseId = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schId);
-        }
-      }
-      let env;
-      if (typeof schema != "boolean" && schema.$ref && !(0, util_1.schemaHasRulesButRef)(schema, this.RULES)) {
-        const $ref = (0, resolve_1.resolveUrl)(this.opts.uriResolver, baseId, schema.$ref);
-        env = resolveSchema.call(this, root, $ref);
-      }
-      const { schemaId } = this.opts;
-      env = env || new SchemaEnv({ schema, schemaId, root, baseId });
-      if (env.schema !== env.root.schema)
-        return env;
-      return void 0;
-    }
-  }
-});
-
-// node_modules/ajv/dist/refs/data.json
-var require_data = __commonJS({
-  "node_modules/ajv/dist/refs/data.json"(exports, module) {
-    module.exports = {
-      $id: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#",
-      description: "Meta-schema for $data reference (JSON AnySchema extension proposal)",
-      type: "object",
-      required: ["$data"],
-      properties: {
-        $data: {
-          type: "string",
-          anyOf: [{ format: "relative-json-pointer" }, { format: "json-pointer" }]
-        }
-      },
-      additionalProperties: false
-    };
-  }
-});
-
-// node_modules/fast-uri/lib/utils.js
-var require_utils = __commonJS({
-  "node_modules/fast-uri/lib/utils.js"(exports, module) {
-    "use strict";
-    var isUUID = RegExp.prototype.test.bind(/^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/iu);
-    var isIPv4 = RegExp.prototype.test.bind(/^(?:(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d{2}|[1-9]\d|\d)$/u);
-    var isPort = RegExp.prototype.test.bind(/^\d*$/u);
-    var isHexPair = RegExp.prototype.test.bind(/^[\da-f]{2}$/iu);
-    var isUnreserved = RegExp.prototype.test.bind(/^[\da-z\-._~]$/iu);
-    var isPathCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:@/]$/u);
-    var isQueryFragmentCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:@/?]$/u);
-    var isUserinfoCharacter = RegExp.prototype.test.bind(/^[A-Za-z0-9\-._~!$&'()*+,;=:]$/u);
-    var BYTE_HEX = new Array(256);
-    {
-      const HEX_DIGITS = "0123456789ABCDEF";
-      for (let i = 0; i < 256; i++) {
-        BYTE_HEX[i] = "%" + HEX_DIGITS[i >> 4] + HEX_DIGITS[i & 15];
-      }
-    }
-    function percentEncodeNonAscii(cp) {
-      if (cp < 2048) {
-        return BYTE_HEX[192 | cp >> 6] + BYTE_HEX[128 | cp & 63];
-      }
-      if (cp < 65536) {
-        return BYTE_HEX[224 | cp >> 12] + BYTE_HEX[128 | cp >> 6 & 63] + BYTE_HEX[128 | cp & 63];
-      }
-      return BYTE_HEX[240 | cp >> 18] + BYTE_HEX[128 | cp >> 12 & 63] + BYTE_HEX[128 | cp >> 6 & 63] + BYTE_HEX[128 | cp & 63];
-    }
-    function stringArrayToHexStripped(input2) {
-      let acc = "";
-      let code = 0;
-      let i = 0;
-      for (i = 0; i < input2.length; i++) {
-        code = input2[i].charCodeAt(0);
-        if (code === 48) {
-          continue;
-        }
-        if (!(code >= 48 && code <= 57 || code >= 65 && code <= 70 || code >= 97 && code <= 102)) {
-          return "";
-        }
-        acc += input2[i];
-        break;
-      }
-      for (i += 1; i < input2.length; i++) {
-        code = input2[i].charCodeAt(0);
-        if (!(code >= 48 && code <= 57 || code >= 65 && code <= 70 || code >= 97 && code <= 102)) {
-          return "";
-        }
-        acc += input2[i];
-      }
-      return acc;
-    }
-    var isHextet = RegExp.prototype.test.bind(/^[\dA-Fa-f]{1,4}$/);
-    var isIPvFuture = RegExp.prototype.test.bind(/^[vV][\dA-Fa-f]+\.[A-Za-z\d\-._~!$&'()*+,;=:]+$/);
-    var isZoneCharacter = RegExp.prototype.test.bind(/^[A-Za-z\d\-._~]$/);
-    var nonSimpleDomain = RegExp.prototype.test.bind(/[^!"$&'()*+,\-.;=_`a-z{}~]/u);
-    function isZoneIdentifier(zone) {
-      if (zone.length === 0) return false;
-      for (let i = 0; i < zone.length; i++) {
-        if (isZoneCharacter(zone[i])) continue;
-        if (zone[i] === "%" && i + 2 < zone.length && isHexPair(zone.slice(i + 1, i + 3))) {
-          i += 2;
-          continue;
-        }
-        return false;
-      }
-      return true;
-    }
-    function compressIPv6ZeroRun(hextets) {
-      let bestStart = -1;
-      let bestLength = 0;
-      let runStart = -1;
-      let runLength = 0;
-      for (let i = 0; i < hextets.length; i++) {
-        if (hextets[i] === "0") {
-          if (runStart === -1) runStart = i;
-          runLength++;
-          if (runLength > bestLength) {
-            bestLength = runLength;
-            bestStart = runStart;
-          }
-        } else {
-          runStart = -1;
-          runLength = 0;
-        }
-      }
-      if (bestLength < 2) return hextets.join(":");
-      const head = hextets.slice(0, bestStart).join(":");
-      const tail = hextets.slice(bestStart + bestLength).join(":");
-      return head + "::" + tail;
-    }
-    function normalizeIPv6Address(input2) {
-      const compression = input2.indexOf("::");
-      if (compression !== -1 && input2.indexOf("::", compression + 1) !== -1) return void 0;
-      const left = compression === -1 ? input2.split(":") : input2.slice(0, compression).split(":");
-      const right = compression === -1 ? [] : input2.slice(compression + 2).split(":");
-      if (compression !== -1) {
-        if (left.length === 1 && left[0] === "") left.length = 0;
-        if (right.length === 1 && right[0] === "") right.length = 0;
-      }
-      const parts = left.concat(right);
-      let hextetCount = 0;
-      for (let i = 0; i < parts.length; i++) {
-        const part = parts[i];
-        if (part === "") return void 0;
-        if (part.indexOf(".") !== -1) {
-          if (i !== parts.length - 1 || compression !== -1 && right.length === 0 || !isIPv4(part)) return void 0;
-          hextetCount += 2;
-          continue;
-        }
-        if (!isHextet(part)) return void 0;
-        parts[i] = parseInt(part, 16).toString(16);
-        hextetCount++;
-      }
-      if (compression === -1) {
-        if (hextetCount !== 8) return void 0;
-        return compressIPv6ZeroRun(parts);
-      }
-      if (hextetCount >= 8) return void 0;
-      const expanded = parts.slice(0, left.length);
-      for (let i = hextetCount; i < 8; i++) expanded.push("0");
-      for (let i = left.length; i < parts.length; i++) expanded.push(parts[i]);
-      return compressIPv6ZeroRun(expanded);
-    }
-    function normalizeIPv6(host) {
-      const bracketed = host[0] === "[" && host[host.length - 1] === "]";
-      const hasBracket = host[0] === "[" || host[host.length - 1] === "]";
-      if (hasBracket && !bracketed) return { host, isIPV6: false, error: true };
-      let input2 = bracketed ? host.slice(1, -1) : host;
-      if (bracketed && isIPvFuture(input2)) {
-        input2 = input2.toLowerCase();
-        return { host: `[${input2}]`, escapedHost: input2, isIPV6: false, isIPVFuture: true };
-      }
-      if (findToken(input2, ":") < 2) {
-        return { host, isIPV6: false, error: bracketed };
-      }
-      let zoneIdentifier = "";
-      const zoneSeparator = input2.indexOf("%");
-      if (zoneSeparator !== -1) {
-        const separatorLength = input2.slice(zoneSeparator, zoneSeparator + 3).toLowerCase() === "%25" ? 3 : 1;
-        zoneIdentifier = input2.slice(zoneSeparator + separatorLength);
-        if (!isZoneIdentifier(zoneIdentifier)) return { host, isIPV6: false, error: true };
-        input2 = input2.slice(0, zoneSeparator);
-      }
-      const address = normalizeIPv6Address(input2);
-      if (address === void 0) return { host, isIPV6: false, error: true };
-      return {
-        host: address + (zoneIdentifier ? "%" + zoneIdentifier : ""),
-        escapedHost: address + (zoneIdentifier ? "%25" + zoneIdentifier : ""),
-        isIPV6: true
-      };
-    }
-    function findToken(str, token) {
-      let ind = 0;
-      for (let i = 0; i < str.length; i++) {
-        if (str[i] === token) ind++;
-      }
-      return ind;
-    }
-    function removeDotSegments(path) {
-      let input2 = path;
-      const output2 = [];
-      let nextSlash = -1;
-      let len = 0;
-      while (len = input2.length) {
-        if (len === 1) {
-          if (input2 === ".") {
-            break;
-          } else if (input2 === "/") {
-            output2.push("/");
-            break;
-          } else {
-            output2.push(input2);
-            break;
-          }
-        } else if (len === 2) {
-          if (input2[0] === ".") {
-            if (input2[1] === ".") {
-              break;
-            } else if (input2[1] === "/") {
-              input2 = input2.slice(2);
-              continue;
-            }
-          } else if (input2[0] === "/") {
-            if (input2[1] === "." || input2[1] === "/") {
-              output2.push("/");
-              break;
-            }
-          }
-        } else if (len === 3) {
-          if (input2 === "/..") {
-            if (output2.length !== 0) {
-              output2.pop();
-            }
-            output2.push("/");
-            break;
-          }
-        }
-        if (input2[0] === ".") {
-          if (input2[1] === ".") {
-            if (input2[2] === "/") {
-              input2 = input2.slice(3);
-              continue;
-            }
-          } else if (input2[1] === "/") {
-            input2 = input2.slice(2);
-            continue;
-          }
-        } else if (input2[0] === "/") {
-          if (input2[1] === ".") {
-            if (input2[2] === "/") {
-              input2 = input2.slice(2);
-              continue;
-            } else if (input2[2] === ".") {
-              if (input2[3] === "/") {
-                input2 = input2.slice(3);
-                if (output2.length !== 0) {
-                  output2.pop();
-                }
-                continue;
-              }
-            }
-          }
-        }
-        if ((nextSlash = input2.indexOf("/", 1)) === -1) {
-          output2.push(input2);
-          break;
-        } else {
-          output2.push(input2.slice(0, nextSlash));
-          input2 = input2.slice(nextSlash);
-        }
-      }
-      return output2.join("");
-    }
-    var HOST_DELIMS = { "@": "%40", "/": "%2F", "?": "%3F", "#": "%23", ":": "%3A" };
-    var HOST_DELIM_RE = /[@/?#:]/g;
-    var HOST_DELIM_NO_COLON_RE = /[@/?#]/g;
-    function reescapeHostDelimiters(host, isIP) {
-      const re = isIP ? HOST_DELIM_NO_COLON_RE : HOST_DELIM_RE;
-      re.lastIndex = 0;
-      return host.replace(re, (ch) => HOST_DELIMS[ch]);
-    }
-    function normalizePercentEncoding(input2, decodeUnreserved = false) {
-      if (input2.indexOf("%") === -1) {
-        return input2;
-      }
-      let output2 = "";
-      for (let i = 0; i < input2.length; i++) {
-        if (input2[i] === "%" && i + 2 < input2.length) {
-          const hex = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex)) {
-            const normalizedHex = hex.toUpperCase();
-            const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
-            if (decodeUnreserved && isUnreserved(decoded)) {
-              output2 += decoded;
-            } else {
-              output2 += "%" + normalizedHex;
-            }
-            i += 2;
-            continue;
-          }
-        }
-        output2 += input2[i];
-      }
-      return output2;
-    }
-    function normalizePathEncoding(input2) {
-      let output2 = "";
-      for (let i = 0; i < input2.length; i++) {
-        const ch = input2[i];
-        if (ch === "%" && i + 2 < input2.length) {
-          const hex = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex)) {
-            const normalizedHex = hex.toUpperCase();
-            const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
-            if (decoded !== "." && isUnreserved(decoded)) {
-              output2 += decoded;
-            } else {
-              output2 += "%" + normalizedHex;
-            }
-            i += 2;
-            continue;
-          }
-        }
-        if (isPathCharacter(ch)) {
-          output2 += ch;
-        } else {
-          const code = input2.charCodeAt(i);
-          if (code < 128) {
-            output2 += isEscapeSafe(code) ? ch : BYTE_HEX[code];
-          } else if (code < 55296 || code > 57343) {
-            output2 += percentEncodeNonAscii(code);
-          } else if (code <= 56319 && i + 1 < input2.length) {
-            const low = input2.charCodeAt(i + 1);
-            if (low >= 56320 && low <= 57343) {
-              output2 += percentEncodeNonAscii(65536 + (code - 55296 << 10) + (low - 56320));
-              i++;
-            } else {
-              output2 += percentEncodeNonAscii(65533);
-            }
-          } else {
-            output2 += percentEncodeNonAscii(65533);
-          }
-        }
-      }
-      return output2;
-    }
-    function serializePathEncoding(input2, pathNoScheme = false) {
-      let output2 = "";
-      let firstSegment = pathNoScheme && input2[0] !== "/";
-      for (let i = 0; i < input2.length; i++) {
-        const ch = input2[i];
-        if (ch === "%" && i + 2 < input2.length) {
-          const hex = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex)) {
-            output2 += "%" + hex.toUpperCase();
-            i += 2;
-            continue;
-          }
-        }
-        if (ch === "/") {
-          firstSegment = false;
-        }
-        if (isPathCharacter(ch) && (ch !== ":" || !firstSegment)) {
-          output2 += ch;
-        } else {
-          const code = input2.charCodeAt(i);
-          if (code < 128) {
-            output2 += BYTE_HEX[code];
-          } else if (code < 55296 || code > 57343) {
-            output2 += percentEncodeNonAscii(code);
-          } else if (code <= 56319 && i + 1 < input2.length) {
-            const low = input2.charCodeAt(i + 1);
-            if (low >= 56320 && low <= 57343) {
-              output2 += percentEncodeNonAscii(65536 + (code - 55296 << 10) + (low - 56320));
-              i++;
-            } else {
-              output2 += percentEncodeNonAscii(65533);
-            }
-          } else {
-            output2 += percentEncodeNonAscii(65533);
-          }
-        }
-      }
-      return output2;
-    }
-    function encodeComponent(input2, isAllowed) {
-      let output2 = "";
-      for (let i = 0; i < input2.length; i++) {
-        const ch = input2[i];
-        if (ch === "%" && i + 2 < input2.length) {
-          const hex = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex)) {
-            output2 += "%" + hex.toUpperCase();
-            i += 2;
-            continue;
-          }
-        }
-        if (isAllowed(ch)) {
-          output2 += ch;
-        } else {
-          const code = input2.charCodeAt(i);
-          if (code < 128) {
-            output2 += BYTE_HEX[code];
-          } else if (code < 55296 || code > 57343) {
-            output2 += percentEncodeNonAscii(code);
-          } else if (code <= 56319 && i + 1 < input2.length) {
-            const low = input2.charCodeAt(i + 1);
-            if (low >= 56320 && low <= 57343) {
-              output2 += percentEncodeNonAscii(65536 + (code - 55296 << 10) + (low - 56320));
-              i++;
-            } else {
-              output2 += percentEncodeNonAscii(65533);
-            }
-          } else {
-            output2 += percentEncodeNonAscii(65533);
-          }
-        }
-      }
-      return output2;
-    }
-    function encodeUserinfo(input2) {
-      return encodeComponent(input2, isUserinfoCharacter);
-    }
-    function encodeQuery(input2) {
-      return encodeComponent(input2, isQueryFragmentCharacter);
-    }
-    function encodeFragment(input2) {
-      return encodeComponent(input2, isQueryFragmentCharacter);
-    }
-    function isEscapeSafe(cp) {
-      return cp >= 48 && cp <= 57 || cp >= 65 && cp <= 90 || cp >= 97 && cp <= 122 || cp === 42 || cp === 43 || cp === 45 || cp === 46 || cp === 47 || cp === 64 || cp === 95;
-    }
-    function normalizeQueryFragmentEncoding(input2) {
-      let output2 = "";
-      for (let i = 0; i < input2.length; i++) {
-        const ch = input2[i];
-        if (ch === "%" && i + 2 < input2.length) {
-          const hex = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex)) {
-            const normalizedHex = hex.toUpperCase();
-            const decoded = String.fromCharCode(parseInt(normalizedHex, 16));
-            if (isUnreserved(decoded)) {
-              output2 += decoded;
-            } else {
-              output2 += "%" + normalizedHex;
-            }
-            i += 2;
-            continue;
-          }
-        }
-        if (isQueryFragmentCharacter(ch)) {
-          output2 += ch;
-        } else {
-          const code = input2.charCodeAt(i);
-          if (code < 128) {
-            output2 += isEscapeSafe(code) ? ch : BYTE_HEX[code];
-          } else if (code < 55296 || code > 57343) {
-            output2 += percentEncodeNonAscii(code);
-          } else if (code <= 56319 && i + 1 < input2.length) {
-            const low = input2.charCodeAt(i + 1);
-            if (low >= 56320 && low <= 57343) {
-              output2 += percentEncodeNonAscii(65536 + (code - 55296 << 10) + (low - 56320));
-              i++;
-            } else {
-              output2 += percentEncodeNonAscii(65533);
-            }
-          } else {
-            output2 += percentEncodeNonAscii(65533);
-          }
-        }
-      }
-      return output2;
-    }
-    function escapePreservingEscapes(input2) {
-      let output2 = "";
-      for (let i = 0; i < input2.length; i++) {
-        if (input2[i] === "%" && i + 2 < input2.length) {
-          const hex = input2.slice(i + 1, i + 3);
-          if (isHexPair(hex)) {
-            output2 += "%" + hex.toUpperCase();
-            i += 2;
-            continue;
-          }
-        }
-        output2 += escape(input2[i]);
-      }
-      return output2;
-    }
-    function recomposeAuthority(component) {
-      const uriTokens = [];
-      if (component.userinfo !== void 0) {
-        uriTokens.push(encodeUserinfo(component.userinfo));
-        uriTokens.push("@");
-      }
-      if (component.host !== void 0) {
-        let host = component.host;
-        if (!isIPv4(host)) {
-          let ipV6res = normalizeIPv6(host);
-          if (ipV6res.isIPV6 !== true && ipV6res.isIPVFuture !== true) {
-            host = normalizePercentEncoding(host, true);
-            ipV6res = normalizeIPv6(host);
-          }
-          if (ipV6res.isIPV6 === true || ipV6res.isIPVFuture === true) {
-            host = `[${ipV6res.escapedHost}]`;
-          } else {
-            host = reescapeHostDelimiters(host, false);
-          }
-        }
-        uriTokens.push(host);
-      }
-      if (typeof component.port === "number" || typeof component.port === "string") {
-        const port = String(component.port);
-        if (!isPort(port)) {
-          throw new TypeError("URI port is malformed.");
-        }
-        uriTokens.push(":");
-        uriTokens.push(port);
-      }
-      return uriTokens.length ? uriTokens.join("") : void 0;
-    }
-    module.exports = {
-      nonSimpleDomain,
-      recomposeAuthority,
-      reescapeHostDelimiters,
-      normalizePercentEncoding,
-      normalizePathEncoding,
-      serializePathEncoding,
-      normalizeQueryFragmentEncoding,
-      encodeUserinfo,
-      encodeQuery,
-      encodeFragment,
-      escapePreservingEscapes,
-      removeDotSegments,
-      isIPv4,
-      isUUID,
-      normalizeIPv6,
-      stringArrayToHexStripped
-    };
-  }
-});
-
-// node_modules/fast-uri/lib/schemes.js
-var require_schemes = __commonJS({
-  "node_modules/fast-uri/lib/schemes.js"(exports, module) {
-    "use strict";
-    var { isUUID } = require_utils();
-    var URN_REG = /^([\da-z][\d\-a-z]{0,31}):((?:[\w!$'()*+,\-./:;=@]|%[\da-f]{2})+)$/iu;
-    var supportedSchemeNames = (
-      /** @type {const} */
-      [
-        "http",
-        "https",
-        "ws",
-        "wss",
-        "urn",
-        "urn:uuid"
-      ]
-    );
-    function isValidSchemeName(name) {
-      return supportedSchemeNames.indexOf(
-        /** @type {*} */
-        name
-      ) !== -1;
-    }
-    function wsIsSecure(wsComponent) {
-      if (wsComponent.secure === true) {
-        return true;
-      } else if (wsComponent.secure === false) {
-        return false;
-      } else if (wsComponent.scheme) {
-        return wsComponent.scheme.length === 3 && (wsComponent.scheme[0] === "w" || wsComponent.scheme[0] === "W") && (wsComponent.scheme[1] === "s" || wsComponent.scheme[1] === "S") && (wsComponent.scheme[2] === "s" || wsComponent.scheme[2] === "S");
-      } else {
-        return false;
-      }
-    }
-    function httpParse(component) {
-      if (!component.host) {
-        component.error = component.error || "HTTP URIs must have a host.";
-      }
-      return component;
-    }
-    function httpSerialize(component) {
-      const secure = String(component.scheme).toLowerCase() === "https";
-      if (component.port === (secure ? 443 : 80) || component.port === "") {
-        component.port = void 0;
-      }
-      if (!component.path) {
-        component.path = "/";
-      }
-      return component;
-    }
-    function wsParse(wsComponent) {
-      wsComponent.secure = wsIsSecure(wsComponent);
-      wsComponent.resourceName = (wsComponent.path || "/") + (wsComponent.query ? "?" + wsComponent.query : "");
-      wsComponent.path = void 0;
-      wsComponent.query = void 0;
-      return wsComponent;
-    }
-    function wsSerialize(wsComponent) {
-      if (wsComponent.port === (wsIsSecure(wsComponent) ? 443 : 80) || wsComponent.port === "") {
-        wsComponent.port = void 0;
-      }
-      if (typeof wsComponent.secure === "boolean") {
-        wsComponent.scheme = wsComponent.secure ? "wss" : "ws";
-        wsComponent.secure = void 0;
-      }
-      if (wsComponent.resourceName) {
-        const queryIndex = wsComponent.resourceName.indexOf("?");
-        const path = queryIndex === -1 ? wsComponent.resourceName : wsComponent.resourceName.slice(0, queryIndex);
-        wsComponent.path = path && path !== "/" ? path : void 0;
-        wsComponent.query = queryIndex === -1 ? void 0 : wsComponent.resourceName.slice(queryIndex + 1);
-        wsComponent.resourceName = void 0;
-      }
-      wsComponent.fragment = void 0;
-      return wsComponent;
-    }
-    function urnParse(urnComponent, options) {
-      if (!urnComponent.path) {
-        urnComponent.error = "URN can not be parsed";
-        return urnComponent;
-      }
-      const matches = urnComponent.path.match(URN_REG);
-      if (matches && matches[0] === urnComponent.path) {
-        const scheme = options.scheme || urnComponent.scheme || "urn";
-        urnComponent.nid = matches[1].toLowerCase();
-        urnComponent.nss = matches[2];
-        const urnScheme = `${scheme}:${options.nid || urnComponent.nid}`;
-        const schemeHandler = getSchemeHandler(urnScheme);
-        urnComponent.path = void 0;
-        if (schemeHandler) {
-          urnComponent = schemeHandler.parse(urnComponent, options);
-        }
-      } else {
-        urnComponent.error = urnComponent.error || "URN can not be parsed.";
-      }
-      return urnComponent;
-    }
-    function urnSerialize(urnComponent, options) {
-      if (urnComponent.nid === void 0) {
-        throw new Error("URN without nid cannot be serialized");
-      }
-      const scheme = options.scheme || urnComponent.scheme || "urn";
-      const nid = urnComponent.nid.toLowerCase();
-      const urnScheme = `${scheme}:${options.nid || nid}`;
-      const schemeHandler = getSchemeHandler(urnScheme);
-      if (schemeHandler) {
-        urnComponent = schemeHandler.serialize(urnComponent, options);
-      }
-      const uriComponent = urnComponent;
-      const nss = urnComponent.nss;
-      uriComponent.path = `${nid || options.nid}:${nss}`;
-      options.skipEscape = true;
-      return uriComponent;
-    }
-    function urnuuidParse(urnComponent, options) {
-      const uuidComponent = urnComponent;
-      uuidComponent.uuid = uuidComponent.nss;
-      uuidComponent.nss = void 0;
-      if (!options.tolerant && (!uuidComponent.uuid || !isUUID(uuidComponent.uuid))) {
-        uuidComponent.error = uuidComponent.error || "UUID is not valid.";
-      }
-      return uuidComponent;
-    }
-    function urnuuidSerialize(uuidComponent) {
-      const urnComponent = uuidComponent;
-      urnComponent.nss = (uuidComponent.uuid || "").toLowerCase();
-      return urnComponent;
-    }
-    var http = (
-      /** @type {SchemeHandler} */
-      {
-        scheme: "http",
-        domainHost: true,
-        parse: httpParse,
-        serialize: httpSerialize
-      }
-    );
-    var https = (
-      /** @type {SchemeHandler} */
-      {
-        scheme: "https",
-        domainHost: http.domainHost,
-        parse: httpParse,
-        serialize: httpSerialize
-      }
-    );
-    var ws = (
-      /** @type {SchemeHandler} */
-      {
-        scheme: "ws",
-        domainHost: true,
-        parse: wsParse,
-        serialize: wsSerialize
-      }
-    );
-    var wss = (
-      /** @type {SchemeHandler} */
-      {
-        scheme: "wss",
-        domainHost: ws.domainHost,
-        parse: ws.parse,
-        serialize: ws.serialize
-      }
-    );
-    var urn = (
-      /** @type {SchemeHandler} */
-      {
-        scheme: "urn",
-        parse: urnParse,
-        serialize: urnSerialize,
-        skipNormalize: true
-      }
-    );
-    var urnuuid = (
-      /** @type {SchemeHandler} */
-      {
-        scheme: "urn:uuid",
-        parse: urnuuidParse,
-        serialize: urnuuidSerialize,
-        skipNormalize: true
-      }
-    );
-    var SCHEMES = (
-      /** @type {Record<SchemeName, SchemeHandler>} */
-      {
-        http,
-        https,
-        ws,
-        wss,
-        urn,
-        "urn:uuid": urnuuid
-      }
-    );
-    Object.setPrototypeOf(SCHEMES, null);
-    function getSchemeHandler(scheme) {
-      return scheme && (SCHEMES[
-        /** @type {SchemeName} */
-        scheme
-      ] || SCHEMES[
-        /** @type {SchemeName} */
-        scheme.toLowerCase()
-      ]) || void 0;
-    }
-    module.exports = {
-      wsIsSecure,
-      SCHEMES,
-      isValidSchemeName,
-      getSchemeHandler
-    };
-  }
-});
-
-// node_modules/fast-uri/index.js
-var require_fast_uri = __commonJS({
-  "node_modules/fast-uri/index.js"(exports, module) {
-    "use strict";
-    var { normalizeIPv6, removeDotSegments, recomposeAuthority, normalizePercentEncoding, normalizePathEncoding, serializePathEncoding, normalizeQueryFragmentEncoding, encodeQuery, encodeFragment, reescapeHostDelimiters, isIPv4, nonSimpleDomain } = require_utils();
-    var { SCHEMES, getSchemeHandler } = require_schemes();
-    var VALID_SCHEME = /^[A-Za-z][A-Za-z0-9+.-]*$/u;
-    var MALFORMED_SCHEME_ERROR = "URI scheme is malformed.";
-    function decodeValidScheme(scheme) {
-      const decodedScheme = unescape(String(scheme));
-      if (!VALID_SCHEME.test(decodedScheme)) {
-        throw new TypeError(MALFORMED_SCHEME_ERROR);
-      }
-      return decodedScheme;
-    }
-    function normalize(uri, options) {
-      if (typeof uri === "string") {
-        uri = /** @type {T} */
-        normalizeString(uri, options);
-      } else if (typeof uri === "object") {
-        uri = /** @type {T} */
-        parse(serialize(uri, options), options);
-      }
-      return uri;
-    }
-    function resolve(baseURI, relativeURI, options) {
-      const schemelessOptions = options ? Object.assign({ scheme: "null" }, options) : { scheme: "null" };
-      const {
-        parsed: baseParsed,
-        malformedAuthorityOrPort: baseMalformed,
-        malformedPercentEncoding: baseMalformedPercentEncoding,
-        malformedSchemeSpecific: baseMalformedSchemeSpecific,
-        malformedHost: baseMalformedHost,
-        malformedScheme: baseMalformedScheme
-      } = parseWithStatus(baseURI, schemelessOptions);
-      const {
-        parsed: relativeParsed,
-        malformedAuthorityOrPort: relativeMalformed,
-        malformedPercentEncoding: relativeMalformedPercentEncoding,
-        malformedSchemeSpecific: relativeMalformedSchemeSpecific,
-        malformedHost: relativeMalformedHost,
-        malformedScheme: relativeMalformedScheme
-      } = parseWithStatus(relativeURI, schemelessOptions);
-      if (baseMalformed || relativeMalformed || baseMalformedPercentEncoding || relativeMalformedPercentEncoding || baseMalformedSchemeSpecific || relativeMalformedSchemeSpecific || baseMalformedHost || relativeMalformedHost || baseMalformedScheme || relativeMalformedScheme) {
-        throw new Error(baseParsed.error || relativeParsed.error || "URI is malformed.");
-      }
-      const resolved = resolveComponent(baseParsed, relativeParsed, schemelessOptions, true);
-      const resolvedSchemeHandler = getSchemeHandler(options && options.scheme || resolved.scheme);
-      const resolvedHost = resolved.host;
-      const resolvedHostIsIP = resolvedHost !== void 0 && resolvedHost !== "" && (isIPv4(resolvedHost) || normalizeIPv6(resolvedHost).isIPV6);
-      canonicalizeHost(resolved, options || {}, resolvedSchemeHandler, resolvedHostIsIP);
-      const encodedASCIIHost = resolvedHost && resolvedHost.indexOf("%") !== -1 && !new RegExp("\\P{ASCII}", "u").test(resolvedHost);
-      if (resolved.error && !encodedASCIIHost) {
-        throw new Error(resolved.error);
-      }
-      schemelessOptions.skipEscape = true;
-      return serialize(resolved, schemelessOptions);
-    }
-    function resolveComponent(base, relative, options, skipNormalization) {
-      const target = {};
-      if (!skipNormalization) {
-        base = parse(serialize(base, options), options);
-        relative = parse(serialize(relative, options), options);
-      }
-      options = options || {};
-      if (!options.tolerant && relative.scheme) {
-        target.scheme = relative.scheme;
-        target.userinfo = relative.userinfo;
-        target.host = relative.host;
-        target.port = relative.port;
-        target.path = removeDotSegments(relative.path || "");
-        target.query = relative.query;
-      } else {
-        if (relative.userinfo !== void 0 || relative.host !== void 0 || relative.port !== void 0) {
-          target.userinfo = relative.userinfo;
-          target.host = relative.host;
-          target.port = relative.port;
-          target.path = removeDotSegments(relative.path || "");
-          target.query = relative.query;
-        } else {
-          if (!relative.path) {
-            target.path = base.path;
-            if (relative.query !== void 0) {
-              target.query = relative.query;
-            } else {
-              target.query = base.query;
-            }
-          } else {
-            if (relative.path[0] === "/") {
-              target.path = removeDotSegments(relative.path);
-            } else {
-              if ((base.userinfo !== void 0 || base.host !== void 0 || base.port !== void 0) && !base.path) {
-                target.path = "/" + relative.path;
-              } else if (!base.path) {
-                target.path = relative.path;
-              } else {
-                target.path = base.path.slice(0, base.path.lastIndexOf("/") + 1) + relative.path;
-              }
-              target.path = removeDotSegments(target.path);
-            }
-            target.query = relative.query;
-          }
-          target.userinfo = base.userinfo;
-          target.host = base.host;
-          target.port = base.port;
-        }
-        target.scheme = base.scheme;
-      }
-      target.fragment = relative.fragment;
-      return target;
-    }
-    function equal(uriA, uriB, options) {
-      const normalizedA = normalizeComparableURI(uriA, options);
-      const normalizedB = normalizeComparableURI(uriB, options);
-      return normalizedA !== void 0 && normalizedB !== void 0 && normalizedA === normalizedB;
-    }
-    function serialize(cmpts, opts) {
-      const component = {
-        host: cmpts.host,
-        scheme: cmpts.scheme,
-        userinfo: cmpts.userinfo,
-        port: cmpts.port,
-        path: cmpts.path,
-        query: cmpts.query,
-        nid: cmpts.nid,
-        nss: cmpts.nss,
-        uuid: cmpts.uuid,
-        fragment: cmpts.fragment,
-        reference: cmpts.reference,
-        resourceName: cmpts.resourceName,
-        secure: cmpts.secure,
-        error: ""
-      };
-      const options = Object.assign({}, opts);
-      const uriTokens = [];
-      if (component.scheme) {
-        component.scheme = decodeValidScheme(component.scheme);
-      }
-      const schemeHandler = getSchemeHandler(options.scheme || component.scheme);
-      if (schemeHandler && schemeHandler.serialize) schemeHandler.serialize(component, options);
-      const hasAuthority = component.userinfo !== void 0 || component.host !== void 0 || component.port !== void 0;
-      const pathNoScheme = !options.skipEscape && component.scheme === void 0 && !hasAuthority;
-      if (component.path !== void 0) {
-        if (!options.skipEscape) {
-          component.path = serializePathEncoding(component.path, pathNoScheme);
-        } else {
-          component.path = normalizePercentEncoding(component.path);
-        }
-      }
-      if (options.reference !== "suffix" && component.scheme) {
-        component.scheme = decodeValidScheme(component.scheme);
-        uriTokens.push(component.scheme, ":");
-      }
-      const authority = recomposeAuthority(component);
-      if (authority !== void 0) {
-        if (options.reference !== "suffix") {
-          uriTokens.push("//");
-        }
-        uriTokens.push(authority);
-        if (component.path && component.path[0] !== "/") {
-          uriTokens.push("/");
-        }
-      }
-      if (component.path !== void 0) {
-        let s = component.path;
-        if (!options.absolutePath && (!schemeHandler || !schemeHandler.absolutePath)) {
-          s = removeDotSegments(s);
-        }
-        if (pathNoScheme) {
-          s = serializePathEncoding(s, true);
-        }
-        if (authority === void 0 && s[0] === "/" && s[1] === "/") {
-          s = "/%2F" + s.slice(2);
-        }
-        uriTokens.push(s);
-      }
-      if (component.query !== void 0) {
-        uriTokens.push("?", encodeQuery(component.query));
-      }
-      if (component.fragment !== void 0) {
-        uriTokens.push("#", encodeFragment(component.fragment));
-      }
-      return uriTokens.join("");
-    }
-    var URI_PARSE = /^(?:([^#/:?]+):)?(?:\/\/((?:([^#/?@]*)@)?(\[[^#/?\]]+\]|[^#/:?]*)(?::(\d*))?))?([^#?]*)(?:\?([^#]*))?(?:#((?:.|[\n\r])*))?/u;
-    var AUTHORITY_PREFIX = /^(?:[^#/:?]+:)?\/\/([^/?#]*)/;
-    var AUTHORITY_INTRODUCER_REGION = /^(?:[^#/:?]+:)?([/\\\t\n\r]*)/;
-    function getParseError(parsed, matches) {
-      if (matches[2] !== void 0 && parsed.path && parsed.path[0] !== "/") {
-        return 'URI path must start with "/" when authority is present.';
-      }
-      if (typeof parsed.port === "number" && (parsed.port < 0 || parsed.port > 65535)) {
-        return "URI port is malformed.";
-      }
-      return void 0;
-    }
-    function hasMalformedPercentEncoding(component) {
-      if (component === void 0) return false;
-      let percent = component.indexOf("%");
-      while (percent !== -1) {
-        if (percent + 2 >= component.length || !/^[\da-f]{2}$/iu.test(component.slice(percent + 1, percent + 3))) {
-          return true;
-        }
-        percent = component.indexOf("%", percent + 3);
-      }
-      return false;
-    }
-    function isIPLiteral(host) {
-      return host[0] === "[" && host[host.length - 1] === "]";
-    }
-    function hasMalformedComponentPercentEncoding(matches) {
-      const host = matches[4];
-      return hasMalformedPercentEncoding(matches[3]) || host !== void 0 && !isIPLiteral(host) && hasMalformedPercentEncoding(host) || hasMalformedPercentEncoding(matches[6]) || hasMalformedPercentEncoding(matches[7]) || hasMalformedPercentEncoding(matches[8]);
-    }
-    function canonicalizeHost(parsed, options, schemeHandler, isIP) {
-      if (!options.unicodeSupport && (!schemeHandler || !schemeHandler.unicodeSupport) && parsed.host && !isIPLiteral(parsed.host) && (options.domainHost || schemeHandler && schemeHandler.domainHost) && isIP === false && nonSimpleDomain(parsed.host)) {
-        try {
-          parsed.host = new URL("http://" + parsed.host).hostname;
-        } catch (e) {
-          parsed.error = parsed.error || "Host's domain name can not be converted to ASCII: " + e;
-          return true;
-        }
-      }
-      return false;
-    }
-    function parseWithStatus(uri, opts) {
-      const options = Object.assign({}, opts);
-      const parsed = {
-        scheme: void 0,
-        userinfo: void 0,
-        host: "",
-        port: void 0,
-        path: "",
-        query: void 0,
-        fragment: void 0
-      };
-      let malformedAuthorityOrPort = false;
-      let malformedPercentEncoding = false;
-      let malformedSchemeSpecific = false;
-      let malformedHost = false;
-      let malformedIPLiteral = false;
-      let malformedScheme = false;
-      let isIP = false;
-      if (options.reference === "suffix") {
-        if (options.scheme) {
-          uri = options.scheme + ":" + uri;
-        } else {
-          uri = "//" + uri;
-        }
-      }
-      const authorityMatch = uri.match(AUTHORITY_PREFIX);
-      if (authorityMatch !== null && authorityMatch[1].indexOf("\\") !== -1) {
-        parsed.error = "URI authority must not contain a literal backslash.";
-        malformedAuthorityOrPort = true;
-      }
-      const introducerMatch = uri.match(AUTHORITY_INTRODUCER_REGION);
-      if (introducerMatch !== null) {
-        const region = introducerMatch[1];
-        const normalizedRegion = region.replace(/[\t\n\r]/g, "");
-        if (normalizedRegion.length >= 2) {
-          if (normalizedRegion.slice(0, 2) !== "//") {
-            parsed.error = parsed.error || "URI authority must not contain a literal backslash.";
-            malformedAuthorityOrPort = true;
-          } else if (region.length !== normalizedRegion.length) {
-            parsed.error = parsed.error || "URI authority introducer must not contain whitespace.";
-            malformedAuthorityOrPort = true;
-          }
-        }
-      }
-      const matches = uri.match(URI_PARSE);
-      if (matches) {
-        parsed.scheme = matches[1];
-        parsed.userinfo = matches[3];
-        parsed.host = matches[4];
-        parsed.port = parseInt(matches[5], 10);
-        parsed.path = matches[6] || "";
-        parsed.query = matches[7];
-        parsed.fragment = matches[8];
-        if (parsed.scheme !== void 0) {
-          const decodedScheme = unescape(parsed.scheme);
-          if (VALID_SCHEME.test(decodedScheme)) {
-            parsed.scheme = decodedScheme.toLowerCase();
-          } else {
-            parsed.error = parsed.error || MALFORMED_SCHEME_ERROR;
-            malformedScheme = true;
-          }
-        }
-        malformedPercentEncoding = hasMalformedComponentPercentEncoding(matches);
-        if (malformedPercentEncoding) {
-          parsed.error = parsed.error || "URI contains malformed percent-encoding.";
-        }
-        if (isNaN(parsed.port)) {
-          parsed.port = matches[5];
-        }
-        const parseError = getParseError(parsed, matches);
-        if (parseError !== void 0) {
-          parsed.error = parsed.error || parseError;
-          malformedAuthorityOrPort = true;
-        }
-        if (parsed.host) {
-          const ipv4result = isIPv4(parsed.host);
-          if (ipv4result === false) {
-            const bracketedIPLiteral = isIPLiteral(parsed.host);
-            const hasIPLiteralBracket = parsed.host.indexOf("[") !== -1 || parsed.host.indexOf("]") !== -1;
-            const ipv6result = normalizeIPv6(parsed.host);
-            isIP = ipv6result.isIPV6 || ipv6result.isIPVFuture === true;
-            malformedIPLiteral = hasIPLiteralBracket && (!bracketedIPLiteral || ipv6result.error === true);
-            parsed.host = isIP ? ipv6result.host : ipv6result.host.toLowerCase();
-            if (malformedIPLiteral) {
-              parsed.error = parsed.error || "URI host is malformed.";
-              malformedAuthorityOrPort = true;
-            }
-          } else {
-            isIP = true;
-          }
-        }
-        if (parsed.scheme === void 0 && parsed.userinfo === void 0 && parsed.host === void 0 && parsed.port === void 0 && parsed.query === void 0 && !parsed.path) {
-          parsed.reference = "same-document";
-        } else if (parsed.scheme === void 0) {
-          parsed.reference = "relative";
-        } else if (parsed.fragment === void 0) {
-          parsed.reference = "absolute";
-        } else {
-          parsed.reference = "uri";
-        }
-        if (options.reference && options.reference !== "suffix" && options.reference !== parsed.reference) {
-          parsed.error = parsed.error || "URI is not a " + options.reference + " reference.";
-        }
-        const schemeHandler = getSchemeHandler(options.scheme || parsed.scheme);
-        if (!malformedIPLiteral) {
-          malformedHost = canonicalizeHost(parsed, options, schemeHandler, isIP);
-        }
-        if (uri.indexOf("%") !== -1 && parsed.host !== void 0 && !malformedIPLiteral) {
-          let host = isIP ? parsed.host : normalizePercentEncoding(parsed.host, true);
-          if (!isIP) {
-            host = normalizePercentEncoding(host.toLowerCase());
-          }
-          parsed.host = reescapeHostDelimiters(host, isIP);
-        }
-        if (!schemeHandler || schemeHandler && !schemeHandler.skipNormalize) {
-          if (parsed.path) {
-            parsed.path = normalizePathEncoding(parsed.path);
-          }
-          if (parsed.query) {
-            parsed.query = normalizeQueryFragmentEncoding(parsed.query);
-          }
-          if (parsed.fragment) {
-            parsed.fragment = normalizeQueryFragmentEncoding(parsed.fragment);
-          }
-        }
-        if (schemeHandler && schemeHandler.parse) {
-          schemeHandler.parse(parsed, options);
-          if (schemeHandler === SCHEMES.urn && parsed.nid === void 0) {
-            malformedSchemeSpecific = true;
-          }
-        }
-      } else {
-        parsed.error = parsed.error || "URI can not be parsed.";
-      }
-      return { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme };
-    }
-    function parse(uri, opts) {
-      return parseWithStatus(uri, opts).parsed;
-    }
-    function normalizeString(uri, opts) {
-      return normalizeStringWithStatus(uri, opts).normalized;
-    }
-    function normalizeStringWithStatus(uri, opts) {
-      const { parsed, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme } = parseWithStatus(uri, opts);
-      return {
-        normalized: malformedAuthorityOrPort || malformedPercentEncoding || malformedSchemeSpecific || malformedHost || malformedScheme ? uri : serialize(parsed, opts),
-        malformedAuthorityOrPort,
-        malformedPercentEncoding,
-        malformedSchemeSpecific,
-        malformedHost,
-        malformedScheme
-      };
-    }
-    function normalizeComparableURI(uri, opts) {
-      if (typeof uri !== "string" && typeof uri !== "object") {
-        return void 0;
-      }
-      let value;
-      try {
-        value = typeof uri === "string" ? uri : serialize(uri, opts);
-      } catch {
-        return void 0;
-      }
-      const { normalized, malformedAuthorityOrPort, malformedPercentEncoding, malformedSchemeSpecific, malformedHost, malformedScheme } = normalizeStringWithStatus(value, opts);
-      return malformedAuthorityOrPort || malformedPercentEncoding || malformedSchemeSpecific || malformedHost || malformedScheme ? void 0 : normalized;
-    }
-    var fastUri = {
-      SCHEMES,
-      normalize,
-      resolve,
-      resolveComponent,
-      equal,
-      serialize,
-      parse
-    };
-    module.exports = fastUri;
-    module.exports.default = fastUri;
-    module.exports.fastUri = fastUri;
-  }
-});
-
-// node_modules/ajv/dist/runtime/uri.js
-var require_uri = __commonJS({
-  "node_modules/ajv/dist/runtime/uri.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var uri = require_fast_uri();
-    uri.code = 'require("ajv/dist/runtime/uri").default';
-    exports.default = uri;
-  }
-});
-
-// node_modules/ajv/dist/core.js
-var require_core = __commonJS({
-  "node_modules/ajv/dist/core.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = void 0;
-    var validate_1 = require_validate();
-    Object.defineProperty(exports, "KeywordCxt", { enumerable: true, get: function() {
-      return validate_1.KeywordCxt;
-    } });
-    var codegen_1 = require_codegen();
-    Object.defineProperty(exports, "_", { enumerable: true, get: function() {
-      return codegen_1._;
-    } });
-    Object.defineProperty(exports, "str", { enumerable: true, get: function() {
-      return codegen_1.str;
-    } });
-    Object.defineProperty(exports, "stringify", { enumerable: true, get: function() {
-      return codegen_1.stringify;
-    } });
-    Object.defineProperty(exports, "nil", { enumerable: true, get: function() {
-      return codegen_1.nil;
-    } });
-    Object.defineProperty(exports, "Name", { enumerable: true, get: function() {
-      return codegen_1.Name;
-    } });
-    Object.defineProperty(exports, "CodeGen", { enumerable: true, get: function() {
-      return codegen_1.CodeGen;
-    } });
-    var validation_error_1 = require_validation_error();
-    var ref_error_1 = require_ref_error();
-    var rules_1 = require_rules();
-    var compile_1 = require_compile();
-    var codegen_2 = require_codegen();
-    var resolve_1 = require_resolve();
-    var dataType_1 = require_dataType();
-    var util_1 = require_util();
-    var $dataRefSchema = require_data();
-    var uri_1 = require_uri();
-    var defaultRegExp = (str, flags) => new RegExp(str, flags);
-    defaultRegExp.code = "new RegExp";
-    var META_IGNORE_OPTIONS = ["removeAdditional", "useDefaults", "coerceTypes"];
-    var EXT_SCOPE_NAMES = /* @__PURE__ */ new Set([
-      "validate",
-      "serialize",
-      "parse",
-      "wrapper",
-      "root",
-      "schema",
-      "keyword",
-      "pattern",
-      "formats",
-      "validate$data",
-      "func",
-      "obj",
-      "Error"
-    ]);
-    var removedOptions = {
-      errorDataPath: "",
-      format: "`validateFormats: false` can be used instead.",
-      nullable: '"nullable" keyword is supported by default.',
-      jsonPointers: "Deprecated jsPropertySyntax can be used instead.",
-      extendRefs: "Deprecated ignoreKeywordsWithRef can be used instead.",
-      missingRefs: "Pass empty schema with $id that should be ignored to ajv.addSchema.",
-      processCode: "Use option `code: {process: (code, schemaEnv: object) => string}`",
-      sourceCode: "Use option `code: {source: true}`",
-      strictDefaults: "It is default now, see option `strict`.",
-      strictKeywords: "It is default now, see option `strict`.",
-      uniqueItems: '"uniqueItems" keyword is always validated.',
-      unknownFormats: "Disable strict mode or pass `true` to `ajv.addFormat` (or `formats` option).",
-      cache: "Map is used as cache, schema object as key.",
-      serialize: "Map is used as cache, schema object as key.",
-      ajvErrors: "It is default now."
-    };
-    var deprecatedOptions = {
-      ignoreKeywordsWithRef: "",
-      jsPropertySyntax: "",
-      unicode: '"minLength"/"maxLength" account for unicode characters by default.'
-    };
-    var MAX_EXPRESSION = 200;
-    function requiredOptions(o) {
-      var _a, _b, _c, _d, _e, _f, _g, _h, _j, _k, _l, _m, _o, _p, _q, _r, _s, _t, _u, _v, _w, _x, _y, _z, _0;
-      const s = o.strict;
-      const _optz = (_a = o.code) === null || _a === void 0 ? void 0 : _a.optimize;
-      const optimize = _optz === true || _optz === void 0 ? 1 : _optz || 0;
-      const regExp = (_c = (_b = o.code) === null || _b === void 0 ? void 0 : _b.regExp) !== null && _c !== void 0 ? _c : defaultRegExp;
-      const uriResolver = (_d = o.uriResolver) !== null && _d !== void 0 ? _d : uri_1.default;
-      return {
-        strictSchema: (_f = (_e = o.strictSchema) !== null && _e !== void 0 ? _e : s) !== null && _f !== void 0 ? _f : true,
-        strictNumbers: (_h = (_g = o.strictNumbers) !== null && _g !== void 0 ? _g : s) !== null && _h !== void 0 ? _h : true,
-        strictTypes: (_k = (_j = o.strictTypes) !== null && _j !== void 0 ? _j : s) !== null && _k !== void 0 ? _k : "log",
-        strictTuples: (_m = (_l = o.strictTuples) !== null && _l !== void 0 ? _l : s) !== null && _m !== void 0 ? _m : "log",
-        strictRequired: (_p = (_o = o.strictRequired) !== null && _o !== void 0 ? _o : s) !== null && _p !== void 0 ? _p : false,
-        code: o.code ? { ...o.code, optimize, regExp } : { optimize, regExp },
-        loopRequired: (_q = o.loopRequired) !== null && _q !== void 0 ? _q : MAX_EXPRESSION,
-        loopEnum: (_r = o.loopEnum) !== null && _r !== void 0 ? _r : MAX_EXPRESSION,
-        meta: (_s = o.meta) !== null && _s !== void 0 ? _s : true,
-        messages: (_t = o.messages) !== null && _t !== void 0 ? _t : true,
-        inlineRefs: (_u = o.inlineRefs) !== null && _u !== void 0 ? _u : true,
-        schemaId: (_v = o.schemaId) !== null && _v !== void 0 ? _v : "$id",
-        addUsedSchema: (_w = o.addUsedSchema) !== null && _w !== void 0 ? _w : true,
-        validateSchema: (_x = o.validateSchema) !== null && _x !== void 0 ? _x : true,
-        validateFormats: (_y = o.validateFormats) !== null && _y !== void 0 ? _y : true,
-        unicodeRegExp: (_z = o.unicodeRegExp) !== null && _z !== void 0 ? _z : true,
-        int32range: (_0 = o.int32range) !== null && _0 !== void 0 ? _0 : true,
-        uriResolver
-      };
-    }
-    var Ajv2 = class {
-      constructor(opts = {}) {
-        this.schemas = {};
-        this.refs = {};
-        this.formats = /* @__PURE__ */ Object.create(null);
-        this._compilations = /* @__PURE__ */ new Set();
-        this._loading = {};
-        this._cache = /* @__PURE__ */ new Map();
-        opts = this.opts = { ...opts, ...requiredOptions(opts) };
-        const { es5, lines } = this.opts.code;
-        this.scope = new codegen_2.ValueScope({ scope: {}, prefixes: EXT_SCOPE_NAMES, es5, lines });
-        this.logger = getLogger(opts.logger);
-        const formatOpt = opts.validateFormats;
-        opts.validateFormats = false;
-        this.RULES = (0, rules_1.getRules)();
-        checkOptions.call(this, removedOptions, opts, "NOT SUPPORTED");
-        checkOptions.call(this, deprecatedOptions, opts, "DEPRECATED", "warn");
-        this._metaOpts = getMetaSchemaOptions.call(this);
-        if (opts.formats)
-          addInitialFormats.call(this);
-        this._addVocabularies();
-        this._addDefaultMetaSchema();
-        if (opts.keywords)
-          addInitialKeywords.call(this, opts.keywords);
-        if (typeof opts.meta == "object")
-          this.addMetaSchema(opts.meta);
-        addInitialSchemas.call(this);
-        opts.validateFormats = formatOpt;
-      }
-      _addVocabularies() {
-        this.addKeyword("$async");
-      }
-      _addDefaultMetaSchema() {
-        const { $data, meta, schemaId } = this.opts;
-        let _dataRefSchema = $dataRefSchema;
-        if (schemaId === "id") {
-          _dataRefSchema = { ...$dataRefSchema };
-          _dataRefSchema.id = _dataRefSchema.$id;
-          delete _dataRefSchema.$id;
-        }
-        if (meta && $data)
-          this.addMetaSchema(_dataRefSchema, _dataRefSchema[schemaId], false);
-      }
-      defaultMeta() {
-        const { meta, schemaId } = this.opts;
-        return this.opts.defaultMeta = typeof meta == "object" ? meta[schemaId] || meta : void 0;
-      }
-      validate(schemaKeyRef, data) {
-        let v;
-        if (typeof schemaKeyRef == "string") {
-          v = this.getSchema(schemaKeyRef);
-          if (!v)
-            throw new Error(`no schema with key or ref "${schemaKeyRef}"`);
-        } else {
-          v = this.compile(schemaKeyRef);
-        }
-        const valid = v(data);
-        if (!("$async" in v))
-          this.errors = v.errors;
-        return valid;
-      }
-      compile(schema, _meta) {
-        const sch = this._addSchema(schema, _meta);
-        return sch.validate || this._compileSchemaEnv(sch);
-      }
-      compileAsync(schema, meta) {
-        if (typeof this.opts.loadSchema != "function") {
-          throw new Error("options.loadSchema should be a function");
-        }
-        const { loadSchema } = this.opts;
-        return runCompileAsync.call(this, schema, meta);
-        async function runCompileAsync(_schema, _meta) {
-          await loadMetaSchema.call(this, _schema.$schema);
-          const sch = this._addSchema(_schema, _meta);
-          return sch.validate || _compileAsync.call(this, sch);
-        }
-        async function loadMetaSchema($ref) {
-          if ($ref && !this.getSchema($ref)) {
-            await runCompileAsync.call(this, { $ref }, true);
-          }
-        }
-        async function _compileAsync(sch) {
-          try {
-            return this._compileSchemaEnv(sch);
-          } catch (e) {
-            if (!(e instanceof ref_error_1.default))
-              throw e;
-            checkLoaded.call(this, e);
-            await loadMissingSchema.call(this, e.missingSchema);
-            return _compileAsync.call(this, sch);
-          }
-        }
-        function checkLoaded({ missingSchema: ref, missingRef }) {
-          if (this.refs[ref]) {
-            throw new Error(`AnySchema ${ref} is loaded but ${missingRef} cannot be resolved`);
-          }
-        }
-        async function loadMissingSchema(ref) {
-          const _schema = await _loadSchema.call(this, ref);
-          if (!this.refs[ref])
-            await loadMetaSchema.call(this, _schema.$schema);
-          if (!this.refs[ref])
-            this.addSchema(_schema, ref, meta);
-        }
-        async function _loadSchema(ref) {
-          const p = this._loading[ref];
-          if (p)
-            return p;
-          try {
-            return await (this._loading[ref] = loadSchema(ref));
-          } finally {
-            delete this._loading[ref];
-          }
-        }
-      }
-      // Adds schema to the instance
-      addSchema(schema, key, _meta, _validateSchema = this.opts.validateSchema) {
-        if (Array.isArray(schema)) {
-          for (const sch of schema)
-            this.addSchema(sch, void 0, _meta, _validateSchema);
-          return this;
-        }
-        let id;
-        if (typeof schema === "object") {
-          const { schemaId } = this.opts;
-          id = schema[schemaId];
-          if (id !== void 0 && typeof id != "string") {
-            throw new Error(`schema ${schemaId} must be string`);
-          }
-        }
-        key = (0, resolve_1.normalizeId)(key || id);
-        this._checkUnique(key);
-        this.schemas[key] = this._addSchema(schema, _meta, key, _validateSchema, true);
-        return this;
-      }
-      // Add schema that will be used to validate other schemas
-      // options in META_IGNORE_OPTIONS are alway set to false
-      addMetaSchema(schema, key, _validateSchema = this.opts.validateSchema) {
-        this.addSchema(schema, key, true, _validateSchema);
-        return this;
-      }
-      //  Validate schema against its meta-schema
-      validateSchema(schema, throwOrLogError) {
-        if (typeof schema == "boolean")
-          return true;
-        let $schema;
-        $schema = schema.$schema;
-        if ($schema !== void 0 && typeof $schema != "string") {
-          throw new Error("$schema must be a string");
-        }
-        $schema = $schema || this.opts.defaultMeta || this.defaultMeta();
-        if (!$schema) {
-          this.logger.warn("meta-schema not available");
-          this.errors = null;
-          return true;
-        }
-        const valid = this.validate($schema, schema);
-        if (!valid && throwOrLogError) {
-          const message = "schema is invalid: " + this.errorsText();
-          if (this.opts.validateSchema === "log")
-            this.logger.error(message);
-          else
-            throw new Error(message);
-        }
-        return valid;
-      }
-      // Get compiled schema by `key` or `ref`.
-      // (`key` that was passed to `addSchema` or full schema reference - `schema.$id` or resolved id)
-      getSchema(keyRef) {
-        let sch;
-        while (typeof (sch = getSchEnv.call(this, keyRef)) == "string")
-          keyRef = sch;
-        if (sch === void 0) {
-          const { schemaId } = this.opts;
-          const root = new compile_1.SchemaEnv({ schema: {}, schemaId });
-          sch = compile_1.resolveSchema.call(this, root, keyRef);
-          if (!sch)
-            return;
-          this.refs[keyRef] = sch;
-        }
-        return sch.validate || this._compileSchemaEnv(sch);
-      }
-      // Remove cached schema(s).
-      // If no parameter is passed all schemas but meta-schemas are removed.
-      // If RegExp is passed all schemas with key/id matching pattern but meta-schemas are removed.
-      // Even if schema is referenced by other schemas it still can be removed as other schemas have local references.
-      removeSchema(schemaKeyRef) {
-        if (schemaKeyRef instanceof RegExp) {
-          this._removeAllSchemas(this.schemas, schemaKeyRef);
-          this._removeAllSchemas(this.refs, schemaKeyRef);
-          return this;
-        }
-        switch (typeof schemaKeyRef) {
-          case "undefined":
-            this._removeAllSchemas(this.schemas);
-            this._removeAllSchemas(this.refs);
-            this._cache.clear();
-            return this;
-          case "string": {
-            const sch = getSchEnv.call(this, schemaKeyRef);
-            if (typeof sch == "object")
-              this._cache.delete(sch.schema);
-            delete this.schemas[schemaKeyRef];
-            delete this.refs[schemaKeyRef];
-            return this;
-          }
-          case "object": {
-            const cacheKey = schemaKeyRef;
-            this._cache.delete(cacheKey);
-            let id = schemaKeyRef[this.opts.schemaId];
-            if (id) {
-              id = (0, resolve_1.normalizeId)(id);
-              delete this.schemas[id];
-              delete this.refs[id];
-            }
-            return this;
-          }
-          default:
-            throw new Error("ajv.removeSchema: invalid parameter");
-        }
-      }
-      // add "vocabulary" - a collection of keywords
-      addVocabulary(definitions) {
-        for (const def of definitions)
-          this.addKeyword(def);
-        return this;
-      }
-      addKeyword(kwdOrDef, def) {
-        let keyword;
-        if (typeof kwdOrDef == "string") {
-          keyword = kwdOrDef;
-          if (typeof def == "object") {
-            this.logger.warn("these parameters are deprecated, see docs for addKeyword");
-            def.keyword = keyword;
-          }
-        } else if (typeof kwdOrDef == "object" && def === void 0) {
-          def = kwdOrDef;
-          keyword = def.keyword;
-          if (Array.isArray(keyword) && !keyword.length) {
-            throw new Error("addKeywords: keyword must be string or non-empty array");
-          }
-        } else {
-          throw new Error("invalid addKeywords parameters");
-        }
-        checkKeyword.call(this, keyword, def);
-        if (!def) {
-          (0, util_1.eachItem)(keyword, (kwd) => addRule.call(this, kwd));
-          return this;
-        }
-        keywordMetaschema.call(this, def);
-        const definition = {
-          ...def,
-          type: (0, dataType_1.getJSONTypes)(def.type),
-          schemaType: (0, dataType_1.getJSONTypes)(def.schemaType)
-        };
-        (0, util_1.eachItem)(keyword, definition.type.length === 0 ? (k) => addRule.call(this, k, definition) : (k) => definition.type.forEach((t) => addRule.call(this, k, definition, t)));
-        return this;
-      }
-      getKeyword(keyword) {
-        const rule = this.RULES.all[keyword];
-        return typeof rule == "object" ? rule.definition : !!rule;
-      }
-      // Remove keyword
-      removeKeyword(keyword) {
-        const { RULES } = this;
-        delete RULES.keywords[keyword];
-        delete RULES.all[keyword];
-        for (const group of RULES.rules) {
-          const i = group.rules.findIndex((rule) => rule.keyword === keyword);
-          if (i >= 0)
-            group.rules.splice(i, 1);
-        }
-        return this;
-      }
-      // Add format
-      addFormat(name, format) {
-        if (typeof format == "string")
-          format = new RegExp(format);
-        this.formats[name] = format;
-        return this;
-      }
-      errorsText(errors = this.errors, { separator = ", ", dataVar = "data" } = {}) {
-        if (!errors || errors.length === 0)
-          return "No errors";
-        return errors.map((e) => `${dataVar}${e.instancePath} ${e.message}`).reduce((text2, msg) => text2 + separator + msg);
-      }
-      $dataMetaSchema(metaSchema, keywordsJsonPointers) {
-        const rules = this.RULES.all;
-        metaSchema = JSON.parse(JSON.stringify(metaSchema));
-        for (const jsonPointer of keywordsJsonPointers) {
-          const segments = jsonPointer.split("/").slice(1);
-          let keywords = metaSchema;
-          for (const seg of segments)
-            keywords = keywords[seg];
-          for (const key in rules) {
-            const rule = rules[key];
-            if (typeof rule != "object")
-              continue;
-            const { $data } = rule.definition;
-            const schema = keywords[key];
-            if ($data && schema)
-              keywords[key] = schemaOrData(schema);
-          }
-        }
-        return metaSchema;
-      }
-      _removeAllSchemas(schemas, regex) {
-        for (const keyRef in schemas) {
-          const sch = schemas[keyRef];
-          if (!regex || regex.test(keyRef)) {
-            if (typeof sch == "string") {
-              delete schemas[keyRef];
-            } else if (sch && !sch.meta) {
-              this._cache.delete(sch.schema);
-              delete schemas[keyRef];
-            }
-          }
-        }
-      }
-      _addSchema(schema, meta, baseId, validateSchema = this.opts.validateSchema, addSchema = this.opts.addUsedSchema) {
-        let id;
-        const { schemaId } = this.opts;
-        if (typeof schema == "object") {
-          id = schema[schemaId];
-        } else {
-          if (this.opts.jtd)
-            throw new Error("schema must be object");
-          else if (typeof schema != "boolean")
-            throw new Error("schema must be object or boolean");
-        }
-        let sch = this._cache.get(schema);
-        if (sch !== void 0)
-          return sch;
-        baseId = (0, resolve_1.normalizeId)(id || baseId);
-        const localRefs = resolve_1.getSchemaRefs.call(this, schema, baseId);
-        sch = new compile_1.SchemaEnv({ schema, schemaId, meta, baseId, localRefs });
-        this._cache.set(sch.schema, sch);
-        if (addSchema && !baseId.startsWith("#")) {
-          if (baseId)
-            this._checkUnique(baseId);
-          this.refs[baseId] = sch;
-        }
-        if (validateSchema)
-          this.validateSchema(schema, true);
-        return sch;
-      }
-      _checkUnique(id) {
-        if (this.schemas[id] || this.refs[id]) {
-          throw new Error(`schema with key or id "${id}" already exists`);
-        }
-      }
-      _compileSchemaEnv(sch) {
-        if (sch.meta)
-          this._compileMetaSchema(sch);
-        else
-          compile_1.compileSchema.call(this, sch);
-        if (!sch.validate)
-          throw new Error("ajv implementation error");
-        return sch.validate;
-      }
-      _compileMetaSchema(sch) {
-        const currentOpts = this.opts;
-        this.opts = this._metaOpts;
-        try {
-          compile_1.compileSchema.call(this, sch);
-        } finally {
-          this.opts = currentOpts;
-        }
-      }
-    };
-    Ajv2.ValidationError = validation_error_1.default;
-    Ajv2.MissingRefError = ref_error_1.default;
-    exports.default = Ajv2;
-    function checkOptions(checkOpts, options, msg, log = "error") {
-      for (const key in checkOpts) {
-        const opt = key;
-        if (opt in options)
-          this.logger[log](`${msg}: option ${key}. ${checkOpts[opt]}`);
-      }
-    }
-    function getSchEnv(keyRef) {
-      keyRef = (0, resolve_1.normalizeId)(keyRef);
-      return this.schemas[keyRef] || this.refs[keyRef];
-    }
-    function addInitialSchemas() {
-      const optsSchemas = this.opts.schemas;
-      if (!optsSchemas)
-        return;
-      if (Array.isArray(optsSchemas))
-        this.addSchema(optsSchemas);
-      else
-        for (const key in optsSchemas)
-          this.addSchema(optsSchemas[key], key);
-    }
-    function addInitialFormats() {
-      for (const name in this.opts.formats) {
-        const format = this.opts.formats[name];
-        if (format)
-          this.addFormat(name, format);
-      }
-    }
-    function addInitialKeywords(defs2) {
-      if (Array.isArray(defs2)) {
-        this.addVocabulary(defs2);
-        return;
-      }
-      this.logger.warn("keywords option as map is deprecated, pass array");
-      for (const keyword in defs2) {
-        const def = defs2[keyword];
-        if (!def.keyword)
-          def.keyword = keyword;
-        this.addKeyword(def);
-      }
-    }
-    function getMetaSchemaOptions() {
-      const metaOpts = { ...this.opts };
-      for (const opt of META_IGNORE_OPTIONS)
-        delete metaOpts[opt];
-      return metaOpts;
-    }
-    var noLogs = { log() {
-    }, warn() {
-    }, error() {
-    } };
-    function getLogger(logger) {
-      if (logger === false)
-        return noLogs;
-      if (logger === void 0)
-        return console;
-      if (logger.log && logger.warn && logger.error)
-        return logger;
-      throw new Error("logger must implement log, warn and error methods");
-    }
-    var KEYWORD_NAME = /^[a-z_$][a-z0-9_$:-]*$/i;
-    function checkKeyword(keyword, def) {
-      const { RULES } = this;
-      (0, util_1.eachItem)(keyword, (kwd) => {
-        if (RULES.keywords[kwd])
-          throw new Error(`Keyword ${kwd} is already defined`);
-        if (!KEYWORD_NAME.test(kwd))
-          throw new Error(`Keyword ${kwd} has invalid name`);
-      });
-      if (!def)
-        return;
-      if (def.$data && !("code" in def || "validate" in def)) {
-        throw new Error('$data keyword must have "code" or "validate" function');
-      }
-    }
-    function addRule(keyword, definition, dataType) {
-      var _a;
-      const post = definition === null || definition === void 0 ? void 0 : definition.post;
-      if (dataType && post)
-        throw new Error('keyword with "post" flag cannot have "type"');
-      const { RULES } = this;
-      let ruleGroup = post ? RULES.post : RULES.rules.find(({ type: t }) => t === dataType);
-      if (!ruleGroup) {
-        ruleGroup = { type: dataType, rules: [] };
-        RULES.rules.push(ruleGroup);
-      }
-      RULES.keywords[keyword] = true;
-      if (!definition)
-        return;
-      const rule = {
-        keyword,
-        definition: {
-          ...definition,
-          type: (0, dataType_1.getJSONTypes)(definition.type),
-          schemaType: (0, dataType_1.getJSONTypes)(definition.schemaType)
-        }
-      };
-      if (definition.before)
-        addBeforeRule.call(this, ruleGroup, rule, definition.before);
-      else
-        ruleGroup.rules.push(rule);
-      RULES.all[keyword] = rule;
-      (_a = definition.implements) === null || _a === void 0 ? void 0 : _a.forEach((kwd) => this.addKeyword(kwd));
-    }
-    function addBeforeRule(ruleGroup, rule, before) {
-      const i = ruleGroup.rules.findIndex((_rule) => _rule.keyword === before);
-      if (i >= 0) {
-        ruleGroup.rules.splice(i, 0, rule);
-      } else {
-        ruleGroup.rules.push(rule);
-        this.logger.warn(`rule ${before} is not defined`);
-      }
-    }
-    function keywordMetaschema(def) {
-      let { metaSchema } = def;
-      if (metaSchema === void 0)
-        return;
-      if (def.$data && this.opts.$data)
-        metaSchema = schemaOrData(metaSchema);
-      def.validateSchema = this.compile(metaSchema, true);
-    }
-    var $dataRef = {
-      $ref: "https://raw.githubusercontent.com/ajv-validator/ajv/master/lib/refs/data.json#"
-    };
-    function schemaOrData(schema) {
-      return { anyOf: [schema, $dataRef] };
-    }
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/core/id.js
-var require_id = __commonJS({
-  "node_modules/ajv/dist/vocabularies/core/id.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var def = {
-      keyword: "id",
-      code() {
-        throw new Error('NOT SUPPORTED: keyword "id", use "$id" for schema ID');
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/core/ref.js
-var require_ref = __commonJS({
-  "node_modules/ajv/dist/vocabularies/core/ref.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.callRef = exports.getValidate = void 0;
-    var ref_error_1 = require_ref_error();
-    var code_1 = require_code2();
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var compile_1 = require_compile();
-    var util_1 = require_util();
-    var def = {
-      keyword: "$ref",
-      schemaType: "string",
-      code(cxt) {
-        const { gen, schema: $ref, it } = cxt;
-        const { baseId, schemaEnv: env, validateName, opts, self } = it;
-        const { root } = env;
-        if (($ref === "#" || $ref === "#/") && baseId === root.baseId)
-          return callRootRef();
-        const schOrEnv = compile_1.resolveRef.call(self, root, baseId, $ref);
-        if (schOrEnv === void 0)
-          throw new ref_error_1.default(it.opts.uriResolver, baseId, $ref);
-        if (schOrEnv instanceof compile_1.SchemaEnv)
-          return callValidate(schOrEnv);
-        return inlineRefSchema(schOrEnv);
-        function callRootRef() {
-          if (env === root)
-            return callRef(cxt, validateName, env, env.$async);
-          const rootName = gen.scopeValue("root", { ref: root });
-          return callRef(cxt, (0, codegen_1._)`${rootName}.validate`, root, root.$async);
-        }
-        function callValidate(sch) {
-          const v = getValidate(cxt, sch);
-          callRef(cxt, v, sch, sch.$async);
-        }
-        function inlineRefSchema(sch) {
-          const schName = gen.scopeValue("schema", opts.code.source === true ? { ref: sch, code: (0, codegen_1.stringify)(sch) } : { ref: sch });
-          const valid = gen.name("valid");
-          const schCxt = cxt.subschema({
-            schema: sch,
-            dataTypes: [],
-            schemaPath: codegen_1.nil,
-            topSchemaRef: schName,
-            errSchemaPath: $ref
-          }, valid);
-          cxt.mergeEvaluated(schCxt);
-          cxt.ok(valid);
-        }
-      }
-    };
-    function getValidate(cxt, sch) {
-      const { gen } = cxt;
-      return sch.validate ? gen.scopeValue("validate", { ref: sch.validate }) : (0, codegen_1._)`${gen.scopeValue("wrapper", { ref: sch })}.validate`;
-    }
-    exports.getValidate = getValidate;
-    function callRef(cxt, v, sch, $async) {
-      const { gen, it } = cxt;
-      const { allErrors, schemaEnv: env, opts } = it;
-      const passCxt = opts.passContext ? names_1.default.this : codegen_1.nil;
-      if ($async)
-        callAsyncRef();
-      else
-        callSyncRef();
-      function callAsyncRef() {
-        if (!env.$async)
-          throw new Error("async schema referenced by sync schema");
-        const valid = gen.let("valid");
-        gen.try(() => {
-          gen.code((0, codegen_1._)`await ${(0, code_1.callValidateCode)(cxt, v, passCxt)}`);
-          addEvaluatedFrom(v);
-          if (!allErrors)
-            gen.assign(valid, true);
-        }, (e) => {
-          gen.if((0, codegen_1._)`!(${e} instanceof ${it.ValidationError})`, () => gen.throw(e));
-          addErrorsFrom(e);
-          if (!allErrors)
-            gen.assign(valid, false);
-        });
-        cxt.ok(valid);
-      }
-      function callSyncRef() {
-        cxt.result((0, code_1.callValidateCode)(cxt, v, passCxt), () => addEvaluatedFrom(v), () => addErrorsFrom(v));
-      }
-      function addErrorsFrom(source) {
-        const errs = (0, codegen_1._)`${source}.errors`;
-        gen.assign(names_1.default.vErrors, (0, codegen_1._)`${names_1.default.vErrors} === null ? ${errs} : ${names_1.default.vErrors}.concat(${errs})`);
-        gen.assign(names_1.default.errors, (0, codegen_1._)`${names_1.default.vErrors}.length`);
-      }
-      function addEvaluatedFrom(source) {
-        var _a;
-        if (!it.opts.unevaluated)
-          return;
-        const schEvaluated = (_a = sch === null || sch === void 0 ? void 0 : sch.validate) === null || _a === void 0 ? void 0 : _a.evaluated;
-        if (it.props !== true) {
-          if (schEvaluated && !schEvaluated.dynamicProps) {
-            if (schEvaluated.props !== void 0) {
-              it.props = util_1.mergeEvaluated.props(gen, schEvaluated.props, it.props);
-            }
-          } else {
-            const props = gen.var("props", (0, codegen_1._)`${source}.evaluated.props`);
-            it.props = util_1.mergeEvaluated.props(gen, props, it.props, codegen_1.Name);
-          }
-        }
-        if (it.items !== true) {
-          if (schEvaluated && !schEvaluated.dynamicItems) {
-            if (schEvaluated.items !== void 0) {
-              it.items = util_1.mergeEvaluated.items(gen, schEvaluated.items, it.items);
-            }
-          } else {
-            const items2 = gen.var("items", (0, codegen_1._)`${source}.evaluated.items`);
-            it.items = util_1.mergeEvaluated.items(gen, items2, it.items, codegen_1.Name);
-          }
-        }
-      }
-    }
-    exports.callRef = callRef;
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/core/index.js
-var require_core2 = __commonJS({
-  "node_modules/ajv/dist/vocabularies/core/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var id_1 = require_id();
-    var ref_1 = require_ref();
-    var core2 = [
-      "$schema",
-      "$id",
-      "$defs",
-      "$vocabulary",
-      { keyword: "$comment" },
-      "definitions",
-      id_1.default,
-      ref_1.default
-    ];
-    exports.default = core2;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/limitNumber.js
-var require_limitNumber = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/limitNumber.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var ops = codegen_1.operators;
-    var KWDs = {
-      maximum: { okStr: "<=", ok: ops.LTE, fail: ops.GT },
-      minimum: { okStr: ">=", ok: ops.GTE, fail: ops.LT },
-      exclusiveMaximum: { okStr: "<", ok: ops.LT, fail: ops.GTE },
-      exclusiveMinimum: { okStr: ">", ok: ops.GT, fail: ops.LTE }
-    };
-    var error = {
-      message: ({ keyword, schemaCode }) => (0, codegen_1.str)`must be ${KWDs[keyword].okStr} ${schemaCode}`,
-      params: ({ keyword, schemaCode }) => (0, codegen_1._)`{comparison: ${KWDs[keyword].okStr}, limit: ${schemaCode}}`
-    };
-    var def = {
-      keyword: Object.keys(KWDs),
-      type: "number",
-      schemaType: "number",
-      $data: true,
-      error,
-      code(cxt) {
-        const { keyword, data, schemaCode } = cxt;
-        cxt.fail$data((0, codegen_1._)`${data} ${KWDs[keyword].fail} ${schemaCode} || isNaN(${data})`);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/multipleOf.js
-var require_multipleOf = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/multipleOf.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var error = {
-      message: ({ schemaCode }) => (0, codegen_1.str)`must be multiple of ${schemaCode}`,
-      params: ({ schemaCode }) => (0, codegen_1._)`{multipleOf: ${schemaCode}}`
-    };
-    var def = {
-      keyword: "multipleOf",
-      type: "number",
-      schemaType: "number",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, data, schemaCode, it } = cxt;
-        const prec = it.opts.multipleOfPrecision;
-        const res = gen.let("res");
-        const invalid = prec ? (0, codegen_1._)`Math.abs(Math.round(${res}) - ${res}) > 1e-${prec}` : (0, codegen_1._)`${res} !== parseInt(${res})`;
-        cxt.fail$data((0, codegen_1._)`(${schemaCode} === 0 || (${res} = ${data}/${schemaCode}, ${invalid}))`);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/runtime/ucs2length.js
-var require_ucs2length = __commonJS({
-  "node_modules/ajv/dist/runtime/ucs2length.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    function ucs2length(str) {
-      const len = str.length;
-      let length = 0;
-      let pos = 0;
-      let value;
-      while (pos < len) {
-        length++;
-        value = str.charCodeAt(pos++);
-        if (value >= 55296 && value <= 56319 && pos < len) {
-          value = str.charCodeAt(pos);
-          if ((value & 64512) === 56320)
-            pos++;
-        }
-      }
-      return length;
-    }
-    exports.default = ucs2length;
-    ucs2length.code = 'require("ajv/dist/runtime/ucs2length").default';
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/limitLength.js
-var require_limitLength = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/limitLength.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var ucs2length_1 = require_ucs2length();
-    var error = {
-      message({ keyword, schemaCode }) {
-        const comp = keyword === "maxLength" ? "more" : "fewer";
-        return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} characters`;
-      },
-      params: ({ schemaCode }) => (0, codegen_1._)`{limit: ${schemaCode}}`
-    };
-    var def = {
-      keyword: ["maxLength", "minLength"],
-      type: "string",
-      schemaType: "number",
-      $data: true,
-      error,
-      code(cxt) {
-        const { keyword, data, schemaCode, it } = cxt;
-        const op = keyword === "maxLength" ? codegen_1.operators.GT : codegen_1.operators.LT;
-        const len = it.opts.unicode === false ? (0, codegen_1._)`${data}.length` : (0, codegen_1._)`${(0, util_1.useFunc)(cxt.gen, ucs2length_1.default)}(${data})`;
-        cxt.fail$data((0, codegen_1._)`${len} ${op} ${schemaCode}`);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/pattern.js
-var require_pattern = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/pattern.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var code_1 = require_code2();
-    var util_1 = require_util();
-    var codegen_1 = require_codegen();
-    var error = {
-      message: ({ schemaCode }) => (0, codegen_1.str)`must match pattern "${schemaCode}"`,
-      params: ({ schemaCode }) => (0, codegen_1._)`{pattern: ${schemaCode}}`
-    };
-    var def = {
-      keyword: "pattern",
-      type: "string",
-      schemaType: "string",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, data, $data, schema, schemaCode, it } = cxt;
-        const u = it.opts.unicodeRegExp ? "u" : "";
-        if ($data) {
-          const { regExp } = it.opts.code;
-          const regExpCode = regExp.code === "new RegExp" ? (0, codegen_1._)`new RegExp` : (0, util_1.useFunc)(gen, regExp);
-          const valid = gen.let("valid");
-          gen.try(() => gen.assign(valid, (0, codegen_1._)`${regExpCode}(${schemaCode}, ${u}).test(${data})`), () => gen.assign(valid, false));
-          cxt.fail$data((0, codegen_1._)`!${valid}`);
-        } else {
-          const regExp = (0, code_1.usePattern)(cxt, schema);
-          cxt.fail$data((0, codegen_1._)`!${regExp}.test(${data})`);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/limitProperties.js
-var require_limitProperties = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/limitProperties.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var error = {
-      message({ keyword, schemaCode }) {
-        const comp = keyword === "maxProperties" ? "more" : "fewer";
-        return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} properties`;
-      },
-      params: ({ schemaCode }) => (0, codegen_1._)`{limit: ${schemaCode}}`
-    };
-    var def = {
-      keyword: ["maxProperties", "minProperties"],
-      type: "object",
-      schemaType: "number",
-      $data: true,
-      error,
-      code(cxt) {
-        const { keyword, data, schemaCode } = cxt;
-        const op = keyword === "maxProperties" ? codegen_1.operators.GT : codegen_1.operators.LT;
-        cxt.fail$data((0, codegen_1._)`Object.keys(${data}).length ${op} ${schemaCode}`);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/required.js
-var require_required = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/required.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var code_1 = require_code2();
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: ({ params: { missingProperty } }) => (0, codegen_1.str)`must have required property '${missingProperty}'`,
-      params: ({ params: { missingProperty } }) => (0, codegen_1._)`{missingProperty: ${missingProperty}}`
-    };
-    var def = {
-      keyword: "required",
-      type: "object",
-      schemaType: "array",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, schema, schemaCode, data, $data, it } = cxt;
-        const { opts } = it;
-        if (!$data && schema.length === 0)
-          return;
-        const useLoop = schema.length >= opts.loopRequired;
-        if (it.allErrors)
-          allErrorsMode();
-        else
-          exitOnErrorMode();
-        if (opts.strictRequired) {
-          const props = cxt.parentSchema.properties;
-          const { definedProperties } = cxt.it;
-          for (const requiredKey of schema) {
-            if ((props === null || props === void 0 ? void 0 : props[requiredKey]) === void 0 && !definedProperties.has(requiredKey)) {
-              const schemaPath = it.schemaEnv.baseId + it.errSchemaPath;
-              const msg = `required property "${requiredKey}" is not defined at "${schemaPath}" (strictRequired)`;
-              (0, util_1.checkStrictMode)(it, msg, it.opts.strictRequired);
-            }
-          }
-        }
-        function allErrorsMode() {
-          if (useLoop || $data) {
-            cxt.block$data(codegen_1.nil, loopAllRequired);
-          } else {
-            for (const prop of schema) {
-              (0, code_1.checkReportMissingProp)(cxt, prop);
-            }
-          }
-        }
-        function exitOnErrorMode() {
-          const missing = gen.let("missing");
-          if (useLoop || $data) {
-            const valid = gen.let("valid", true);
-            cxt.block$data(valid, () => loopUntilMissing(missing, valid));
-            cxt.ok(valid);
-          } else {
-            gen.if((0, code_1.checkMissingProp)(cxt, schema, missing));
-            (0, code_1.reportMissingProp)(cxt, missing);
-            gen.else();
-          }
-        }
-        function loopAllRequired() {
-          gen.forOf("prop", schemaCode, (prop) => {
-            cxt.setParams({ missingProperty: prop });
-            gen.if((0, code_1.noPropertyInData)(gen, data, prop, opts.ownProperties), () => cxt.error());
-          });
-        }
-        function loopUntilMissing(missing, valid) {
-          cxt.setParams({ missingProperty: missing });
-          gen.forOf(missing, schemaCode, () => {
-            gen.assign(valid, (0, code_1.propertyInData)(gen, data, missing, opts.ownProperties));
-            gen.if((0, codegen_1.not)(valid), () => {
-              cxt.error();
-              gen.break();
-            });
-          }, codegen_1.nil);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/limitItems.js
-var require_limitItems = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/limitItems.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var error = {
-      message({ keyword, schemaCode }) {
-        const comp = keyword === "maxItems" ? "more" : "fewer";
-        return (0, codegen_1.str)`must NOT have ${comp} than ${schemaCode} items`;
-      },
-      params: ({ schemaCode }) => (0, codegen_1._)`{limit: ${schemaCode}}`
-    };
-    var def = {
-      keyword: ["maxItems", "minItems"],
-      type: "array",
-      schemaType: "number",
-      $data: true,
-      error,
-      code(cxt) {
-        const { keyword, data, schemaCode } = cxt;
-        const op = keyword === "maxItems" ? codegen_1.operators.GT : codegen_1.operators.LT;
-        cxt.fail$data((0, codegen_1._)`${data}.length ${op} ${schemaCode}`);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/runtime/equal.js
-var require_equal = __commonJS({
-  "node_modules/ajv/dist/runtime/equal.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var equal = require_fast_deep_equal();
-    equal.code = 'require("ajv/dist/runtime/equal").default';
-    exports.default = equal;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/uniqueItems.js
-var require_uniqueItems = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/uniqueItems.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dataType_1 = require_dataType();
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var equal_1 = require_equal();
-    var error = {
-      message: ({ params: { i, j } }) => (0, codegen_1.str)`must NOT have duplicate items (items ## ${j} and ${i} are identical)`,
-      params: ({ params: { i, j } }) => (0, codegen_1._)`{i: ${i}, j: ${j}}`
-    };
-    var def = {
-      keyword: "uniqueItems",
-      type: "array",
-      schemaType: "boolean",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, data, $data, schema, parentSchema, schemaCode, it } = cxt;
-        if (!$data && !schema)
-          return;
-        const valid = gen.let("valid");
-        const itemTypes = parentSchema.items ? (0, dataType_1.getSchemaTypes)(parentSchema.items) : [];
-        cxt.block$data(valid, validateUniqueItems, (0, codegen_1._)`${schemaCode} === false`);
-        cxt.ok(valid);
-        function validateUniqueItems() {
-          const i = gen.let("i", (0, codegen_1._)`${data}.length`);
-          const j = gen.let("j");
-          cxt.setParams({ i, j });
-          gen.assign(valid, true);
-          gen.if((0, codegen_1._)`${i} > 1`, () => (canOptimize() ? loopN : loopN2)(i, j));
-        }
-        function canOptimize() {
-          return itemTypes.length > 0 && !itemTypes.some((t) => t === "object" || t === "array");
-        }
-        function loopN(i, j) {
-          const item = gen.name("item");
-          const wrongType = (0, dataType_1.checkDataTypes)(itemTypes, item, it.opts.strictNumbers, dataType_1.DataType.Wrong);
-          const indices = gen.const("indices", (0, codegen_1._)`{}`);
-          gen.for((0, codegen_1._)`;${i}--;`, () => {
-            gen.let(item, (0, codegen_1._)`${data}[${i}]`);
-            gen.if(wrongType, (0, codegen_1._)`continue`);
-            if (itemTypes.length > 1)
-              gen.if((0, codegen_1._)`typeof ${item} == "string"`, (0, codegen_1._)`${item} += "_"`);
-            gen.if((0, codegen_1._)`typeof ${indices}[${item}] == "number"`, () => {
-              gen.assign(j, (0, codegen_1._)`${indices}[${item}]`);
-              cxt.error();
-              gen.assign(valid, false).break();
-            }).code((0, codegen_1._)`${indices}[${item}] = ${i}`);
-          });
-        }
-        function loopN2(i, j) {
-          const eql = (0, util_1.useFunc)(gen, equal_1.default);
-          const outer = gen.name("outer");
-          gen.label(outer).for((0, codegen_1._)`;${i}--;`, () => gen.for((0, codegen_1._)`${j} = ${i}; ${j}--;`, () => gen.if((0, codegen_1._)`${eql}(${data}[${i}], ${data}[${j}])`, () => {
-            cxt.error();
-            gen.assign(valid, false).break(outer);
-          })));
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/const.js
-var require_const = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/const.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var equal_1 = require_equal();
-    var error = {
-      message: "must be equal to constant",
-      params: ({ schemaCode }) => (0, codegen_1._)`{allowedValue: ${schemaCode}}`
-    };
-    var def = {
-      keyword: "const",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, data, $data, schemaCode, schema } = cxt;
-        if ($data || schema && typeof schema == "object") {
-          cxt.fail$data((0, codegen_1._)`!${(0, util_1.useFunc)(gen, equal_1.default)}(${data}, ${schemaCode})`);
-        } else {
-          cxt.fail((0, codegen_1._)`${schema} !== ${data}`);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/enum.js
-var require_enum = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/enum.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var equal_1 = require_equal();
-    var error = {
-      message: "must be equal to one of the allowed values",
-      params: ({ schemaCode }) => (0, codegen_1._)`{allowedValues: ${schemaCode}}`
-    };
-    var def = {
-      keyword: "enum",
-      schemaType: "array",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, data, $data, schema, schemaCode, it } = cxt;
-        if (!$data && schema.length === 0)
-          throw new Error("enum must have non-empty array");
-        const useLoop = schema.length >= it.opts.loopEnum;
-        let eql;
-        const getEql = () => eql !== null && eql !== void 0 ? eql : eql = (0, util_1.useFunc)(gen, equal_1.default);
-        let valid;
-        if (useLoop || $data) {
-          valid = gen.let("valid");
-          cxt.block$data(valid, loopEnum);
-        } else {
-          if (!Array.isArray(schema))
-            throw new Error("ajv implementation error");
-          const vSchema = gen.const("vSchema", schemaCode);
-          valid = (0, codegen_1.or)(...schema.map((_x, i) => equalCode(vSchema, i)));
-        }
-        cxt.pass(valid);
-        function loopEnum() {
-          gen.assign(valid, false);
-          gen.forOf("v", schemaCode, (v) => gen.if((0, codegen_1._)`${getEql()}(${data}, ${v})`, () => gen.assign(valid, true).break()));
-        }
-        function equalCode(vSchema, i) {
-          const sch = schema[i];
-          return typeof sch === "object" && sch !== null ? (0, codegen_1._)`${getEql()}(${data}, ${vSchema}[${i}])` : (0, codegen_1._)`${data} === ${sch}`;
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/index.js
-var require_validation = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var limitNumber_1 = require_limitNumber();
-    var multipleOf_1 = require_multipleOf();
-    var limitLength_1 = require_limitLength();
-    var pattern_1 = require_pattern();
-    var limitProperties_1 = require_limitProperties();
-    var required_1 = require_required();
-    var limitItems_1 = require_limitItems();
-    var uniqueItems_1 = require_uniqueItems();
-    var const_1 = require_const();
-    var enum_1 = require_enum();
-    var validation = [
-      // number
-      limitNumber_1.default,
-      multipleOf_1.default,
-      // string
-      limitLength_1.default,
-      pattern_1.default,
-      // object
-      limitProperties_1.default,
-      required_1.default,
-      // array
-      limitItems_1.default,
-      uniqueItems_1.default,
-      // any
-      { keyword: "type", schemaType: ["string", "array"] },
-      { keyword: "nullable", schemaType: "boolean" },
-      const_1.default,
-      enum_1.default
-    ];
-    exports.default = validation;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/additionalItems.js
-var require_additionalItems = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/additionalItems.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.validateAdditionalItems = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
-      params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
-    };
-    var def = {
-      keyword: "additionalItems",
-      type: "array",
-      schemaType: ["boolean", "object"],
-      before: "uniqueItems",
-      error,
-      code(cxt) {
-        const { parentSchema, it } = cxt;
-        const { items: items2 } = parentSchema;
-        if (!Array.isArray(items2)) {
-          (0, util_1.checkStrictMode)(it, '"additionalItems" is ignored when "items" is not an array of schemas');
-          return;
-        }
-        validateAdditionalItems(cxt, items2);
-      }
-    };
-    function validateAdditionalItems(cxt, items2) {
-      const { gen, schema, data, keyword, it } = cxt;
-      it.items = true;
-      const len = gen.const("len", (0, codegen_1._)`${data}.length`);
-      if (schema === false) {
-        cxt.setParams({ len: items2.length });
-        cxt.pass((0, codegen_1._)`${len} <= ${items2.length}`);
-      } else if (typeof schema == "object" && !(0, util_1.alwaysValidSchema)(it, schema)) {
-        const valid = gen.var("valid", (0, codegen_1._)`${len} <= ${items2.length}`);
-        gen.if((0, codegen_1.not)(valid), () => validateItems(valid));
-        cxt.ok(valid);
-      }
-      function validateItems(valid) {
-        gen.forRange("i", items2.length, len, (i) => {
-          cxt.subschema({ keyword, dataProp: i, dataPropType: util_1.Type.Num }, valid);
-          if (!it.allErrors)
-            gen.if((0, codegen_1.not)(valid), () => gen.break());
-        });
-      }
-    }
-    exports.validateAdditionalItems = validateAdditionalItems;
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/items.js
-var require_items = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/items.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.validateTuple = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var code_1 = require_code2();
-    var def = {
-      keyword: "items",
-      type: "array",
-      schemaType: ["object", "array", "boolean"],
-      before: "uniqueItems",
-      code(cxt) {
-        const { schema, it } = cxt;
-        if (Array.isArray(schema))
-          return validateTuple(cxt, "additionalItems", schema);
-        it.items = true;
-        if ((0, util_1.alwaysValidSchema)(it, schema))
-          return;
-        cxt.ok((0, code_1.validateArray)(cxt));
-      }
-    };
-    function validateTuple(cxt, extraItems, schArr = cxt.schema) {
-      const { gen, parentSchema, data, keyword, it } = cxt;
-      checkStrictTuple(parentSchema);
-      if (it.opts.unevaluated && schArr.length && it.items !== true) {
-        it.items = util_1.mergeEvaluated.items(gen, schArr.length, it.items);
-      }
-      const valid = gen.name("valid");
-      const len = gen.const("len", (0, codegen_1._)`${data}.length`);
-      schArr.forEach((sch, i) => {
-        if ((0, util_1.alwaysValidSchema)(it, sch))
-          return;
-        gen.if((0, codegen_1._)`${len} > ${i}`, () => cxt.subschema({
-          keyword,
-          schemaProp: i,
-          dataProp: i
-        }, valid));
-        cxt.ok(valid);
-      });
-      function checkStrictTuple(sch) {
-        const { opts, errSchemaPath } = it;
-        const l = schArr.length;
-        const fullTuple = l === sch.minItems && (l === sch.maxItems || sch[extraItems] === false);
-        if (opts.strictTuples && !fullTuple) {
-          const msg = `"${keyword}" is ${l}-tuple, but minItems or maxItems/${extraItems} are not specified or different at path "${errSchemaPath}"`;
-          (0, util_1.checkStrictMode)(it, msg, opts.strictTuples);
-        }
-      }
-    }
-    exports.validateTuple = validateTuple;
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/prefixItems.js
-var require_prefixItems = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/prefixItems.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var items_1 = require_items();
-    var def = {
-      keyword: "prefixItems",
-      type: "array",
-      schemaType: ["array"],
-      before: "uniqueItems",
-      code: (cxt) => (0, items_1.validateTuple)(cxt, "items")
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/items2020.js
-var require_items2020 = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/items2020.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var code_1 = require_code2();
-    var additionalItems_1 = require_additionalItems();
-    var error = {
-      message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
-      params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
-    };
-    var def = {
-      keyword: "items",
-      type: "array",
-      schemaType: ["object", "boolean"],
-      before: "uniqueItems",
-      error,
-      code(cxt) {
-        const { schema, parentSchema, it } = cxt;
-        const { prefixItems } = parentSchema;
-        it.items = true;
-        if ((0, util_1.alwaysValidSchema)(it, schema))
-          return;
-        if (prefixItems)
-          (0, additionalItems_1.validateAdditionalItems)(cxt, prefixItems);
-        else
-          cxt.ok((0, code_1.validateArray)(cxt));
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/contains.js
-var require_contains = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/contains.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: ({ params: { min, max } }) => max === void 0 ? (0, codegen_1.str)`must contain at least ${min} valid item(s)` : (0, codegen_1.str)`must contain at least ${min} and no more than ${max} valid item(s)`,
-      params: ({ params: { min, max } }) => max === void 0 ? (0, codegen_1._)`{minContains: ${min}}` : (0, codegen_1._)`{minContains: ${min}, maxContains: ${max}}`
-    };
-    var def = {
-      keyword: "contains",
-      type: "array",
-      schemaType: ["object", "boolean"],
-      before: "uniqueItems",
-      trackErrors: true,
-      error,
-      code(cxt) {
-        const { gen, schema, parentSchema, data, it } = cxt;
-        let min;
-        let max;
-        const { minContains, maxContains } = parentSchema;
-        if (it.opts.next) {
-          min = minContains === void 0 ? 1 : minContains;
-          max = maxContains;
-        } else {
-          min = 1;
-        }
-        const len = gen.const("len", (0, codegen_1._)`${data}.length`);
-        cxt.setParams({ min, max });
-        if (max === void 0 && min === 0) {
-          (0, util_1.checkStrictMode)(it, `"minContains" == 0 without "maxContains": "contains" keyword ignored`);
-          return;
-        }
-        if (max !== void 0 && min > max) {
-          (0, util_1.checkStrictMode)(it, `"minContains" > "maxContains" is always invalid`);
-          cxt.fail();
-          return;
-        }
-        if ((0, util_1.alwaysValidSchema)(it, schema)) {
-          let cond = (0, codegen_1._)`${len} >= ${min}`;
-          if (max !== void 0)
-            cond = (0, codegen_1._)`${cond} && ${len} <= ${max}`;
-          cxt.pass(cond);
-          return;
-        }
-        it.items = true;
-        const valid = gen.name("valid");
-        if (max === void 0 && min === 1) {
-          validateItems(valid, () => gen.if(valid, () => gen.break()));
-        } else if (min === 0) {
-          gen.let(valid, true);
-          if (max !== void 0)
-            gen.if((0, codegen_1._)`${data}.length > 0`, validateItemsWithCount);
-        } else {
-          gen.let(valid, false);
-          validateItemsWithCount();
-        }
-        cxt.result(valid, () => cxt.reset());
-        function validateItemsWithCount() {
-          const schValid = gen.name("_valid");
-          const count = gen.let("count", 0);
-          validateItems(schValid, () => gen.if(schValid, () => checkLimits(count)));
-        }
-        function validateItems(_valid, block) {
-          gen.forRange("i", 0, len, (i) => {
-            cxt.subschema({
-              keyword: "contains",
-              dataProp: i,
-              dataPropType: util_1.Type.Num,
-              compositeRule: true
-            }, _valid);
-            block();
-          });
-        }
-        function checkLimits(count) {
-          gen.code((0, codegen_1._)`${count}++`);
-          if (max === void 0) {
-            gen.if((0, codegen_1._)`${count} >= ${min}`, () => gen.assign(valid, true).break());
-          } else {
-            gen.if((0, codegen_1._)`${count} > ${max}`, () => gen.assign(valid, false).break());
-            if (min === 1)
-              gen.assign(valid, true);
-            else
-              gen.if((0, codegen_1._)`${count} >= ${min}`, () => gen.assign(valid, true));
-          }
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/dependencies.js
-var require_dependencies = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/dependencies.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.validateSchemaDeps = exports.validatePropertyDeps = exports.error = void 0;
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var code_1 = require_code2();
-    exports.error = {
-      message: ({ params: { property, depsCount, deps } }) => {
-        const property_ies = depsCount === 1 ? "property" : "properties";
-        return (0, codegen_1.str)`must have ${property_ies} ${deps} when property ${property} is present`;
-      },
-      params: ({ params: { property, depsCount, deps, missingProperty } }) => (0, codegen_1._)`{property: ${property},
-    missingProperty: ${missingProperty},
-    depsCount: ${depsCount},
-    deps: ${deps}}`
-      // TODO change to reference
-    };
-    var def = {
-      keyword: "dependencies",
-      type: "object",
-      schemaType: "object",
-      error: exports.error,
-      code(cxt) {
-        const [propDeps, schDeps] = splitDependencies(cxt);
-        validatePropertyDeps(cxt, propDeps);
-        validateSchemaDeps(cxt, schDeps);
-      }
-    };
-    function splitDependencies({ schema }) {
-      const propertyDeps = {};
-      const schemaDeps = {};
-      for (const key in schema) {
-        if (key === "__proto__")
-          continue;
-        const deps = Array.isArray(schema[key]) ? propertyDeps : schemaDeps;
-        deps[key] = schema[key];
-      }
-      return [propertyDeps, schemaDeps];
-    }
-    function validatePropertyDeps(cxt, propertyDeps = cxt.schema) {
-      const { gen, data, it } = cxt;
-      if (Object.keys(propertyDeps).length === 0)
-        return;
-      const missing = gen.let("missing");
-      for (const prop in propertyDeps) {
-        const deps = propertyDeps[prop];
-        if (deps.length === 0)
-          continue;
-        const hasProperty = (0, code_1.propertyInData)(gen, data, prop, it.opts.ownProperties);
-        cxt.setParams({
-          property: prop,
-          depsCount: deps.length,
-          deps: deps.join(", ")
-        });
-        if (it.allErrors) {
-          gen.if(hasProperty, () => {
-            for (const depProp of deps) {
-              (0, code_1.checkReportMissingProp)(cxt, depProp);
-            }
-          });
-        } else {
-          gen.if((0, codegen_1._)`${hasProperty} && (${(0, code_1.checkMissingProp)(cxt, deps, missing)})`);
-          (0, code_1.reportMissingProp)(cxt, missing);
-          gen.else();
-        }
-      }
-    }
-    exports.validatePropertyDeps = validatePropertyDeps;
-    function validateSchemaDeps(cxt, schemaDeps = cxt.schema) {
-      const { gen, data, keyword, it } = cxt;
-      const valid = gen.name("valid");
-      for (const prop in schemaDeps) {
-        if ((0, util_1.alwaysValidSchema)(it, schemaDeps[prop]))
-          continue;
-        gen.if(
-          (0, code_1.propertyInData)(gen, data, prop, it.opts.ownProperties),
-          () => {
-            const schCxt = cxt.subschema({ keyword, schemaProp: prop }, valid);
-            cxt.mergeValidEvaluated(schCxt, valid);
-          },
-          () => gen.var(valid, true)
-          // TODO var
-        );
-        cxt.ok(valid);
-      }
-    }
-    exports.validateSchemaDeps = validateSchemaDeps;
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/propertyNames.js
-var require_propertyNames = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/propertyNames.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: "property name must be valid",
-      params: ({ params }) => (0, codegen_1._)`{propertyName: ${params.propertyName}}`
-    };
-    var def = {
-      keyword: "propertyNames",
-      type: "object",
-      schemaType: ["object", "boolean"],
-      error,
-      code(cxt) {
-        const { gen, schema, data, it } = cxt;
-        if ((0, util_1.alwaysValidSchema)(it, schema))
-          return;
-        const valid = gen.name("valid");
-        gen.forIn("key", data, (key) => {
-          cxt.setParams({ propertyName: key });
-          cxt.subschema({
-            keyword: "propertyNames",
-            data: key,
-            dataTypes: ["string"],
-            propertyName: key,
-            compositeRule: true
-          }, valid);
-          gen.if((0, codegen_1.not)(valid), () => {
-            cxt.error(true);
-            if (!it.allErrors)
-              gen.break();
-          });
-        });
-        cxt.ok(valid);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js
-var require_additionalProperties = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/additionalProperties.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var code_1 = require_code2();
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var util_1 = require_util();
-    var error = {
-      message: "must NOT have additional properties",
-      params: ({ params }) => (0, codegen_1._)`{additionalProperty: ${params.additionalProperty}}`
-    };
-    var def = {
-      keyword: "additionalProperties",
-      type: ["object"],
-      schemaType: ["boolean", "object"],
-      allowUndefined: true,
-      trackErrors: true,
-      error,
-      code(cxt) {
-        const { gen, schema, parentSchema, data, errsCount, it } = cxt;
-        if (!errsCount)
-          throw new Error("ajv implementation error");
-        const { allErrors, opts } = it;
-        it.props = true;
-        if (opts.removeAdditional !== "all" && (0, util_1.alwaysValidSchema)(it, schema))
-          return;
-        const props = (0, code_1.allSchemaProperties)(parentSchema.properties);
-        const patProps = (0, code_1.allSchemaProperties)(parentSchema.patternProperties);
-        checkAdditionalProperties();
-        cxt.ok((0, codegen_1._)`${errsCount} === ${names_1.default.errors}`);
-        function checkAdditionalProperties() {
-          gen.forIn("key", data, (key) => {
-            if (!props.length && !patProps.length)
-              additionalPropertyCode(key);
-            else
-              gen.if(isAdditional(key), () => additionalPropertyCode(key));
-          });
-        }
-        function isAdditional(key) {
-          let definedProp;
-          if (props.length > 8) {
-            const propsSchema = (0, util_1.schemaRefOrVal)(it, parentSchema.properties, "properties");
-            definedProp = (0, code_1.isOwnProperty)(gen, propsSchema, key);
-          } else if (props.length) {
-            definedProp = (0, codegen_1.or)(...props.map((p) => (0, codegen_1._)`${key} === ${p}`));
-          } else {
-            definedProp = codegen_1.nil;
-          }
-          if (patProps.length) {
-            definedProp = (0, codegen_1.or)(definedProp, ...patProps.map((p) => (0, codegen_1._)`${(0, code_1.usePattern)(cxt, p)}.test(${key})`));
-          }
-          return (0, codegen_1.not)(definedProp);
-        }
-        function deleteAdditional(key) {
-          gen.code((0, codegen_1._)`delete ${data}[${key}]`);
-        }
-        function additionalPropertyCode(key) {
-          if (opts.removeAdditional === "all" || opts.removeAdditional && schema === false) {
-            deleteAdditional(key);
-            return;
-          }
-          if (schema === false) {
-            cxt.setParams({ additionalProperty: key });
-            cxt.error();
-            if (!allErrors)
-              gen.break();
-            return;
-          }
-          if (typeof schema == "object" && !(0, util_1.alwaysValidSchema)(it, schema)) {
-            const valid = gen.name("valid");
-            if (opts.removeAdditional === "failing") {
-              applyAdditionalSchema(key, valid, false);
-              gen.if((0, codegen_1.not)(valid), () => {
-                cxt.reset();
-                deleteAdditional(key);
-              });
-            } else {
-              applyAdditionalSchema(key, valid);
-              if (!allErrors)
-                gen.if((0, codegen_1.not)(valid), () => gen.break());
-            }
-          }
-        }
-        function applyAdditionalSchema(key, valid, errors) {
-          const subschema = {
-            keyword: "additionalProperties",
-            dataProp: key,
-            dataPropType: util_1.Type.Str
-          };
-          if (errors === false) {
-            Object.assign(subschema, {
-              compositeRule: true,
-              createErrors: false,
-              allErrors: false
-            });
-          }
-          cxt.subschema(subschema, valid);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/properties.js
-var require_properties = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/properties.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var validate_1 = require_validate();
-    var code_1 = require_code2();
-    var util_1 = require_util();
-    var additionalProperties_1 = require_additionalProperties();
-    var def = {
-      keyword: "properties",
-      type: "object",
-      schemaType: "object",
-      code(cxt) {
-        const { gen, schema, parentSchema, data, it } = cxt;
-        if (it.opts.removeAdditional === "all" && parentSchema.additionalProperties === void 0) {
-          additionalProperties_1.default.code(new validate_1.KeywordCxt(it, additionalProperties_1.default, "additionalProperties"));
-        }
-        const allProps = (0, code_1.allSchemaProperties)(schema);
-        for (const prop of allProps) {
-          it.definedProperties.add(prop);
-        }
-        if (it.opts.unevaluated && allProps.length && it.props !== true) {
-          it.props = util_1.mergeEvaluated.props(gen, (0, util_1.toHash)(allProps), it.props);
-        }
-        const properties = allProps.filter((p) => !(0, util_1.alwaysValidSchema)(it, schema[p]));
-        if (properties.length === 0)
-          return;
-        const valid = gen.name("valid");
-        for (const prop of properties) {
-          if (hasDefault(prop)) {
-            applyPropertySchema(prop);
-          } else {
-            gen.if((0, code_1.propertyInData)(gen, data, prop, it.opts.ownProperties));
-            applyPropertySchema(prop);
-            if (!it.allErrors)
-              gen.else().var(valid, true);
-            gen.endIf();
-          }
-          cxt.it.definedProperties.add(prop);
-          cxt.ok(valid);
-        }
-        function hasDefault(prop) {
-          return it.opts.useDefaults && !it.compositeRule && schema[prop].default !== void 0;
-        }
-        function applyPropertySchema(prop) {
-          cxt.subschema({
-            keyword: "properties",
-            schemaProp: prop,
-            dataProp: prop
-          }, valid);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/patternProperties.js
-var require_patternProperties = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/patternProperties.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var code_1 = require_code2();
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var util_2 = require_util();
-    var def = {
-      keyword: "patternProperties",
-      type: "object",
-      schemaType: "object",
-      code(cxt) {
-        const { gen, schema, data, parentSchema, it } = cxt;
-        const { opts } = it;
-        const patterns = (0, code_1.allSchemaProperties)(schema);
-        const alwaysValidPatterns = patterns.filter((p) => (0, util_1.alwaysValidSchema)(it, schema[p]));
-        if (patterns.length === 0 || alwaysValidPatterns.length === patterns.length && (!it.opts.unevaluated || it.props === true)) {
-          return;
-        }
-        const checkProperties = opts.strictSchema && !opts.allowMatchingProperties && parentSchema.properties;
-        const valid = gen.name("valid");
-        if (it.props !== true && !(it.props instanceof codegen_1.Name)) {
-          it.props = (0, util_2.evaluatedPropsToName)(gen, it.props);
-        }
-        const { props } = it;
-        validatePatternProperties();
-        function validatePatternProperties() {
-          for (const pat of patterns) {
-            if (checkProperties)
-              checkMatchingProperties(pat);
-            if (it.allErrors) {
-              validateProperties(pat);
-            } else {
-              gen.var(valid, true);
-              validateProperties(pat);
-              gen.if(valid);
-            }
-          }
-        }
-        function checkMatchingProperties(pat) {
-          for (const prop in checkProperties) {
-            if (new RegExp(pat).test(prop)) {
-              (0, util_1.checkStrictMode)(it, `property ${prop} matches pattern ${pat} (use allowMatchingProperties)`);
-            }
-          }
-        }
-        function validateProperties(pat) {
-          gen.forIn("key", data, (key) => {
-            gen.if((0, codegen_1._)`${(0, code_1.usePattern)(cxt, pat)}.test(${key})`, () => {
-              const alwaysValid = alwaysValidPatterns.includes(pat);
-              if (!alwaysValid) {
-                cxt.subschema({
-                  keyword: "patternProperties",
-                  schemaProp: pat,
-                  dataProp: key,
-                  dataPropType: util_2.Type.Str
-                }, valid);
-              }
-              if (it.opts.unevaluated && props !== true) {
-                gen.assign((0, codegen_1._)`${props}[${key}]`, true);
-              } else if (!alwaysValid && !it.allErrors) {
-                gen.if((0, codegen_1.not)(valid), () => gen.break());
-              }
-            });
-          });
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/not.js
-var require_not = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/not.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var util_1 = require_util();
-    var def = {
-      keyword: "not",
-      schemaType: ["object", "boolean"],
-      trackErrors: true,
-      code(cxt) {
-        const { gen, schema, it } = cxt;
-        if ((0, util_1.alwaysValidSchema)(it, schema)) {
-          cxt.fail();
-          return;
-        }
-        const valid = gen.name("valid");
-        cxt.subschema({
-          keyword: "not",
-          compositeRule: true,
-          createErrors: false,
-          allErrors: false
-        }, valid);
-        cxt.failResult(valid, () => cxt.reset(), () => cxt.error());
-      },
-      error: { message: "must NOT be valid" }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/anyOf.js
-var require_anyOf = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/anyOf.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var code_1 = require_code2();
-    var def = {
-      keyword: "anyOf",
-      schemaType: "array",
-      trackErrors: true,
-      code: code_1.validateUnion,
-      error: { message: "must match a schema in anyOf" }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/oneOf.js
-var require_oneOf = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/oneOf.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: "must match exactly one schema in oneOf",
-      params: ({ params }) => (0, codegen_1._)`{passingSchemas: ${params.passing}}`
-    };
-    var def = {
-      keyword: "oneOf",
-      schemaType: "array",
-      trackErrors: true,
-      error,
-      code(cxt) {
-        const { gen, schema, parentSchema, it } = cxt;
-        if (!Array.isArray(schema))
-          throw new Error("ajv implementation error");
-        if (it.opts.discriminator && parentSchema.discriminator)
-          return;
-        const schArr = schema;
-        const valid = gen.let("valid", false);
-        const passing = gen.let("passing", null);
-        const schValid = gen.name("_valid");
-        cxt.setParams({ passing });
-        gen.block(validateOneOf);
-        cxt.result(valid, () => cxt.reset(), () => cxt.error(true));
-        function validateOneOf() {
-          schArr.forEach((sch, i) => {
-            let schCxt;
-            if ((0, util_1.alwaysValidSchema)(it, sch)) {
-              gen.var(schValid, true);
-            } else {
-              schCxt = cxt.subschema({
-                keyword: "oneOf",
-                schemaProp: i,
-                compositeRule: true
-              }, schValid);
-            }
-            if (i > 0) {
-              gen.if((0, codegen_1._)`${schValid} && ${valid}`).assign(valid, false).assign(passing, (0, codegen_1._)`[${passing}, ${i}]`).else();
-            }
-            gen.if(schValid, () => {
-              gen.assign(valid, true);
-              gen.assign(passing, i);
-              if (schCxt)
-                cxt.mergeEvaluated(schCxt, codegen_1.Name);
-            });
-          });
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/allOf.js
-var require_allOf = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/allOf.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var util_1 = require_util();
-    var def = {
-      keyword: "allOf",
-      schemaType: "array",
-      code(cxt) {
-        const { gen, schema, it } = cxt;
-        if (!Array.isArray(schema))
-          throw new Error("ajv implementation error");
-        const valid = gen.name("valid");
-        schema.forEach((sch, i) => {
-          if ((0, util_1.alwaysValidSchema)(it, sch))
-            return;
-          const schCxt = cxt.subschema({ keyword: "allOf", schemaProp: i }, valid);
-          cxt.ok(valid);
-          cxt.mergeEvaluated(schCxt);
-        });
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/if.js
-var require_if = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/if.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: ({ params }) => (0, codegen_1.str)`must match "${params.ifClause}" schema`,
-      params: ({ params }) => (0, codegen_1._)`{failingKeyword: ${params.ifClause}}`
-    };
-    var def = {
-      keyword: "if",
-      schemaType: ["object", "boolean"],
-      trackErrors: true,
-      error,
-      code(cxt) {
-        const { gen, parentSchema, it } = cxt;
-        if (parentSchema.then === void 0 && parentSchema.else === void 0) {
-          (0, util_1.checkStrictMode)(it, '"if" without "then" and "else" is ignored');
-        }
-        const hasThen = hasSchema(it, "then");
-        const hasElse = hasSchema(it, "else");
-        if (!hasThen && !hasElse)
-          return;
-        const valid = gen.let("valid", true);
-        const schValid = gen.name("_valid");
-        validateIf();
-        cxt.reset();
-        if (hasThen && hasElse) {
-          const ifClause = gen.let("ifClause");
-          cxt.setParams({ ifClause });
-          gen.if(schValid, validateClause("then", ifClause), validateClause("else", ifClause));
-        } else if (hasThen) {
-          gen.if(schValid, validateClause("then"));
-        } else {
-          gen.if((0, codegen_1.not)(schValid), validateClause("else"));
-        }
-        cxt.pass(valid, () => cxt.error(true));
-        function validateIf() {
-          const schCxt = cxt.subschema({
-            keyword: "if",
-            compositeRule: true,
-            createErrors: false,
-            allErrors: false
-          }, schValid);
-          cxt.mergeEvaluated(schCxt);
-        }
-        function validateClause(keyword, ifClause) {
-          return () => {
-            const schCxt = cxt.subschema({ keyword }, schValid);
-            gen.assign(valid, schValid);
-            cxt.mergeValidEvaluated(schCxt, valid);
-            if (ifClause)
-              gen.assign(ifClause, (0, codegen_1._)`${keyword}`);
-            else
-              cxt.setParams({ ifClause: keyword });
-          };
-        }
-      }
-    };
-    function hasSchema(it, keyword) {
-      const schema = it.schema[keyword];
-      return schema !== void 0 && !(0, util_1.alwaysValidSchema)(it, schema);
-    }
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/thenElse.js
-var require_thenElse = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/thenElse.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var util_1 = require_util();
-    var def = {
-      keyword: ["then", "else"],
-      schemaType: ["object", "boolean"],
-      code({ keyword, parentSchema, it }) {
-        if (parentSchema.if === void 0)
-          (0, util_1.checkStrictMode)(it, `"${keyword}" without "if" is ignored`);
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/index.js
-var require_applicator = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var additionalItems_1 = require_additionalItems();
-    var prefixItems_1 = require_prefixItems();
-    var items_1 = require_items();
-    var items2020_1 = require_items2020();
-    var contains_1 = require_contains();
-    var dependencies_1 = require_dependencies();
-    var propertyNames_1 = require_propertyNames();
-    var additionalProperties_1 = require_additionalProperties();
-    var properties_1 = require_properties();
-    var patternProperties_1 = require_patternProperties();
-    var not_1 = require_not();
-    var anyOf_1 = require_anyOf();
-    var oneOf_1 = require_oneOf();
-    var allOf_1 = require_allOf();
-    var if_1 = require_if();
-    var thenElse_1 = require_thenElse();
-    function getApplicator(draft2020 = false) {
-      const applicator = [
-        // any
-        not_1.default,
-        anyOf_1.default,
-        oneOf_1.default,
-        allOf_1.default,
-        if_1.default,
-        thenElse_1.default,
-        // object
-        propertyNames_1.default,
-        additionalProperties_1.default,
-        dependencies_1.default,
-        properties_1.default,
-        patternProperties_1.default
-      ];
-      if (draft2020)
-        applicator.push(prefixItems_1.default, items2020_1.default);
-      else
-        applicator.push(additionalItems_1.default, items_1.default);
-      applicator.push(contains_1.default);
-      return applicator;
-    }
-    exports.default = getApplicator;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/dynamic/dynamicAnchor.js
-var require_dynamicAnchor = __commonJS({
-  "node_modules/ajv/dist/vocabularies/dynamic/dynamicAnchor.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.dynamicAnchor = void 0;
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var compile_1 = require_compile();
-    var ref_1 = require_ref();
-    var def = {
-      keyword: "$dynamicAnchor",
-      schemaType: "string",
-      code: (cxt) => dynamicAnchor(cxt, cxt.schema)
-    };
-    function dynamicAnchor(cxt, anchor) {
-      const { gen, it } = cxt;
-      it.schemaEnv.root.dynamicAnchors[anchor] = true;
-      const v = (0, codegen_1._)`${names_1.default.dynamicAnchors}${(0, codegen_1.getProperty)(anchor)}`;
-      const validate = it.errSchemaPath === "#" ? it.validateName : _getValidate(cxt);
-      gen.if((0, codegen_1._)`!${v}`, () => gen.assign(v, validate));
-    }
-    exports.dynamicAnchor = dynamicAnchor;
-    function _getValidate(cxt) {
-      const { schemaEnv, schema, self } = cxt.it;
-      const { root, baseId, localRefs, meta } = schemaEnv.root;
-      const { schemaId } = self.opts;
-      const sch = new compile_1.SchemaEnv({ schema, schemaId, root, baseId, localRefs, meta });
-      compile_1.compileSchema.call(self, sch);
-      return (0, ref_1.getValidate)(cxt, sch);
-    }
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/dynamic/dynamicRef.js
-var require_dynamicRef = __commonJS({
-  "node_modules/ajv/dist/vocabularies/dynamic/dynamicRef.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.dynamicRef = void 0;
-    var codegen_1 = require_codegen();
-    var names_1 = require_names();
-    var ref_1 = require_ref();
-    var def = {
-      keyword: "$dynamicRef",
-      schemaType: "string",
-      code: (cxt) => dynamicRef(cxt, cxt.schema)
-    };
-    function dynamicRef(cxt, ref) {
-      const { gen, keyword, it } = cxt;
-      if (ref[0] !== "#")
-        throw new Error(`"${keyword}" only supports hash fragment reference`);
-      const anchor = ref.slice(1);
-      if (it.allErrors) {
-        _dynamicRef();
-      } else {
-        const valid = gen.let("valid", false);
-        _dynamicRef(valid);
-        cxt.ok(valid);
-      }
-      function _dynamicRef(valid) {
-        if (it.schemaEnv.root.dynamicAnchors[anchor]) {
-          const v = gen.let("_v", (0, codegen_1._)`${names_1.default.dynamicAnchors}${(0, codegen_1.getProperty)(anchor)}`);
-          gen.if(v, _callRef(v, valid), _callRef(it.validateName, valid));
-        } else {
-          _callRef(it.validateName, valid)();
-        }
-      }
-      function _callRef(validate, valid) {
-        return valid ? () => gen.block(() => {
-          (0, ref_1.callRef)(cxt, validate);
-          gen.let(valid, true);
-        }) : () => (0, ref_1.callRef)(cxt, validate);
-      }
-    }
-    exports.dynamicRef = dynamicRef;
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/dynamic/recursiveAnchor.js
-var require_recursiveAnchor = __commonJS({
-  "node_modules/ajv/dist/vocabularies/dynamic/recursiveAnchor.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dynamicAnchor_1 = require_dynamicAnchor();
-    var util_1 = require_util();
-    var def = {
-      keyword: "$recursiveAnchor",
-      schemaType: "boolean",
-      code(cxt) {
-        if (cxt.schema)
-          (0, dynamicAnchor_1.dynamicAnchor)(cxt, "");
-        else
-          (0, util_1.checkStrictMode)(cxt.it, "$recursiveAnchor: false is ignored");
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/dynamic/recursiveRef.js
-var require_recursiveRef = __commonJS({
-  "node_modules/ajv/dist/vocabularies/dynamic/recursiveRef.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dynamicRef_1 = require_dynamicRef();
-    var def = {
-      keyword: "$recursiveRef",
-      schemaType: "string",
-      code: (cxt) => (0, dynamicRef_1.dynamicRef)(cxt, cxt.schema)
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/dynamic/index.js
-var require_dynamic = __commonJS({
-  "node_modules/ajv/dist/vocabularies/dynamic/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dynamicAnchor_1 = require_dynamicAnchor();
-    var dynamicRef_1 = require_dynamicRef();
-    var recursiveAnchor_1 = require_recursiveAnchor();
-    var recursiveRef_1 = require_recursiveRef();
-    var dynamic = [dynamicAnchor_1.default, dynamicRef_1.default, recursiveAnchor_1.default, recursiveRef_1.default];
-    exports.default = dynamic;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/dependentRequired.js
-var require_dependentRequired = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/dependentRequired.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dependencies_1 = require_dependencies();
-    var def = {
-      keyword: "dependentRequired",
-      type: "object",
-      schemaType: "object",
-      error: dependencies_1.error,
-      code: (cxt) => (0, dependencies_1.validatePropertyDeps)(cxt)
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/applicator/dependentSchemas.js
-var require_dependentSchemas = __commonJS({
-  "node_modules/ajv/dist/vocabularies/applicator/dependentSchemas.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dependencies_1 = require_dependencies();
-    var def = {
-      keyword: "dependentSchemas",
-      type: "object",
-      schemaType: "object",
-      code: (cxt) => (0, dependencies_1.validateSchemaDeps)(cxt)
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/validation/limitContains.js
-var require_limitContains = __commonJS({
-  "node_modules/ajv/dist/vocabularies/validation/limitContains.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var util_1 = require_util();
-    var def = {
-      keyword: ["maxContains", "minContains"],
-      type: "array",
-      schemaType: "number",
-      code({ keyword, parentSchema, it }) {
-        if (parentSchema.contains === void 0) {
-          (0, util_1.checkStrictMode)(it, `"${keyword}" without "contains" is ignored`);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/next.js
-var require_next = __commonJS({
-  "node_modules/ajv/dist/vocabularies/next.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var dependentRequired_1 = require_dependentRequired();
-    var dependentSchemas_1 = require_dependentSchemas();
-    var limitContains_1 = require_limitContains();
-    var next = [dependentRequired_1.default, dependentSchemas_1.default, limitContains_1.default];
-    exports.default = next;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedProperties.js
-var require_unevaluatedProperties = __commonJS({
-  "node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedProperties.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var names_1 = require_names();
-    var error = {
-      message: "must NOT have unevaluated properties",
-      params: ({ params }) => (0, codegen_1._)`{unevaluatedProperty: ${params.unevaluatedProperty}}`
-    };
-    var def = {
-      keyword: "unevaluatedProperties",
-      type: "object",
-      schemaType: ["boolean", "object"],
-      trackErrors: true,
-      error,
-      code(cxt) {
-        const { gen, schema, data, errsCount, it } = cxt;
-        if (!errsCount)
-          throw new Error("ajv implementation error");
-        const { allErrors, props } = it;
-        if (props instanceof codegen_1.Name) {
-          gen.if((0, codegen_1._)`${props} !== true`, () => gen.forIn("key", data, (key) => gen.if(unevaluatedDynamic(props, key), () => unevaluatedPropCode(key))));
-        } else if (props !== true) {
-          gen.forIn("key", data, (key) => props === void 0 ? unevaluatedPropCode(key) : gen.if(unevaluatedStatic(props, key), () => unevaluatedPropCode(key)));
-        }
-        it.props = true;
-        cxt.ok((0, codegen_1._)`${errsCount} === ${names_1.default.errors}`);
-        function unevaluatedPropCode(key) {
-          if (schema === false) {
-            cxt.setParams({ unevaluatedProperty: key });
-            cxt.error();
-            if (!allErrors)
-              gen.break();
-            return;
-          }
-          if (!(0, util_1.alwaysValidSchema)(it, schema)) {
-            const valid = gen.name("valid");
-            cxt.subschema({
-              keyword: "unevaluatedProperties",
-              dataProp: key,
-              dataPropType: util_1.Type.Str
-            }, valid);
-            if (!allErrors)
-              gen.if((0, codegen_1.not)(valid), () => gen.break());
-          }
-        }
-        function unevaluatedDynamic(evaluatedProps, key) {
-          return (0, codegen_1._)`!${evaluatedProps} || !${evaluatedProps}[${key}]`;
-        }
-        function unevaluatedStatic(evaluatedProps, key) {
-          const ps = [];
-          for (const p in evaluatedProps) {
-            if (evaluatedProps[p] === true)
-              ps.push((0, codegen_1._)`${key} !== ${p}`);
-          }
-          return (0, codegen_1.and)(...ps);
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedItems.js
-var require_unevaluatedItems = __commonJS({
-  "node_modules/ajv/dist/vocabularies/unevaluated/unevaluatedItems.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var util_1 = require_util();
-    var error = {
-      message: ({ params: { len } }) => (0, codegen_1.str)`must NOT have more than ${len} items`,
-      params: ({ params: { len } }) => (0, codegen_1._)`{limit: ${len}}`
-    };
-    var def = {
-      keyword: "unevaluatedItems",
-      type: "array",
-      schemaType: ["boolean", "object"],
-      error,
-      code(cxt) {
-        const { gen, schema, data, it } = cxt;
-        const items2 = it.items || 0;
-        if (items2 === true)
-          return;
-        const len = gen.const("len", (0, codegen_1._)`${data}.length`);
-        if (schema === false) {
-          cxt.setParams({ len: items2 });
-          cxt.fail((0, codegen_1._)`${len} > ${items2}`);
-        } else if (typeof schema == "object" && !(0, util_1.alwaysValidSchema)(it, schema)) {
-          const valid = gen.var("valid", (0, codegen_1._)`${len} <= ${items2}`);
-          gen.if((0, codegen_1.not)(valid), () => validateItems(valid, items2));
-          cxt.ok(valid);
-        }
-        it.items = true;
-        function validateItems(valid, from) {
-          gen.forRange("i", from, len, (i) => {
-            cxt.subschema({ keyword: "unevaluatedItems", dataProp: i, dataPropType: util_1.Type.Num }, valid);
-            if (!it.allErrors)
-              gen.if((0, codegen_1.not)(valid), () => gen.break());
-          });
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/unevaluated/index.js
-var require_unevaluated = __commonJS({
-  "node_modules/ajv/dist/vocabularies/unevaluated/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var unevaluatedProperties_1 = require_unevaluatedProperties();
-    var unevaluatedItems_1 = require_unevaluatedItems();
-    var unevaluated = [unevaluatedProperties_1.default, unevaluatedItems_1.default];
-    exports.default = unevaluated;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/format/format.js
-var require_format = __commonJS({
-  "node_modules/ajv/dist/vocabularies/format/format.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var error = {
-      message: ({ schemaCode }) => (0, codegen_1.str)`must match format "${schemaCode}"`,
-      params: ({ schemaCode }) => (0, codegen_1._)`{format: ${schemaCode}}`
-    };
-    var def = {
-      keyword: "format",
-      type: ["number", "string"],
-      schemaType: "string",
-      $data: true,
-      error,
-      code(cxt, ruleType) {
-        const { gen, data, $data, schema, schemaCode, it } = cxt;
-        const { opts, errSchemaPath, schemaEnv, self } = it;
-        if (!opts.validateFormats)
-          return;
-        if ($data)
-          validate$DataFormat();
-        else
-          validateFormat();
-        function validate$DataFormat() {
-          const fmts = gen.scopeValue("formats", {
-            ref: self.formats,
-            code: opts.code.formats
-          });
-          const fDef = gen.const("fDef", (0, codegen_1._)`${fmts}[${schemaCode}]`);
-          const fType = gen.let("fType");
-          const format = gen.let("format");
-          gen.if((0, codegen_1._)`typeof ${fDef} == "object" && !(${fDef} instanceof RegExp)`, () => gen.assign(fType, (0, codegen_1._)`${fDef}.type || "string"`).assign(format, (0, codegen_1._)`${fDef}.validate`), () => gen.assign(fType, (0, codegen_1._)`"string"`).assign(format, fDef));
-          cxt.fail$data((0, codegen_1.or)(unknownFmt(), invalidFmt()));
-          function unknownFmt() {
-            if (opts.strictSchema === false)
-              return codegen_1.nil;
-            return (0, codegen_1._)`${schemaCode} && !${format}`;
-          }
-          function invalidFmt() {
-            const callFormat = schemaEnv.$async ? (0, codegen_1._)`(${fDef}.async ? await ${format}(${data}) : ${format}(${data}))` : (0, codegen_1._)`${format}(${data})`;
-            const validData = (0, codegen_1._)`(typeof ${format} == "function" ? ${callFormat} : ${format}.test(${data}))`;
-            return (0, codegen_1._)`${format} && ${format} !== true && ${fType} === ${ruleType} && !${validData}`;
-          }
-        }
-        function validateFormat() {
-          const formatDef = self.formats[schema];
-          if (!formatDef) {
-            unknownFormat();
-            return;
-          }
-          if (formatDef === true)
-            return;
-          const [fmtType, format, fmtRef] = getFormat(formatDef);
-          if (fmtType === ruleType)
-            cxt.pass(validCondition());
-          function unknownFormat() {
-            if (opts.strictSchema === false) {
-              self.logger.warn(unknownMsg());
-              return;
-            }
-            throw new Error(unknownMsg());
-            function unknownMsg() {
-              return `unknown format "${schema}" ignored in schema at path "${errSchemaPath}"`;
-            }
-          }
-          function getFormat(fmtDef) {
-            const code = fmtDef instanceof RegExp ? (0, codegen_1.regexpCode)(fmtDef) : opts.code.formats ? (0, codegen_1._)`${opts.code.formats}${(0, codegen_1.getProperty)(schema)}` : void 0;
-            const fmt = gen.scopeValue("formats", { key: schema, ref: fmtDef, code });
-            if (typeof fmtDef == "object" && !(fmtDef instanceof RegExp)) {
-              return [fmtDef.type || "string", fmtDef.validate, (0, codegen_1._)`${fmt}.validate`];
-            }
-            return ["string", fmtDef, fmt];
-          }
-          function validCondition() {
-            if (typeof formatDef == "object" && !(formatDef instanceof RegExp) && formatDef.async) {
-              if (!schemaEnv.$async)
-                throw new Error("async format in sync schema");
-              return (0, codegen_1._)`await ${fmtRef}(${data})`;
-            }
-            return typeof format == "function" ? (0, codegen_1._)`${fmtRef}(${data})` : (0, codegen_1._)`${fmtRef}.test(${data})`;
-          }
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/format/index.js
-var require_format2 = __commonJS({
-  "node_modules/ajv/dist/vocabularies/format/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var format_1 = require_format();
-    var format = [format_1.default];
-    exports.default = format;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/metadata.js
-var require_metadata = __commonJS({
-  "node_modules/ajv/dist/vocabularies/metadata.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.contentVocabulary = exports.metadataVocabulary = void 0;
-    exports.metadataVocabulary = [
-      "title",
-      "description",
-      "default",
-      "deprecated",
-      "readOnly",
-      "writeOnly",
-      "examples"
-    ];
-    exports.contentVocabulary = [
-      "contentMediaType",
-      "contentEncoding",
-      "contentSchema"
-    ];
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/draft2020.js
-var require_draft2020 = __commonJS({
-  "node_modules/ajv/dist/vocabularies/draft2020.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var core_1 = require_core2();
-    var validation_1 = require_validation();
-    var applicator_1 = require_applicator();
-    var dynamic_1 = require_dynamic();
-    var next_1 = require_next();
-    var unevaluated_1 = require_unevaluated();
-    var format_1 = require_format2();
-    var metadata_1 = require_metadata();
-    var draft2020Vocabularies = [
-      dynamic_1.default,
-      core_1.default,
-      validation_1.default,
-      (0, applicator_1.default)(true),
-      format_1.default,
-      metadata_1.metadataVocabulary,
-      metadata_1.contentVocabulary,
-      next_1.default,
-      unevaluated_1.default
-    ];
-    exports.default = draft2020Vocabularies;
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/discriminator/types.js
-var require_types = __commonJS({
-  "node_modules/ajv/dist/vocabularies/discriminator/types.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.DiscrError = void 0;
-    var DiscrError;
-    (function(DiscrError2) {
-      DiscrError2["Tag"] = "tag";
-      DiscrError2["Mapping"] = "mapping";
-    })(DiscrError || (exports.DiscrError = DiscrError = {}));
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/discriminator/index.js
-var require_discriminator = __commonJS({
-  "node_modules/ajv/dist/vocabularies/discriminator/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var codegen_1 = require_codegen();
-    var types_1 = require_types();
-    var compile_1 = require_compile();
-    var ref_error_1 = require_ref_error();
-    var util_1 = require_util();
-    var error = {
-      message: ({ params: { discrError, tagName } }) => discrError === types_1.DiscrError.Tag ? `tag "${tagName}" must be string` : `value of tag "${tagName}" must be in oneOf`,
-      params: ({ params: { discrError, tag, tagName } }) => (0, codegen_1._)`{error: ${discrError}, tag: ${tagName}, tagValue: ${tag}}`
-    };
-    var def = {
-      keyword: "discriminator",
-      type: "object",
-      schemaType: "object",
-      error,
-      code(cxt) {
-        const { gen, data, schema, parentSchema, it } = cxt;
-        const { oneOf } = parentSchema;
-        if (!it.opts.discriminator) {
-          throw new Error("discriminator: requires discriminator option");
-        }
-        const tagName = schema.propertyName;
-        if (typeof tagName != "string")
-          throw new Error("discriminator: requires propertyName");
-        if (schema.mapping)
-          throw new Error("discriminator: mapping is not supported");
-        if (!oneOf)
-          throw new Error("discriminator: requires oneOf keyword");
-        const valid = gen.let("valid", false);
-        const tag = gen.const("tag", (0, codegen_1._)`${data}${(0, codegen_1.getProperty)(tagName)}`);
-        gen.if((0, codegen_1._)`typeof ${tag} == "string"`, () => validateMapping(), () => cxt.error(false, { discrError: types_1.DiscrError.Tag, tag, tagName }));
-        cxt.ok(valid);
-        function validateMapping() {
-          const mapping = getMapping();
-          gen.if(false);
-          for (const tagValue in mapping) {
-            gen.elseIf((0, codegen_1._)`${tag} === ${tagValue}`);
-            gen.assign(valid, applyTagSchema(mapping[tagValue]));
-          }
-          gen.else();
-          cxt.error(false, { discrError: types_1.DiscrError.Mapping, tag, tagName });
-          gen.endIf();
-        }
-        function applyTagSchema(schemaProp) {
-          const _valid = gen.name("valid");
-          const schCxt = cxt.subschema({ keyword: "oneOf", schemaProp }, _valid);
-          cxt.mergeEvaluated(schCxt, codegen_1.Name);
-          return _valid;
-        }
-        function getMapping() {
-          var _a;
-          const oneOfMapping = {};
-          const topRequired = hasRequired(parentSchema);
-          let tagRequired = true;
-          for (let i = 0; i < oneOf.length; i++) {
-            let sch = oneOf[i];
-            if ((sch === null || sch === void 0 ? void 0 : sch.$ref) && !(0, util_1.schemaHasRulesButRef)(sch, it.self.RULES)) {
-              const ref = sch.$ref;
-              sch = compile_1.resolveRef.call(it.self, it.schemaEnv.root, it.baseId, ref);
-              if (sch instanceof compile_1.SchemaEnv)
-                sch = sch.schema;
-              if (sch === void 0)
-                throw new ref_error_1.default(it.opts.uriResolver, it.baseId, ref);
-            }
-            const propSch = (_a = sch === null || sch === void 0 ? void 0 : sch.properties) === null || _a === void 0 ? void 0 : _a[tagName];
-            if (typeof propSch != "object") {
-              throw new Error(`discriminator: oneOf subschemas (or referenced schemas) must have "properties/${tagName}"`);
-            }
-            tagRequired = tagRequired && (topRequired || hasRequired(sch));
-            addMappings(propSch, i);
-          }
-          if (!tagRequired)
-            throw new Error(`discriminator: "${tagName}" must be required`);
-          return oneOfMapping;
-          function hasRequired({ required }) {
-            return Array.isArray(required) && required.includes(tagName);
-          }
-          function addMappings(sch, i) {
-            if (sch.const) {
-              addMapping(sch.const, i);
-            } else if (sch.enum) {
-              for (const tagValue of sch.enum) {
-                addMapping(tagValue, i);
-              }
-            } else {
-              throw new Error(`discriminator: "properties/${tagName}" must have "const" or "enum"`);
-            }
-          }
-          function addMapping(tagValue, i) {
-            if (typeof tagValue != "string" || tagValue in oneOfMapping) {
-              throw new Error(`discriminator: "${tagName}" values must be unique strings`);
-            }
-            oneOfMapping[tagValue] = i;
-          }
-        }
-      }
-    };
-    exports.default = def;
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/schema.json
-var require_schema = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/schema.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/schema",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/core": true,
-        "https://json-schema.org/draft/2020-12/vocab/applicator": true,
-        "https://json-schema.org/draft/2020-12/vocab/unevaluated": true,
-        "https://json-schema.org/draft/2020-12/vocab/validation": true,
-        "https://json-schema.org/draft/2020-12/vocab/meta-data": true,
-        "https://json-schema.org/draft/2020-12/vocab/format-annotation": true,
-        "https://json-schema.org/draft/2020-12/vocab/content": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Core and Validation specifications meta-schema",
-      allOf: [
-        { $ref: "meta/core" },
-        { $ref: "meta/applicator" },
-        { $ref: "meta/unevaluated" },
-        { $ref: "meta/validation" },
-        { $ref: "meta/meta-data" },
-        { $ref: "meta/format-annotation" },
-        { $ref: "meta/content" }
-      ],
-      type: ["object", "boolean"],
-      $comment: "This meta-schema also defines keywords that have appeared in previous drafts in order to prevent incompatible extensions as they remain in common use.",
-      properties: {
-        definitions: {
-          $comment: '"definitions" has been replaced by "$defs".',
-          type: "object",
-          additionalProperties: { $dynamicRef: "#meta" },
-          deprecated: true,
-          default: {}
-        },
-        dependencies: {
-          $comment: '"dependencies" has been split and replaced by "dependentSchemas" and "dependentRequired" in order to serve their differing semantics.',
-          type: "object",
-          additionalProperties: {
-            anyOf: [{ $dynamicRef: "#meta" }, { $ref: "meta/validation#/$defs/stringArray" }]
-          },
-          deprecated: true,
-          default: {}
-        },
-        $recursiveAnchor: {
-          $comment: '"$recursiveAnchor" has been replaced by "$dynamicAnchor".',
-          $ref: "meta/core#/$defs/anchorString",
-          deprecated: true
-        },
-        $recursiveRef: {
-          $comment: '"$recursiveRef" has been replaced by "$dynamicRef".',
-          $ref: "meta/core#/$defs/uriReferenceString",
-          deprecated: true
-        }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/applicator.json
-var require_applicator2 = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/applicator.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/applicator",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/applicator": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Applicator vocabulary meta-schema",
-      type: ["object", "boolean"],
-      properties: {
-        prefixItems: { $ref: "#/$defs/schemaArray" },
-        items: { $dynamicRef: "#meta" },
-        contains: { $dynamicRef: "#meta" },
-        additionalProperties: { $dynamicRef: "#meta" },
-        properties: {
-          type: "object",
-          additionalProperties: { $dynamicRef: "#meta" },
-          default: {}
-        },
-        patternProperties: {
-          type: "object",
-          additionalProperties: { $dynamicRef: "#meta" },
-          propertyNames: { format: "regex" },
-          default: {}
-        },
-        dependentSchemas: {
-          type: "object",
-          additionalProperties: { $dynamicRef: "#meta" },
-          default: {}
-        },
-        propertyNames: { $dynamicRef: "#meta" },
-        if: { $dynamicRef: "#meta" },
-        then: { $dynamicRef: "#meta" },
-        else: { $dynamicRef: "#meta" },
-        allOf: { $ref: "#/$defs/schemaArray" },
-        anyOf: { $ref: "#/$defs/schemaArray" },
-        oneOf: { $ref: "#/$defs/schemaArray" },
-        not: { $dynamicRef: "#meta" }
-      },
-      $defs: {
-        schemaArray: {
-          type: "array",
-          minItems: 1,
-          items: { $dynamicRef: "#meta" }
-        }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/unevaluated.json
-var require_unevaluated2 = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/unevaluated.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/unevaluated",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/unevaluated": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Unevaluated applicator vocabulary meta-schema",
-      type: ["object", "boolean"],
-      properties: {
-        unevaluatedItems: { $dynamicRef: "#meta" },
-        unevaluatedProperties: { $dynamicRef: "#meta" }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/content.json
-var require_content = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/content.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/content",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/content": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Content vocabulary meta-schema",
-      type: ["object", "boolean"],
-      properties: {
-        contentEncoding: { type: "string" },
-        contentMediaType: { type: "string" },
-        contentSchema: { $dynamicRef: "#meta" }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/core.json
-var require_core3 = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/core.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/core",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/core": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Core vocabulary meta-schema",
-      type: ["object", "boolean"],
-      properties: {
-        $id: {
-          $ref: "#/$defs/uriReferenceString",
-          $comment: "Non-empty fragments not allowed.",
-          pattern: "^[^#]*#?$"
-        },
-        $schema: { $ref: "#/$defs/uriString" },
-        $ref: { $ref: "#/$defs/uriReferenceString" },
-        $anchor: { $ref: "#/$defs/anchorString" },
-        $dynamicRef: { $ref: "#/$defs/uriReferenceString" },
-        $dynamicAnchor: { $ref: "#/$defs/anchorString" },
-        $vocabulary: {
-          type: "object",
-          propertyNames: { $ref: "#/$defs/uriString" },
-          additionalProperties: {
-            type: "boolean"
-          }
-        },
-        $comment: {
-          type: "string"
-        },
-        $defs: {
-          type: "object",
-          additionalProperties: { $dynamicRef: "#meta" }
-        }
-      },
-      $defs: {
-        anchorString: {
-          type: "string",
-          pattern: "^[A-Za-z_][-A-Za-z0-9._]*$"
-        },
-        uriString: {
-          type: "string",
-          format: "uri"
-        },
-        uriReferenceString: {
-          type: "string",
-          format: "uri-reference"
-        }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/format-annotation.json
-var require_format_annotation = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/format-annotation.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/format-annotation",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/format-annotation": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Format vocabulary meta-schema for annotation results",
-      type: ["object", "boolean"],
-      properties: {
-        format: { type: "string" }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/meta-data.json
-var require_meta_data = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/meta-data.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/meta-data",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/meta-data": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Meta-data vocabulary meta-schema",
-      type: ["object", "boolean"],
-      properties: {
-        title: {
-          type: "string"
-        },
-        description: {
-          type: "string"
-        },
-        default: true,
-        deprecated: {
-          type: "boolean",
-          default: false
-        },
-        readOnly: {
-          type: "boolean",
-          default: false
-        },
-        writeOnly: {
-          type: "boolean",
-          default: false
-        },
-        examples: {
-          type: "array",
-          items: true
-        }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/meta/validation.json
-var require_validation2 = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/meta/validation.json"(exports, module) {
-    module.exports = {
-      $schema: "https://json-schema.org/draft/2020-12/schema",
-      $id: "https://json-schema.org/draft/2020-12/meta/validation",
-      $vocabulary: {
-        "https://json-schema.org/draft/2020-12/vocab/validation": true
-      },
-      $dynamicAnchor: "meta",
-      title: "Validation vocabulary meta-schema",
-      type: ["object", "boolean"],
-      properties: {
-        type: {
-          anyOf: [
-            { $ref: "#/$defs/simpleTypes" },
-            {
-              type: "array",
-              items: { $ref: "#/$defs/simpleTypes" },
-              minItems: 1,
-              uniqueItems: true
-            }
-          ]
-        },
-        const: true,
-        enum: {
-          type: "array",
-          items: true
-        },
-        multipleOf: {
-          type: "number",
-          exclusiveMinimum: 0
-        },
-        maximum: {
-          type: "number"
-        },
-        exclusiveMaximum: {
-          type: "number"
-        },
-        minimum: {
-          type: "number"
-        },
-        exclusiveMinimum: {
-          type: "number"
-        },
-        maxLength: { $ref: "#/$defs/nonNegativeInteger" },
-        minLength: { $ref: "#/$defs/nonNegativeIntegerDefault0" },
-        pattern: {
-          type: "string",
-          format: "regex"
-        },
-        maxItems: { $ref: "#/$defs/nonNegativeInteger" },
-        minItems: { $ref: "#/$defs/nonNegativeIntegerDefault0" },
-        uniqueItems: {
-          type: "boolean",
-          default: false
-        },
-        maxContains: { $ref: "#/$defs/nonNegativeInteger" },
-        minContains: {
-          $ref: "#/$defs/nonNegativeInteger",
-          default: 1
-        },
-        maxProperties: { $ref: "#/$defs/nonNegativeInteger" },
-        minProperties: { $ref: "#/$defs/nonNegativeIntegerDefault0" },
-        required: { $ref: "#/$defs/stringArray" },
-        dependentRequired: {
-          type: "object",
-          additionalProperties: {
-            $ref: "#/$defs/stringArray"
-          }
-        }
-      },
-      $defs: {
-        nonNegativeInteger: {
-          type: "integer",
-          minimum: 0
-        },
-        nonNegativeIntegerDefault0: {
-          $ref: "#/$defs/nonNegativeInteger",
-          default: 0
-        },
-        simpleTypes: {
-          enum: ["array", "boolean", "integer", "null", "number", "object", "string"]
-        },
-        stringArray: {
-          type: "array",
-          items: { type: "string" },
-          uniqueItems: true,
-          default: []
-        }
-      }
-    };
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-2020-12/index.js
-var require_json_schema_2020_12 = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-2020-12/index.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var metaSchema = require_schema();
-    var applicator = require_applicator2();
-    var unevaluated = require_unevaluated2();
-    var content = require_content();
-    var core2 = require_core3();
-    var format = require_format_annotation();
-    var metadata = require_meta_data();
-    var validation = require_validation2();
-    var META_SUPPORT_DATA = ["/properties"];
-    function addMetaSchema2020($data) {
-      ;
-      [
-        metaSchema,
-        applicator,
-        unevaluated,
-        content,
-        core2,
-        with$data(this, format),
-        metadata,
-        with$data(this, validation)
-      ].forEach((sch) => this.addMetaSchema(sch, void 0, false));
-      return this;
-      function with$data(ajv2, sch) {
-        return $data ? ajv2.$dataMetaSchema(sch, META_SUPPORT_DATA) : sch;
-      }
-    }
-    exports.default = addMetaSchema2020;
-  }
-});
-
-// node_modules/ajv/dist/2020.js
-var require__ = __commonJS({
-  "node_modules/ajv/dist/2020.js"(exports, module) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv2020 = void 0;
-    var core_1 = require_core();
-    var draft2020_1 = require_draft2020();
-    var discriminator_1 = require_discriminator();
-    var json_schema_2020_12_1 = require_json_schema_2020_12();
-    var META_SCHEMA_ID = "https://json-schema.org/draft/2020-12/schema";
-    var Ajv2020 = class extends core_1.default {
-      constructor(opts = {}) {
-        super({
-          ...opts,
-          dynamicRef: true,
-          next: true,
-          unevaluated: true
-        });
-      }
-      _addVocabularies() {
-        super._addVocabularies();
-        draft2020_1.default.forEach((v) => this.addVocabulary(v));
-        if (this.opts.discriminator)
-          this.addKeyword(discriminator_1.default);
-      }
-      _addDefaultMetaSchema() {
-        super._addDefaultMetaSchema();
-        const { $data, meta } = this.opts;
-        if (!meta)
-          return;
-        json_schema_2020_12_1.default.call(this, $data);
-        this.refs["http://json-schema.org/schema"] = META_SCHEMA_ID;
-      }
-      defaultMeta() {
-        return this.opts.defaultMeta = super.defaultMeta() || (this.getSchema(META_SCHEMA_ID) ? META_SCHEMA_ID : void 0);
-      }
-    };
-    exports.Ajv2020 = Ajv2020;
-    module.exports = exports = Ajv2020;
-    module.exports.Ajv2020 = Ajv2020;
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Ajv2020;
-    var validate_1 = require_validate();
-    Object.defineProperty(exports, "KeywordCxt", { enumerable: true, get: function() {
-      return validate_1.KeywordCxt;
-    } });
-    var codegen_1 = require_codegen();
-    Object.defineProperty(exports, "_", { enumerable: true, get: function() {
-      return codegen_1._;
-    } });
-    Object.defineProperty(exports, "str", { enumerable: true, get: function() {
-      return codegen_1.str;
-    } });
-    Object.defineProperty(exports, "stringify", { enumerable: true, get: function() {
-      return codegen_1.stringify;
-    } });
-    Object.defineProperty(exports, "nil", { enumerable: true, get: function() {
-      return codegen_1.nil;
-    } });
-    Object.defineProperty(exports, "Name", { enumerable: true, get: function() {
-      return codegen_1.Name;
-    } });
-    Object.defineProperty(exports, "CodeGen", { enumerable: true, get: function() {
-      return codegen_1.CodeGen;
-    } });
-    var validation_error_1 = require_validation_error();
-    Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function() {
-      return validation_error_1.default;
-    } });
-    var ref_error_1 = require_ref_error();
-    Object.defineProperty(exports, "MissingRefError", { enumerable: true, get: function() {
-      return ref_error_1.default;
-    } });
-  }
-});
-
-// node_modules/ajv-formats/dist/formats.js
-var require_formats = __commonJS({
-  "node_modules/ajv-formats/dist/formats.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.formatNames = exports.fastFormats = exports.fullFormats = void 0;
-    function fmtDef(validate, compare) {
-      return { validate, compare };
-    }
-    exports.fullFormats = {
-      // date: http://tools.ietf.org/html/rfc3339#section-5.6
-      date: fmtDef(date, compareDate),
-      // date-time: http://tools.ietf.org/html/rfc3339#section-5.6
-      time: fmtDef(getTime(true), compareTime),
-      "date-time": fmtDef(getDateTime(true), compareDateTime),
-      "iso-time": fmtDef(getTime(), compareIsoTime),
-      "iso-date-time": fmtDef(getDateTime(), compareIsoDateTime),
-      // duration: https://tools.ietf.org/html/rfc3339#appendix-A
-      duration: /^P(?!$)((\d+Y)?(\d+M)?(\d+D)?(T(?=\d)(\d+H)?(\d+M)?(\d+S)?)?|(\d+W)?)$/,
-      uri,
-      "uri-reference": /^(?:[a-z][a-z0-9+\-.]*:)?(?:\/?\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'"()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'"()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'"()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'"()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'"()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'"()*+,;=:@]|%[0-9a-f]{2})*)*)?(?:\?(?:[a-z0-9\-._~!$&'"()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[a-z0-9\-._~!$&'"()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i,
-      // uri-template: https://tools.ietf.org/html/rfc6570
-      "uri-template": /^(?:(?:[^\x00-\x20"'<>%\\^`{|}]|%[0-9a-f]{2})|\{[+#./;?&=,!@|]?(?:[a-z0-9_]|%[0-9a-f]{2})+(?::[1-9][0-9]{0,3}|\*)?(?:,(?:[a-z0-9_]|%[0-9a-f]{2})+(?::[1-9][0-9]{0,3}|\*)?)*\})*$/i,
-      // For the source: https://gist.github.com/dperini/729294
-      // For test cases: https://mathiasbynens.be/demo/url-regex
-      url: /^(?:https?|ftp):\/\/(?:\S+(?::\S*)?@)?(?:(?!(?:10|127)(?:\.\d{1,3}){3})(?!(?:169\.254|192\.168)(?:\.\d{1,3}){2})(?!172\.(?:1[6-9]|2\d|3[0-1])(?:\.\d{1,3}){2})(?:[1-9]\d?|1\d\d|2[01]\d|22[0-3])(?:\.(?:1?\d{1,2}|2[0-4]\d|25[0-5])){2}(?:\.(?:[1-9]\d?|1\d\d|2[0-4]\d|25[0-4]))|(?:(?:[a-z0-9\u{00a1}-\u{ffff}]+-)*[a-z0-9\u{00a1}-\u{ffff}]+)(?:\.(?:[a-z0-9\u{00a1}-\u{ffff}]+-)*[a-z0-9\u{00a1}-\u{ffff}]+)*(?:\.(?:[a-z\u{00a1}-\u{ffff}]{2,})))(?::\d{2,5})?(?:\/[^\s]*)?$/iu,
-      email: /^[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*@(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/i,
-      hostname: /^(?=.{1,253}\.?$)[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[-0-9a-z]{0,61}[0-9a-z])?)*\.?$/i,
-      // optimized https://www.safaribooksonline.com/library/view/regular-expressions-cookbook/9780596802837/ch07s16.html
-      ipv4: /^(?:(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)$/,
-      ipv6: /^((([0-9a-f]{1,4}:){7}([0-9a-f]{1,4}|:))|(([0-9a-f]{1,4}:){6}(:[0-9a-f]{1,4}|((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9a-f]{1,4}:){5}(((:[0-9a-f]{1,4}){1,2})|:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3})|:))|(([0-9a-f]{1,4}:){4}(((:[0-9a-f]{1,4}){1,3})|((:[0-9a-f]{1,4})?:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9a-f]{1,4}:){3}(((:[0-9a-f]{1,4}){1,4})|((:[0-9a-f]{1,4}){0,2}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9a-f]{1,4}:){2}(((:[0-9a-f]{1,4}){1,5})|((:[0-9a-f]{1,4}){0,3}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(([0-9a-f]{1,4}:){1}(((:[0-9a-f]{1,4}){1,6})|((:[0-9a-f]{1,4}){0,4}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:))|(:(((:[0-9a-f]{1,4}){1,7})|((:[0-9a-f]{1,4}){0,5}:((25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}))|:)))$/i,
-      regex,
-      // uuid: http://tools.ietf.org/html/rfc4122
-      uuid: /^(?:urn:uuid:)?[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i,
-      // JSON-pointer: https://tools.ietf.org/html/rfc6901
-      // uri fragment: https://tools.ietf.org/html/rfc3986#appendix-A
-      "json-pointer": /^(?:\/(?:[^~/]|~0|~1)*)*$/,
-      "json-pointer-uri-fragment": /^#(?:\/(?:[a-z0-9_\-.!$&'()*+,;:=@]|%[0-9a-f]{2}|~0|~1)*)*$/i,
-      // relative JSON-pointer: http://tools.ietf.org/html/draft-luff-relative-json-pointer-00
-      "relative-json-pointer": /^(?:0|[1-9][0-9]*)(?:#|(?:\/(?:[^~/]|~0|~1)*)*)$/,
-      // the following formats are used by the openapi specification: https://spec.openapis.org/oas/v3.0.0#data-types
-      // byte: https://github.com/miguelmota/is-base64
-      byte,
-      // signed 32 bit integer
-      int32: { type: "number", validate: validateInt32 },
-      // signed 64 bit integer
-      int64: { type: "number", validate: validateInt64 },
-      // C-type float
-      float: { type: "number", validate: validateNumber },
-      // C-type double
-      double: { type: "number", validate: validateNumber },
-      // hint to the UI to hide input strings
-      password: true,
-      // unchecked string payload
-      binary: true
-    };
-    exports.fastFormats = {
-      ...exports.fullFormats,
-      date: fmtDef(/^\d\d\d\d-[0-1]\d-[0-3]\d$/, compareDate),
-      time: fmtDef(/^(?:[0-2]\d:[0-5]\d:[0-5]\d|23:59:60)(?:\.\d+)?(?:z|[+-]\d\d(?::?\d\d)?)$/i, compareTime),
-      "date-time": fmtDef(/^\d\d\d\d-[0-1]\d-[0-3]\dt(?:[0-2]\d:[0-5]\d:[0-5]\d|23:59:60)(?:\.\d+)?(?:z|[+-]\d\d(?::?\d\d)?)$/i, compareDateTime),
-      "iso-time": fmtDef(/^(?:[0-2]\d:[0-5]\d:[0-5]\d|23:59:60)(?:\.\d+)?(?:z|[+-]\d\d(?::?\d\d)?)?$/i, compareIsoTime),
-      "iso-date-time": fmtDef(/^\d\d\d\d-[0-1]\d-[0-3]\d[t\s](?:[0-2]\d:[0-5]\d:[0-5]\d|23:59:60)(?:\.\d+)?(?:z|[+-]\d\d(?::?\d\d)?)?$/i, compareIsoDateTime),
-      // uri: https://github.com/mafintosh/is-my-json-valid/blob/master/formats.js
-      uri: /^(?:[a-z][a-z0-9+\-.]*:)(?:\/?\/)?[^\s]*$/i,
-      "uri-reference": /^(?:(?:[a-z][a-z0-9+\-.]*:)?\/?\/)?(?:[^\\\s#][^\s#]*)?(?:#[^\\\s]*)?$/i,
-      // email (sources from jsen validator):
-      // http://stackoverflow.com/questions/201323/using-a-regular-expression-to-validate-an-email-address#answer-8829363
-      // http://www.w3.org/TR/html5/forms.html#valid-e-mail-address (search for 'wilful violation')
-      email: /^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*$/i
-    };
-    exports.formatNames = Object.keys(exports.fullFormats);
-    function isLeapYear(year) {
-      return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
-    }
-    var DATE = /^(\d\d\d\d)-(\d\d)-(\d\d)$/;
-    var DAYS = [0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
-    function date(str) {
-      const matches = DATE.exec(str);
-      if (!matches)
-        return false;
-      const year = +matches[1];
-      const month = +matches[2];
-      const day2 = +matches[3];
-      return month >= 1 && month <= 12 && day2 >= 1 && day2 <= (month === 2 && isLeapYear(year) ? 29 : DAYS[month]);
-    }
-    function compareDate(d1, d2) {
-      if (!(d1 && d2))
-        return void 0;
-      if (d1 > d2)
-        return 1;
-      if (d1 < d2)
-        return -1;
-      return 0;
-    }
-    var TIME = /^(\d\d):(\d\d):(\d\d(?:\.\d+)?)(z|([+-])(\d\d)(?::?(\d\d))?)?$/i;
-    function getTime(strictTimeZone) {
-      return function time(str) {
-        const matches = TIME.exec(str);
-        if (!matches)
-          return false;
-        const hr = +matches[1];
-        const min = +matches[2];
-        const sec = +matches[3];
-        const tz = matches[4];
-        const tzSign = matches[5] === "-" ? -1 : 1;
-        const tzH = +(matches[6] || 0);
-        const tzM = +(matches[7] || 0);
-        if (tzH > 23 || tzM > 59 || strictTimeZone && !tz)
-          return false;
-        if (hr <= 23 && min <= 59 && sec < 60)
-          return true;
-        const utcMin = min - tzM * tzSign;
-        const utcHr = hr - tzH * tzSign - (utcMin < 0 ? 1 : 0);
-        return (utcHr === 23 || utcHr === -1) && (utcMin === 59 || utcMin === -1) && sec < 61;
-      };
-    }
-    function compareTime(s1, s2) {
-      if (!(s1 && s2))
-        return void 0;
-      const t1 = (/* @__PURE__ */ new Date("2020-01-01T" + s1)).valueOf();
-      const t2 = (/* @__PURE__ */ new Date("2020-01-01T" + s2)).valueOf();
-      if (!(t1 && t2))
-        return void 0;
-      return t1 - t2;
-    }
-    function compareIsoTime(t1, t2) {
-      if (!(t1 && t2))
-        return void 0;
-      const a1 = TIME.exec(t1);
-      const a2 = TIME.exec(t2);
-      if (!(a1 && a2))
-        return void 0;
-      t1 = a1[1] + a1[2] + a1[3];
-      t2 = a2[1] + a2[2] + a2[3];
-      if (t1 > t2)
-        return 1;
-      if (t1 < t2)
-        return -1;
-      return 0;
-    }
-    var DATE_TIME_SEPARATOR = /t|\s/i;
-    function getDateTime(strictTimeZone) {
-      const time = getTime(strictTimeZone);
-      return function date_time(str) {
-        const dateTime = str.split(DATE_TIME_SEPARATOR);
-        return dateTime.length === 2 && date(dateTime[0]) && time(dateTime[1]);
-      };
-    }
-    function compareDateTime(dt1, dt2) {
-      if (!(dt1 && dt2))
-        return void 0;
-      const d1 = new Date(dt1).valueOf();
-      const d2 = new Date(dt2).valueOf();
-      if (!(d1 && d2))
-        return void 0;
-      return d1 - d2;
-    }
-    function compareIsoDateTime(dt1, dt2) {
-      if (!(dt1 && dt2))
-        return void 0;
-      const [d1, t1] = dt1.split(DATE_TIME_SEPARATOR);
-      const [d2, t2] = dt2.split(DATE_TIME_SEPARATOR);
-      const res = compareDate(d1, d2);
-      if (res === void 0)
-        return void 0;
-      return res || compareTime(t1, t2);
-    }
-    var NOT_URI_FRAGMENT = /\/|:/;
-    var URI = /^(?:[a-z][a-z0-9+\-.]*:)(?:\/?\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:]|%[0-9a-f]{2})*@)?(?:\[(?:(?:(?:(?:[0-9a-f]{1,4}:){6}|::(?:[0-9a-f]{1,4}:){5}|(?:[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){4}|(?:(?:[0-9a-f]{1,4}:){0,1}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){3}|(?:(?:[0-9a-f]{1,4}:){0,2}[0-9a-f]{1,4})?::(?:[0-9a-f]{1,4}:){2}|(?:(?:[0-9a-f]{1,4}:){0,3}[0-9a-f]{1,4})?::[0-9a-f]{1,4}:|(?:(?:[0-9a-f]{1,4}:){0,4}[0-9a-f]{1,4})?::)(?:[0-9a-f]{1,4}:[0-9a-f]{1,4}|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?))|(?:(?:[0-9a-f]{1,4}:){0,5}[0-9a-f]{1,4})?::[0-9a-f]{1,4}|(?:(?:[0-9a-f]{1,4}:){0,6}[0-9a-f]{1,4})?::)|[Vv][0-9a-f]+\.[a-z0-9\-._~!$&'()*+,;=:]+)\]|(?:(?:25[0-5]|2[0-4]\d|[01]?\d\d?)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d\d?)|(?:[a-z0-9\-._~!$&'()*+,;=]|%[0-9a-f]{2})*)(?::\d*)?(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*|\/(?:(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)?|(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9\-._~!$&'()*+,;=:@]|%[0-9a-f]{2})*)*)(?:\?(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?(?:#(?:[a-z0-9\-._~!$&'()*+,;=:@/?]|%[0-9a-f]{2})*)?$/i;
-    function uri(str) {
-      return NOT_URI_FRAGMENT.test(str) && URI.test(str);
-    }
-    var BYTE = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/gm;
-    function byte(str) {
-      BYTE.lastIndex = 0;
-      return BYTE.test(str);
-    }
-    var MIN_INT32 = -(2 ** 31);
-    var MAX_INT32 = 2 ** 31 - 1;
-    function validateInt32(value) {
-      return Number.isInteger(value) && value <= MAX_INT32 && value >= MIN_INT32;
-    }
-    function validateInt64(value) {
-      return Number.isInteger(value);
-    }
-    function validateNumber() {
-      return true;
-    }
-    var Z_ANCHOR = /[^\\]\\Z/;
-    function regex(str) {
-      if (Z_ANCHOR.test(str))
-        return false;
-      try {
-        new RegExp(str);
-        return true;
-      } catch (e) {
-        return false;
-      }
-    }
-  }
-});
-
-// node_modules/ajv/dist/vocabularies/draft7.js
-var require_draft7 = __commonJS({
-  "node_modules/ajv/dist/vocabularies/draft7.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var core_1 = require_core2();
-    var validation_1 = require_validation();
-    var applicator_1 = require_applicator();
-    var format_1 = require_format2();
-    var metadata_1 = require_metadata();
-    var draft7Vocabularies = [
-      core_1.default,
-      validation_1.default,
-      (0, applicator_1.default)(),
-      format_1.default,
-      metadata_1.metadataVocabulary,
-      metadata_1.contentVocabulary
-    ];
-    exports.default = draft7Vocabularies;
-  }
-});
-
-// node_modules/ajv/dist/refs/json-schema-draft-07.json
-var require_json_schema_draft_07 = __commonJS({
-  "node_modules/ajv/dist/refs/json-schema-draft-07.json"(exports, module) {
-    module.exports = {
-      $schema: "http://json-schema.org/draft-07/schema#",
-      $id: "http://json-schema.org/draft-07/schema#",
-      title: "Core schema meta-schema",
-      definitions: {
-        schemaArray: {
-          type: "array",
-          minItems: 1,
-          items: { $ref: "#" }
-        },
-        nonNegativeInteger: {
-          type: "integer",
-          minimum: 0
-        },
-        nonNegativeIntegerDefault0: {
-          allOf: [{ $ref: "#/definitions/nonNegativeInteger" }, { default: 0 }]
-        },
-        simpleTypes: {
-          enum: ["array", "boolean", "integer", "null", "number", "object", "string"]
-        },
-        stringArray: {
-          type: "array",
-          items: { type: "string" },
-          uniqueItems: true,
-          default: []
-        }
-      },
-      type: ["object", "boolean"],
-      properties: {
-        $id: {
-          type: "string",
-          format: "uri-reference"
-        },
-        $schema: {
-          type: "string",
-          format: "uri"
-        },
-        $ref: {
-          type: "string",
-          format: "uri-reference"
-        },
-        $comment: {
-          type: "string"
-        },
-        title: {
-          type: "string"
-        },
-        description: {
-          type: "string"
-        },
-        default: true,
-        readOnly: {
-          type: "boolean",
-          default: false
-        },
-        examples: {
-          type: "array",
-          items: true
-        },
-        multipleOf: {
-          type: "number",
-          exclusiveMinimum: 0
-        },
-        maximum: {
-          type: "number"
-        },
-        exclusiveMaximum: {
-          type: "number"
-        },
-        minimum: {
-          type: "number"
-        },
-        exclusiveMinimum: {
-          type: "number"
-        },
-        maxLength: { $ref: "#/definitions/nonNegativeInteger" },
-        minLength: { $ref: "#/definitions/nonNegativeIntegerDefault0" },
-        pattern: {
-          type: "string",
-          format: "regex"
-        },
-        additionalItems: { $ref: "#" },
-        items: {
-          anyOf: [{ $ref: "#" }, { $ref: "#/definitions/schemaArray" }],
-          default: true
-        },
-        maxItems: { $ref: "#/definitions/nonNegativeInteger" },
-        minItems: { $ref: "#/definitions/nonNegativeIntegerDefault0" },
-        uniqueItems: {
-          type: "boolean",
-          default: false
-        },
-        contains: { $ref: "#" },
-        maxProperties: { $ref: "#/definitions/nonNegativeInteger" },
-        minProperties: { $ref: "#/definitions/nonNegativeIntegerDefault0" },
-        required: { $ref: "#/definitions/stringArray" },
-        additionalProperties: { $ref: "#" },
-        definitions: {
-          type: "object",
-          additionalProperties: { $ref: "#" },
-          default: {}
-        },
-        properties: {
-          type: "object",
-          additionalProperties: { $ref: "#" },
-          default: {}
-        },
-        patternProperties: {
-          type: "object",
-          additionalProperties: { $ref: "#" },
-          propertyNames: { format: "regex" },
-          default: {}
-        },
-        dependencies: {
-          type: "object",
-          additionalProperties: {
-            anyOf: [{ $ref: "#" }, { $ref: "#/definitions/stringArray" }]
-          }
-        },
-        propertyNames: { $ref: "#" },
-        const: true,
-        enum: {
-          type: "array",
-          items: true,
-          minItems: 1,
-          uniqueItems: true
-        },
-        type: {
-          anyOf: [
-            { $ref: "#/definitions/simpleTypes" },
-            {
-              type: "array",
-              items: { $ref: "#/definitions/simpleTypes" },
-              minItems: 1,
-              uniqueItems: true
-            }
-          ]
-        },
-        format: { type: "string" },
-        contentMediaType: { type: "string" },
-        contentEncoding: { type: "string" },
-        if: { $ref: "#" },
-        then: { $ref: "#" },
-        else: { $ref: "#" },
-        allOf: { $ref: "#/definitions/schemaArray" },
-        anyOf: { $ref: "#/definitions/schemaArray" },
-        oneOf: { $ref: "#/definitions/schemaArray" },
-        not: { $ref: "#" }
-      },
-      default: true
-    };
-  }
-});
-
-// node_modules/ajv/dist/ajv.js
-var require_ajv = __commonJS({
-  "node_modules/ajv/dist/ajv.js"(exports, module) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.MissingRefError = exports.ValidationError = exports.CodeGen = exports.Name = exports.nil = exports.stringify = exports.str = exports._ = exports.KeywordCxt = exports.Ajv = void 0;
-    var core_1 = require_core();
-    var draft7_1 = require_draft7();
-    var discriminator_1 = require_discriminator();
-    var draft7MetaSchema = require_json_schema_draft_07();
-    var META_SUPPORT_DATA = ["/properties"];
-    var META_SCHEMA_ID = "http://json-schema.org/draft-07/schema";
-    var Ajv2 = class extends core_1.default {
-      _addVocabularies() {
-        super._addVocabularies();
-        draft7_1.default.forEach((v) => this.addVocabulary(v));
-        if (this.opts.discriminator)
-          this.addKeyword(discriminator_1.default);
-      }
-      _addDefaultMetaSchema() {
-        super._addDefaultMetaSchema();
-        if (!this.opts.meta)
-          return;
-        const metaSchema = this.opts.$data ? this.$dataMetaSchema(draft7MetaSchema, META_SUPPORT_DATA) : draft7MetaSchema;
-        this.addMetaSchema(metaSchema, META_SCHEMA_ID, false);
-        this.refs["http://json-schema.org/schema"] = META_SCHEMA_ID;
-      }
-      defaultMeta() {
-        return this.opts.defaultMeta = super.defaultMeta() || (this.getSchema(META_SCHEMA_ID) ? META_SCHEMA_ID : void 0);
-      }
-    };
-    exports.Ajv = Ajv2;
-    module.exports = exports = Ajv2;
-    module.exports.Ajv = Ajv2;
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = Ajv2;
-    var validate_1 = require_validate();
-    Object.defineProperty(exports, "KeywordCxt", { enumerable: true, get: function() {
-      return validate_1.KeywordCxt;
-    } });
-    var codegen_1 = require_codegen();
-    Object.defineProperty(exports, "_", { enumerable: true, get: function() {
-      return codegen_1._;
-    } });
-    Object.defineProperty(exports, "str", { enumerable: true, get: function() {
-      return codegen_1.str;
-    } });
-    Object.defineProperty(exports, "stringify", { enumerable: true, get: function() {
-      return codegen_1.stringify;
-    } });
-    Object.defineProperty(exports, "nil", { enumerable: true, get: function() {
-      return codegen_1.nil;
-    } });
-    Object.defineProperty(exports, "Name", { enumerable: true, get: function() {
-      return codegen_1.Name;
-    } });
-    Object.defineProperty(exports, "CodeGen", { enumerable: true, get: function() {
-      return codegen_1.CodeGen;
-    } });
-    var validation_error_1 = require_validation_error();
-    Object.defineProperty(exports, "ValidationError", { enumerable: true, get: function() {
-      return validation_error_1.default;
-    } });
-    var ref_error_1 = require_ref_error();
-    Object.defineProperty(exports, "MissingRefError", { enumerable: true, get: function() {
-      return ref_error_1.default;
-    } });
-  }
-});
-
-// node_modules/ajv-formats/dist/limit.js
-var require_limit = __commonJS({
-  "node_modules/ajv-formats/dist/limit.js"(exports) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.formatLimitDefinition = void 0;
-    var ajv_1 = require_ajv();
-    var codegen_1 = require_codegen();
-    var ops = codegen_1.operators;
-    var KWDs = {
-      formatMaximum: { okStr: "<=", ok: ops.LTE, fail: ops.GT },
-      formatMinimum: { okStr: ">=", ok: ops.GTE, fail: ops.LT },
-      formatExclusiveMaximum: { okStr: "<", ok: ops.LT, fail: ops.GTE },
-      formatExclusiveMinimum: { okStr: ">", ok: ops.GT, fail: ops.LTE }
-    };
-    var error = {
-      message: ({ keyword, schemaCode }) => (0, codegen_1.str)`should be ${KWDs[keyword].okStr} ${schemaCode}`,
-      params: ({ keyword, schemaCode }) => (0, codegen_1._)`{comparison: ${KWDs[keyword].okStr}, limit: ${schemaCode}}`
-    };
-    exports.formatLimitDefinition = {
-      keyword: Object.keys(KWDs),
-      type: "string",
-      schemaType: "string",
-      $data: true,
-      error,
-      code(cxt) {
-        const { gen, data, schemaCode, keyword, it } = cxt;
-        const { opts, self } = it;
-        if (!opts.validateFormats)
-          return;
-        const fCxt = new ajv_1.KeywordCxt(it, self.RULES.all.format.definition, "format");
-        if (fCxt.$data)
-          validate$DataFormat();
-        else
-          validateFormat();
-        function validate$DataFormat() {
-          const fmts = gen.scopeValue("formats", {
-            ref: self.formats,
-            code: opts.code.formats
-          });
-          const fmt = gen.const("fmt", (0, codegen_1._)`${fmts}[${fCxt.schemaCode}]`);
-          cxt.fail$data((0, codegen_1.or)((0, codegen_1._)`typeof ${fmt} != "object"`, (0, codegen_1._)`${fmt} instanceof RegExp`, (0, codegen_1._)`typeof ${fmt}.compare != "function"`, compareCode(fmt)));
-        }
-        function validateFormat() {
-          const format = fCxt.schema;
-          const fmtDef = self.formats[format];
-          if (!fmtDef || fmtDef === true)
-            return;
-          if (typeof fmtDef != "object" || fmtDef instanceof RegExp || typeof fmtDef.compare != "function") {
-            throw new Error(`"${keyword}": format "${format}" does not define "compare" function`);
-          }
-          const fmt = gen.scopeValue("formats", {
-            key: format,
-            ref: fmtDef,
-            code: opts.code.formats ? (0, codegen_1._)`${opts.code.formats}${(0, codegen_1.getProperty)(format)}` : void 0
-          });
-          cxt.fail$data(compareCode(fmt));
-        }
-        function compareCode(fmt) {
-          return (0, codegen_1._)`${fmt}.compare(${data}, ${schemaCode}) ${KWDs[keyword].fail} 0`;
-        }
-      },
-      dependencies: ["format"]
-    };
-    var formatLimitPlugin = (ajv2) => {
-      ajv2.addKeyword(exports.formatLimitDefinition);
-      return ajv2;
-    };
-    exports.default = formatLimitPlugin;
-  }
-});
-
-// node_modules/ajv-formats/dist/index.js
-var require_dist = __commonJS({
-  "node_modules/ajv-formats/dist/index.js"(exports, module) {
-    "use strict";
-    Object.defineProperty(exports, "__esModule", { value: true });
-    var formats_1 = require_formats();
-    var limit_1 = require_limit();
-    var codegen_1 = require_codegen();
-    var fullName = new codegen_1.Name("fullFormats");
-    var fastName = new codegen_1.Name("fastFormats");
-    var formatsPlugin = (ajv2, opts = { keywords: true }) => {
-      if (Array.isArray(opts)) {
-        addFormats2(ajv2, opts, formats_1.fullFormats, fullName);
-        return ajv2;
-      }
-      const [formats, exportName] = opts.mode === "fast" ? [formats_1.fastFormats, fastName] : [formats_1.fullFormats, fullName];
-      const list = opts.formats || formats_1.formatNames;
-      addFormats2(ajv2, list, formats, exportName);
-      if (opts.keywords)
-        (0, limit_1.default)(ajv2);
-      return ajv2;
-    };
-    formatsPlugin.get = (name, mode = "full") => {
-      const formats = mode === "fast" ? formats_1.fastFormats : formats_1.fullFormats;
-      const f = formats[name];
-      if (!f)
-        throw new Error(`Unknown format "${name}"`);
-      return f;
-    };
-    function addFormats2(ajv2, list, fs, exportName) {
-      var _a;
-      var _b;
-      (_a = (_b = ajv2.opts.code).formats) !== null && _a !== void 0 ? _a : _b.formats = (0, codegen_1._)`require("ajv-formats/dist/formats").${exportName}`;
-      for (const f of list)
-        ajv2.addFormat(f, fs[f]);
-    }
-    module.exports = exports = formatsPlugin;
-    Object.defineProperty(exports, "__esModule", { value: true });
-    exports.default = formatsPlugin;
-  }
-});
-
-// ../cli.mjs
-import { createInterface } from "node:readline";
-
-// src/core.ts
-var import__ = __toESM(require__(), 1);
-var import_ajv_formats = __toESM(require_dist(), 1);
-
-// src/protocol.schema.json
-var protocol_schema_default = {
-  $defs: {
-    FieldHint: {
-      additionalProperties: false,
-      description: "\u7ED9\u663E\u793A\u5C42\u7684\u5B57\u6BB5\u8BED\u4E49\u63D0\u793A\u3002\n\n\u8FD9\u91CC\u63CF\u8FF0\u6570\u636E\u7684\u542B\u4E49\uFF0C\u4E0D\u63CF\u8FF0 React \u7EC4\u4EF6\u3001HTML\u3001CSS \u6216\u5E03\u5C40\u3002",
-      properties: {
-        path: {
-          minLength: 1,
-          title: "Path",
-          type: "string"
-        },
-        label: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Label"
-        },
-        role: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Role"
-        },
-        format: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Format"
-        },
-        unit: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Unit"
-        },
-        precision: {
-          anyOf: [
-            {
-              type: "integer"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Precision"
-        },
-        order: {
-          anyOf: [
-            {
-              type: "integer"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Order"
-        },
-        visible: {
-          anyOf: [
-            {
-              type: "boolean"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Visible"
-        }
-      },
-      required: [
-        "path"
-      ],
-      title: "FieldHint",
-      type: "object"
-    },
-    JsonValue: {
-      anyOf: [
-        {
-          type: "boolean"
-        },
-        {
-          type: "integer"
-        },
-        {
-          type: "number"
-        },
-        {
-          type: "string"
-        },
-        {
-          items: {
-            $ref: "#/$defs/JsonValue"
-          },
-          type: "array"
-        },
-        {
-          additionalProperties: {
-            $ref: "#/$defs/JsonValue"
-          },
-          type: "object"
-        },
-        {
-          type: "null"
-        }
-      ]
-    },
-    Presentation: {
-      additionalProperties: false,
-      description: "\u53EF\u9009\u7684\u8BED\u4E49\u5448\u73B0\u63D0\u793A\u3002",
-      properties: {
-        title: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Title"
-        },
-        role: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Role"
-        },
-        fields: {
-          default: [],
-          items: {
-            $ref: "#/$defs/FieldHint"
-          },
-          title: "Fields",
-          type: "array"
-        }
-      },
-      title: "Presentation",
-      type: "object"
-    },
-    UiAction: {
-      additionalProperties: false,
-      properties: {
-        action_id: {
-          minLength: 1,
-          title: "Action Id",
-          type: "string"
-        },
-        kind: {
-          enum: [
-            "edit",
-            "select",
-            "query",
-            "invoke",
-            "reset",
-            "dismiss"
-          ],
-          title: "Kind",
-          type: "string"
-        },
-        target: {
-          minLength: 1,
-          title: "Target",
-          type: "string"
-        },
-        data: {
-          $ref: "#/$defs/JsonValue",
-          default: null
-        },
-        operation: {
-          anyOf: [
-            {
-              minLength: 1,
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Operation"
-        }
-      },
-      required: [
-        "action_id",
-        "kind",
-        "target"
-      ],
-      title: "UiAction",
-      type: "object",
-      allOf: [
-        {
-          if: {
-            properties: {
-              kind: {
-                const: "invoke"
-              }
-            },
-            required: [
-              "kind"
-            ]
-          },
-          then: {
-            required: [
-              "operation"
-            ],
-            properties: {
-              operation: {
-                type: "string",
-                minLength: 1
-              }
-            }
-          }
-        }
-      ]
-    },
-    UiFrame: {
-      additionalProperties: false,
-      properties: {
-        kind: {
-          enum: [
-            "action",
-            "request",
-            "response",
-            "state",
-            "close"
-          ],
-          title: "Kind",
-          type: "string"
-        },
-        action: {
-          anyOf: [
-            {
-              $ref: "#/$defs/UiAction"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null
-        },
-        request: {
-          anyOf: [
-            {
-              $ref: "#/$defs/UiRequest"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null
-        },
-        messages: {
-          default: [],
-          items: {
-            $ref: "#/$defs/UiMessage"
-          },
-          title: "Messages",
-          type: "array"
-        },
-        state: {
-          anyOf: [
-            {
-              $ref: "#/$defs/UiState"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null
-        }
-      },
-      required: [
-        "kind"
-      ],
-      title: "UiFrame",
-      type: "object"
-    },
-    UiLink: {
-      additionalProperties: false,
-      description: "\u6D88\u606F\u4E2D\u7684\u5173\u7CFB\u94FE\u63A5\uFF0C\u4E0D\u89C4\u5B9A\u5177\u4F53\u4F20\u8F93\u65B9\u5F0F\u3002",
-      properties: {
-        rel: {
-          minLength: 1,
-          title: "Rel",
-          type: "string"
-        },
-        href: {
-          minLength: 1,
-          title: "Href",
-          type: "string"
-        },
-        type: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Type"
-        }
-      },
-      required: [
-        "rel",
-        "href"
-      ],
-      title: "UiLink",
-      type: "object"
-    },
-    UiMessage: {
-      additionalProperties: false,
-      description: "\u540E\u7AEF\u548C\u524D\u7AEF\u4E4B\u95F4\u552F\u4E00\u7684\u901A\u7528\u8BED\u4E49\u6D88\u606F\u3002",
-      properties: {
-        message_id: {
-          minLength: 1,
-          title: "Message Id",
-          type: "string"
-        },
-        kind: {
-          enum: [
-            "resource",
-            "collection",
-            "series",
-            "document",
-            "operation",
-            "event",
-            "problem",
-            "custom"
-          ],
-          title: "Kind",
-          type: "string"
-        },
-        type: {
-          minLength: 1,
-          title: "Type",
-          type: "string"
-        },
-        schema: {
-          minLength: 1,
-          title: "Schema",
-          type: "string"
-        },
-        data: {
-          $ref: "#/$defs/JsonValue"
-        },
-        correlation_id: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Correlation Id"
-        },
-        presentation: {
-          anyOf: [
-            {
-              $ref: "#/$defs/Presentation"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null
-        },
-        links: {
-          default: [],
-          items: {
-            $ref: "#/$defs/UiLink"
-          },
-          title: "Links",
-          type: "array"
-        },
-        extensions: {
-          patternProperties: {
-            "^(.*:.*|x-.*)$": {
-              $ref: "#/$defs/JsonValue"
-            }
-          },
-          title: "Extensions",
-          type: "object",
-          additionalProperties: false
-        },
-        protocol: {
-          const: "lianghua.ui",
-          default: "lianghua.ui",
-          title: "Protocol",
-          type: "string"
-        },
-        version: {
-          const: 1,
-          default: 1,
-          title: "Version",
-          type: "integer"
-        }
-      },
-      required: [
-        "message_id",
-        "kind",
-        "type",
-        "schema",
-        "data"
-      ],
-      title: "UiMessage",
-      type: "object"
-    },
-    UiOperation: {
-      additionalProperties: false,
-      properties: {
-        operation: {
-          minLength: 1,
-          title: "Operation",
-          type: "string"
-        },
-        input_schema: {
-          minLength: 1,
-          title: "Input Schema",
-          type: "string"
-        },
-        response_schemas: {
-          items: {
-            minLength: 1,
-            type: "string"
-          },
-          title: "Response Schemas",
-          type: "array"
-        },
-        mode: {
-          default: "read",
-          enum: [
-            "read",
-            "write"
-          ],
-          title: "Mode",
-          type: "string"
-        }
-      },
-      required: [
-        "operation",
-        "input_schema",
-        "response_schemas"
-      ],
-      title: "UiOperation",
-      type: "object"
-    },
-    UiOperationState: {
-      additionalProperties: false,
-      properties: {
-        available: {
-          default: false,
-          title: "Available",
-          type: "boolean"
-        },
-        status: {
-          default: "idle",
-          enum: [
-            "idle",
-            "pending",
-            "succeeded",
-            "failed"
-          ],
-          title: "Status",
-          type: "string"
-        },
-        request_id: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Request Id"
-        },
-        revision: {
-          default: 0,
-          title: "Revision",
-          type: "integer"
-        },
-        input: {
-          $ref: "#/$defs/JsonValue",
-          default: null
-        },
-        result_input: {
-          $ref: "#/$defs/JsonValue",
-          default: null
-        }
-      },
-      title: "UiOperationState",
-      type: "object"
-    },
-    UiProblem: {
-      additionalProperties: false,
-      description: "\u53EF\u653E\u5165 ``problem`` \u6D88\u606F\u6B63\u6587\u7684\u901A\u7528\u95EE\u9898\u3002",
-      properties: {
-        type: {
-          minLength: 1,
-          title: "Type",
-          type: "string"
-        },
-        code: {
-          minLength: 1,
-          title: "Code",
-          type: "string"
-        },
-        title: {
-          minLength: 1,
-          title: "Title",
-          type: "string"
-        },
-        detail: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Detail"
-        },
-        field: {
-          anyOf: [
-            {
-              type: "string"
-            },
-            {
-              type: "null"
-            }
-          ],
-          default: null,
-          title: "Field"
-        },
-        retryable: {
-          default: false,
-          title: "Retryable",
-          type: "boolean"
-        },
-        extensions: {
-          patternProperties: {
-            "^(.*:.*|x-.*)$": {
-              $ref: "#/$defs/JsonValue"
-            }
-          },
-          title: "Extensions",
-          type: "object",
-          additionalProperties: false
-        }
-      },
-      required: [
-        "type",
-        "code",
-        "title"
-      ],
-      title: "UiProblem",
-      type: "object"
-    },
-    UiRequest: {
-      additionalProperties: false,
-      properties: {
-        request_id: {
-          minLength: 1,
-          title: "Request Id",
-          type: "string"
-        },
-        operation: {
-          minLength: 1,
-          title: "Operation",
-          type: "string"
-        },
-        schema: {
-          minLength: 1,
-          title: "Schema",
-          type: "string"
-        },
-        data: {
-          $ref: "#/$defs/JsonValue"
-        }
-      },
-      required: [
-        "request_id",
-        "operation",
-        "schema",
-        "data"
-      ],
-      title: "UiRequest",
-      type: "object"
-    },
-    UiSlot: {
-      additionalProperties: false,
-      properties: {
-        revision: {
-          default: 0,
-          title: "Revision",
-          type: "integer"
-        },
-        values: {
-          additionalProperties: {
-            $ref: "#/$defs/JsonValue"
-          },
-          title: "Values",
-          type: "object"
-        },
-        selection: {
-          $ref: "#/$defs/JsonValue",
-          default: null
-        },
-        query: {
-          additionalProperties: {
-            $ref: "#/$defs/JsonValue"
-          },
-          title: "Query",
-          type: "object"
-        },
-        messages: {
-          default: [],
-          items: {
-            $ref: "#/$defs/UiMessage"
-          },
-          title: "Messages",
-          type: "array"
-        },
-        problems: {
-          default: [],
-          items: {
-            $ref: "#/$defs/UiProblem"
-          },
-          title: "Problems",
-          type: "array"
-        },
-        operations: {
-          additionalProperties: {
-            $ref: "#/$defs/UiOperationState"
-          },
-          title: "Operations",
-          type: "object"
-        }
-      },
-      title: "UiSlot",
-      type: "object"
-    },
-    UiState: {
-      additionalProperties: false,
-      properties: {
-        revision: {
-          default: 0,
-          title: "Revision",
-          type: "integer"
-        },
-        targets: {
-          additionalProperties: {
-            $ref: "#/$defs/UiSlot"
-          },
-          title: "Targets",
-          type: "object"
-        }
-      },
-      title: "UiState",
-      type: "object"
-    }
-  },
-  anyOf: [
-    {
-      $ref: "#/$defs/UiAction"
-    },
-    {
-      $ref: "#/$defs/UiRequest"
-    },
-    {
-      $ref: "#/$defs/UiState"
-    },
-    {
-      $ref: "#/$defs/UiMessage"
-    },
-    {
-      $ref: "#/$defs/UiProblem"
-    },
-    {
-      $ref: "#/$defs/UiOperation"
-    },
-    {
-      $ref: "#/$defs/UiFrame"
-    }
-  ],
-  $schema: "https://json-schema.org/draft/2020-12/schema",
-  $id: "urn:lianghua:ui:v1"
-};
-
-// src/core.ts
-var ajv = new import__.default({ strict: false, allErrors: true });
-(0, import_ajv_formats.default)(ajv);
-ajv.addSchema(protocol_schema_default);
-var validators = /* @__PURE__ */ new Map();
-function validateWire(model, value) {
-  try {
-    assertJson(value);
-  } catch {
-    return false;
-  }
-  let check = validators.get(model);
-  if (!check) {
-    check = ajv.compile({ $ref: `urn:lianghua:ui:v1#/$defs/${model}` });
-    validators.set(model, check);
-  }
-  return !!check(value);
-}
-function assertJson(value) {
-  if (value === null || typeof value === "string" || typeof value === "boolean") return;
-  if (typeof value === "number" && Number.isFinite(value)) return;
-  if (Array.isArray(value)) {
-    value.forEach(assertJson);
-    return;
-  }
-  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
-    Object.values(value).forEach(assertJson);
-    return;
-  }
-  throw Error("\u975E JSON \u6570\u636E");
-}
-function freeze(value) {
-  if (value && typeof value === "object") {
-    Object.values(value).forEach(freeze);
-    Object.freeze(value);
-  }
-  return value;
-}
-function emptySlot() {
-  return { revision: 0, values: {}, selection: null, query: {}, messages: [], problems: [], operations: {} };
-}
-function problem(code, title) {
-  return { type: "urn:lianghua:ui:problem", code, title, retryable: false };
-}
-function object(value) {
-  if (value === null || typeof value !== "object" || Array.isArray(value)) throw Error("\u8F93\u5165\u5FC5\u987B\u662F\u5BF9\u8C61");
-  return value;
-}
-function update(slot, action) {
-  switch (action.kind) {
-    case "edit":
-      return { ...slot, values: { ...slot.values, ...object(action.data) }, revision: slot.revision + 1, problems: [] };
-    case "query":
-      return { ...slot, query: object(action.data), revision: slot.revision + 1, problems: [] };
-    case "select":
-      return { ...slot, selection: action.data ?? null, revision: slot.revision + 1, problems: [] };
-    case "reset":
-      return { ...emptySlot(), values: object(action.data), revision: slot.revision + 1 };
-    case "dismiss":
-      return { ...slot, problems: slot.problems.filter((p) => p.code !== action.data) };
-    case "invoke":
-      return slot;
-  }
-}
-function createDisplay(options) {
-  const operations = new Map(options.operations.map((spec) => [spec.operation, spec]));
-  if (operations.size !== options.operations.length) throw Error("\u91CD\u590D\u64CD\u4F5C\u6CE8\u518C");
-  const registry = new import__.default({ strict: false });
-  (0, import_ajv_formats.default)(registry);
-  for (const [id2, body] of Object.entries(options.schemas)) registry.addSchema(body, id2);
-  const checks = new Map(Object.keys(options.schemas).map((id2) => [id2, registry.getSchema(id2)]));
-  const controller = new AbortController();
-  const listeners = /* @__PURE__ */ new Set();
-  const pending = /* @__PURE__ */ new Map();
-  const approved = /* @__PURE__ */ new Map();
-  const timers = /* @__PURE__ */ new Map();
-  let state = freeze({ revision: 0, targets: {} }), closed = false, serial = 0;
-  const id = options.id ?? (() => `request-${++serial}`);
-  const key = (target, operation) => target + "\0" + operation;
-  const slot = (target) => state.targets[target] ?? emptySlot();
-  function put(target, value) {
-    if (closed) return;
-    const names = new Set(Object.keys(value.operations));
-    for (const spec of operations.values()) if (spec.requires && value.operations[spec.requires]) names.add(spec.operation);
-    const blocked = [...pending.keys()].some((name) => name.startsWith(target + "\0"));
-    const states = { ...value.operations };
-    for (const name of names) {
-      const spec = operations.get(name);
-      const available = !blocked && (!spec?.requires || approved.get(key(target, spec.requires))?.revision === value.revision);
-      states[name] = { status: "idle", ...states[name], available };
-    }
-    state = freeze({ revision: state.revision + 1, targets: { ...state.targets, [target]: { ...value, operations: states } } });
-    for (const listener of listeners) listener();
-  }
-  function stop(target) {
-    for (const [k, timer] of timers) if (k.startsWith(target + "\0")) {
-      clearTimeout(timer);
-      timers.delete(k);
-    }
-    for (const k of approved.keys()) if (k.startsWith(target + "\0")) approved.delete(k);
-  }
-  function fail(target, code, title) {
-    put(target, { ...slot(target), problems: [problem(code, title)] });
-  }
-  function accept(message, spec) {
-    if (!validateWire("UiMessage", message)) throw Error("\u6D88\u606F\u4E0D\u7B26\u5408\u516C\u5171\u534F\u8BAE");
-    if (spec && !spec.response_schemas.includes(message.schema)) throw Error("\u672A\u6CE8\u518C\u54CD\u5E94 schema");
-    const check = checks.get(message.schema);
-    if (!check || !check(message.data)) throw Error("\u54CD\u5E94\u6B63\u6587\u4E0D\u7B26\u5408\u6CE8\u518C schema");
-    if (message.kind === "problem" && !validateWire("UiProblem", message.data)) throw Error("\u95EE\u9898\u6B63\u6587\u4E0D\u7B26\u5408\u534F\u8BAE");
-    if (message.kind === "custom" && !options.handlers?.[message.type]) throw Error("\u672A\u6CE8\u518C\u81EA\u5B9A\u4E49\u7C7B\u578B");
-  }
-  function publish(target, messages, spec) {
-    messages.forEach((message) => accept(message, spec));
-    const problems = messages.filter((m) => m.kind === "problem").map((m) => m.data);
-    put(target, { ...slot(target), messages: structuredClone(messages), problems, values: spec && !problems.length ? { ...slot(target).values, [spec.operation]: messages.filter((m) => m.kind !== "problem").map((m) => m.data) } : slot(target).values });
-    messages.forEach((message) => options.handlers?.[message.type]?.(message));
-  }
-  async function dispatch(action) {
-    if (closed) throw Error("session closed");
-    if (!validateWire("UiAction", action)) throw Error("\u52A8\u4F5C\u4E0D\u7B26\u5408\u516C\u5171\u534F\u8BAE");
-    const target = action.target;
-    if (action.kind !== "invoke") {
-      try {
-        put(target, update(slot(target), action));
-        if (["edit", "query", "select", "reset"].includes(action.kind)) stop(target);
-      } catch (reason) {
-        fail(target, "invalid_input", String(reason));
-      }
-      return state;
-    }
-    const spec = operations.get(action.operation);
-    if (!spec) {
-      fail(target, "unsupported", "\u672A\u6CE8\u518C\u64CD\u4F5C");
-      return state;
-    }
-    const k = key(target, spec.operation), initial = slot(target);
-    const timer = timers.get(k);
-    if (timer) {
-      clearTimeout(timer);
-      timers.delete(k);
-    }
-    if (spec.mode === "write" && [...pending.keys()].some((value) => value.startsWith(target + "\0"))) {
-      fail(target, "pending", "\u64CD\u4F5C\u6B63\u5728\u6267\u884C");
-      return state;
-    }
-    let data;
-    try {
-      data = spec.prepare ? spec.prepare(action.data ?? null) : action.data ?? null;
-      assertJson(data);
-      const check2 = checks.get(spec.input_schema);
-      if (!check2 || !check2(data)) throw Error("\u8F93\u5165\u4E0D\u7B26\u5408\u6CE8\u518C schema");
-    } catch (reason) {
-      fail(target, "invalid_input", String(reason));
-      return state;
-    }
-    const identity = JSON.stringify(data, (_name, value) => value && typeof value === "object" && !Array.isArray(value) ? Object.fromEntries(Object.entries(value).sort(([a], [b]) => a.localeCompare(b))) : value);
-    const check = spec.requires ? approved.get(key(target, spec.requires)) : void 0;
-    if (spec.requires && (check?.revision !== initial.revision || check?.identity !== identity)) {
-      fail(target, "check_required", "\u8BF7\u91CD\u65B0\u68C0\u67E5\u8F93\u5165");
-      return state;
-    }
-    if (!options.backend) {
-      fail(target, "not_connected", "\u672A\u8FDE\u63A5");
-      put(target, { ...slot(target), operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: "failed", revision: initial.revision, input: action.data } } });
-      return state;
-    }
-    const request = { request_id: id(), operation: spec.operation, schema: spec.input_schema, data: structuredClone(data) };
-    pending.set(k, { id: request.request_id, revision: initial.revision });
-    put(target, { ...slot(target), problems: [], operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: "pending", request_id: request.request_id, revision: initial.revision, input: action.data } } });
-    const current = () => !closed && pending.get(k)?.id === request.request_id && slot(target).revision === initial.revision;
-    try {
-      const makeMessage = (data2) => ({ message_id: id(), correlation_id: request.request_id, kind: "operation", type: "lianghua:" + spec.operation, schema: spec.response_schemas[0], data: data2 });
-      const call = async (operation, data2) => {
-        const nested = operations.get(operation);
-        if (!nested || nested.execute) throw Error("\u672A\u6CE8\u518C\u540E\u7AEF\u64CD\u4F5C");
-        assertJson(data2);
-        if (!checks.get(nested.input_schema)?.(data2)) throw Error("\u8F93\u5165\u4E0D\u7B26\u5408\u6CE8\u518C schema");
-        const child = { request_id: id(), operation, schema: nested.input_schema, data: data2 };
-        const replies = await options.backend.send(child);
-        if (!Array.isArray(replies) || replies.some((m) => m.correlation_id !== child.request_id)) throw Error("\u54CD\u5E94\u6807\u8BC6\u4E0E\u8BF7\u6C42\u4E0D\u5339\u914D");
-        replies.forEach((m) => accept(m, nested));
-        const issue = replies.find((m) => m.kind === "problem");
-        if (issue) {
-          const problem2 = issue.data;
-          throw Error(problem2.detail ?? problem2.title);
-        }
-        if (replies.length !== 1) throw Error("\u9700\u8981\u4E00\u4E2A\u54CD\u5E94");
-        return replies[0].data;
-      };
-      const messages = spec.execute ? [makeMessage(await spec.execute(data, { call, signal: controller.signal, progress: (value) => {
-        if (current()) {
-          publish(target, [makeMessage(value)], spec);
-          options.progress?.(state);
-        }
-      } }))] : await options.backend.send(request);
-      if (!current()) return state;
-      if (!Array.isArray(messages)) throw Error("\u54CD\u5E94\u5FC5\u987B\u662F\u6D88\u606F\u5217\u8868");
-      if (messages.some((message) => message.correlation_id !== request.request_id)) throw Error("\u54CD\u5E94\u6807\u8BC6\u4E0E\u8BF7\u6C42\u4E0D\u5339\u914D");
-      publish(target, messages, spec);
-      if (spec.changes && !slot(target).problems.length) {
-        for (const [name, values] of Object.entries(spec.changes(state, target, request, messages))) {
-          assertJson(values);
-          put(name, { ...slot(name), values: { ...slot(name).values, ...values } });
-        }
-      }
-      const failed = slot(target).problems.length > 0;
-      if (!failed && (!spec.ready || spec.ready(messages))) approved.set(k, { revision: initial.revision, identity });
-      else approved.delete(k);
-      put(target, { ...slot(target), operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: failed ? "failed" : "succeeded", request_id: request.request_id, revision: initial.revision, input: action.data, ...!failed ? { result_input: action.data } : {} } } });
-      if (!failed && spec.poll && (!spec.repeat || spec.repeat(messages))) {
-        const old = timers.get(k);
-        if (old) clearTimeout(old);
-        timers.set(k, setTimeout(() => {
-          timers.delete(k);
-          void dispatch(action);
-        }, spec.poll));
-      }
-    } catch (reason) {
-      if (current()) {
-        approved.delete(k);
-        fail(target, String(reason).includes("\u672A\u6CE8\u518C") ? "unsupported" : "failed", String(reason));
-        put(target, { ...slot(target), operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: "failed", request_id: request.request_id, revision: initial.revision, input: action.data } } });
-      }
-    } finally {
-      if (pending.get(k)?.id === request.request_id) {
-        pending.delete(k);
-        if (!closed) {
-          const status = slot(target).operations[spec.operation]?.status;
-          put(target, status === "pending" ? { ...slot(target), operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: "idle", revision: slot(target).revision } } } : slot(target));
-        }
-      }
-    }
-    return state;
-  }
-  return {
-    dispatch,
-    snapshot: () => state,
-    subscribe(listener) {
-      if (closed) throw Error("session closed");
-      listeners.add(listener);
-      return () => listeners.delete(listener);
-    },
-    receive(message) {
-      if (closed) return;
-      const target = options.events?.[message.type];
-      if (!target) throw Error("\u672A\u6CE8\u518C\u6D88\u606F\u63A5\u6536\u76EE\u6807");
-      publish(target, [message]);
-    },
-    dispose() {
-      closed = true;
-      controller.abort();
-      listeners.clear();
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
-      pending.clear();
-      approved.clear();
-    }
-  };
-}
-
-// src/collect.ts
-var items = (value) => {
-  if (value === void 0) return [];
-  const values = value.split(",").map((v) => v.trim());
-  if (values.some((v) => !v)) throw Error("\u5217\u8868\u9879\u4E0D\u80FD\u4E3A\u7A7A");
-  return [...new Set(values)];
-};
-var day = (value) => {
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(value) || new Date(value).toISOString().slice(0, 10) !== value) throw Error("\u65E5\u671F\u65E0\u6548");
-  return value;
-};
-var collect = async (raw, { call, progress, signal }) => {
-  const values = { ...raw };
-  const parts = values.selector.split(":");
-  const [name, intent] = parts;
-  const range = /^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent ?? "");
-  const command = range ? "range" : intent;
-  if (parts.length !== 2 || !["latest", "range", "auto", "check", "status"].includes(command)) throw Error("\u9700\u8981 <market>:[start,end] \u6216 latest\u3001range\u3001auto\u3001check\u3001status");
-  if (range) {
-    if (values.start !== void 0 || values.end !== void 0) throw Error("\u533A\u95F4\u4E0D\u80FD\u4E0E start\u3001end \u91CD\u590D\u586B\u5199");
-    values.start = range[1].length === 4 ? range[1] + "-01-01" : range[1];
-    values.end = range[2].length === 4 ? range[2] + "-12-31" : range[2];
-  }
-  if (command !== "auto" && values.interval !== void 0) throw Error("interval \u4EC5\u7528\u4E8E auto");
-  if (command === "status" && Object.keys(values).some((key) => key !== "selector")) throw Error("status \u4E0D\u63A5\u53D7\u6536\u96C6\u53C2\u6570");
-  if (["latest", "auto"].includes(command) && (values.start !== void 0 || values.end !== void 0)) throw Error("latest \u548C auto \u81EA\u52A8\u786E\u5B9A\u65E5\u671F\uFF0C\u8BF7\u7528 range \u6307\u5B9A\u533A\u95F4");
-  if (command === "range" && (!values.start || !values.end)) throw Error("range \u9700\u8981 start \u548C end");
-  if (values.start === void 0 !== (values.end === void 0)) throw Error("start \u548C end \u5FC5\u987B\u540C\u65F6\u586B\u5199");
-  const duration = /^([1-9]\d*)(s|m|h|d)$/.exec(values.interval ?? "1d");
-  if (!duration) throw Error("interval \u9700\u8981\u6B63\u6570\u548C\u5355\u4F4D s\u3001m\u3001h \u6216 d");
-  const interval = Number(duration[1]) * { s: 1, m: 60, h: 3600, d: 86400 }[duration[2]] * 1e3;
-  if (!Number.isSafeInteger(interval) || interval > 2147483647) throw Error("interval \u8D85\u51FA\u8303\u56F4");
-  const registry = await call("collection.describe", {});
-  const markets = registry.markets.filter((m) => [m.scope, m.name, ...m.aliases ?? []].includes(name));
-  if (markets.length !== 1) throw Error("\u5E02\u573A\u672A\u552F\u4E00\u767B\u8BB0\uFF1A" + name);
-  const market = markets[0];
-  if (typeof market.timezone !== "string" || !market.timezone) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u65F6\u533A");
-  if (command === "status") return { market: market.scope, sources: await call("collection.sources", {}) };
-  const spec = market.collect;
-  if (!spec?.data) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u6536\u96C6\u6570\u636E\u6E90");
-  let types = items(values.data);
-  if (!types.length) types = spec.default ?? [];
-  if (types.length === 1 && types[0] === "all") types = Object.keys(spec.data);
-  if (!types.length || types.some((kind) => !spec.data[kind])) throw Error("\u6570\u636E\u7C7B\u578B\u672A\u767B\u8BB0");
-  const source = (id) => {
-    const found = registry.sources.find((s) => s.id === id);
-    if (!found) throw Error("\u6570\u636E\u6E90\u672A\u767B\u8BB0\uFF1A" + id);
-    return found;
-  };
-  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: market.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(/* @__PURE__ */ new Date());
-  if (values.start) {
-    day(values.start);
-    day(values.end);
-    if (values.start > values.end || values.end > today()) throw Error("\u65E5\u671F\u5E94\u6709\u5E8F\u4E14\u4E0D\u665A\u4E8E\u4ECA\u5929");
-  }
-  const requested = items(values.codes);
-  const codes = async () => {
-    if (spec.codes) return spec.codes;
-    const binding = spec.securities;
-    if (!binding) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u8BC1\u5238\u76EE\u5F55\uFF0C\u8BF7\u63D0\u4F9B codes");
-    source(binding.source);
-    if (command !== "check") {
-      const input2 = { source_id: binding.source, refresh: true };
-      if (binding.exchanges !== void 0) input2.exchanges = binding.exchanges;
-      await call("collection.run", input2);
-    }
-    let rows = [], offset = 0;
-    while (true) {
-      const page = await call("collection.snapshot", { id: binding.source, offset });
-      rows.push(...page.records);
-      offset += page.records.length;
-      if (offset >= page.total || !page.records.length) break;
-    }
-    const exchanges = /* @__PURE__ */ new Set();
-    const result = rows.filter((row) => {
-      if (Object.entries(binding.filters ?? {}).some(([field, allowed]) => !allowed.includes(row[field]))) return false;
-      const code = row[binding.code];
-      if (typeof code !== "string") throw Error("\u76EE\u5F55\u7F3A\u5C11\u8BC1\u5238\u4EE3\u7801");
-      if (binding.pattern && !new RegExp("^(?:" + binding.pattern + ")$").test(code)) return false;
-      exchanges.add(code.split(".")[0]);
-      const opened = row[binding.from], closed = row[binding.to];
-      return !(opened && opened > (values.end ?? today()) || closed && (values.start ? closed < values.start : true));
-    }).map((row) => row[binding.code]);
-    if ((binding.exchanges ?? []).some((exchange) => !exchanges.has(exchange))) throw Error("\u8BC1\u5238\u76EE\u5F55\u7F3A\u5C11\u767B\u8BB0\u7684\u4EA4\u6613\u6240");
-    return [...new Set(result)].sort();
-  };
-  const cycle = async () => {
-    const plans = [], jobs = [];
-    let marketCodes;
-    for (const kind of types) {
-      if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
-      const binding = spec.data[kind];
-      source(binding.source);
-      const selected = binding.codes ?? (requested.length ? requested : marketCodes ??= await codes());
-      if (!selected.length) throw Error("\u533A\u95F4\u5185\u6CA1\u6709\u8BC1\u5238");
-      let start = values.start, end = values.end;
-      if (!start) {
-        const stored = await call("collection.inspect", { source_id: binding.source, codes: selected });
-        if (!stored.last_date) throw Error("\u6CA1\u6709\u5DF2\u5B58\u6570\u636E\uFF0C\u8BF7\u7528 range \u6307\u5B9A start \u548C end");
-        start = stored.last_date;
-        end = today();
-      }
-      const request = { source_id: binding.source, start, end };
-      if (values.fields) request.fields = items(values.fields);
-      const size = spec.batch_size === void 0 ? selected.length : spec.batch_size;
-      if (!Number.isSafeInteger(size) || size < 1) throw Error("\u5E02\u573A\u6536\u96C6\u6279\u91CF\u8BBE\u7F6E\u65E0\u6548");
-      for (let offset = 0; offset < selected.length; offset += size) {
-        if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
-        const batch = { ...request, codes: selected.slice(offset, offset + size) };
-        if (command === "check") {
-          const result = await call("collection.inspect", batch);
-          plans.push({ data: kind, request: batch, coverage: result.coverage });
-        } else {
-          if (["latest", "auto"].includes(command)) Object.assign(batch, { force: true, refresh: true });
-          jobs.push(await call("collection.run", batch));
-          if (selected.length > size) progress({ market: market.scope, data: kind, status: "running", completed: Math.min(offset + size, selected.length), total: selected.length });
-        }
-      }
-    }
-    return command === "check" ? { market: market.scope, status: plans.every((p) => p.coverage.complete) ? "complete" : "incomplete", plans } : { market: market.scope, status: "succeeded", jobs };
-  };
-  do {
-    const result = await cycle();
-    if (command !== "auto") return result;
-    progress(result);
-    await new Promise((resolve, reject) => {
-      const abort = () => {
-        clearTimeout(timer);
-        reject(Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62"));
-      };
-      const timer = setTimeout(() => {
-        signal.removeEventListener("abort", abort);
-        resolve();
-      }, interval);
-      signal.addEventListener("abort", abort, { once: true });
-      if (signal.aborted) abort();
-    });
-  } while (!signal.aborted);
-  throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
-};
-
-// src/research/strategy-model.ts
-function backtestInput(spec, values, capital, start, end, dataset) {
-  const initial_cash = Number(capital);
-  if (!capital.trim() || !Number.isFinite(initial_cash) || initial_cash <= 0) throw new Error("\u6295\u5165\u8D44\u91D1\u5FC5\u987B\u5927\u4E8E 0");
-  const date = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
-  if (!date(start) || !date(end)) throw new Error("\u8BF7\u9009\u62E9\u6709\u6548\u7684\u5F00\u59CB\u4E0E\u7ED3\u675F\u65E5\u671F");
-  if (start > end) throw new Error("\u7ED3\u675F\u65E5\u671F\u4E0D\u80FD\u65E9\u4E8E\u5F00\u59CB\u65E5\u671F");
-  const params = {};
-  for (const field of spec.parameters) {
-    const value = values[field.key];
-    if (field.type === "boolean") {
-      if (typeof value !== "boolean") throw new Error(`${field.label}\u5FC5\u987B\u4E3A\u5F00\u5173\u503C`);
-      params[field.key] = value;
-    } else if (field.type === "number" || field.type === "integer") {
-      const number = Number(value);
-      if (typeof value !== "string" || !value.trim() || !Number.isFinite(number)) throw new Error(`${field.label}\u5FC5\u987B\u4E3A\u6570\u5B57`);
-      if (field.type === "integer" && !Number.isInteger(number)) throw new Error(`${field.label}\u5FC5\u987B\u4E3A\u6574\u6570`);
-      if (field.minimum !== void 0 && number < field.minimum) throw new Error(`${field.label}\u4E0D\u80FD\u5C0F\u4E8E ${field.minimum}`);
-      if (field.maximum !== void 0 && number > field.maximum) throw new Error(`${field.label}\u4E0D\u80FD\u5927\u4E8E ${field.maximum}`);
-      if (field.exclusive_minimum !== void 0 && number <= field.exclusive_minimum) throw new Error(`${field.label}\u5FC5\u987B\u5927\u4E8E ${field.exclusive_minimum}`);
-      params[field.key] = number;
-    } else {
-      if (typeof value !== "string") throw new Error(`${field.label}\u5FC5\u987B\u4E3A\u6587\u672C`);
-      params[field.key] = value;
-    }
-    if (field.options && !field.options.includes(params[field.key])) throw new Error(`${field.label}\u4E0D\u5728\u53EF\u9009\u8303\u56F4\u5185`);
-  }
-  return { module: spec.module, params, initial_cash, start, end, dataset_id: dataset };
-}
-
-// src/features.ts
-var object2 = (properties = {}, required = Object.keys(properties)) => ({ type: "object", properties, required, additionalProperties: false });
-var text = { type: "string" };
-var integer = { type: "integer", minimum: 0 };
-var boolean = { type: "boolean" };
-var defs = {
-  "backtest.strategies": { input: object2() },
-  "research.runs": { input: object2() },
-  "research.run": { input: object2({ id: text, offset: integer }) },
-  "research.benchmarks": { input: object2() },
-  "research.benchmark": { input: object2({ id: text, start: text, end: text }) },
-  "collection.sources": { input: object2(), poll: 3e3 },
-  "collection.sync": { input: object2({ id: text, input: { type: "object" } }), mode: "write" },
-  "collection.schedule": { input: object2({ id: text, enabled: boolean, interval_seconds: { type: "integer", minimum: 30 }, input: { type: "object" } }), mode: "write" },
-  "collection.job": { input: object2({ id: text }), poll: 1e3 },
-  "collection.snapshot": { input: object2({ id: text, offset: integer }) },
-  "collection.evidence": { input: object2({ id: text, index: integer }), changes: (_state, _target, _request, messages) => {
-    const record = messages[0]?.data;
-    const review = record.reviews?.[0];
-    return { audit: { status: review?.status ?? "pending", note: review?.note ?? "" } };
-  } },
-  "data.research_inputs": { input: object2() },
-  "data.status": { input: object2({ rescan: boolean }), poll: 3e3 },
-  "data.search": { input: object2({ q: text }) },
-  "data.bars": { input: object2({ code: text, freq: text, adj: text, start: text, end: text }, ["code", "freq", "adj"]) },
-  "collection.start": { input: { type: "object" }, mode: "write" },
-  "collection.current": { input: object2(), poll: 1e3 },
-  "collection.stop": { input: object2(), mode: "write" },
-  "collection.automatic": { input: object2(), poll: 1e3 },
-  "collection.set_automatic": { input: object2({ enabled: boolean }), mode: "write" },
-  "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },
-  "collection.merge_job": { input: object2(), poll: 1e3 },
-  "data.check": { input: object2(), poll: 3e3 },
-  "collection.repair": { input: object2({ id: text }), mode: "write" },
-  "collection.repair_job": { input: object2(), poll: 1e3 },
-  "cli.ingest": { input: object2({ price: text, fundamentals: text, valuations: text, output: text, max_symbols: { anyOf: [integer, { type: "null" }] }, price_part: { anyOf: [{ type: "array", items: integer }, { type: "null" }] } }), mode: "write" },
-  "cli.backtest": { input: object2({ config: text }), mode: "write" },
-  "collection.describe": { input: object2() },
-  "collection.inspect": { input: object2({ source_id: text, codes: { type: "array", items: text }, start: text, end: text, fields: { type: "array", items: text } }, ["source_id"]) },
-  "collection.run": { input: { type: "object", required: ["source_id"], properties: { source_id: text }, additionalProperties: true }, mode: "write" },
-  "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, interval: text }, ["selector"]), mode: "write" }
-};
-var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;
-var outputSchema = (operation) => `urn:lianghua:ui:output:${operation}:v1`;
-function features() {
-  const schemas = { "urn:lianghua:ui:problem:v1": { type: "object" } };
-  const operations = Object.entries(defs).map(([operation, definition]) => {
-    schemas[inputSchema(operation)] = definition.input;
-    schemas[outputSchema(operation)] = {};
-    return { operation, input_schema: inputSchema(operation), response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"], mode: definition.mode ?? "read", poll: definition.poll, changes: definition.changes, ...operation === "cli.collect" ? { execute: collect } : {} };
-  });
-  const prepare = (raw) => {
-    const data = raw;
-    const input2 = backtestInput(data.spec, data.values, data.capital, data.start, data.end, data.dataset);
-    return { ...input2, initial_cash: data.capital.trim() };
-  };
-  const form = { type: "object", required: ["spec", "values", "capital", "start", "end", "dataset"] };
-  for (const operation of ["backtest.prepare", "backtest.run"]) {
-    schemas[inputSchema(operation)] = { type: "object", required: ["module", "params", "initial_cash", "start", "end", "dataset_id"], properties: { module: text, params: { type: "object" }, initial_cash: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)?$" }, start: text, end: text, dataset_id: text }, additionalProperties: false };
-    schemas[outputSchema(operation)] = { type: "object" };
-    operations.push({
-      operation,
-      input_schema: inputSchema(operation),
-      response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"],
-      mode: "write",
-      prepare,
-      ...operation === "backtest.run" ? { requires: "backtest.prepare", changes: (state, target, request, messages) => {
-        const completed = { input: request.data, result: messages.find((m) => m.kind !== "problem").data };
-        const comparison = state.targets[target + ":comparison"]?.values ?? {};
-        const result = completed.result;
-        const runs = state.targets["research:archives"]?.values["research.runs"]?.[0] ?? [];
-        return {
-          [target + ":comparison"]: { baseline: comparison.baseline ?? completed, latest: completed },
-          "research:archives": { "research.runs": [[result, ...runs.filter((run) => run?.id !== result.id)]] },
-          research: { current: result.id }
-        };
-      } } : { ready: (messages) => messages.some((m) => m.data?.ready === true) }
-    });
-  }
-  schemas["urn:lianghua:ui:form:v1"] = form;
-  return { operations, schemas };
-}
-
-// ../cli.mjs
-var waits = /* @__PURE__ */ new Map();
-var output = (value) => process.stdout.write(JSON.stringify(value) + "\n");
-var backend = process.argv.includes("--connected") ? { send: (request) => new Promise((resolve, reject) => {
-  waits.set(request.request_id, { resolve, reject });
-  output({ kind: "request", request });
-}) } : void 0;
-var core = createDisplay({ ...features(), backend, progress: (state) => output({ kind: "state", state }) });
-var input = createInterface({ input: process.stdin, crlfDelay: Infinity });
-function close() {
-  core.dispose();
-  for (const wait of waits.values()) wait.reject(Error("session closed"));
-  waits.clear();
-  input.close();
-}
-var running = false;
-input.on("line", async (line) => {
-  try {
-    const frame = JSON.parse(line);
-    if (!validateWire("UiFrame", frame)) throw Error("Invalid bridge frame");
-    if (frame.kind === "close") {
-      close();
-      return;
-    }
-    if (frame.kind === "response") {
-      const wait = waits.get(frame.request?.request_id);
-      if (!wait) throw Error("Unknown response request");
-      waits.delete(frame.request.request_id);
-      wait.resolve(frame.messages);
-      return;
-    }
-    if (frame.kind !== "action" || !frame.action || running) throw Error("Expected one action at a time");
-    running = true;
-    const state = await core.dispatch(frame.action);
-    output({ kind: "state", state });
-    running = false;
-  } catch (reason) {
-    process.stderr.write(String(reason) + "\n");
-    process.exitCode = 1;
-    close();
-  }
-});
-input.on("close", () => {
-  core.dispose();
-  for (const wait of waits.values()) wait.reject(Error("session closed"));
-  waits.clear();
-});
-process.once("SIGINT", close);
-process.once("SIGTERM", close);
+ØˆH
+ØHH\Ë—Ü\™[
+HOOH[ØHOOH›ÚYÈ›ÚYˆØK—Ü™Yš^\ÊHOOH[ØˆOOH›ÚYÈ›ÚYˆØ‹š\Ê™Yš^
+JH\Ë—Ü™Yš^\È	‰ˆ]\Ë—Ü™Yš^\Ëš\Ê™Yš^
+JHÂˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ™Yš^‰Ü™Yš^Hˆ\È›Ý[ÝÙY[ˆ\ÈØÛÜX
+NÂˆBˆ™]\›ˆ\Ë—Û˜[Y\ÖÜ™Yš^HHÈ™Yš^[™^ˆNÂˆBˆNÂˆ^ÜË”ØÛÜHHØÛÜNÂˆ˜\ˆ˜[YTØÛÜS˜[YHHÛ\ÜÈ^[™ÈÛÙWÌK“˜[YHÂˆÛÛœÝXÝÜŠ™Yš^˜[YTÝŠHÂˆÝ\\Š˜[YTÝŠNÂˆ\Ëœ™Yš^H™Yš^ÂˆBˆÙ]˜[YJ˜[YKÈ›Ü\K][R[™^JHÂˆ\Ë˜[YHH˜[YNÂˆ\ËœØÛÜT]H
+ÛÙWÌK—ÊX‰Û™]ÈÛÙWÌK“˜[YJ›Ü\J_VÉÚ][R[™^WXÂˆBˆNÂˆ^ÜË•˜[YTØÛÜS˜[YHH˜[YTØÛÜS˜[YNÂˆ˜\ˆ[™HH
+ÛÙWÌK—ÊX˜Âˆ˜\ˆ˜[YTØÛÜHHÛ\ÜÈ^[™ÈØÛÜHÂˆÛÛœÝXÝÜŠÜÊHÂˆÝ\\ŠÜÊNÂˆ\Ë—Ý˜[Y\ÈHßNÂˆ\Ë—ÜØÛÜHHÜËœØÛÜNÂˆ\Ë›ÜÈHÈ‹‹›ÜËÛŽˆÜË›[™\ÈÈ[™HˆÛÙWÌK›š[NÂˆBˆÙ]
+
+HÂˆ™]\›ˆ\Ë—ÜØÛÜNÂˆBˆ˜[YJ™Yš^
+HÂˆ™]\›ˆ™]È˜[YTØÛÜS˜[YJ™Yš^\Ë—Û™]Ó˜[YJ™Yš^
+JNÂˆBˆ˜[YJ˜[YSÜ”™Yš^˜[YJHÂˆ˜\ˆØNÂˆYˆ
+˜[YKœ™YˆOOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ™Yˆ]\Ý™H\ÜÙY[ˆ˜[YHŠNÂˆÛÛœÝ˜[YHH\ËÓ˜[YJ˜[YSÜ”™Yš^
+NÂˆÛÛœÝÈ™Yš^HH˜[YNÂˆÛÛœÝ˜[YRÙ^HH
+ØHH˜[YKšÙ^JHOOH[	‰ˆØHOOH›ÚYÈØHˆ˜[YKœ™YŽÂˆ]œÈH\Ë—Ý˜[Y\ÖÜ™Yš^NÂˆYˆ
+œÊHÂˆÛÛœÝÛ˜[YHHœË™Ù]
+˜[YRÙ^JNÂˆYˆ
+Û˜[YJBˆ™]\›ˆÛ˜[YNÂˆH[ÙHÂˆœÈH\Ë—Ý˜[Y\ÖÜ™Yš^HHÊˆ×ÔT‘W×È
+‹È™]ÈX\
+
+NÂˆBˆœËœÙ]
+˜[YRÙ^K˜[YJNÂˆÛÛœÝÈH\Ë—ÜØÛÜVÜ™Yš^H
+\Ë—ÜØÛÜVÜ™Yš^HH×JNÂˆÛÛœÝ][R[™^HË›[™ÝÂˆÖÚ][R[™^HH˜[YKœ™YŽÂˆ˜[YKœÙ]˜[YJ˜[YKÈ›Ü\Nˆ™Yš^][R[™^JNÂˆ™]\›ˆ˜[YNÂˆBˆÙ]˜[YJ™Yš^Ù^SÜ”™YŠHÂˆÛÛœÝœÈH\Ë—Ý˜[Y\ÖÜ™Yš^NÂˆYˆ
+]œÊBˆ™]\›ŽÂˆ™]\›ˆœË™Ù]
+Ù^SÜ”™YŠNÂˆBˆØÛÜT™YœÊØÛÜS˜[YK˜[Y\ÈH\Ë—Ý˜[Y\ÊHÂˆ™]\›ˆ\Ë—Ü™YXÙU˜[Y\Ê˜[Y\Ë
+˜[YJHOˆÂˆYˆ
+˜[YKœØÛÜT]OOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ˜[YH‰Û˜[Y_Hˆ\È›È˜[YX
+NÂˆ™]\›ˆ
+ÛÙWÌK—ÊX	ÜØÛÜS˜[Y_IÛ˜[YKœØÛÜT]XÂˆJNÂˆBˆØÛÜPÛÙJ˜[Y\ÈH\Ë—Ý˜[Y\Ë\ÙY˜[Y\ËÙ]ÛÙJHÂˆ™]\›ˆ\Ë—Ü™YXÙU˜[Y\Ê˜[Y\Ë
+˜[YJHOˆÂˆYˆ
+˜[YK˜[YHOOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ˜[YH‰Û˜[Y_Hˆ\È›È˜[YX
+NÂˆ™]\›ˆ˜[YK˜[YK˜ÛÙNÂˆK\ÙY˜[Y\ËÙ]ÛÙJNÂˆBˆÜ™YXÙU˜[Y\Ê˜[Y\Ë˜[YPÛÙK\ÙY˜[Y\ÈHßKÙ]ÛÙJHÂˆ]ÛÙHHÛÙWÌK›š[Âˆ›Üˆ
+ÛÛœÝ™Yš^[ˆ˜[Y\ÊHÂˆÛÛœÝœÈH˜[Y\ÖÜ™Yš^NÂˆYˆ
+]œÊBˆÛÛ[YNÂˆÛÛœÝ˜[YTÙ]H\ÙY˜[Y\ÖÜ™Yš^HH\ÙY˜[Y\ÖÜ™Yš^HÊˆ×ÔT‘W×È
+‹È™]ÈX\
+
+NÂˆœË™›Ü‘XXÚ
+
+˜[YJHOˆÂˆYˆ
+˜[YTÙ]š\Ê˜[YJJBˆ™]\›ŽÂˆ˜[YTÙ]œÙ]
+˜[YK\ÙY˜[YTÝ]K”Ý\Y
+NÂˆ]ÈH˜[YPÛÙJ˜[YJNÂˆYˆ
+ÊHÂˆÛÛœÝYˆH\Ë›ÜË™\ÍHÈ^ÜË˜\’Ú[™Ë˜\ˆˆ^ÜË˜\’Ú[™Ë˜ÛÛœÝÂˆÛÙHH
+ÛÙWÌK—ÊX	ØÛÙ_IÙYŸH	Û˜[Y_HH	ØßNÉÝ\Ë›ÜË—ÛŸXÂˆH[ÙHYˆ
+ÈHÙ]ÛÙHOOH[Ù]ÛÙHOOH›ÚYÈ›ÚYˆÙ]ÛÙJ˜[YJJHÂˆÛÙHH
+ÛÙWÌK—ÊX	ØÛÙ_IØßIÝ\Ë›ÜË—ÛŸXÂˆH[ÙHÂˆ›ÝÈ™]È˜[YQ\œ›ÜŠ˜[YJNÂˆBˆ˜[YTÙ]œÙ]
+˜[YK\ÙY˜[YTÝ]KÛÛ\]Y
+NÂˆJNÂˆBˆ™]\›ˆÛÙNÂˆBˆNÂˆ^ÜË•˜[YTØÛÜHH˜[YTØÛÜNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KØÛÙYÙ[‹Ú[™^šœÂ˜\ˆ™\]Z\™WØÛÙYÙ[ˆH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KØÛÙYÙ[‹Ú[™^šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË›ÜˆH^ÜË˜[™H^ÜË››ÝH^ÜËÛÙQÙ[ˆH^ÜË›Ü\˜]ÜœÈH^ÜË˜\’Ú[™ÈH^ÜË•˜[YTØÛÜS˜[YHH^ÜË•˜[YTØÛÜHH^ÜË”ØÛÜHH^ÜË“˜[YHH^ÜËœ™YÙ^ÛÙHH^ÜËœÝš[™ÚYžHH^ÜË™Ù]›Ü\HH^ÜË›š[H^ÜËœÝÛÛ˜Ø]H^ÜËœÝˆH^ÜË—ÈH›ÚYÂˆ˜\ˆÛÙWÌHH™\]Z\™WØÛÙJ
+NÂˆ˜\ˆØÛÜWÌHH™\]Z\™WÜØÛÜJ
+NÂˆ˜\ˆÛÙWÌˆH™\]Z\™WØÛÙJ
+NÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—È‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹—ÎÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜËœÝˆ‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹œÝŽÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜËœÝÛÛ˜Ø]‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹œÝÛÛ˜Ø]ÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜË›š[‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹›š[ÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜË™Ù]›Ü\H‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹™Ù]›Ü\NÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜËœÝš[™ÚYžH‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹œÝš[™ÚYžNÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜËœ™YÙ^ÛÙH‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹œ™YÙ^ÛÙNÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜË“˜[YH‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆÛÙWÌ‹“˜[YNÂˆHJNÂˆ˜\ˆØÛÜWÌˆH™\]Z\™WÜØÛÜJ
+NÂˆØš™XÝ™Yš[™T›Ü\J^ÜË”ØÛÜH‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆØÛÜWÌ‹”ØÛÜNÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜË•˜[YTØÛÜH‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆØÛÜWÌ‹•˜[YTØÛÜNÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜË•˜[YTØÛÜS˜[YH‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆØÛÜWÌ‹•˜[YTØÛÜS˜[YNÂˆHJNÂˆØš™XÝ™Yš[™T›Ü\J^ÜË˜\’Ú[™È‹È[[Y\˜X›NˆYKÙ]ˆ[˜Ý[ÛŠ
+HÂˆ™]\›ˆØÛÜWÌ‹˜\’Ú[™ÎÂˆHJNÂˆ^ÜË›Ü\˜]ÜœÈHÂˆÕˆ™]ÈÛÙWÌK—ÐÛÙJˆŠKˆÕNˆ™]ÈÛÙWÌK—ÐÛÙJHŠKˆˆ™]ÈÛÙWÌK—ÐÛÙJŠKˆNˆ™]ÈÛÙWÌK—ÐÛÙJHŠKˆTNˆ™]ÈÛÙWÌK—ÐÛÙJOOHŠKˆ‘TNˆ™]ÈÛÙWÌK—ÐÛÙJˆOOHŠKˆ“Õˆ™]ÈÛÙWÌK—ÐÛÙJˆHŠKˆÔŽˆ™]ÈÛÙWÌK—ÐÛÙJŸŠKˆS‘ˆ™]ÈÛÙWÌK—ÐÛÙJ‰‰ˆŠKˆQˆ™]ÈÛÙWÌK—ÐÛÙJŠÈŠBˆNÂˆ˜\ˆ›ÙHHÛ\ÜÈÂˆÜ[Z^™S›Ù\Ê
+HÂˆ™]\›ˆ\ÎÂˆBˆÜ[Z^™S˜[Y\ÊÛ˜[Y\ËØÛÛœÝ[ÊHÂˆ™]\›ˆ\ÎÂˆBˆNÂˆ˜\ˆYˆHÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠ˜\’Ú[™˜[YKšÊHÂˆÝ\\Š
+NÂˆ\Ë˜\’Ú[™H˜\’Ú[™Âˆ\Ë›˜[YHH˜[YNÂˆ\ËœšÈHšÎÂˆBˆ™[™\ŠÈ\ÍKÛˆJHÂˆÛÛœÝ˜\’Ú[™H\ÍHÈØÛÜWÌK˜\’Ú[™Ë˜\ˆˆ\Ë˜\’Ú[™ÂˆÛÛœÝšÈH\ËœšÈOOH›ÚYÈˆˆˆH	Ý\ËœšßXÂˆ™]\›ˆ	Ý˜\’Ú[™H	Ý\Ë›˜[Y_IÜšßNØ
+ÈÛŽÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆYˆ
+[˜[Y\ÖÝ\Ë›˜[YKœÝ—JBˆ™]\›ŽÂˆYˆ
+\ËœšÊBˆ\ËœšÈHÜ[Z^™Q^Š\ËœšË˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆ\ËœšÈ[œÝ[˜Ù[ÙˆÛÙWÌK—ÐÛÙSÜ“˜[YHÈ\ËœšË›˜[Y\ÈˆßNÂˆBˆNÂˆ˜\ˆ\ÜÚYÛˆHÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠËšËÚYQY™™XÝÊHÂˆÝ\\Š
+NÂˆ\Ë›ÈHÎÂˆ\ËœšÈHšÎÂˆ\ËœÚYQY™™XÝÈHÚYQY™™XÝÎÂˆBˆ™[™\ŠÈÛˆJHÂˆ™]\›ˆ	Ý\Ë›ßHH	Ý\ËœšßNØ
+ÈÛŽÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆYˆ
+\Ë›È[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YH	‰ˆ[˜[Y\ÖÝ\Ë›ËœÝ—H	‰ˆ]\ËœÚYQY™™XÝÊBˆ™]\›ŽÂˆ\ËœšÈHÜ[Z^™Q^Š\ËœšË˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆÛÛœÝ˜[Y\ÈH\Ë›È[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YHÈßHˆÈ‹‹\Ë›Ë›˜[Y\ÈNÂˆ™]\›ˆY^“˜[Y\Ê˜[Y\Ë\ËœšÊNÂˆBˆNÂˆ˜\ˆ\ÜÚYÛ“ÜHÛ\ÜÈ^[™È\ÜÚYÛˆÂˆÛÛœÝXÝÜŠËÜšËÚYQY™™XÝÊHÂˆÝ\\ŠËšËÚYQY™™XÝÊNÂˆ\Ë›ÜHÜÂˆBˆ™[™\ŠÈÛˆJHÂˆ™]\›ˆ	Ý\Ë›ßH	Ý\Ë›ÜOH	Ý\ËœšßNØ
+ÈÛŽÂˆBˆNÂˆ˜\ˆX™[HÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠX™[
+HÂˆÝ\\Š
+NÂˆ\Ë›X™[HX™[Âˆ\Ë›˜[Y\ÈHßNÂˆBˆ™[™\ŠÈÛˆJHÂˆ™]\›ˆ	Ý\Ë›X™[N˜
+ÈÛŽÂˆBˆNÂˆ˜\ˆœ™XZÈHÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠX™[
+HÂˆÝ\\Š
+NÂˆ\Ë›X™[HX™[Âˆ\Ë›˜[Y\ÈHßNÂˆBˆ™[™\ŠÈÛˆJHÂˆÛÛœÝX™[H\Ë›X™[È	Ý\Ë›X™[XˆˆŽÂˆ™]\›ˆœ™XZÉÛX™[NØ
+ÈÛŽÂˆBˆNÂˆ˜\ˆ›ÝÈHÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠ\œ›ÜŠHÂˆÝ\\Š
+NÂˆ\Ë™\œ›ÜˆH\œ›ÜŽÂˆBˆ™[™\ŠÈÛˆJHÂˆ™]\›ˆ›ÝÈ	Ý\Ë™\œ›ÜŸNØ
+ÈÛŽÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆ\Ë™\œ›Ü‹›˜[Y\ÎÂˆBˆNÂˆ˜\ˆ[žPÛÙHHÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠÛÙJHÂˆÝ\\Š
+NÂˆ\Ë˜ÛÙHHÛÙNÂˆBˆ™[™\ŠÈÛˆJHÂˆ™]\›ˆ	Ý\Ë˜ÛÙ_NØ
+ÈÛŽÂˆBˆÜ[Z^™S›Ù\Ê
+HÂˆ™]\›ˆ	Ý\Ë˜ÛÙ_XÈ\Èˆ›ÚYÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆ\Ë˜ÛÙHHÜ[Z^™Q^Š\Ë˜ÛÙK˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆ\Ë˜ÛÙH[œÝ[˜Ù[ÙˆÛÙWÌK—ÐÛÙSÜ“˜[YHÈ\Ë˜ÛÙK›˜[Y\ÈˆßNÂˆBˆNÂˆ˜\ˆ\™[›ÙHHÛ\ÜÈ^[™È›ÙHÂˆÛÛœÝXÝÜŠ›Ù\ÈH×JHÂˆÝ\\Š
+NÂˆ\Ë››Ù\ÈH›Ù\ÎÂˆBˆ™[™\ŠÜÊHÂˆ™]\›ˆ\Ë››Ù\Ëœ™YXÙJ
+ÛÙKŠHOˆÛÙH
+È‹œ™[™\ŠÜÊKˆŠNÂˆBˆÜ[Z^™S›Ù\Ê
+HÂˆÛÛœÝÈ›Ù\ÈHH\ÎÂˆ]HH›Ù\Ë›[™ÝÂˆÚ[H
+KKJHÂˆÛÛœÝˆH›Ù\ÖÚWK›Ü[Z^™S›Ù\Ê
+NÂˆYˆ
+\œ˜^Kš\Ð\œ˜^JŠJBˆ›Ù\ËœÜXÙJKK‹‹›ŠNÂˆ[ÙHYˆ
+ŠBˆ›Ù\ÖÚWHHŽÂˆ[ÙBˆ›Ù\ËœÜXÙJKJNÂˆBˆ™]\›ˆ›Ù\Ë›[™ÝˆÈ\Èˆ›ÚYÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆÛÛœÝÈ›Ù\ÈHH\ÎÂˆ]HH›Ù\Ë›[™ÝÂˆÚ[H
+KKJHÂˆÛÛœÝˆH›Ù\ÖÚWNÂˆYˆ
+‹›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊJBˆÛÛ[YNÂˆÝX˜XÝ˜[Y\Ê˜[Y\Ë‹›˜[Y\ÊNÂˆ›Ù\ËœÜXÙJKJNÂˆBˆ™]\›ˆ›Ù\Ë›[™ÝˆÈ\Èˆ›ÚYÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆ\Ë››Ù\Ëœ™YXÙJ
+˜[Y\ËŠHOˆY˜[Y\Ê˜[Y\Ë‹›˜[Y\ÊKßJNÂˆBˆNÂˆ˜\ˆ›ØÚÓ›ÙHHÛ\ÜÈ^[™È\™[›ÙHÂˆ™[™\ŠÜÊHÂˆ™]\›ˆžÈˆ
+ÈÜË—Ûˆ
+ÈÝ\\‹œ™[™\ŠÜÊH
+ÈŸHˆ
+ÈÜË—ÛŽÂˆBˆNÂˆ˜\ˆ›ÛÝHÛ\ÜÈ^[™È\™[›ÙHÂˆNÂˆ˜\ˆ[ÙHHÛ\ÜÈ^[™È›ØÚÓ›ÙHÂˆNÂˆ[ÙKšÚ[™H™[ÙHŽÂˆ˜\ˆYˆHÛ\ÜÈÒYˆ^[™È›ØÚÓ›ÙHÂˆÛÛœÝXÝÜŠÛÛ™][Û‹›Ù\ÊHÂˆÝ\\Š›Ù\ÊNÂˆ\Ë˜ÛÛ™][ÛˆHÛÛ™][ÛŽÂˆBˆ™[™\ŠÜÊHÂˆ]ÛÙHHYŠ	Ý\Ë˜ÛÛ™][ÛŸJX
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆYˆ
+\Ë™[ÙJBˆÛÙH
+ÏH™[ÙHˆ
+È\Ë™[ÙKœ™[™\ŠÜÊNÂˆ™]\›ˆÛÙNÂˆBˆÜ[Z^™S›Ù\Ê
+HÂˆÝ\\‹›Ü[Z^™S›Ù\Ê
+NÂˆÛÛœÝÛÛ™H\Ë˜ÛÛ™][ÛŽÂˆYˆ
+ÛÛ™OOHYJBˆ™]\›ˆ\Ë››Ù\ÎÂˆ]HH\Ë™[ÙNÂˆYˆ
+JHÂˆÛÛœÝœÈHK›Ü[Z^™S›Ù\Ê
+NÂˆHH\Ë™[ÙHH\œ˜^Kš\Ð\œ˜^JœÊHÈ™]È[ÙJœÊHˆœÎÂˆBˆYˆ
+JHÂˆYˆ
+ÛÛ™OOH˜[ÙJBˆ™]\›ˆH[œÝ[˜Ù[ÙˆÒYˆÈHˆK››Ù\ÎÂˆYˆ
+\Ë››Ù\Ë›[™Ý
+Bˆ™]\›ˆ\ÎÂˆ™]\›ˆ™]ÈÒYŠ›Ý
+ÛÛ™
+KH[œÝ[˜Ù[ÙˆÒYˆÈÙWHˆK››Ù\ÊNÂˆBˆYˆ
+ÛÛ™OOH˜[ÙH]\Ë››Ù\Ë›[™Ý
+Bˆ™]\›ˆ›ÚYÂˆ™]\›ˆ\ÎÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆ˜\ˆØNÂˆ\Ë™[ÙHH
+ØHH\Ë™[ÙJHOOH[ØHOOH›ÚYÈ›ÚYˆØK›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊNÂˆYˆ
+JÝ\\‹›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊH\Ë™[ÙJJBˆ™]\›ŽÂˆ\Ë˜ÛÛ™][ÛˆHÜ[Z^™Q^Š\Ë˜ÛÛ™][Û‹˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆÛÛœÝ˜[Y\ÈHÝ\\‹›˜[Y\ÎÂˆY^“˜[Y\Ê˜[Y\Ë\Ë˜ÛÛ™][ÛŠNÂˆYˆ
+\Ë™[ÙJBˆY˜[Y\Ê˜[Y\Ë\Ë™[ÙK›˜[Y\ÊNÂˆ™]\›ˆ˜[Y\ÎÂˆBˆNÂˆY‹šÚ[™HšYˆŽÂˆ˜\ˆ›ÜˆHÛ\ÜÈ^[™È›ØÚÓ›ÙHÂˆNÂˆ›Ü‹šÚ[™H™›ÜˆŽÂˆ˜\ˆ›Ü“ÛÜHÛ\ÜÈ^[™È›ÜˆÂˆÛÛœÝXÝÜŠ]\˜][ÛŠHÂˆÝ\\Š
+NÂˆ\Ëš]\˜][ÛˆH]\˜][ÛŽÂˆBˆ™[™\ŠÜÊHÂˆ™]\›ˆ›ÜŠ	Ý\Ëš]\˜][ÛŸJX
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆYˆ
+\Ý\\‹›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊJBˆ™]\›ŽÂˆ\Ëš]\˜][ÛˆHÜ[Z^™Q^Š\Ëš]\˜][Û‹˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆY˜[Y\ÊÝ\\‹›˜[Y\Ë\Ëš]\˜][Û‹›˜[Y\ÊNÂˆBˆNÂˆ˜\ˆ›Ü”˜[™ÙHHÛ\ÜÈ^[™È›ÜˆÂˆÛÛœÝXÝÜŠ˜\’Ú[™˜[YKœ›ÛKÊHÂˆÝ\\Š
+NÂˆ\Ë˜\’Ú[™H˜\’Ú[™Âˆ\Ë›˜[YHH˜[YNÂˆ\Ë™œ›ÛHHœ›ÛNÂˆ\ËÈHÎÂˆBˆ™[™\ŠÜÊHÂˆÛÛœÝ˜\’Ú[™HÜË™\ÍHÈØÛÜWÌK˜\’Ú[™Ë˜\ˆˆ\Ë˜\’Ú[™ÂˆÛÛœÝÈ˜[YKœ›ÛKÈHH\ÎÂˆ™]\›ˆ›ÜŠ	Ý˜\’Ú[™H	Û˜[Y_OIÙœ›Û_NÈ	Û˜[Y_O	ÝßNÈ	Û˜[Y_JÊÊX
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆÙ]˜[Y\Ê
+HÂˆÛÛœÝ˜[Y\ÈHY^“˜[Y\ÊÝ\\‹›˜[Y\Ë\Ë™œ›ÛJNÂˆ™]\›ˆY^“˜[Y\Ê˜[Y\Ë\ËÊNÂˆBˆNÂˆ˜\ˆ›Ü’]\ˆHÛ\ÜÈ^[™È›ÜˆÂˆÛÛœÝXÝÜŠÛÜ˜\’Ú[™˜[YK]\˜X›JHÂˆÝ\\Š
+NÂˆ\Ë›ÛÜHÛÜÂˆ\Ë˜\’Ú[™H˜\’Ú[™Âˆ\Ë›˜[YHH˜[YNÂˆ\Ëš]\˜X›HH]\˜X›NÂˆBˆ™[™\ŠÜÊHÂˆ™]\›ˆ›ÜŠ	Ý\Ë˜\’Ú[™H	Ý\Ë›˜[Y_H	Ý\Ë›ÛÜH	Ý\Ëš]\˜X›_JX
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆYˆ
+\Ý\\‹›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊJBˆ™]\›ŽÂˆ\Ëš]\˜X›HHÜ[Z^™Q^Š\Ëš]\˜X›K˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆ™]\›ˆY˜[Y\ÊÝ\\‹›˜[Y\Ë\Ëš]\˜X›K›˜[Y\ÊNÂˆBˆNÂˆ˜\ˆ[˜ÈHÛ\ÜÈ^[™È›ØÚÓ›ÙHÂˆÛÛœÝXÝÜŠ˜[YK\™ÜË\Þ[˜ÊHÂˆÝ\\Š
+NÂˆ\Ë›˜[YHH˜[YNÂˆ\Ë˜\™ÜÈH\™ÜÎÂˆ\Ë˜\Þ[˜ÈH\Þ[˜ÎÂˆBˆ™[™\ŠÜÊHÂˆÛÛœÝØ\Þ[˜ÈH\Ë˜\Þ[˜ÈÈ˜\Þ[˜ÈˆˆˆŽÂˆ™]\›ˆ	×Ø\Þ[˜ßY[˜Ý[Ûˆ	Ý\Ë›˜[Y_J	Ý\Ë˜\™ÜßJX
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆNÂˆ[˜ËšÚ[™H™[˜ÈŽÂˆ˜\ˆ™]\›ˆHÛ\ÜÈ^[™È\™[›ÙHÂˆ™[™\ŠÜÊHÂˆ™]\›ˆœ™]\›ˆˆ
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆNÂˆ™]\›‹šÚ[™Hœ™]\›ˆŽÂˆ˜\ˆžHHÛ\ÜÈ^[™È›ØÚÓ›ÙHÂˆ™[™\ŠÜÊHÂˆ]ÛÙHHžHˆ
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆYˆ
+\Ë˜Ø]Ú
+BˆÛÙH
+ÏH\Ë˜Ø]Úœ™[™\ŠÜÊNÂˆYˆ
+\Ë™š[˜[JBˆÛÙH
+ÏH\Ë™š[˜[Kœ™[™\ŠÜÊNÂˆ™]\›ˆÛÙNÂˆBˆÜ[Z^™S›Ù\Ê
+HÂˆ˜\ˆØKØŽÂˆÝ\\‹›Ü[Z^™S›Ù\Ê
+NÂˆ
+ØHH\Ë˜Ø]Ú
+HOOH[ØHOOH›ÚYÈ›ÚYˆØK›Ü[Z^™S›Ù\Ê
+NÂˆ
+ØˆH\Ë™š[˜[JHOOH[ØˆOOH›ÚYÈ›ÚYˆØ‹›Ü[Z^™S›Ù\Ê
+NÂˆ™]\›ˆ\ÎÂˆBˆÜ[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊHÂˆ˜\ˆØKØŽÂˆÝ\\‹›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊNÂˆ
+ØHH\Ë˜Ø]Ú
+HOOH[ØHOOH›ÚYÈ›ÚYˆØK›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊNÂˆ
+ØˆH\Ë™š[˜[JHOOH[ØˆOOH›ÚYÈ›ÚYˆØ‹›Ü[Z^™S˜[Y\Ê˜[Y\ËÛÛœÝ[ÊNÂˆ™]\›ˆ\ÎÂˆBˆÙ]˜[Y\Ê
+HÂˆÛÛœÝ˜[Y\ÈHÝ\\‹›˜[Y\ÎÂˆYˆ
+\Ë˜Ø]Ú
+BˆY˜[Y\Ê˜[Y\Ë\Ë˜Ø]Ú›˜[Y\ÊNÂˆYˆ
+\Ë™š[˜[JBˆY˜[Y\Ê˜[Y\Ë\Ë™š[˜[K›˜[Y\ÊNÂˆ™]\›ˆ˜[Y\ÎÂˆBˆNÂˆ˜\ˆØ]ÚHÛ\ÜÈ^[™È›ØÚÓ›ÙHÂˆÛÛœÝXÝÜŠ\œ›ÜŠHÂˆÝ\\Š
+NÂˆ\Ë™\œ›ÜˆH\œ›ÜŽÂˆBˆ™[™\ŠÜÊHÂˆ™]\›ˆØ]Ú
+	Ý\Ë™\œ›ÜŸJX
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆNÂˆØ]ÚšÚ[™H˜Ø]ÚŽÂˆ˜\ˆš[˜[HHÛ\ÜÈ^[™È›ØÚÓ›ÙHÂˆ™[™\ŠÜÊHÂˆ™]\›ˆ™š[˜[Hˆ
+ÈÝ\\‹œ™[™\ŠÜÊNÂˆBˆNÂˆš[˜[KšÚ[™H™š[˜[HŽÂˆ˜\ˆÛÙQÙ[ˆHÛ\ÜÈÂˆÛÛœÝXÝÜŠ^ØÛÜKÜÈHßJHÂˆ\Ë—Ý˜[Y\ÈHßNÂˆ\Ë—Ø›ØÚÔÝ\ÈH×NÂˆ\Ë—ØÛÛœÝ[ÈHßNÂˆ\Ë›ÜÈHÈ‹‹›ÜËÛŽˆÜË›[™\ÈÈ—ˆˆˆˆˆNÂˆ\Ë—Ù^ØÛÜHH^ØÛÜNÂˆ\Ë—ÜØÛÜHH™]ÈØÛÜWÌK”ØÛÜJÈ\™[ˆ^ØÛÜHJNÂˆ\Ë—Û›Ù\ÈHÛ™]È›ÛÝ
+
+WNÂˆBˆÔÝš[™Ê
+HÂˆ™]\›ˆ\Ë—Ü›ÛÝœ™[™\Š\Ë›ÜÊNÂˆBˆËÈ™]\›œÈ[š\]YH˜[YH[ˆH[\›˜[ØÛÜBˆ˜[YJ™Yš^
+HÂˆ™]\›ˆ\Ë—ÜØÛÜK›˜[YJ™Yš^
+NÂˆBˆËÈ™\Ù\™\È[š\]YH˜[YH[ˆH^\›˜[ØÛÜBˆØÛÜS˜[YJ™Yš^
+HÂˆ™]\›ˆ\Ë—Ù^ØÛÜK›˜[YJ™Yš^
+NÂˆBˆËÈ™\Ù\™\È[š\]YH˜[YH[ˆH^\›˜[ØÛÜH[™\ÜÚYÛœÈ˜[YHÈ]ˆØÛÜU˜[YJ™Yš^Ü“˜[YK˜[YJHÂˆÛÛœÝ˜[YHH\Ë—Ù^ØÛÜK˜[YJ™Yš^Ü“˜[YK˜[YJNÂˆÛÛœÝœÈH\Ë—Ý˜[Y\ÖÛ˜[YKœ™Yš^H
+\Ë—Ý˜[Y\ÖÛ˜[YKœ™Yš^HHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+
+JNÂˆœË˜Y
+˜[YJNÂˆ™]\›ˆ˜[YNÂˆBˆÙ]ØÛÜU˜[YJ™Yš^Ù^SÜ”™YŠHÂˆ™]\›ˆ\Ë—Ù^ØÛÜK™Ù]˜[YJ™Yš^Ù^SÜ”™YŠNÂˆBˆËÈ™]\›ˆÛÙH]\ÜÚYÛœÈ˜[Y\È[ˆH^\›˜[ØÛÜHÈH˜[Y\È]\™H\ÙY[\›˜[BˆËÈ
+Ø[YH˜[Y\È]Ù\™H™]\›™YžHÙ[‹œØÛÜS˜[YHÜˆÙ[‹œØÛÜU˜[YJBˆØÛÜT™YœÊØÛÜS˜[YJHÂˆ™]\›ˆ\Ë—Ù^ØÛÜKœØÛÜT™YœÊØÛÜS˜[YK\Ë—Ý˜[Y\ÊNÂˆBˆØÛÜPÛÙJ
+HÂˆ™]\›ˆ\Ë—Ù^ØÛÜKœØÛÜPÛÙJ\Ë—Ý˜[Y\ÊNÂˆBˆÙYŠ˜\’Ú[™˜[YSÜ”™Yš^šËÛÛœÝ[
+HÂˆÛÛœÝ˜[YHH\Ë—ÜØÛÜKÓ˜[YJ˜[YSÜ”™Yš^
+NÂˆYˆ
+šÈOOH›ÚY	‰ˆÛÛœÝ[
+Bˆ\Ë—ØÛÛœÝ[ÖÛ˜[YKœÝ—HHšÎÂˆ\Ë—ÛXY“›ÙJ™]ÈYŠ˜\’Ú[™˜[YKšÊJNÂˆ™]\›ˆ˜[YNÂˆBˆËÈÛÛœÝXÛ\˜][Ûˆ
+˜\˜[ˆ\ÍH[ÙJBˆÛÛœÝ
+˜[YSÜ”™Yš^šËØÛÛœÝ[
+HÂˆ™]\›ˆ\Ë—ÙYŠØÛÜWÌK˜\’Ú[™Ë˜ÛÛœÝ˜[YSÜ”™Yš^šËØÛÛœÝ[
+NÂˆBˆËÈ]XÛ\˜][ÛˆÚ]Ü[Û˜[\ÜÚYÛ›Y[
+˜\˜[ˆ\ÍH[ÙJBˆ]
+˜[YSÜ”™Yš^šËØÛÛœÝ[
+HÂˆ™]\›ˆ\Ë—ÙYŠØÛÜWÌK˜\’Ú[™Ë›]˜[YSÜ”™Yš^šËØÛÛœÝ[
+NÂˆBˆËÈ˜\˜XÛ\˜][ÛˆÚ]Ü[Û˜[\ÜÚYÛ›Y[ˆ˜\Š˜[YSÜ”™Yš^šËØÛÛœÝ[
+HÂˆ™]\›ˆ\Ë—ÙYŠØÛÜWÌK˜\’Ú[™Ë˜\‹˜[YSÜ”™Yš^šËØÛÛœÝ[
+NÂˆBˆËÈ\ÜÚYÛ›Y[ÛÙBˆ\ÜÚYÛŠËšËÚYQY™™XÝÊHÂˆ™]\›ˆ\Ë—ÛXY“›ÙJ™]È\ÜÚYÛŠËšËÚYQY™™XÝÊJNÂˆBˆËÈ
+ÏXÛÙBˆY
+ËšÊHÂˆ™]\›ˆ\Ë—ÛXY“›ÙJ™]È\ÜÚYÛ“Ü
+Ë^ÜË›Ü\˜]ÜœËQšÊJNÂˆBˆËÈ\[™È\ÜÙYØY™Q^ˆÈÛÙHÜˆ^XÝ]\È›ØÚÂˆÛÙJÊHÂˆYˆ
+\[ÙˆÈOH™[˜Ý[ÛˆŠBˆÊ
+NÂˆ[ÙHYˆ
+ÈOOHÛÙWÌK›š[
+Bˆ\Ë—ÛXY“›ÙJ™]È[žPÛÙJÊJNÂˆ™]\›ˆ\ÎÂˆBˆËÈ™]\›œÈÛÙH›ÜˆØš™XÝ]\˜[›ÜˆH\ÜÙY\™Ý[Y[\ÝÙˆÙ^K]˜[YHZ\œÂˆØš™XÝ
+‹‹šÙ^U˜[Y\ÊHÂˆÛÛœÝÛÙHHÈžÈ—NÂˆ›Üˆ
+ÛÛœÝÚÙ^K˜[YWHÙˆÙ^U˜[Y\ÊHÂˆYˆ
+ÛÙK›[™ÝˆJBˆÛÙKœ\Ú
+‹ŠNÂˆÛÙKœ\Ú
+Ù^JNÂˆYˆ
+Ù^HOOH˜[YH\Ë›ÜË™\ÍJHÂˆÛÙKœ\Ú
+ŽˆŠNÂˆ
+ÛÙWÌK˜YÛÙP\™ÊJÛÙK˜[YJNÂˆBˆBˆÛÙKœ\Ú
+ŸHŠNÂˆ™]\›ˆ™]ÈÛÙWÌK—ÐÛÙJÛÙJNÂˆBˆËÈY˜Û]\ÙH
+ÜˆÝ][Y[Yˆ[›ÙX[™Ü[Û˜[K[ÙP›ÙX\™H\ÜÙY
+BˆYŠÛÛ™][Û‹[›ÙK[ÙP›ÙJHÂˆ\Ë—Ø›ØÚÓ›ÙJ™]ÈYŠÛÛ™][ÛŠJNÂˆYˆ
+[›ÙH	‰ˆ[ÙP›ÙJHÂˆ\Ë˜ÛÙJ[›ÙJK™[ÙJ
+K˜ÛÙJ[ÙP›ÙJK™[™YŠ
+NÂˆH[ÙHYˆ
+[›ÙJHÂˆ\Ë˜ÛÙJ[›ÙJK™[™YŠ
+NÂˆH[ÙHYˆ
+[ÙP›ÙJHÂˆ›ÝÈ™]È\œ›ÜŠ	ÐÛÙQÙ[Žˆ™[ÙHˆ›ÙHÚ]Ý][ˆˆ›ÙIÊNÂˆBˆ™]\›ˆ\ÎÂˆBˆËÈ[ÙHY˜Û]\ÙHH[˜[YÚ]Ý]Y˜ÜˆY\ˆ[ÙXÛ]\Ù\Âˆ[ÙRYŠÛÛ™][ÛŠHÂˆ™]\›ˆ\Ë—Ù[ÙS›ÙJ™]ÈYŠÛÛ™][ÛŠJNÂˆBˆËÈ[ÙXÛ]\ÙHHÛ›H˜[YY\ˆY˜Üˆ[ÙHY˜Û]\Ù\Âˆ[ÙJ
+HÂˆ™]\›ˆ\Ë—Ù[ÙS›ÙJ™]È[ÙJ
+JNÂˆBˆËÈ[™Y˜Ý][Y[
+™YYYYˆÙ[‹šYˆØ\È\ÙYÛ›HÚ]ÛÛ™][ÛŠBˆ[™YŠ
+HÂˆ™]\›ˆ\Ë—Ù[™›ØÚÓ›ÙJY‹[ÙJNÂˆBˆÙ›ÜŠ›ÙK›Ü›ÙJHÂˆ\Ë—Ø›ØÚÓ›ÙJ›ÙJNÂˆYˆ
+›Ü›ÙJBˆ\Ë˜ÛÙJ›Ü›ÙJK™[™›ÜŠ
+NÂˆ™]\›ˆ\ÎÂˆBˆËÈHÙ[™\šXÈ›Ü˜Û]\ÙH
+ÜˆÝ][Y[Yˆ›Ü›ÙX\È\ÜÙY
+Bˆ›ÜŠ]\˜][Û‹›Ü›ÙJHÂˆ™]\›ˆ\Ë—Ù›ÜŠ™]È›Ü“ÛÜ
+]\˜][ÛŠK›Ü›ÙJNÂˆBˆËÈ›Ü˜Ý][Y[›ÜˆH˜[™ÙHÙˆ˜[Y\Âˆ›Ü”˜[™ÙJ˜[YSÜ”™Yš^œ›ÛKË›Ü›ÙK˜\’Ú[™H\Ë›ÜË™\ÍHÈØÛÜWÌK˜\’Ú[™Ë˜\ˆˆØÛÜWÌK˜\’Ú[™Ë›]
+HÂˆÛÛœÝ˜[YHH\Ë—ÜØÛÜKÓ˜[YJ˜[YSÜ”™Yš^
+NÂˆ™]\›ˆ\Ë—Ù›ÜŠ™]È›Ü”˜[™ÙJ˜\’Ú[™˜[YKœ›ÛKÊK
+
+HOˆ›Ü›ÙJ˜[YJJNÂˆBˆËÈ›Ü‹[Ù˜Ý][Y[
+[ˆ\ÍH[ÙH™\XÙHÚ]H›Ü›X[›ÜˆÛÜ
+Bˆ›Ü“ÙŠ˜[YSÜ”™Yš^]\˜X›K›Ü›ÙK˜\’Ú[™HØÛÜWÌK˜\’Ú[™Ë˜ÛÛœÝ
+HÂˆÛÛœÝ˜[YHH\Ë—ÜØÛÜKÓ˜[YJ˜[YSÜ”™Yš^
+NÂˆYˆ
+\Ë›ÜË™\ÍJHÂˆÛÛœÝ\œˆH]\˜X›H[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YHÈ]\˜X›Hˆ\Ë˜\Š—Ø\œˆ‹]\˜X›JNÂˆ™]\›ˆ\Ë™›Ü”˜[™ÙJ—ÚH‹
+ÛÙWÌK—ÊX	Ø\œŸK›[™Ý
+JHOˆÂˆ\Ë˜\Š˜[YK
+ÛÙWÌK—ÊX	Ø\œŸVÉÚ_WX
+NÂˆ›Ü›ÙJ˜[YJNÂˆJNÂˆBˆ™]\›ˆ\Ë—Ù›ÜŠ™]È›Ü’]\Š›Ùˆ‹˜\’Ú[™˜[YK]\˜X›JK
+
+HOˆ›Ü›ÙJ˜[YJJNÂˆBˆËÈ›Ü‹Z[˜Ý][Y[‚ˆËÈÚ]Ü[ÛˆÝÛ”›Ü\Y\Ø™\XÙYÚ]H›Ü‹[Ù˜ÛÜ›ÜˆØš™XÝÙ^\Âˆ›Ü’[Š˜[YSÜ”™Yš^Øš‹›Ü›ÙK˜\’Ú[™H\Ë›ÜË™\ÍHÈØÛÜWÌK˜\’Ú[™Ë˜\ˆˆØÛÜWÌK˜\’Ú[™Ë˜ÛÛœÝ
+HÂˆYˆ
+\Ë›ÜË›ÝÛ”›Ü\Y\ÊHÂˆ™]\›ˆ\Ë™›Ü“ÙŠ˜[YSÜ”™Yš^
+ÛÙWÌK—ÊXØš™XÝšÙ^\Ê	ÛØšŸJX›Ü›ÙJNÂˆBˆÛÛœÝ˜[YHH\Ë—ÜØÛÜKÓ˜[YJ˜[YSÜ”™Yš^
+NÂˆ™]\›ˆ\Ë—Ù›ÜŠ™]È›Ü’]\Šš[ˆ‹˜\’Ú[™˜[YKØšŠK
+
+HOˆ›Ü›ÙJ˜[YJJNÂˆBˆËÈ[™›Ü˜ÛÜˆ[™›ÜŠ
+HÂˆ™]\›ˆ\Ë—Ù[™›ØÚÓ›ÙJ›ÜŠNÂˆBˆËÈX™[Ý][Y[ˆX™[
+X™[
+HÂˆ™]\›ˆ\Ë—ÛXY“›ÙJ™]ÈX™[
+X™[
+JNÂˆBˆËÈœ™XZØÝ][Y[ˆœ™XZÊX™[
+HÂˆ™]\›ˆ\Ë—ÛXY“›ÙJ™]Èœ™XZÊX™[
+JNÂˆBˆËÈ™]\›˜Ý][Y[ˆ™]\›Š˜[YJHÂˆÛÛœÝ›ÙHH™]È™]\›Š
+NÂˆ\Ë—Ø›ØÚÓ›ÙJ›ÙJNÂˆ\Ë˜ÛÙJ˜[YJNÂˆYˆ
+›ÙK››Ù\Ë›[™ÝOOHJBˆ›ÝÈ™]È\œ›ÜŠ	ÐÛÙQÙ[Žˆœ™]\›ˆˆÚÝ[]™HÛ™H›ÙIÊNÂˆ™]\›ˆ\Ë—Ù[™›ØÚÓ›ÙJ™]\›ŠNÂˆBˆËÈžXÝ][Y[ˆžJžP›ÙKØ]ÚÛÙKš[˜[PÛÙJHÂˆYˆ
+XØ]ÚÛÙH	‰ˆYš[˜[PÛÙJBˆ›ÝÈ™]È\œ›ÜŠ	ÐÛÙQÙ[ŽˆžHˆÚ]Ý]˜Ø]Úˆ[™™š[˜[H‰ÊNÂˆÛÛœÝ›ÙHH™]ÈžJ
+NÂˆ\Ë—Ø›ØÚÓ›ÙJ›ÙJNÂˆ\Ë˜ÛÙJžP›ÙJNÂˆYˆ
+Ø]ÚÛÙJHÂˆÛÛœÝ\œ›ÜˆH\Ë›˜[YJ™HŠNÂˆ\Ë—ØÝ\œ“›ÙHH›ÙK˜Ø]ÚH™]ÈØ]Ú
+\œ›ÜŠNÂˆØ]ÚÛÙJ\œ›ÜŠNÂˆBˆYˆ
+š[˜[PÛÙJHÂˆ\Ë—ØÝ\œ“›ÙHH›ÙK™š[˜[HH™]Èš[˜[J
+NÂˆ\Ë˜ÛÙJš[˜[PÛÙJNÂˆBˆ™]\›ˆ\Ë—Ù[™›ØÚÓ›ÙJØ]Úš[˜[JNÂˆBˆËÈ›ÝØÝ][Y[ˆ›ÝÊ\œ›ÜŠHÂˆ™]\›ˆ\Ë—ÛXY“›ÙJ™]È›ÝÊ\œ›ÜŠJNÂˆBˆËÈÝ\Ù[‹X˜[[˜Ú[™È›ØÚÂˆ›ØÚÊ›ÙK›ÙPÛÝ[
+HÂˆ\Ë—Ø›ØÚÔÝ\Ëœ\Ú
+\Ë—Û›Ù\Ë›[™Ý
+NÂˆYˆ
+›ÙJBˆ\Ë˜ÛÙJ›ÙJK™[™›ØÚÊ›ÙPÛÝ[
+NÂˆ™]\›ˆ\ÎÂˆBˆËÈ[™HÝ\œ™[Ù[‹X˜[[˜Ú[™È›ØÚÂˆ[™›ØÚÊ›ÙPÛÝ[
+HÂˆÛÛœÝ[ˆH\Ë—Ø›ØÚÔÝ\ËœÜ
+
+NÂˆYˆ
+[ˆOOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ›Ý[ˆÙ[‹X˜[[˜Ú[™È›ØÚÈŠNÂˆÛÛœÝÐÛÜÙHH\Ë—Û›Ù\Ë›[™ÝH[ŽÂˆYˆ
+ÐÛÜÙH›ÙPÛÝ[OOH›ÚY	‰ˆÐÛÜÙHOOH›ÙPÛÝ[
+HÂˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[ŽˆÜ›Û™È[X™\ˆÙˆ›Ù\Îˆ	ÝÐÛÜÙ_HœÈ	Û›ÙPÛÝ[H^XÝY
+NÂˆBˆ\Ë—Û›Ù\Ë›[™ÝH[ŽÂˆ™]\›ˆ\ÎÂˆBˆËÈ[˜Ý[Û˜XY[™È
+ÜˆYš[š][ÛˆYˆ[˜Ð›ÙH\È\ÜÙY
+Bˆ[˜Ê˜[YK\™ÜÈHÛÙWÌK›š[\Þ[˜Ë[˜Ð›ÙJHÂˆ\Ë—Ø›ØÚÓ›ÙJ™]È[˜Ê˜[YK\™ÜË\Þ[˜ÊJNÂˆYˆ
+[˜Ð›ÙJBˆ\Ë˜ÛÙJ[˜Ð›ÙJK™[™[˜Ê
+NÂˆ™]\›ˆ\ÎÂˆBˆËÈ[™[˜Ý[ÛˆYš[š][Û‚ˆ[™[˜Ê
+HÂˆ™]\›ˆ\Ë—Ù[™›ØÚÓ›ÙJ[˜ÊNÂˆBˆÜ[Z^™JˆHJHÂˆÚ[H
+‹KHˆ
+HÂˆ\Ë—Ü›ÛÝ›Ü[Z^™S›Ù\Ê
+NÂˆ\Ë—Ü›ÛÝ›Ü[Z^™S˜[Y\Ê\Ë—Ü›ÛÝ›˜[Y\Ë\Ë—ØÛÛœÝ[ÊNÂˆBˆBˆÛXY“›ÙJ›ÙJHÂˆ\Ë—ØÝ\œ“›ÙK››Ù\Ëœ\Ú
+›ÙJNÂˆ™]\›ˆ\ÎÂˆBˆØ›ØÚÓ›ÙJ›ÙJHÂˆ\Ë—ØÝ\œ“›ÙK››Ù\Ëœ\Ú
+›ÙJNÂˆ\Ë—Û›Ù\Ëœ\Ú
+›ÙJNÂˆBˆÙ[™›ØÚÓ›ÙJŒKŒŠHÂˆÛÛœÝˆH\Ë—ØÝ\œ“›ÙNÂˆYˆ
+ˆ[œÝ[˜Ù[ÙˆŒHŒˆ	‰ˆˆ[œÝ[˜Ù[ÙˆŒŠHÂˆ\Ë—Û›Ù\ËœÜ
+
+NÂˆ™]\›ˆ\ÎÂˆBˆ›ÝÈ™]È\œ›ÜŠÛÙQÙ[Žˆ›Ý[ˆ›ØÚÈ‰ÓŒˆÈ	ÓŒKšÚ[™KÉÓŒ‹šÚ[™XˆŒKšÚ[™H˜
+NÂˆBˆÙ[ÙS›ÙJ›ÙJHÂˆÛÛœÝˆH\Ë—ØÝ\œ“›ÙNÂˆYˆ
+Jˆ[œÝ[˜Ù[ÙˆYŠJHÂˆ›ÝÈ™]È\œ›ÜŠ	ÐÛÙQÙ[Žˆ™[ÙHˆÚ]Ý]šYˆ‰ÊNÂˆBˆ\Ë—ØÝ\œ“›ÙHH‹™[ÙHH›ÙNÂˆ™]\›ˆ\ÎÂˆBˆÙ]Ü›ÛÝ
+
+HÂˆ™]\›ˆ\Ë—Û›Ù\ÖÌNÂˆBˆÙ]ØÝ\œ“›ÙJ
+HÂˆÛÛœÝœÈH\Ë—Û›Ù\ÎÂˆ™]\›ˆœÖÛœË›[™ÝHWNÂˆBˆÙ]ØÝ\œ“›ÙJ›ÙJHÂˆÛÛœÝœÈH\Ë—Û›Ù\ÎÂˆœÖÛœË›[™ÝHWHH›ÙNÂˆBˆNÂˆ^ÜËÛÙQÙ[ˆHÛÙQÙ[ŽÂˆ[˜Ý[ÛˆY˜[Y\Ê˜[Y\Ëœ›ÛJHÂˆ›Üˆ
+ÛÛœÝˆ[ˆœ›ÛJBˆ˜[Y\ÖÛ—HH
+˜[Y\ÖÛ—H
+H
+È
+œ›ÛVÛ—H
+NÂˆ™]\›ˆ˜[Y\ÎÂˆBˆ[˜Ý[ÛˆY^“˜[Y\Ê˜[Y\Ëœ›ÛJHÂˆ™]\›ˆœ›ÛH[œÝ[˜Ù[ÙˆÛÙWÌK—ÐÛÙSÜ“˜[YHÈY˜[Y\Ê˜[Y\Ëœ›ÛK›˜[Y\ÊHˆ˜[Y\ÎÂˆBˆ[˜Ý[ÛˆÜ[Z^™Q^Š^‹˜[Y\ËÛÛœÝ[ÊHÂˆYˆ
+^ˆ[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YJBˆ™]\›ˆ™\XÙS˜[YJ^ŠNÂˆYˆ
+XØ[“Ü[Z^™J^ŠJBˆ™]\›ˆ^ŽÂˆ™]\›ˆ™]ÈÛÙWÌK—ÐÛÙJ^‹—Ú][\Ëœ™YXÙJ
+][\Ì‹ÊHOˆÂˆYˆ
+È[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YJBˆÈH™\XÙS˜[YJÊNÂˆYˆ
+È[œÝ[˜Ù[ÙˆÛÙWÌK—ÐÛÙJBˆ][\Ì‹œ\Ú
+‹‹˜Ë—Ú][\ÊNÂˆ[ÙBˆ][\Ì‹œ\Ú
+ÊNÂˆ™]\›ˆ][\ÌŽÂˆK×JJNÂˆ[˜Ý[Ûˆ™\XÙS˜[YJŠHÂˆÛÛœÝÈHÛÛœÝ[ÖÛ‹œÝ—NÂˆYˆ
+ÈOOH›ÚY˜[Y\ÖÛ‹œÝ—HOOHJBˆ™]\›ˆŽÂˆ[]H˜[Y\ÖÛ‹œÝ—NÂˆ™]\›ˆÎÂˆBˆ[˜Ý[ÛˆØ[“Ü[Z^™JJHÂˆ™]\›ˆH[œÝ[˜Ù[ÙˆÛÙWÌK—ÐÛÙH	‰ˆK—Ú][\ËœÛÛYJ
+ÊHOˆÈ[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YH	‰ˆ˜[Y\ÖØËœÝ—HOOHH	‰ˆÛÛœÝ[ÖØËœÝ—HOOH›ÚY
+NÂˆBˆBˆ[˜Ý[ÛˆÝX˜XÝ˜[Y\Ê˜[Y\Ëœ›ÛJHÂˆ›Üˆ
+ÛÛœÝˆ[ˆœ›ÛJBˆ˜[Y\ÖÛ—HH
+˜[Y\ÖÛ—H
+HH
+œ›ÛVÛ—H
+NÂˆBˆ[˜Ý[Ûˆ›Ý
+
+HÂˆ™]\›ˆ\[ÙˆOH˜›ÛÛX[ˆˆ\[ÙˆOH›[X™\ˆˆOOH[È^ˆ
+ÛÙWÌK—ÊXIÜ\Š
+_XÂˆBˆ^ÜË››ÝH›ÝÂˆ˜\ˆ[™ÛÙHHX\[™
+^ÜË›Ü\˜]ÜœËS‘
+NÂˆ[˜Ý[Ûˆ[™
+‹‹˜\™ÜÊHÂˆ™]\›ˆ\™ÜËœ™YXÙJ[™ÛÙJNÂˆBˆ^ÜË˜[™H[™Âˆ˜\ˆÜÛÙHHX\[™
+^ÜË›Ü\˜]ÜœË“ÔŠNÂˆ[˜Ý[ÛˆÜŠ‹‹˜\™ÜÊHÂˆ™]\›ˆ\™ÜËœ™YXÙJÜÛÙJNÂˆBˆ^ÜË›ÜˆHÜŽÂˆ[˜Ý[ÛˆX\[™
+Ü
+HÂˆ™]\›ˆ
+JHOˆOOHÛÙWÌK›š[ÈHˆHOOHÛÙWÌK›š[Èˆ
+ÛÙWÌK—ÊX	Ü\Š
+_H	ÛÜH	Ü\ŠJ_XÂˆBˆ[˜Ý[Ûˆ\Š
+HÂˆ™]\›ˆ[œÝ[˜Ù[ÙˆÛÙWÌK“˜[YHÈˆ
+ÛÙWÌK—ÊX
+	ÞJXÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ][šœÂ˜\ˆ™\]Z\™WÝ][H×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ][šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË˜ÚXÚÔÝšXÝ[ÙHH^ÜË™Ù]\œ›Ü”]H^ÜË•\HH^ÜË\ÙQ[˜ÈH^ÜËœÙ]]˜[X]YH^ÜË™]˜[X]Y›ÜÕÓ˜[YHH^ÜË›Y\™ÙQ]˜[X]YH^ÜË™XXÚ][HH^ÜË[™\ØØ\RœÛÛ”Ú[\ˆH^ÜË™\ØØ\RœÛÛ”Ú[\ˆH^ÜË™\ØØ\Qœ˜YÛY[H^ÜË[™\ØØ\Qœ˜YÛY[H^ÜËœØÚ[XT™Y“Ü•˜[H^ÜËœØÚ[XR\Ô[\Ð]™YˆH^ÜËœØÚ[XR\Ô[\ÈH^ÜË˜ÚXÚÕ[šÛ›ÝÛ”[\ÈH^ÜË˜[Ø^\Õ˜[YØÚ[XHH^ÜËÒ\ÚH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆÛÙWÌHH™\]Z\™WØÛÙJ
+NÂˆ[˜Ý[ÛˆÒ\Ú
+\œŠHÂˆÛÛœÝ\ÚHßNÂˆ›Üˆ
+ÛÛœÝ][HÙˆ\œŠBˆ\ÚÚ][WHHYNÂˆ™]\›ˆ\ÚÂˆBˆ^ÜËÒ\ÚHÒ\ÚÂˆ[˜Ý[Ûˆ[Ø^\Õ˜[YØÚ[XJ]ØÚ[XJHÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆØÚ[XNÂˆYˆ
+Øš™XÝšÙ^\ÊØÚ[XJK›[™ÝOOH
+Bˆ™]\›ˆYNÂˆÚXÚÕ[šÛ›ÝÛ”[\Ê]ØÚ[XJNÂˆ™]\›ˆ\ØÚ[XR\Ô[\ÊØÚ[XK]œÙ[‹”•STË˜[
+NÂˆBˆ^ÜË˜[Ø^\Õ˜[YØÚ[XHH[Ø^\Õ˜[YØÚ[XNÂˆ[˜Ý[ÛˆÚXÚÕ[šÛ›ÝÛ”[\Ê]ØÚ[XHH]œØÚ[XJHÂˆÛÛœÝÈÜËÙ[ˆHH]ÂˆYˆ
+[ÜËœÝšXÝØÚ[XJBˆ™]\›ŽÂˆYˆ
+\[ÙˆØÚ[XHOOH˜›ÛÛX[ˆŠBˆ™]\›ŽÂˆÛÛœÝ[\ÈHÙ[‹”•STËšÙ^]ÛÜ™ÎÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆØÚ[XJHÂˆYˆ
+\[\ÖÚÙ^WJBˆÚXÚÔÝšXÝ[ÙJ][šÛ›ÝÛˆÙ^]ÛÜ™ˆ‰ÚÙ^_H˜
+NÂˆBˆBˆ^ÜË˜ÚXÚÕ[šÛ›ÝÛ”[\ÈHÚXÚÕ[šÛ›ÝÛ”[\ÎÂˆ[˜Ý[ÛˆØÚ[XR\Ô[\ÊØÚ[XK[\ÊHÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆ\ØÚ[XNÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆØÚ[XJBˆYˆ
+[\ÖÚÙ^WJBˆ™]\›ˆYNÂˆ™]\›ˆ˜[ÙNÂˆBˆ^ÜËœØÚ[XR\Ô[\ÈHØÚ[XR\Ô[\ÎÂˆ[˜Ý[ÛˆØÚ[XR\Ô[\Ð]™YŠØÚ[XK•STÊHÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆ\ØÚ[XNÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆØÚ[XJBˆYˆ
+Ù^HOOH‰™Yˆˆ	‰ˆ•STË˜[ÚÙ^WJBˆ™]\›ˆYNÂˆ™]\›ˆ˜[ÙNÂˆBˆ^ÜËœØÚ[XR\Ô[\Ð]™YˆHØÚ[XR\Ô[\Ð]™YŽÂˆ[˜Ý[ÛˆØÚ[XT™Y“Ü•˜[
+ÈÜØÚ[XT™Y‹ØÚ[XT]KØÚ[XKÙ^]ÛÜ™	]JHÂˆYˆ
+I]JHÂˆYˆ
+\[ÙˆØÚ[XHOH›[X™\ˆˆ\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆØÚ[XNÂˆYˆ
+\[ÙˆØÚ[XHOHœÝš[™ÈŠBˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊX	ÜØÚ[X_XÂˆBˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊX	ÝÜØÚ[XT™YŸIÜØÚ[XT]IÊÛÙYÙ[—ÌK™Ù]›Ü\JJÙ^]ÛÜ™
+_XÂˆBˆ^ÜËœØÚ[XT™Y“Ü•˜[HØÚ[XT™Y“Ü•˜[Âˆ[˜Ý[Ûˆ[™\ØØ\Qœ˜YÛY[
+ÝŠHÂˆ™]\›ˆ[™\ØØ\RœÛÛ”Ú[\ŠXÛÙUT’PÛÛ\Û™[
+ÝŠJNÂˆBˆ^ÜË[™\ØØ\Qœ˜YÛY[H[™\ØØ\Qœ˜YÛY[Âˆ[˜Ý[Ûˆ\ØØ\Qœ˜YÛY[
+ÝŠHÂˆ™]\›ˆ[˜ÛÙUT’PÛÛ\Û™[
+\ØØ\RœÛÛ”Ú[\ŠÝŠJNÂˆBˆ^ÜË™\ØØ\Qœ˜YÛY[H\ØØ\Qœ˜YÛY[Âˆ[˜Ý[Ûˆ\ØØ\RœÛÛ”Ú[\ŠÝŠHÂˆYˆ
+\[ÙˆÝˆOH›[X™\ˆŠBˆ™]\›ˆ	ÜÝŸXÂˆ™]\›ˆÝ‹œ™\XÙJß‹ÙËŸŒŠKœ™\XÙJ×ËÙËŸŒHŠNÂˆBˆ^ÜË™\ØØ\RœÛÛ”Ú[\ˆH\ØØ\RœÛÛ”Ú[\ŽÂˆ[˜Ý[Ûˆ[™\ØØ\RœÛÛ”Ú[\ŠÝŠHÂˆ™]\›ˆÝ‹œ™\XÙJßŒKÙË‹ÈŠKœ™\XÙJßŒÙËŸˆŠNÂˆBˆ^ÜË[™\ØØ\RœÛÛ”Ú[\ˆH[™\ØØ\RœÛÛ”Ú[\ŽÂˆ[˜Ý[ÛˆXXÚ][JËŠHÂˆYˆ
+\œ˜^Kš\Ð\œ˜^JÊJHÂˆ›Üˆ
+ÛÛœÝÙˆÊBˆŠ
+NÂˆH[ÙHÂˆŠÊNÂˆBˆBˆ^ÜË™XXÚ][HHXXÚ][NÂˆ[˜Ý[ÛˆXZÙSY\™ÙQ]˜[X]Y
+ÈY\™ÙS˜[Y\ËY\™ÙUÓ˜[YKY\™ÙU˜[Y\Ë™\Ý[Ó˜[YHJHÂˆ™]\›ˆ
+Ù[‹œ›ÛKËÓ˜[YJHOˆÂˆÛÛœÝ™\ÈHÈOOH›ÚYÈœ›ÛHˆÈ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YHÈ
+œ›ÛH[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YHÈY\™ÙS˜[Y\ÊÙ[‹œ›ÛKÊHˆY\™ÙUÓ˜[YJÙ[‹œ›ÛKÊKÊHˆœ›ÛH[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YHÈ
+Y\™ÙUÓ˜[YJÙ[‹Ëœ›ÛJKœ›ÛJHˆY\™ÙU˜[Y\Êœ›ÛKÊNÂˆ™]\›ˆÓ˜[YHOOHÛÙYÙ[—ÌK“˜[YH	‰ˆJ™\È[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YJHÈ™\Ý[Ó˜[YJÙ[‹™\ÊHˆ™\ÎÂˆNÂˆBˆ^ÜË›Y\™ÙQ]˜[X]YHÂˆ›ÜÎˆXZÙSY\™ÙQ]˜[X]Y
+ÂˆY\™ÙS˜[Y\Îˆ
+Ù[‹œ›ÛKÊHOˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	ÝßHOOHYH	‰ˆ	Ùœ›Û_HOOH[™Yš[™Y
+
+HOˆÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Ùœ›Û_HOOHYX
+
+HOˆÙ[‹˜\ÜÚYÛŠËYJK
+
+HOˆÙ[‹˜\ÜÚYÛŠË
+ÛÙYÙ[—ÌK—ÊX	ÝßHßX
+K˜ÛÙJ
+ÛÙYÙ[—ÌK—ÊXØš™XÝ˜\ÜÚYÛŠ	ÝßK	Ùœ›Û_JX
+JNÂˆJKˆY\™ÙUÓ˜[YNˆ
+Ù[‹œ›ÛKÊHOˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	ÝßHOOHYX
+
+HOˆÂˆYˆ
+œ›ÛHOOHYJHÂˆÙ[‹˜\ÜÚYÛŠËYJNÂˆH[ÙHÂˆÙ[‹˜\ÜÚYÛŠË
+ÛÙYÙ[—ÌK—ÊX	ÝßHßX
+NÂˆÙ]]˜[X]Y
+Ù[‹Ëœ›ÛJNÂˆBˆJKˆY\™ÙU˜[Y\Îˆ
+œ›ÛKÊHOˆœ›ÛHOOHYHÈYHˆÈ‹‹™œ›ÛK‹‹ÈKˆ™\Ý[Ó˜[YNˆ]˜[X]Y›ÜÕÓ˜[YBˆJKˆ][\ÎˆXZÙSY\™ÙQ]˜[X]Y
+ÂˆY\™ÙS˜[Y\Îˆ
+Ù[‹œ›ÛKÊHOˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	ÝßHOOHYH	‰ˆ	Ùœ›Û_HOOH[™Yš[™Y
+
+HOˆÙ[‹˜\ÜÚYÛŠË
+ÛÙYÙ[—ÌK—ÊX	Ùœ›Û_HOOHYHÈYHˆ	ÝßHˆ	Ùœ›Û_HÈ	ÝßHˆ	Ùœ›Û_X
+JKˆY\™ÙUÓ˜[YNˆ
+Ù[‹œ›ÛKÊHOˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	ÝßHOOHYX
+
+HOˆÙ[‹˜\ÜÚYÛŠËœ›ÛHOOHYHÈYHˆ
+ÛÙYÙ[—ÌK—ÊX	ÝßHˆ	Ùœ›Û_HÈ	ÝßHˆ	Ùœ›Û_X
+JKˆY\™ÙU˜[Y\Îˆ
+œ›ÛKÊHOˆœ›ÛHOOHYHÈYHˆX]›X^
+œ›ÛKÊKˆ™\Ý[Ó˜[YNˆ
+Ù[‹][\ÌŠHOˆÙ[‹˜\Šš][\È‹][\ÌŠBˆJBˆNÂˆ[˜Ý[Ûˆ]˜[X]Y›ÜÕÓ˜[YJÙ[‹ÊHÂˆYˆ
+ÈOOHYJBˆ™]\›ˆÙ[‹˜\Šœ›ÜÈ‹YJNÂˆÛÛœÝ›ÜÈHÙ[‹˜\Šœ›ÜÈ‹
+ÛÙYÙ[—ÌK—ÊXßX
+NÂˆYˆ
+ÈOOH›ÚY
+BˆÙ]]˜[X]Y
+Ù[‹›ÜËÊNÂˆ™]\›ˆ›ÜÎÂˆBˆ^ÜË™]˜[X]Y›ÜÕÓ˜[YHH]˜[X]Y›ÜÕÓ˜[YNÂˆ[˜Ý[ÛˆÙ]]˜[X]Y
+Ù[‹›ÜËÊHÂˆØš™XÝšÙ^\ÊÊK™›Ü‘XXÚ
+
+
+HOˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ü›ÜßIÊÛÙYÙ[—ÌK™Ù]›Ü\JJ
+_XYJJNÂˆBˆ^ÜËœÙ]]˜[X]YHÙ]]˜[X]YÂˆ˜\ˆÛš\]ÈHßNÂˆ[˜Ý[Ûˆ\ÙQ[˜ÊÙ[‹ŠHÂˆ™]\›ˆÙ[‹œØÛÜU˜[YJ™[˜È‹Âˆ™YŽˆ‹ˆÛÙNˆÛš\]ÖÙ‹˜ÛÙWH
+Ûš\]ÖÙ‹˜ÛÙWHH™]ÈÛÙWÌK—ÐÛÙJ‹˜ÛÙJJBˆJNÂˆBˆ^ÜË\ÙQ[˜ÈH\ÙQ[˜ÎÂˆ˜\ˆ\NÂˆ
+[˜Ý[ÛŠ\LŠHÂˆ\L–Õ\L–È“[H—HHHH“[HŽÂˆ\L–Õ\L–È”Ýˆ—HHWHH”ÝˆŽÂˆJJ\H
+^ÜË•\HH\HHßJJNÂˆ[˜Ý[ÛˆÙ]\œ›Ü”]
+]T›Ü]T›Ü\KœÔ›Ü\TÞ[^
+HÂˆYˆ
+]T›Ü[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YJHÂˆÛÛœÝ\Ó[X™\ˆH]T›Ü\HOOH\K“[NÂˆ™]\›ˆœÔ›Ü\TÞ[^È\Ó[X™\ˆÈ
+ÛÙYÙ[—ÌK—ÊX–Èˆ
+È	Ù]T›ÜH
+È—H˜ˆ
+ÛÙYÙ[—ÌK—ÊX–ÉÈˆ
+È	Ù]T›ÜH
+È‰×H˜ˆ\Ó[X™\ˆÈ
+ÛÙYÙ[—ÌK—ÊX‹Èˆ
+È	Ù]T›ÜXˆ
+ÛÙYÙ[—ÌK—ÊX‹Èˆ
+È	Ù]T›ÜKœ™\XÙJß‹ÙËŸŒŠKœ™\XÙJ×ËÙËŸŒHŠXÂˆBˆ™]\›ˆœÔ›Ü\TÞ[^È
+ÛÙYÙ[—ÌK™Ù]›Ü\JJ]T›Ü
+KÔÝš[™Ê
+Hˆ‹Èˆ
+È\ØØ\RœÛÛ”Ú[\Š]T›Ü
+NÂˆBˆ^ÜË™Ù]\œ›Ü”]HÙ]\œ›Ü”]Âˆ[˜Ý[ÛˆÚXÚÔÝšXÝ[ÙJ]\ÙË[ÙHH]›ÜËœÝšXÝØÚ[XJHÂˆYˆ
+[[ÙJBˆ™]\›ŽÂˆ\ÙÈHÝšXÝ[ÙNˆ	Û\ÙßXÂˆYˆ
+[ÙHOOHYJBˆ›ÝÈ™]È\œ›ÜŠ\ÙÊNÂˆ]œÙ[‹›ÙÙÙ\‹Ø\›Š\ÙÊNÂˆBˆ^ÜË˜ÚXÚÔÝšXÝ[ÙHHÚXÚÔÝšXÝ[ÙNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÛ˜[Y\ËšœÂ˜\ˆ™\]Z\™WÛ˜[Y\ÈH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÛ˜[Y\ËšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ˜[Y\ÈHÂˆËÈ˜[Y][Ûˆ[˜Ý[Ûˆ\™Ý[Y[Âˆ]Nˆ™]ÈÛÙYÙ[—ÌK“˜[YJ™]HŠKˆËÈ]H\ÜÙYÈ˜[Y][Ûˆ[˜Ý[Û‚ˆËÈ\™ÜÈ\ÜÙYœ›ÛH™Y™\™[˜Ú[™ÈØÚ[XBˆ˜[Þˆ™]ÈÛÙYÙ[—ÌK“˜[YJ˜[ÞŠKˆËÈ˜[Y][Û‹Ù]HÛÛ^HÚÝ[›Ý™H\ÙY\™XÝK]\È\ÝXÝ\™YÈH˜[Y\È™[ÝÂˆ[œÝ[˜ÙT]ˆ™]ÈÛÙYÙ[—ÌK“˜[YJš[œÝ[˜ÙT]ŠKˆ\™[]Nˆ™]ÈÛÙYÙ[—ÌK“˜[YJœ\™[]HŠKˆ\™[]T›Ü\Nˆ™]ÈÛÙYÙ[—ÌK“˜[YJœ\™[]T›Ü\HŠKˆ›ÛÝ]Nˆ™]ÈÛÙYÙ[—ÌK“˜[YJœ›ÛÝ]HŠKˆËÈ›ÛÝ]HHØ[YH\ÈH]H\ÜÙYÈHš\œÝÝÜ˜[Y][Ûˆ[˜Ý[Û‚ˆ[˜[ZXÐ[˜ÚÜœÎˆ™]ÈÛÙYÙ[—ÌK“˜[YJ™[˜[ZXÐ[˜ÚÜœÈŠKˆËÈ\ÙYÈÝ\Ü™XÝ\œÚ]™T™Yˆ[™[˜[ZXÔ™Y‚ˆËÈ[˜Ý[ÛˆØÛÜY˜\šXX›\Âˆ‘\œ›ÜœÎˆ™]ÈÛÙYÙ[—ÌK“˜[YJ‘\œ›ÜœÈŠKˆËÈ[Üˆ\œ˜^HÙˆ˜[Y][Ûˆ\œ›ÜœÂˆ\œ›ÜœÎˆ™]ÈÛÙYÙ[—ÌK“˜[YJ™\œ›ÜœÈŠKˆËÈÛÝ[\ˆÙˆ˜[Y][Ûˆ\œ›ÜœÂˆ\Îˆ™]ÈÛÙYÙ[—ÌK“˜[YJ\ÈŠKˆËÈ™ÛØ˜[È‚ˆÙ[Žˆ™]ÈÛÙYÙ[—ÌK“˜[YJœÙ[ˆŠKˆØÛÜNˆ™]ÈÛÙYÙ[—ÌK“˜[YJœØÛÜHŠKˆËÈ•Ù\šX[^™KÜ\œÙH˜[YH›Üˆ”ÓÓˆÝš[™È[™ÜÚ][Û‚ˆœÛÛŽˆ™]ÈÛÙYÙ[—ÌK“˜[YJšœÛÛˆŠKˆœÛÛ”ÜÎˆ™]ÈÛÙYÙ[—ÌK“˜[YJšœÛÛ”ÜÈŠKˆœÛÛ“[Žˆ™]ÈÛÙYÙ[—ÌK“˜[YJšœÛÛ“[ˆŠKˆœÛÛ”\ˆ™]ÈÛÙYÙ[—ÌK“˜[YJšœÛÛ”\ŠBˆNÂˆ^ÜË™Y˜][H˜[Y\ÎÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÙ\œ›ÜœËšœÂ˜\ˆ™\]Z\™WÙ\œ›ÜœÈH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÙ\œ›ÜœËšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË™^[™\œ›ÜœÈH^ÜËœ™\Ù]\œ›ÜœÐÛÝ[H^ÜËœ™\Ü^˜Q\œ›ÜˆH^ÜËœ™\Ü\œ›ÜˆH^ÜËšÙ^]ÛÜ™	]Q\œ›ÜˆH^ÜËšÙ^]ÛÜ™\œ›ÜˆH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ˜\ˆ˜[Y\×ÌHH™\]Z\™WÛ˜[Y\Ê
+NÂˆ^ÜËšÙ^]ÛÜ™\œ›ÜˆHÂˆY\ÜØYÙNˆ
+ÈÙ^]ÛÜ™JHOˆ
+ÛÙYÙ[—ÌKœÝŠX]\Ý\ÜÈ‰ÚÙ^]ÛÜ™HˆÙ^]ÛÜ™˜[Y][Û˜ˆNÂˆ^ÜËšÙ^]ÛÜ™	]Q\œ›ÜˆHÂˆY\ÜØYÙNˆ
+ÈÙ^]ÛÜ™ØÚ[XU\HJHOˆØÚ[XU\HÈ
+ÛÙYÙ[—ÌKœÝŠX‰ÚÙ^]ÛÜ™HˆÙ^]ÛÜ™]\Ý™H	ÜØÚ[XU\_H
+	]JXˆ
+ÛÙYÙ[—ÌKœÝŠX‰ÚÙ^]ÛÜ™HˆÙ^]ÛÜ™\È[˜[Y
+	]JXˆNÂˆ[˜Ý[Ûˆ™\Ü\œ›ÜŠÞ\œ›ÜˆH^ÜËšÙ^]ÛÜ™\œ›Ü‹\œ›Ü”]ËÝ™\œšYP[\œ›ÜœÊHÂˆÛÛœÝÈ]HHÞÂˆÛÛœÝÈÙ[‹ÛÛ\ÜÚ]T[K[\œ›ÜœÈHH]ÂˆÛÛœÝ\œ“ØšˆH\œ›Ü“Øš™XÝÛÙJÞ\œ›Ü‹\œ›Ü”]ÊNÂˆYˆ
+Ý™\œšYP[\œ›ÜœÈOOH[	‰ˆÝ™\œšYP[\œ›ÜœÈOOH›ÚYÈÝ™\œšYP[\œ›ÜœÈˆÛÛ\ÜÚ]T[H[\œ›ÜœÊHÂˆY\œ›ÜŠÙ[‹\œ“ØšŠNÂˆH[ÙHÂˆ™]\›‘\œ›ÜœÊ]
+ÛÙYÙ[—ÌK—ÊXÉÙ\œ“ØšŸWX
+NÂˆBˆBˆ^ÜËœ™\Ü\œ›ÜˆH™\Ü\œ›ÜŽÂˆ[˜Ý[Ûˆ™\Ü^˜Q\œ›ÜŠÞ\œ›ÜˆH^ÜËšÙ^]ÛÜ™\œ›Ü‹\œ›Ü”]ÊHÂˆÛÛœÝÈ]HHÞÂˆÛÛœÝÈÙ[‹ÛÛ\ÜÚ]T[K[\œ›ÜœÈHH]ÂˆÛÛœÝ\œ“ØšˆH\œ›Ü“Øš™XÝÛÙJÞ\œ›Ü‹\œ›Ü”]ÊNÂˆY\œ›ÜŠÙ[‹\œ“ØšŠNÂˆYˆ
+JÛÛ\ÜÚ]T[H[\œ›ÜœÊJHÂˆ™]\›‘\œ›ÜœÊ]˜[Y\×ÌK™Y˜][‘\œ›ÜœÊNÂˆBˆBˆ^ÜËœ™\Ü^˜Q\œ›ÜˆH™\Ü^˜Q\œ›ÜŽÂˆ[˜Ý[Ûˆ™\Ù]\œ›ÜœÐÛÝ[
+Ù[‹\œœÐÛÝ[
+HÂˆÙ[‹˜\ÜÚYÛŠ˜[Y\×ÌK™Y˜][™\œ›ÜœË\œœÐÛÝ[
+NÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßHOOH[
+
+HOˆÙ[‹šYŠ\œœÐÛÝ[
+
+HOˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßK›[™Ý\œœÐÛÝ[
+K
+
+HOˆÙ[‹˜\ÜÚYÛŠ˜[Y\×ÌK™Y˜][‘\œ›ÜœË[
+JJNÂˆBˆ^ÜËœ™\Ù]\œ›ÜœÐÛÝ[H™\Ù]\œ›ÜœÐÛÝ[Âˆ[˜Ý[Ûˆ^[™\œ›ÜœÊÈÙ[‹Ù^]ÛÜ™ØÚ[XU˜[YK]K\œœÐÛÝ[]JHÂˆYˆ
+\œœÐÛÝ[OOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠ˜Zˆ[\[Y[][Ûˆ\œ›ÜˆŠNÂˆÛÛœÝ\œˆHÙ[‹›˜[YJ™\œˆŠNÂˆÙ[‹™›Ü”˜[™ÙJšH‹\œœÐÛÝ[˜[Y\×ÌK™Y˜][™\œ›ÜœË
+JHOˆÂˆÙ[‹˜ÛÛœÝ
+\œ‹
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßVÉÚ_WX
+NÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù\œŸKš[œÝ[˜ÙT]OOH[™Yš[™Y
+
+HOˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ù\œŸKš[œÝ[˜ÙT]
+ÛÙYÙ[—ÌKœÝÛÛ˜Ø]
+J˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]]™\œ›Ü”]
+JJNÂˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ù\œŸKœØÚ[XT]
+ÛÙYÙ[—ÌKœÝŠX	Ú]™\œ”ØÚ[XT]KÉÚÙ^]ÛÜ™X
+NÂˆYˆ
+]›ÜË™\˜›ÜÙJHÂˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ù\œŸKœØÚ[XXØÚ[XU˜[YJNÂˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ù\œŸK™]X]JNÂˆBˆJNÂˆBˆ^ÜË™^[™\œ›ÜœÈH^[™\œ›ÜœÎÂˆ[˜Ý[ÛˆY\œ›ÜŠÙ[‹\œ“ØšŠHÂˆÛÛœÝ\œˆHÙ[‹˜ÛÛœÝ
+™\œˆ‹\œ“ØšŠNÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßHOOH[
+
+HOˆÙ[‹˜\ÜÚYÛŠ˜[Y\×ÌK™Y˜][‘\œ›ÜœË
+ÛÙYÙ[—ÌK—ÊXÉÙ\œŸWX
+K
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßKœ\Ú
+	Ù\œŸJX
+NÂˆÙ[‹˜ÛÙJ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™\œ›ÜœßJÊØ
+NÂˆBˆ[˜Ý[Ûˆ™]\›‘\œ›ÜœÊ]\œœÊHÂˆÛÛœÝÈÙ[‹˜[Y]S˜[YKØÚ[XQ[ˆHH]ÂˆYˆ
+ØÚ[XQ[‹‰\Þ[˜ÊHÂˆÙ[‹›ÝÊ
+ÛÙYÙ[—ÌK—ÊX™]È	Ú]•˜[Y][Û‘\œ›ÜŸJ	Ù\œœßJX
+NÂˆH[ÙHÂˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ý˜[Y]S˜[Y_K™\œ›ÜœØ\œœÊNÂˆÙ[‹œ™]\›Š˜[ÙJNÂˆBˆBˆ˜\ˆHHÂˆÙ^]ÛÜ™ˆ™]ÈÛÙYÙ[—ÌK“˜[YJšÙ^]ÛÜ™ŠKˆØÚ[XT]ˆ™]ÈÛÙYÙ[—ÌK“˜[YJœØÚ[XT]ŠKˆËÈ[ÛÈ\ÙY[ˆ•\œ›ÜœÂˆ\˜[\Îˆ™]ÈÛÙYÙ[—ÌK“˜[YJœ\˜[\ÈŠKˆ›Ü\S˜[YNˆ™]ÈÛÙYÙ[—ÌK“˜[YJœ›Ü\S˜[YHŠKˆY\ÜØYÙNˆ™]ÈÛÙYÙ[—ÌK“˜[YJ›Y\ÜØYÙHŠKˆØÚ[XNˆ™]ÈÛÙYÙ[—ÌK“˜[YJœØÚ[XHŠKˆ\™[ØÚ[XNˆ™]ÈÛÙYÙ[—ÌK“˜[YJœ\™[ØÚ[XHŠBˆNÂˆ[˜Ý[Ûˆ\œ›Ü“Øš™XÝÛÙJÞ\œ›Ü‹\œ›Ü”]ÊHÂˆÛÛœÝÈÜ™X]Q\œ›ÜœÈHHÞš]ÂˆYˆ
+Ü™X]Q\œ›ÜœÈOOH˜[ÙJBˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊXßXÂˆ™]\›ˆ\œ›Ü“Øš™XÝ
+Þ\œ›Ü‹\œ›Ü”]ÊNÂˆBˆ[˜Ý[Ûˆ\œ›Ü“Øš™XÝ
+Þ\œ›Ü‹\œ›Ü”]ÈHßJHÂˆÛÛœÝÈÙ[‹]HHÞÂˆÛÛœÝÙ^U˜[Y\ÈHÂˆ\œ›Ü’[œÝ[˜ÙT]
+]\œ›Ü”]ÊKˆ\œ›Ü”ØÚ[XT]
+Þ\œ›Ü”]ÊBˆNÂˆ^˜Q\œ›Ü”›ÜÊÞ\œ›Ü‹Ù^U˜[Y\ÊNÂˆ™]\›ˆÙ[‹›Øš™XÝ
+‹‹šÙ^U˜[Y\ÊNÂˆBˆ[˜Ý[Ûˆ\œ›Ü’[œÝ[˜ÙT]
+È\œ›Ü”]KÈ[œÝ[˜ÙT]JHÂˆÛÛœÝ[œÝ]H[œÝ[˜ÙT]È
+ÛÙYÙ[—ÌKœÝŠX	Ù\œ›Ü”]IÊ][ÌK™Ù]\œ›Ü”]
+J[œÝ[˜ÙT]][ÌK•\K”ÝŠ_Xˆ\œ›Ü”]Âˆ™]\›ˆÛ˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]
+ÛÙYÙ[—ÌKœÝÛÛ˜Ø]
+J˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT][œÝ]
+WNÂˆBˆ[˜Ý[Ûˆ\œ›Ü”ØÚ[XT]
+ÈÙ^]ÛÜ™]ˆÈ\œ”ØÚ[XT]HKÈØÚ[XT]\™[ØÚ[XHJHÂˆ]ØÚ]H\™[ØÚ[XHÈ\œ”ØÚ[XT]ˆ
+ÛÙYÙ[—ÌKœÝŠX	Ù\œ”ØÚ[XT]KÉÚÙ^]ÛÜ™XÂˆYˆ
+ØÚ[XT]
+HÂˆØÚ]H
+ÛÙYÙ[—ÌKœÝŠX	ÜØÚ]IÊ][ÌK™Ù]\œ›Ü”]
+JØÚ[XT]][ÌK•\K”ÝŠ_XÂˆBˆ™]\›ˆÑKœØÚ[XT]ØÚ]NÂˆBˆ[˜Ý[Ûˆ^˜Q\œ›Ü”›ÜÊÞÈ\˜[\ËY\ÜØYÙHKÙ^U˜[Y\ÊHÂˆÛÛœÝÈÙ^]ÛÜ™]KØÚ[XU˜[YK]HHÞÂˆÛÛœÝÈÜË›Ü\S˜[YKÜØÚ[XT™Y‹ØÚ[XT]HH]ÂˆÙ^U˜[Y\Ëœ\Ú
+ÑKšÙ^]ÛÜ™Ù^]ÛÜ™KÑKœ\˜[\Ë\[Ùˆ\˜[\ÈOH™[˜Ý[ÛˆˆÈ\˜[\ÊÞ
+Hˆ\˜[\È
+ÛÙYÙ[—ÌK—ÊXßXJNÂˆYˆ
+ÜË›Y\ÜØYÙ\ÊHÂˆÙ^U˜[Y\Ëœ\Ú
+ÑK›Y\ÜØYÙK\[ÙˆY\ÜØYÙHOH™[˜Ý[ÛˆˆÈY\ÜØYÙJÞ
+HˆY\ÜØYÙWJNÂˆBˆYˆ
+ÜË™\˜›ÜÙJHÂˆÙ^U˜[Y\Ëœ\Ú
+ÑKœØÚ[XKØÚ[XU˜[YWKÑKœ\™[ØÚ[XK
+ÛÙYÙ[—ÌK—ÊX	ÝÜØÚ[XT™YŸIÜØÚ[XT]XKÛ˜[Y\×ÌK™Y˜][™]K]WJNÂˆBˆYˆ
+›Ü\S˜[YJBˆÙ^U˜[Y\Ëœ\Ú
+ÑKœ›Ü\S˜[YK›Ü\S˜[YWJNÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KØ›ÛÛØÚ[XKšœÂ˜\ˆ™\]Z\™WØ›ÛÛØÚ[XHH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KØ›ÛÛØÚ[XKšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË˜›ÛÛÜ‘[\TØÚ[XHH^ÜËÜ›ÛÛÜ‘[\TØÚ[XHH›ÚYÂˆ˜\ˆ\œ›Üœ×ÌHH™\]Z\™WÙ\œ›ÜœÊ
+NÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ˜[Y\×ÌHH™\]Z\™WÛ˜[Y\Ê
+NÂˆ˜\ˆ›ÛÛ\œ›ÜˆHÂˆY\ÜØYÙNˆ˜›ÛÛX[ˆØÚ[XH\È˜[ÙH‚ˆNÂˆ[˜Ý[ÛˆÜ›ÛÛÜ‘[\TØÚ[XJ]
+HÂˆÛÛœÝÈÙ[‹ØÚ[XK˜[Y]S˜[YHHH]ÂˆYˆ
+ØÚ[XHOOH˜[ÙJHÂˆ˜[ÙTØÚ[XQ\œ›ÜŠ]˜[ÙJNÂˆH[ÙHYˆ
+\[ÙˆØÚ[XHOH›Øš™XÝˆ	‰ˆØÚ[XK‰\Þ[˜ÈOOHYJHÂˆÙ[‹œ™]\›Š˜[Y\×ÌK™Y˜][™]JNÂˆH[ÙHÂˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ý˜[Y]S˜[Y_K™\œ›ÜœØ[
+NÂˆÙ[‹œ™]\›ŠYJNÂˆBˆBˆ^ÜËÜ›ÛÛÜ‘[\TØÚ[XHHÜ›ÛÛÜ‘[\TØÚ[XNÂˆ[˜Ý[Ûˆ›ÛÛÜ‘[\TØÚ[XJ]˜[Y
+HÂˆÛÛœÝÈÙ[‹ØÚ[XHHH]ÂˆYˆ
+ØÚ[XHOOH˜[ÙJHÂˆÙ[‹˜\Š˜[Y˜[ÙJNÂˆ˜[ÙTØÚ[XQ\œ›ÜŠ]
+NÂˆH[ÙHÂˆÙ[‹˜\Š˜[YYJNÂˆBˆBˆ^ÜË˜›ÛÛÜ‘[\TØÚ[XHH›ÛÛÜ‘[\TØÚ[XNÂˆ[˜Ý[Ûˆ˜[ÙTØÚ[XQ\œ›ÜŠ]Ý™\œšYP[\œ›ÜœÊHÂˆÛÛœÝÈÙ[‹]HHH]ÂˆÛÛœÝÞHÂˆÙ[‹ˆÙ^]ÛÜ™ˆ™˜[ÙHØÚ[XH‹ˆ]KˆØÚ[XNˆ˜[ÙKˆØÚ[XPÛÙNˆ˜[ÙKˆØÚ[XU˜[YNˆ˜[ÙKˆ\˜[\ÎˆßKˆ]ˆNÂˆ
+\œ›Üœ×ÌKœ™\Ü\œ›ÜŠJÞ›ÛÛ\œ›Ü‹›ÚYÝ™\œšYP[\œ›ÜœÊNÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÜ[\ËšœÂ˜\ˆ™\]Z\™WÜ[\ÈH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÜ[\ËšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË™Ù][\ÈH^ÜËš\Ò”ÓÓ•\HH›ÚYÂˆ˜\ˆÚœÛÛ•\\ÈHÈœÝš[™È‹›[X™\ˆ‹š[YÙ\ˆ‹˜›ÛÛX[ˆ‹›[‹›Øš™XÝ‹˜\œ˜^H—NÂˆ˜\ˆœÛÛ•\\ÈH™]ÈÙ]
+ÚœÛÛ•\\ÊNÂˆ[˜Ý[Ûˆ\Ò”ÓÓ•\J
+HÂˆ™]\›ˆ\[ÙˆOHœÝš[™Èˆ	‰ˆœÛÛ•\\Ëš\Ê
+NÂˆBˆ^ÜËš\Ò”ÓÓ•\HH\Ò”ÓÓ•\NÂˆ[˜Ý[ÛˆÙ][\Ê
+HÂˆÛÛœÝÜ›Ý\ÈHÂˆ[X™\ŽˆÈ\Nˆ›[X™\ˆ‹[\Îˆ×HKˆÝš[™ÎˆÈ\NˆœÝš[™È‹[\Îˆ×HKˆ\œ˜^NˆÈ\Nˆ˜\œ˜^H‹[\Îˆ×HKˆØš™XÝˆÈ\Nˆ›Øš™XÝ‹[\Îˆ×HBˆNÂˆ™]\›ˆÂˆ\\ÎˆÈ‹‹™Ü›Ý\Ë[YÙ\ŽˆYK›ÛÛX[ŽˆYK[ˆYHKˆ[\ÎˆÞÈ[\Îˆ×HKÜ›Ý\Ë›[X™\‹Ü›Ý\ËœÝš[™ËÜ›Ý\Ë˜\œ˜^KÜ›Ý\Ë›Øš™XÝKˆÜÝˆÈ[\Îˆ×HKˆ[ˆßKˆÙ^]ÛÜ™ÎˆßBˆNÂˆBˆ^ÜË™Ù][\ÈHÙ][\ÎÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KØ\XØXš[]KšœÂ˜\ˆ™\]Z\™WØ\XØXš[]HH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KØ\XØXš[]KšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜËœÚÝ[\ÙT[HH^ÜËœÚÝ[\ÙQÜ›Ý\H^ÜËœØÚ[XR\Ô[\Ñ›Ü•\HH›ÚYÂˆ[˜Ý[ÛˆØÚ[XR\Ô[\Ñ›Ü•\JÈØÚ[XKÙ[ˆK\JHÂˆÛÛœÝÜ›Ý\HÙ[‹”•STË\\ÖÝ\WNÂˆ™]\›ˆÜ›Ý\	‰ˆÜ›Ý\OOHYH	‰ˆÚÝ[\ÙQÜ›Ý\
+ØÚ[XKÜ›Ý\
+NÂˆBˆ^ÜËœØÚ[XR\Ô[\Ñ›Ü•\HHØÚ[XR\Ô[\Ñ›Ü•\NÂˆ[˜Ý[ÛˆÚÝ[\ÙQÜ›Ý\
+ØÚ[XKÜ›Ý\
+HÂˆ™]\›ˆÜ›Ý\œ[\ËœÛÛYJ
+[JHOˆÚÝ[\ÙT[JØÚ[XK[JJNÂˆBˆ^ÜËœÚÝ[\ÙQÜ›Ý\HÚÝ[\ÙQÜ›Ý\Âˆ[˜Ý[ÛˆÚÝ[\ÙT[JØÚ[XK[JHÂˆ˜\ˆØNÂˆ™]\›ˆØÚ[XVÜ[KšÙ^]ÛÜ™HOOH›ÚY
+
+ØHH[K™Yš[š][Û‹š[\[Y[ÊHOOH[ØHOOH›ÚYÈ›ÚYˆØKœÛÛYJ
+ÝÙ
+HOˆØÚ[XVÚÝÙHOOH›ÚY
+JNÂˆBˆ^ÜËœÚÝ[\ÙT[HHÚÝ[\ÙT[NÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÙ]U\KšœÂ˜\ˆ™\]Z\™WÙ]U\HH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÙ]U\KšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜËœ™\Ü\Q\œ›ÜˆH^ÜË˜ÚXÚÑ]U\\ÈH^ÜË˜ÚXÚÑ]U\HH^ÜË˜ÛÙ\˜ÙP[™ÚXÚÑ]U\HH^ÜË™Ù]”ÓÓ•\\ÈH^ÜË™Ù]ØÚ[XU\\ÈH^ÜË‘]U\HH›ÚYÂˆ˜\ˆ[\×ÌHH™\]Z\™WÜ[\Ê
+NÂˆ˜\ˆ\XØXš[]WÌHH™\]Z\™WØ\XØXš[]J
+NÂˆ˜\ˆ\œ›Üœ×ÌHH™\]Z\™WÙ\œ›ÜœÊ
+NÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ˜\ˆ]U\NÂˆ
+[˜Ý[ÛŠ]U\LŠHÂˆ]U\L–Ñ]U\L–ÈÛÜœ™XÝ—HHHHÛÜœ™XÝŽÂˆ]U\L–Ñ]U\L–È•Ü›Û™È—HHWHH•Ü›Û™ÈŽÂˆJJ]U\H
+^ÜË‘]U\HH]U\HHßJJNÂˆ[˜Ý[ÛˆÙ]ØÚ[XU\\ÊØÚ[XJHÂˆÛÛœÝ\\ÈHÙ]”ÓÓ•\\ÊØÚ[XK\JNÂˆÛÛœÝ\Ó[H\\Ëš[˜ÛY\Ê›[ŠNÂˆYˆ
+\Ó[
+HÂˆYˆ
+ØÚ[XK›[X›HOOH˜[ÙJBˆ›ÝÈ™]È\œ›ÜŠ\Nˆ[ÛÛ˜YXÝÈ[X›Nˆ˜[ÙHŠNÂˆH[ÙHÂˆYˆ
+]\\Ë›[™Ý	‰ˆØÚ[XK›[X›HOOH›ÚY
+HÂˆ›ÝÈ™]È\œ›ÜŠ	È›[X›HˆØ[››Ý™H\ÙYÚ]Ý]\H‰ÊNÂˆBˆYˆ
+ØÚ[XK›[X›HOOHYJBˆ\\Ëœ\Ú
+›[ŠNÂˆBˆ™]\›ˆ\\ÎÂˆBˆ^ÜË™Ù]ØÚ[XU\\ÈHÙ]ØÚ[XU\\ÎÂˆ[˜Ý[ÛˆÙ]”ÓÓ•\\ÊÊHÂˆÛÛœÝ\\ÈH\œ˜^Kš\Ð\œ˜^JÊHÈÈˆÈÈÝ×Hˆ×NÂˆYˆ
+\\Ë™]™\žJ[\×ÌKš\Ò”ÓÓ•\JJBˆ™]\›ˆ\\ÎÂˆ›ÝÈ™]È\œ›ÜŠ\H]\Ý™H”ÓÓ•\HÜˆ”ÓÓ•\V×Nˆˆ
+È\\Ëš›Ú[Š‹ŠJNÂˆBˆ^ÜË™Ù]”ÓÓ•\\ÈHÙ]”ÓÓ•\\ÎÂˆ[˜Ý[ÛˆÛÙ\˜ÙP[™ÚXÚÑ]U\J]\\ÊHÂˆÛÛœÝÈÙ[‹]KÜÈHH]ÂˆÛÛœÝÛÙ\˜ÙUÈHÛÙ\˜ÙUÕ\\Ê\\ËÜË˜ÛÙ\˜ÙU\\ÊNÂˆÛÛœÝÚXÚÕ\\ÈH\\Ë›[™Ýˆ	‰ˆJÛÙ\˜ÙUË›[™ÝOOH	‰ˆ\\Ë›[™ÝOOHH	‰ˆ
+\XØXš[]WÌKœØÚ[XR\Ô[\Ñ›Ü•\JJ]\\ÖÌJJNÂˆYˆ
+ÚXÚÕ\\ÊHÂˆÛÛœÝÜ›Û™Õ\HHÚXÚÑ]U\\Ê\\Ë]KÜËœÝšXÝ[X™\œË]U\K•Ü›Û™ÊNÂˆÙ[‹šYŠÜ›Û™Õ\K
+
+HOˆÂˆYˆ
+ÛÙ\˜ÙUË›[™Ý
+BˆÛÙ\˜ÙQ]J]\\ËÛÙ\˜ÙUÊNÂˆ[ÙBˆ™\Ü\Q\œ›ÜŠ]
+NÂˆJNÂˆBˆ™]\›ˆÚXÚÕ\\ÎÂˆBˆ^ÜË˜ÛÙ\˜ÙP[™ÚXÚÑ]U\HHÛÙ\˜ÙP[™ÚXÚÑ]U\NÂˆ˜\ˆÓÑTÒP“HHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+ÈœÝš[™È‹›[X™\ˆ‹š[YÙ\ˆ‹˜›ÛÛX[ˆ‹›[—JNÂˆ[˜Ý[ÛˆÛÙ\˜ÙUÕ\\Ê\\ËÛÙ\˜ÙU\\ÊHÂˆ™]\›ˆÛÙ\˜ÙU\\ÈÈ\\Ë™š[\Š
+
+HOˆÓÑTÒP“Kš\Ê
+HÛÙ\˜ÙU\\ÈOOH˜\œ˜^Hˆ	‰ˆOOH˜\œ˜^HŠHˆ×NÂˆBˆ[˜Ý[ÛˆÛÙ\˜ÙQ]J]\\ËÛÙ\˜ÙUÊHÂˆÛÛœÝÈÙ[‹]KÜÈHH]ÂˆÛÛœÝ]U\HHÙ[‹›]
+™]U\H‹
+ÛÙYÙ[—ÌK—ÊX\[Ùˆ	Ù]_X
+NÂˆÛÛœÝÛÙ\˜ÙYHÙ[‹›]
+˜ÛÙ\˜ÙY‹
+ÛÙYÙ[—ÌK—ÊX[™Yš[™Y
+NÂˆYˆ
+ÜË˜ÛÙ\˜ÙU\\ÈOOH˜\œ˜^HŠHÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]U\_HOH	ÛØš™XÝ	È	‰ˆ\œ˜^Kš\Ð\œ˜^J	Ù]_JH	‰ˆ	Ù]_K›[™ÝOHX
+
+HOˆÙ[‹˜\ÜÚYÛŠ]K
+ÛÙYÙ[—ÌK—ÊX	Ù]_VÌX
+K˜\ÜÚYÛŠ]U\K
+ÛÙYÙ[—ÌK—ÊX\[Ùˆ	Ù]_X
+KšYŠÚXÚÑ]U\\Ê\\Ë]KÜËœÝšXÝ[X™\œÊK
+
+HOˆÙ[‹˜\ÜÚYÛŠÛÙ\˜ÙY]JJJNÂˆBˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	ØÛÙ\˜ÙYHOOH[™Yš[™Y
+NÂˆ›Üˆ
+ÛÛœÝÙˆÛÙ\˜ÙUÊHÂˆYˆ
+ÓÑTÒP“Kš\Ê
+HOOH˜\œ˜^Hˆ	‰ˆÜË˜ÛÙ\˜ÙU\\ÈOOH˜\œ˜^HŠHÂˆÛÙ\˜ÙTÜXÚYšXÕ\J
+NÂˆBˆBˆÙ[‹™[ÙJ
+NÂˆ™\Ü\Q\œ›ÜŠ]
+NÂˆÙ[‹™[™YŠ
+NÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	ØÛÙ\˜ÙYHOOH[™Yš[™Y
+
+HOˆÂˆÙ[‹˜\ÜÚYÛŠ]KÛÙ\˜ÙY
+NÂˆ\ÜÚYÛ”\™[]J]ÛÙ\˜ÙY
+NÂˆJNÂˆ[˜Ý[ÛˆÛÙ\˜ÙTÜXÚYšXÕ\J
+HÂˆÝÚ]Ú
+
+HÂˆØ\ÙHœÝš[™ÈŽ‚ˆÙ[‹™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]U\_HOH›[X™\ˆˆ	Ù]U\_HOH˜›ÛÛX[ˆ˜
+K˜\ÜÚYÛŠÛÙ\˜ÙY
+ÛÙYÙ[—ÌK—ÊXˆˆ
+È	Ù]_X
+K™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]_HOOH[
+K˜\ÜÚYÛŠÛÙ\˜ÙY
+ÛÙYÙ[—ÌK—ÊXˆ˜
+NÂˆ™]\›ŽÂˆØ\ÙH›[X™\ˆŽ‚ˆÙ[‹™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]U\_HOH˜›ÛÛX[ˆˆ	Ù]_HOOH[ˆ
+	Ù]U\_HOHœÝš[™Èˆ	‰ˆ	Ù]_H	‰ˆ	Ù]_HOH
+ÉÙ]_JX
+K˜\ÜÚYÛŠÛÙ\˜ÙY
+ÛÙYÙ[—ÌK—ÊX
+ÉÙ]_X
+NÂˆ™]\›ŽÂˆØ\ÙHš[YÙ\ˆŽ‚ˆÙ[‹™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]U\_HOOH˜›ÛÛX[ˆˆ	Ù]_HOOH[ˆ
+	Ù]U\_HOOHœÝš[™Èˆ	‰ˆ	Ù]_H	‰ˆ	Ù]_HOH
+ÉÙ]_H	‰ˆJ	Ù]_H	HJJX
+K˜\ÜÚYÛŠÛÙ\˜ÙY
+ÛÙYÙ[—ÌK—ÊX
+ÉÙ]_X
+NÂˆ™]\›ŽÂˆØ\ÙH˜›ÛÛX[ˆŽ‚ˆÙ[‹™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]_HOOH™˜[ÙHˆ	Ù]_HOOH	Ù]_HOOH[
+K˜\ÜÚYÛŠÛÙ\˜ÙY˜[ÙJK™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]_HOOHYHˆ	Ù]_HOOHX
+K˜\ÜÚYÛŠÛÙ\˜ÙYYJNÂˆ™]\›ŽÂˆØ\ÙH›[Ž‚ˆÙ[‹™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]_HOOHˆˆ	Ù]_HOOH	Ù]_HOOH˜[ÙX
+NÂˆÙ[‹˜\ÜÚYÛŠÛÙ\˜ÙY[
+NÂˆ™]\›ŽÂˆØ\ÙH˜\œ˜^HŽ‚ˆÙ[‹™[ÙRYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]U\_HOOHœÝš[™Èˆ	Ù]U\_HOOH›[X™\ˆ‚ˆ	Ù]U\_HOOH˜›ÛÛX[ˆˆ	Ù]_HOOH[
+K˜\ÜÚYÛŠÛÙ\˜ÙY
+ÛÙYÙ[—ÌK—ÊXÉÙ]_WX
+NÂˆBˆBˆBˆ[˜Ý[Ûˆ\ÜÚYÛ”\™[]JÈÙ[‹\™[]K\™[]T›Ü\HK^ŠHÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Ü\™[]_HOOH[™Yš[™Y
+
+HOˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ü\™[]_VÉÜ\™[]T›Ü\_WX^ŠJNÂˆBˆ[˜Ý[ÛˆÚXÚÑ]U\J]U\K]KÝšXÝ[\ËÛÜœ™XÝH]U\KÛÜœ™XÝ
+HÂˆÛÛœÝTHHÛÜœ™XÝOOH]U\KÛÜœ™XÝÈÛÙYÙ[—ÌK›Ü\˜]ÜœË‘THˆÛÙYÙ[—ÌK›Ü\˜]ÜœË“‘TNÂˆ]ÛÛ™ÂˆÝÚ]Ú
+]U\JHÂˆØ\ÙH›[Ž‚ˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊX	Ù]_H	ÑT_H[ÂˆØ\ÙH˜\œ˜^HŽ‚ˆÛÛ™H
+ÛÙYÙ[—ÌK—ÊX\œ˜^Kš\Ð\œ˜^J	Ù]_JXÂˆœ™XZÎÂˆØ\ÙH›Øš™XÝŽ‚ˆÛÛ™H
+ÛÙYÙ[—ÌK—ÊX	Ù]_H	‰ˆ\[Ùˆ	Ù]_HOH›Øš™XÝˆ	‰ˆP\œ˜^Kš\Ð\œ˜^J	Ù]_JXÂˆœ™XZÎÂˆØ\ÙHš[YÙ\ˆŽ‚ˆÛÛ™H[PÛÛ™
+
+ÛÙYÙ[—ÌK—ÊXJ	Ù]_H	HJH	‰ˆZ\Ó˜SŠ	Ù]_JX
+NÂˆœ™XZÎÂˆØ\ÙH›[X™\ˆŽ‚ˆÛÛ™H[PÛÛ™
+
+NÂˆœ™XZÎÂˆY˜][‚ˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊX\[Ùˆ	Ù]_H	ÑT_H	Ù]U\_XÂˆBˆ™]\›ˆÛÜœ™XÝOOH]U\KÛÜœ™XÝÈÛÛ™ˆ
+ÛÙYÙ[—ÌK››Ý
+JÛÛ™
+NÂˆ[˜Ý[Ûˆ[PÛÛ™
+ØÛÛ™HÛÙYÙ[—ÌK›š[
+HÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK˜[™
+J
+ÛÙYÙ[—ÌK—ÊX\[Ùˆ	Ù]_HOH›[X™\ˆ˜ØÛÛ™ÝšXÝ[\ÈÈ
+ÛÙYÙ[—ÌK—ÊX\Ñš[š]J	Ù]_JXˆÛÙYÙ[—ÌK›š[
+NÂˆBˆBˆ^ÜË˜ÚXÚÑ]U\HHÚXÚÑ]U\NÂˆ[˜Ý[ÛˆÚXÚÑ]U\\Ê]U\\Ë]KÝšXÝ[\ËÛÜœ™XÝ
+HÂˆYˆ
+]U\\Ë›[™ÝOOHJHÂˆ™]\›ˆÚXÚÑ]U\J]U\\ÖÌK]KÝšXÝ[\ËÛÜœ™XÝ
+NÂˆBˆ]ÛÛ™ÂˆÛÛœÝ\\ÈH
+][ÌKÒ\Ú
+J]U\\ÊNÂˆYˆ
+\\Ë˜\œ˜^H	‰ˆ\\Ë›Øš™XÝ
+HÂˆÛÛœÝ›ÝØšˆH
+ÛÙYÙ[—ÌK—ÊX\[Ùˆ	Ù]_HOH›Øš™XÝ˜ÂˆÛÛ™H\\Ë›[È›ÝØšˆˆ
+ÛÙYÙ[—ÌK—ÊXIÙ]_H	Û›ÝØšŸXÂˆ[]H\\Ë›[Âˆ[]H\\Ë˜\œ˜^NÂˆ[]H\\Ë›Øš™XÝÂˆH[ÙHÂˆÛÛ™HÛÙYÙ[—ÌK›š[ÂˆBˆYˆ
+\\Ë›[X™\ŠBˆ[]H\\Ëš[YÙ\ŽÂˆ›Üˆ
+ÛÛœÝ[ˆ\\ÊBˆÛÛ™H
+ÛÙYÙ[—ÌK˜[™
+JÛÛ™ÚXÚÑ]U\J]KÝšXÝ[\ËÛÜœ™XÝ
+JNÂˆ™]\›ˆÛÛ™ÂˆBˆ^ÜË˜ÚXÚÑ]U\\ÈHÚXÚÑ]U\\ÎÂˆ˜\ˆ\Q\œ›ÜˆHÂˆY\ÜØYÙNˆ
+ÈØÚ[XHJHOˆ]\Ý™H	ÜØÚ[X_Xˆ\˜[\Îˆ
+ÈØÚ[XKØÚ[XU˜[YHJHOˆ\[ÙˆØÚ[XHOHœÝš[™ÈˆÈ
+ÛÙYÙ[—ÌK—ÊXÝ\Nˆ	ÜØÚ[X__Xˆ
+ÛÙYÙ[—ÌK—ÊXÝ\Nˆ	ÜØÚ[XU˜[Y__XˆNÂˆ[˜Ý[Ûˆ™\Ü\Q\œ›ÜŠ]
+HÂˆÛÛœÝÞHÙ]\Q\œ›ÜÛÛ^
+]
+NÂˆ
+\œ›Üœ×ÌKœ™\Ü\œ›ÜŠJÞ\Q\œ›ÜŠNÂˆBˆ^ÜËœ™\Ü\Q\œ›ÜˆH™\Ü\Q\œ›ÜŽÂˆ[˜Ý[ÛˆÙ]\Q\œ›ÜÛÛ^
+]
+HÂˆÛÛœÝÈÙ[‹]KØÚ[XHHH]ÂˆÛÛœÝØÚ[XPÛÙHH
+][ÌKœØÚ[XT™Y“Ü•˜[
+J]ØÚ[XK\HŠNÂˆ™]\›ˆÂˆÙ[‹ˆÙ^]ÛÜ™ˆ\H‹ˆ]KˆØÚ[XNˆØÚ[XK\KˆØÚ[XPÛÙKˆØÚ[XU˜[YNˆØÚ[XPÛÙKˆ\™[ØÚ[XNˆØÚ[XKˆ\˜[\ÎˆßKˆ]ˆNÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÙY˜][ËšœÂ˜\ˆ™\]Z\™WÙY˜][ÈH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÙY˜][ËšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË˜\ÜÚYÛ‘Y˜][ÈH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ[˜Ý[Ûˆ\ÜÚYÛ‘Y˜][Ê]JHÂˆÛÛœÝÈ›Ü\Y\Ë][\Îˆ][\ÌˆHH]œØÚ[XNÂˆYˆ
+HOOH›Øš™XÝˆ	‰ˆ›Ü\Y\ÊHÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆ›Ü\Y\ÊHÂˆ\ÜÚYÛ‘Y˜][
+]Ù^K›Ü\Y\ÖÚÙ^WK™Y˜][
+NÂˆBˆH[ÙHYˆ
+HOOH˜\œ˜^Hˆ	‰ˆ\œ˜^Kš\Ð\œ˜^J][\ÌŠJHÂˆ][\Ì‹™›Ü‘XXÚ
+
+ØÚJHOˆ\ÜÚYÛ‘Y˜][
+]KØÚ™Y˜][
+JNÂˆBˆBˆ^ÜË˜\ÜÚYÛ‘Y˜][ÈH\ÜÚYÛ‘Y˜][ÎÂˆ[˜Ý[Ûˆ\ÜÚYÛ‘Y˜][
+]›ÜY˜][˜[YJHÂˆÛÛœÝÈÙ[‹ÛÛ\ÜÚ]T[K]KÜÈHH]ÂˆYˆ
+Y˜][˜[YHOOH›ÚY
+Bˆ™]\›ŽÂˆÛÛœÝÚ[]HH
+ÛÙYÙ[—ÌK—ÊX	Ù]_IÊÛÙYÙ[—ÌK™Ù]›Ü\JJ›Ü
+_XÂˆYˆ
+ÛÛ\ÜÚ]T[JHÂˆ
+][ÌK˜ÚXÚÔÝšXÝ[ÙJJ]Y˜][\ÈYÛ›Ü™Y›ÜŽˆ	ØÚ[]_X
+NÂˆ™]\›ŽÂˆBˆ]ÛÛ™][ÛˆH
+ÛÙYÙ[—ÌK—ÊX	ØÚ[]_HOOH[™Yš[™YÂˆYˆ
+ÜË\ÙQY˜][ÈOOH™[\HŠHÂˆÛÛ™][ÛˆH
+ÛÙYÙ[—ÌK—ÊX	ØÛÛ™][ÛŸH	ØÚ[]_HOOH[	ØÚ[]_HOOHˆ˜ÂˆBˆÙ[‹šYŠÛÛ™][Û‹
+ÛÙYÙ[—ÌK—ÊX	ØÚ[]_HH	ÊÛÙYÙ[—ÌKœÝš[™ÚYžJJY˜][˜[YJ_X
+NÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝÝ›ØØX[\šY\ËØÛÙKšœÂ˜\ˆ™\]Z\™WØÛÙLˆH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝÝ›ØØX[\šY\ËØÛÙKšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË˜[Y]U[š[ÛˆH^ÜË˜[Y]P\œ˜^HH^ÜË\ÙT]\›ˆH^ÜË˜Ø[˜[Y]PÛÙHH^ÜËœØÚ[XT›Ü\Y\ÈH^ÜË˜[ØÚ[XT›Ü\Y\ÈH^ÜË››Ô›Ü\R[‘]HH^ÜËœ›Ü\R[‘]HH^ÜËš\ÓÝÛ”›Ü\HH^ÜËš\Ô›Ü[˜ÈH^ÜËœ™\ÜZ\ÜÚ[™Ô›ÜH^ÜË˜ÚXÚÓZ\ÜÚ[™Ô›ÜH^ÜË˜ÚXÚÔ™\ÜZ\ÜÚ[™Ô›ÜH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ˜\ˆ˜[Y\×ÌHH™\]Z\™WÛ˜[Y\Ê
+NÂˆ˜\ˆ][ÌˆH™\]Z\™WÝ][
+
+NÂˆ[˜Ý[ÛˆÚXÚÔ™\ÜZ\ÜÚ[™Ô›Ü
+Þ›Ü
+HÂˆÛÛœÝÈÙ[‹]K]HHÞÂˆÙ[‹šYŠ›Ô›Ü\R[‘]JÙ[‹]K›Ü]›ÜË›ÝÛ”›Ü\Y\ÊK
+
+HOˆÂˆÞœÙ]\˜[\ÊÈZ\ÜÚ[™Ô›Ü\Nˆ
+ÛÙYÙ[—ÌK—ÊX	Ü›ÜXKYJNÂˆÞ™\œ›ÜŠ
+NÂˆJNÂˆBˆ^ÜË˜ÚXÚÔ™\ÜZ\ÜÚ[™Ô›ÜHÚXÚÔ™\ÜZ\ÜÚ[™Ô›ÜÂˆ[˜Ý[ÛˆÚXÚÓZ\ÜÚ[™Ô›Ü
+ÈÙ[‹]K]ˆÈÜÈHK›Ü\Y\ËZ\ÜÚ[™ÊHÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK›ÜŠJ‹‹œ›Ü\Y\Ë›X\
+
+›Ü
+HOˆ
+ÛÙYÙ[—ÌK˜[™
+J›Ô›Ü\R[‘]JÙ[‹]K›ÜÜË›ÝÛ”›Ü\Y\ÊK
+ÛÙYÙ[—ÌK—ÊX	ÛZ\ÜÚ[™ßHH	Ü›ÜX
+JJNÂˆBˆ^ÜË˜ÚXÚÓZ\ÜÚ[™Ô›ÜHÚXÚÓZ\ÜÚ[™Ô›ÜÂˆ[˜Ý[Ûˆ™\ÜZ\ÜÚ[™Ô›Ü
+ÞZ\ÜÚ[™ÊHÂˆÞœÙ]\˜[\ÊÈZ\ÜÚ[™Ô›Ü\NˆZ\ÜÚ[™ÈKYJNÂˆÞ™\œ›ÜŠ
+NÂˆBˆ^ÜËœ™\ÜZ\ÜÚ[™Ô›ÜH™\ÜZ\ÜÚ[™Ô›ÜÂˆ[˜Ý[Ûˆ\Ô›Ü[˜ÊÙ[ŠHÂˆ™]\›ˆÙ[‹œØÛÜU˜[YJ™[˜È‹ÂˆËÈ\Û[Y\ØX›K[™^[[™H\\ØÜš\Y\Û[Ý[˜›Ý[™[Y]Ùˆ™YŽˆØš™XÝœ›ÝÝ\Kš\ÓÝÛ”›Ü\KˆÛÙNˆ
+ÛÙYÙ[—ÌK—ÊXØš™XÝœ›ÝÝ\Kš\ÓÝÛ”›Ü\XˆJNÂˆBˆ^ÜËš\Ô›Ü[˜ÈH\Ô›Ü[˜ÎÂˆ[˜Ý[Ûˆ\ÓÝÛ”›Ü\JÙ[‹]K›Ü\JHÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊX	Ú\Ô›Ü[˜ÊÙ[Š_K˜Ø[
+	Ù]_K	Ü›Ü\_JXÂˆBˆ^ÜËš\ÓÝÛ”›Ü\HH\ÓÝÛ”›Ü\NÂˆ[˜Ý[Ûˆ›Ü\R[‘]JÙ[‹]K›Ü\KÝÛ”›Ü\Y\ÊHÂˆÛÛœÝÛÛ™H
+ÛÙYÙ[—ÌK—ÊX	Ù]_IÊÛÙYÙ[—ÌK™Ù]›Ü\JJ›Ü\J_HOOH[™Yš[™YÂˆ™]\›ˆÝÛ”›Ü\Y\ÈÈ
+ÛÙYÙ[—ÌK—ÊX	ØÛÛ™H	‰ˆ	Ú\ÓÝÛ”›Ü\JÙ[‹]K›Ü\J_XˆÛÛ™ÂˆBˆ^ÜËœ›Ü\R[‘]HH›Ü\R[‘]NÂˆ[˜Ý[Ûˆ›Ô›Ü\R[‘]JÙ[‹]K›Ü\KÝÛ”›Ü\Y\ÊHÂˆÛÛœÝÛÛ™H
+ÛÙYÙ[—ÌK—ÊX	Ù]_IÊÛÙYÙ[—ÌK™Ù]›Ü\JJ›Ü\J_HOOH[™Yš[™YÂˆ™]\›ˆÝÛ”›Ü\Y\ÈÈ
+ÛÙYÙ[—ÌK›ÜŠJÛÛ™
+ÛÙYÙ[—ÌK››Ý
+J\ÓÝÛ”›Ü\JÙ[‹]K›Ü\JJJHˆÛÛ™ÂˆBˆ^ÜË››Ô›Ü\R[‘]HH›Ô›Ü\R[‘]NÂˆ[˜Ý[Ûˆ[ØÚ[XT›Ü\Y\ÊØÚ[XSX\
+HÂˆ™]\›ˆØÚ[XSX\ÈØš™XÝšÙ^\ÊØÚ[XSX\
+K™š[\Š
+
+HOˆOOH—×Ü›Ý××ÈŠHˆ×NÂˆBˆ^ÜË˜[ØÚ[XT›Ü\Y\ÈH[ØÚ[XT›Ü\Y\ÎÂˆ[˜Ý[ÛˆØÚ[XT›Ü\Y\Ê]ØÚ[XSX\
+HÂˆ™]\›ˆ[ØÚ[XT›Ü\Y\ÊØÚ[XSX\
+K™š[\Š
+
+HOˆJ][ÌK˜[Ø^\Õ˜[YØÚ[XJJ]ØÚ[XSX\ÜJJNÂˆBˆ^ÜËœØÚ[XT›Ü\Y\ÈHØÚ[XT›Ü\Y\ÎÂˆ[˜Ý[ÛˆØ[˜[Y]PÛÙJÈØÚ[XPÛÙK]K]ˆÈÙ[‹ÜØÚ[XT™Y‹ØÚ[XT]\œ›Ü”]K]K[˜ËÛÛ^\ÜÔØÚ[XJHÂˆÛÛœÝ]P[™ØÚ[XHH\ÜÔØÚ[XHÈ
+ÛÙYÙ[—ÌK—ÊX	ÜØÚ[XPÛÙ_K	Ù]_K	ÝÜØÚ[XT™YŸIÜØÚ[XT]Xˆ]NÂˆÛÛœÝ˜[ÞHÂˆÛ˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]
+ÛÙYÙ[—ÌKœÝÛÛ˜Ø]
+J˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]\œ›Ü”]
+WKˆÛ˜[Y\×ÌK™Y˜][œ\™[]K]œ\™[]WKˆÛ˜[Y\×ÌK™Y˜][œ\™[]T›Ü\K]œ\™[]T›Ü\WKˆÛ˜[Y\×ÌK™Y˜][œ›ÛÝ]K˜[Y\×ÌK™Y˜][œ›ÛÝ]WBˆNÂˆYˆ
+]›ÜË™[˜[ZXÔ™YŠBˆ˜[Þœ\Ú
+Û˜[Y\×ÌK™Y˜][™[˜[ZXÐ[˜ÚÜœË˜[Y\×ÌK™Y˜][™[˜[ZXÐ[˜ÚÜœ×JNÂˆÛÛœÝ\™ÜÈH
+ÛÙYÙ[—ÌK—ÊX	Ù]P[™ØÚ[X_K	ÙÙ[‹›Øš™XÝ
+‹‹˜[Þ
+_XÂˆ™]\›ˆÛÛ^OOHÛÙYÙ[—ÌK›š[È
+ÛÙYÙ[—ÌK—ÊX	Ù[˜ßK˜Ø[
+	ØÛÛ^K	Ø\™ÜßJXˆ
+ÛÙYÙ[—ÌK—ÊX	Ù[˜ßJ	Ø\™ÜßJXÂˆBˆ^ÜË˜Ø[˜[Y]PÛÙHHØ[˜[Y]PÛÙNÂˆ˜\ˆ™]Ô™YÑ^H
+ÛÙYÙ[—ÌK—ÊX™]È™YÑ^Âˆ[˜Ý[Ûˆ\ÙT]\›ŠÈÙ[‹]ˆÈÜÈHK]\›ŠHÂˆÛÛœÝHHÜË[šXÛÙT™YÑ^ÈHˆˆˆŽÂˆÛÛœÝÈ™YÑ^HHÜË˜ÛÙNÂˆÛÛœÝžH™YÑ^
+]\›‹JNÂˆ™]\›ˆÙ[‹œØÛÜU˜[YJœ]\›ˆ‹ÂˆÙ^NˆžÔÝš[™Ê
+Kˆ™YŽˆžˆÛÙNˆ
+ÛÙYÙ[—ÌK—ÊX	Ü™YÑ^˜ÛÙHOOH›™]È™YÑ^ˆÈ™]Ô™YÑ^ˆ
+][Ì‹\ÙQ[˜ÊJÙ[‹™YÑ^
+_J	Ü]\›ŸK	Ý_JXˆJNÂˆBˆ^ÜË\ÙT]\›ˆH\ÙT]\›ŽÂˆ[˜Ý[Ûˆ˜[Y]P\œ˜^JÞ
+HÂˆÛÛœÝÈÙ[‹]KÙ^]ÛÜ™]HHÞÂˆÛÛœÝ˜[YHÙ[‹›˜[YJ˜[YŠNÂˆYˆ
+]˜[\œ›ÜœÊHÂˆÛÛœÝ˜[Y\œˆHÙ[‹›]
+˜[Y‹YJNÂˆ˜[Y]R][\Ê
+
+HOˆÙ[‹˜\ÜÚYÛŠ˜[Y\œ‹˜[ÙJJNÂˆ™]\›ˆ˜[Y\œŽÂˆBˆÙ[‹˜\Š˜[YYJNÂˆ˜[Y]R][\Ê
+
+HOˆÙ[‹˜œ™XZÊ
+JNÂˆ™]\›ˆ˜[YÂˆ[˜Ý[Ûˆ˜[Y]R][\Ê›Ý˜[Y
+HÂˆÛÛœÝ[ˆHÙ[‹˜ÛÛœÝ
+›[ˆ‹
+ÛÙYÙ[—ÌK—ÊX	Ù]_K›[™Ý
+NÂˆÙ[‹™›Ü”˜[™ÙJšH‹[‹
+JHOˆÂˆÞœÝXœØÚ[XJÂˆÙ^]ÛÜ™ˆ]T›ÜˆKˆ]T›Ü\Nˆ][ÌK•\K“[BˆK˜[Y
+NÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK››Ý
+J˜[Y
+K›Ý˜[Y
+NÂˆJNÂˆBˆBˆ^ÜË˜[Y]P\œ˜^HH˜[Y]P\œ˜^NÂˆ[˜Ý[Ûˆ˜[Y]U[š[ÛŠÞ
+HÂˆÛÛœÝÈÙ[‹ØÚ[XKÙ^]ÛÜ™]HHÞÂˆYˆ
+P\œ˜^Kš\Ð\œ˜^JØÚ[XJJBˆ›ÝÈ™]È\œ›ÜŠ˜Zˆ[\[Y[][Ûˆ\œ›ÜˆŠNÂˆÛÛœÝ[Ø^\Õ˜[YHØÚ[XKœÛÛYJ
+ØÚ
+HOˆ
+][ÌK˜[Ø^\Õ˜[YØÚ[XJJ]ØÚ
+JNÂˆYˆ
+[Ø^\Õ˜[Y	‰ˆZ]›ÜË[™]˜[X]Y
+Bˆ™]\›ŽÂˆÛÛœÝ˜[YHÙ[‹›]
+˜[Y‹˜[ÙJNÂˆÛÛœÝØÚ˜[YHÙ[‹›˜[YJ—Ý˜[YŠNÂˆÙ[‹˜›ØÚÊ
+
+HOˆØÚ[XK™›Ü‘XXÚ
+
+ÜØÚJHOˆÂˆÛÛœÝØÚÞHÞœÝXœØÚ[XJÂˆÙ^]ÛÜ™ˆØÚ[XT›ÜˆKˆÛÛ\ÜÚ]T[NˆYBˆKØÚ˜[Y
+NÂˆÙ[‹˜\ÜÚYÛŠ˜[Y
+ÛÙYÙ[—ÌK—ÊX	Ý˜[YH	ÜØÚ˜[YX
+NÂˆÛÛœÝY\™ÙYHÞ›Y\™ÙU˜[Y]˜[X]Y
+ØÚÞØÚ˜[Y
+NÂˆYˆ
+[Y\™ÙY
+BˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK››Ý
+J˜[Y
+JNÂˆJJNÂˆÞœ™\Ý[
+˜[Y
+
+HOˆÞœ™\Ù]
+
+K
+
+HOˆÞ™\œ›ÜŠYJJNÂˆBˆ^ÜË˜[Y]U[š[ÛˆH˜[Y]U[š[ÛŽÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÚÙ^]ÛÜ™šœÂ˜\ˆ™\]Z\™WÚÙ^]ÛÜ™H×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÚÙ^]ÛÜ™šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË˜[Y]RÙ^]ÛÜ™\ØYÙHH^ÜË˜[YØÚ[XU\HH^ÜË™[˜ÒÙ^]ÛÜ™ÛÙHH^ÜË›XXÜ›ÒÙ^]ÛÜ™ÛÙHH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ˜[Y\×ÌHH™\]Z\™WÛ˜[Y\Ê
+NÂˆ˜\ˆÛÙWÌHH™\]Z\™WØÛÙLŠ
+NÂˆ˜\ˆ\œ›Üœ×ÌHH™\]Z\™WÙ\œ›ÜœÊ
+NÂˆ[˜Ý[ÛˆXXÜ›ÒÙ^]ÛÜ™ÛÙJÞYŠHÂˆÛÛœÝÈÙ[‹Ù^]ÛÜ™ØÚ[XK\™[ØÚ[XK]HHÞÂˆÛÛœÝXXÜ›ÔØÚ[XHHY‹›XXÜ›Ë˜Ø[
+]œÙ[‹ØÚ[XK\™[ØÚ[XK]
+NÂˆÛÛœÝØÚ[XT™YˆH\ÙRÙ^]ÛÜ™
+Ù[‹Ù^]ÛÜ™XXÜ›ÔØÚ[XJNÂˆYˆ
+]›ÜË˜[Y]TØÚ[XHOOH˜[ÙJBˆ]œÙ[‹˜[Y]TØÚ[XJXXÜ›ÔØÚ[XKYJNÂˆÛÛœÝ˜[YHÙ[‹›˜[YJ˜[YŠNÂˆÞœÝXœØÚ[XJÂˆØÚ[XNˆXXÜ›ÔØÚ[XKˆØÚ[XT]ˆÛÙYÙ[—ÌK›š[ˆ\œ”ØÚ[XT]ˆ	Ú]™\œ”ØÚ[XT]KÉÚÙ^]ÛÜ™XˆÜØÚ[XT™YŽˆØÚ[XT™Y‹ˆÛÛ\ÜÚ]T[NˆYBˆK˜[Y
+NÂˆÞœ\ÜÊ˜[Y
+
+HOˆÞ™\œ›ÜŠYJJNÂˆBˆ^ÜË›XXÜ›ÒÙ^]ÛÜ™ÛÙHHXXÜ›ÒÙ^]ÛÜ™ÛÙNÂˆ[˜Ý[Ûˆ[˜ÒÙ^]ÛÜ™ÛÙJÞYŠHÂˆ˜\ˆØNÂˆÛÛœÝÈÙ[‹Ù^]ÛÜ™ØÚ[XK\™[ØÚ[XK	]K]HHÞÂˆÚXÚÐ\Þ[˜ÒÙ^]ÛÜ™
+]YŠNÂˆÛÛœÝ˜[Y]HHI]H	‰ˆY‹˜ÛÛ\[HÈY‹˜ÛÛ\[K˜Ø[
+]œÙ[‹ØÚ[XK\™[ØÚ[XK]
+HˆY‹˜[Y]NÂˆÛÛœÝ˜[Y]T™YˆH\ÙRÙ^]ÛÜ™
+Ù[‹Ù^]ÛÜ™˜[Y]JNÂˆÛÛœÝ˜[YHÙ[‹›]
+˜[YŠNÂˆÞ˜›ØÚÉ]J˜[Y˜[Y]RÙ^]ÛÜ™
+NÂˆÞ›ÚÊ
+ØHHY‹˜[Y
+HOOH[	‰ˆØHOOH›ÚYÈØHˆ˜[Y
+NÂˆ[˜Ý[Ûˆ˜[Y]RÙ^]ÛÜ™
+
+HÂˆYˆ
+Y‹™\œ›ÜœÈOOH˜[ÙJHÂˆ\ÜÚYÛ•˜[Y
+
+NÂˆYˆ
+Y‹›[ÙYžZ[™ÊBˆ[ÙYžQ]JÞ
+NÂˆ™\Ü\œœÊ
+
+HOˆÞ™\œ›ÜŠ
+JNÂˆH[ÙHÂˆÛÛœÝ[Q\œœÈHY‹˜\Þ[˜ÈÈ˜[Y]P\Þ[˜Ê
+Hˆ˜[Y]TÞ[˜Ê
+NÂˆYˆ
+Y‹›[ÙYžZ[™ÊBˆ[ÙYžQ]JÞ
+NÂˆ™\Ü\œœÊ
+
+HOˆY\œœÊÞ[Q\œœÊJNÂˆBˆBˆ[˜Ý[Ûˆ˜[Y]P\Þ[˜Ê
+HÂˆÛÛœÝ[Q\œœÈHÙ[‹›]
+œ[Q\œœÈ‹[
+NÂˆÙ[‹žJ
+
+HOˆ\ÜÚYÛ•˜[Y
+
+ÛÙYÙ[—ÌK—ÊX]ØZ]
+K
+JHOˆÙ[‹˜\ÜÚYÛŠ˜[Y˜[ÙJKšYŠ
+ÛÙYÙ[—ÌK—ÊX	Ù_H[œÝ[˜Ù[Ùˆ	Ú]•˜[Y][Û‘\œ›ÜŸX
+
+HOˆÙ[‹˜\ÜÚYÛŠ[Q\œœË
+ÛÙYÙ[—ÌK—ÊX	Ù_K™\œ›ÜœØ
+K
+
+HOˆÙ[‹›ÝÊJJJNÂˆ™]\›ˆ[Q\œœÎÂˆBˆ[˜Ý[Ûˆ˜[Y]TÞ[˜Ê
+HÂˆÛÛœÝ˜[Y]Q\œœÈH
+ÛÙYÙ[—ÌK—ÊX	Ý˜[Y]T™YŸK™\œ›ÜœØÂˆÙ[‹˜\ÜÚYÛŠ˜[Y]Q\œœË[
+NÂˆ\ÜÚYÛ•˜[Y
+ÛÙYÙ[—ÌK›š[
+NÂˆ™]\›ˆ˜[Y]Q\œœÎÂˆBˆ[˜Ý[Ûˆ\ÜÚYÛ•˜[Y
+Ø]ØZ]HY‹˜\Þ[˜ÈÈ
+ÛÙYÙ[—ÌK—ÊX]ØZ]ˆÛÙYÙ[—ÌK›š[
+HÂˆÛÛœÝ\ÜÐÞH]›ÜËœ\ÜÐÛÛ^È˜[Y\×ÌK™Y˜][\Èˆ˜[Y\×ÌK™Y˜][œÙ[ŽÂˆÛÛœÝ\ÜÔØÚ[XHHJ˜ÛÛ\[Hˆ[ˆYˆ	‰ˆI]HY‹œØÚ[XHOOH˜[ÙJNÂˆÙ[‹˜\ÜÚYÛŠ˜[Y
+ÛÙYÙ[—ÌK—ÊX	×Ø]ØZ]IÊÛÙWÌK˜Ø[˜[Y]PÛÙJJÞ˜[Y]T™Y‹\ÜÐÞ\ÜÔØÚ[XJ_XY‹›[ÙYžZ[™ÊNÂˆBˆ[˜Ý[Ûˆ™\Ü\œœÊ\œ›ÜœÊHÂˆ˜\ˆØLŽÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK››Ý
+J
+ØLˆHY‹˜[Y
+HOOH[	‰ˆØLˆOOH›ÚYÈØLˆˆ˜[Y
+K\œ›ÜœÊNÂˆBˆBˆ^ÜË™[˜ÒÙ^]ÛÜ™ÛÙHH[˜ÒÙ^]ÛÜ™ÛÙNÂˆ[˜Ý[Ûˆ[ÙYžQ]JÞ
+HÂˆÛÛœÝÈÙ[‹]K]HHÞÂˆÙ[‹šYŠ]œ\™[]K
+
+HOˆÙ[‹˜\ÜÚYÛŠ]K
+ÛÙYÙ[—ÌK—ÊX	Ú]œ\™[]_VÉÚ]œ\™[]T›Ü\_WX
+JNÂˆBˆ[˜Ý[ÛˆY\œœÊÞ\œœÊHÂˆÛÛœÝÈÙ[ˆHHÞÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX\œ˜^Kš\Ð\œ˜^J	Ù\œœßJX
+
+HOˆÂˆÙ[‹˜\ÜÚYÛŠ˜[Y\×ÌK™Y˜][‘\œ›ÜœË
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßHOOH[È	Ù\œœßHˆ	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßK˜ÛÛ˜Ø]
+	Ù\œœßJX
+K˜\ÜÚYÛŠ˜[Y\×ÌK™Y˜][™\œ›ÜœË
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßK›[™Ý
+NÂˆ
+\œ›Üœ×ÌK™^[™\œ›ÜœÊJÞ
+NÂˆK
+
+HOˆÞ™\œ›ÜŠ
+JNÂˆBˆ[˜Ý[ÛˆÚXÚÐ\Þ[˜ÒÙ^]ÛÜ™
+ÈØÚ[XQ[ˆKYŠHÂˆYˆ
+Y‹˜\Þ[˜È	‰ˆ\ØÚ[XQ[‹‰\Þ[˜ÊBˆ›ÝÈ™]È\œ›ÜŠ˜\Þ[˜ÈÙ^]ÛÜ™[ˆÞ[˜ÈØÚ[XHŠNÂˆBˆ[˜Ý[Ûˆ\ÙRÙ^]ÛÜ™
+Ù[‹Ù^]ÛÜ™™\Ý[
+HÂˆYˆ
+™\Ý[OOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠÙ^]ÛÜ™‰ÚÙ^]ÛÜ™Hˆ˜Z[YÈÛÛ\[X
+NÂˆ™]\›ˆÙ[‹œØÛÜU˜[YJšÙ^]ÛÜ™‹\[Ùˆ™\Ý[OH™[˜Ý[ÛˆˆÈÈ™YŽˆ™\Ý[HˆÈ™YŽˆ™\Ý[ÛÙNˆ
+ÛÙYÙ[—ÌKœÝš[™ÚYžJJ™\Ý[
+HJNÂˆBˆ[˜Ý[Ûˆ˜[YØÚ[XU\JØÚ[XKØÚ[XU\K[ÝÕ[™Yš[™YH˜[ÙJHÂˆ™]\›ˆ\ØÚ[XU\K›[™ÝØÚ[XU\KœÛÛYJ
+Ý
+HOˆÝOOH˜\œ˜^HˆÈ\œ˜^Kš\Ð\œ˜^JØÚ[XJHˆÝOOH›Øš™XÝˆÈØÚ[XH	‰ˆ\[ÙˆØÚ[XHOH›Øš™XÝˆ	‰ˆP\œ˜^Kš\Ð\œ˜^JØÚ[XJHˆ\[ÙˆØÚ[XHOHÝ[ÝÕ[™Yš[™Y	‰ˆ\[ÙˆØÚ[XHOH[™Yš[™YŠNÂˆBˆ^ÜË˜[YØÚ[XU\HH˜[YØÚ[XU\NÂˆ[˜Ý[Ûˆ˜[Y]RÙ^]ÛÜ™\ØYÙJÈØÚ[XKÜËÙ[‹\œ”ØÚ[XT]KY‹Ù^]ÛÜ™
+HÂˆYˆ
+\œ˜^Kš\Ð\œ˜^JY‹šÙ^]ÛÜ™
+HÈYY‹šÙ^]ÛÜ™š[˜ÛY\ÊÙ^]ÛÜ™
+HˆY‹šÙ^]ÛÜ™OOHÙ^]ÛÜ™
+HÂˆ›ÝÈ™]È\œ›ÜŠ˜Zˆ[\[Y[][Ûˆ\œ›ÜˆŠNÂˆBˆÛÛœÝ\ÈHY‹™\[™[˜ÚY\ÎÂˆYˆ
+\ÈOOH[\ÈOOH›ÚYÈ›ÚYˆ\ËœÛÛYJ
+ÝÙ
+HOˆSØš™XÝœ›ÝÝ\Kš\ÓÝÛ”›Ü\K˜Ø[
+ØÚ[XKÝÙ
+JJHÂˆ›ÝÈ™]È\œ›ÜŠ\™[ØÚ[XH]\Ý]™H\[™[˜ÚY\ÈÙˆ	ÚÙ^]ÛÜ™Nˆ	Ù\Ëš›Ú[Š‹Š_X
+NÂˆBˆYˆ
+Y‹˜[Y]TØÚ[XJHÂˆÛÛœÝ˜[YHY‹˜[Y]TØÚ[XJØÚ[XVÚÙ^]ÛÜ™JNÂˆYˆ
+]˜[Y
+HÂˆÛÛœÝ\ÙÈHÙ^]ÛÜ™‰ÚÙ^]ÛÜ™Hˆ˜[YH\È[˜[Y]]‰Ù\œ”ØÚ[XT]HŽˆ
+ÈÙ[‹™\œ›ÜœÕ^
+Y‹˜[Y]TØÚ[XK™\œ›ÜœÊNÂˆYˆ
+ÜË˜[Y]TØÚ[XHOOH›ÙÈŠBˆÙ[‹›ÙÙÙ\‹™\œ›ÜŠ\ÙÊNÂˆ[ÙBˆ›ÝÈ™]È\œ›ÜŠ\ÙÊNÂˆBˆBˆBˆ^ÜË˜[Y]RÙ^]ÛÜ™\ØYÙHH˜[Y]RÙ^]ÛÜ™\ØYÙNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÜÝXœØÚ[XKšœÂ˜\ˆ™\]Z\™WÜÝXœØÚ[XHH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÜÝXœØÚ[XKšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË™^[™ÝXœØÚ[XS[ÙHH^ÜË™^[™ÝXœØÚ[XQ]HH^ÜË™Ù]ÝXœØÚ[XHH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ[˜Ý[ÛˆÙ]ÝXœØÚ[XJ]ÈÙ^]ÛÜ™ØÚ[XT›ÜØÚ[XKØÚ[XT]\œ”ØÚ[XT]ÜØÚ[XT™YˆJHÂˆYˆ
+Ù^]ÛÜ™OOH›ÚY	‰ˆØÚ[XHOOH›ÚY
+HÂˆ›ÝÈ™]È\œ›ÜŠ	Ø›ÝšÙ^]ÛÜ™ˆ[™œØÚ[XHˆ\ÜÙYÛ›HÛ™H[ÝÙY	ÊNÂˆBˆYˆ
+Ù^]ÛÜ™OOH›ÚY
+HÂˆÛÛœÝØÚH]œØÚ[XVÚÙ^]ÛÜ™NÂˆ™]\›ˆØÚ[XT›ÜOOH›ÚYÈÂˆØÚ[XNˆØÚˆØÚ[XT]ˆ
+ÛÙYÙ[—ÌK—ÊX	Ú]œØÚ[XT]IÊÛÙYÙ[—ÌK™Ù]›Ü\JJÙ^]ÛÜ™
+_Xˆ\œ”ØÚ[XT]ˆ	Ú]™\œ”ØÚ[XT]KÉÚÙ^]ÛÜ™XˆHˆÂˆØÚ[XNˆØÚÜØÚ[XT›ÜKˆØÚ[XT]ˆ
+ÛÙYÙ[—ÌK—ÊX	Ú]œØÚ[XT]IÊÛÙYÙ[—ÌK™Ù]›Ü\JJÙ^]ÛÜ™
+_IÊÛÙYÙ[—ÌK™Ù]›Ü\JJØÚ[XT›Ü
+_Xˆ\œ”ØÚ[XT]ˆ	Ú]™\œ”ØÚ[XT]KÉÚÙ^]ÛÜ™KÉÊ][ÌK™\ØØ\Qœ˜YÛY[
+JØÚ[XT›Ü
+_XˆNÂˆBˆYˆ
+ØÚ[XHOOH›ÚY
+HÂˆYˆ
+ØÚ[XT]OOH›ÚY\œ”ØÚ[XT]OOH›ÚYÜØÚ[XT™YˆOOH›ÚY
+HÂˆ›ÝÈ™]È\œ›ÜŠ	ÈœØÚ[XT]‹™\œ”ØÚ[XT]ˆ[™ÜØÚ[XT™Yˆˆ\™H™\]Z\™YÚ]œØÚ[XH‰ÊNÂˆBˆ™]\›ˆÂˆØÚ[XKˆØÚ[XT]ˆÜØÚ[XT™Y‹ˆ\œ”ØÚ[XT]ˆNÂˆBˆ›ÝÈ™]È\œ›ÜŠ	ÙZ]\ˆšÙ^]ÛÜ™ˆÜˆœØÚ[XHˆ]\Ý™H\ÜÙY	ÊNÂˆBˆ^ÜË™Ù]ÝXœØÚ[XHHÙ]ÝXœØÚ[XNÂˆ[˜Ý[Ûˆ^[™ÝXœØÚ[XQ]JÝXœØÚ[XK]È]T›Ü]T›Ü\Nˆ\K]K]U\\Ë›Ü\S˜[YHJHÂˆYˆ
+]HOOH›ÚY	‰ˆ]T›ÜOOH›ÚY
+HÂˆ›ÝÈ™]È\œ›ÜŠ	Ø›Ý™]Hˆ[™™]T›Üˆ\ÜÙYÛ›HÛ™H[ÝÙY	ÊNÂˆBˆÛÛœÝÈÙ[ˆHH]ÂˆYˆ
+]T›ÜOOH›ÚY
+HÂˆÛÛœÝÈ\œ›Ü”]]T]\œ‹ÜÈHH]ÂˆÛÛœÝ™^]HHÙ[‹›]
+™]H‹
+ÛÙYÙ[—ÌK—ÊX	Ú]™]_IÊÛÙYÙ[—ÌK™Ù]›Ü\JJ]T›Ü
+_XYJNÂˆ]PÛÛ^›ÜÊ™^]JNÂˆÝXœØÚ[XK™\œ›Ü”]H
+ÛÙYÙ[—ÌKœÝŠX	Ù\œ›Ü”]IÊ][ÌK™Ù]\œ›Ü”]
+J]T›Ü\KÜËšœÔ›Ü\TÞ[^
+_XÂˆÝXœØÚ[XKœ\™[]T›Ü\HH
+ÛÙYÙ[—ÌK—ÊX	Ù]T›ÜXÂˆÝXœØÚ[XK™]T]\œˆHË‹‹™]T]\œ‹ÝXœØÚ[XKœ\™[]T›Ü\WNÂˆBˆYˆ
+]HOOH›ÚY
+HÂˆÛÛœÝ™^]HH]H[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YHÈ]HˆÙ[‹›]
+™]H‹]KYJNÂˆ]PÛÛ^›ÜÊ™^]JNÂˆYˆ
+›Ü\S˜[YHOOH›ÚY
+BˆÝXœØÚ[XKœ›Ü\S˜[YHH›Ü\S˜[YNÂˆBˆYˆ
+]U\\ÊBˆÝXœØÚ[XK™]U\\ÈH]U\\ÎÂˆ[˜Ý[Ûˆ]PÛÛ^›ÜÊÛ™^]JHÂˆÝXœØÚ[XK™]HHÛ™^]NÂˆÝXœØÚ[XK™]S]™[H]™]S]™[
+ÈNÂˆÝXœØÚ[XK™]U\\ÈH×NÂˆ]™Yš[™Y›Ü\Y\ÈHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+
+NÂˆÝXœØÚ[XKœ\™[]HH]™]NÂˆÝXœØÚ[XK™]S˜[Y\ÈHË‹‹š]™]S˜[Y\ËÛ™^]WNÂˆBˆBˆ^ÜË™^[™ÝXœØÚ[XQ]HH^[™ÝXœØÚ[XQ]NÂˆ[˜Ý[Ûˆ^[™ÝXœØÚ[XS[ÙJÝXœØÚ[XKÈ\ØÜš[Z[˜]Ü‹Y]Y]KÛÛ\ÜÚ]T[KÜ™X]Q\œ›ÜœË[\œ›ÜœÈJHÂˆYˆ
+ÛÛ\ÜÚ]T[HOOH›ÚY
+BˆÝXœØÚ[XK˜ÛÛ\ÜÚ]T[HHÛÛ\ÜÚ]T[NÂˆYˆ
+Ü™X]Q\œ›ÜœÈOOH›ÚY
+BˆÝXœØÚ[XK˜Ü™X]Q\œ›ÜœÈHÜ™X]Q\œ›ÜœÎÂˆYˆ
+[\œ›ÜœÈOOH›ÚY
+BˆÝXœØÚ[XK˜[\œ›ÜœÈH[\œ›ÜœÎÂˆÝXœØÚ[XKš\ØÜš[Z[˜]ÜˆH\ØÜš[Z[˜]ÜŽÂˆÝXœØÚ[XKšY]Y]HHY]Y]NÂˆBˆ^ÜË™^[™ÝXœØÚ[XS[ÙHH^[™ÝXœØÚ[XS[ÙNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËÙ˜\ÝYY\Y\]X[Ú[™^šœÂ˜\ˆ™\]Z\™WÙ˜\ÝÙY\Ù\]X[H×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËÙ˜\ÝYY\Y\]X[Ú[™^šœÈŠ^ÜË[Ù[JHÂˆ\ÙHÝšXÝŽÂˆ[Ù[K™^ÜÈH[˜Ý[Ûˆ\]X[
+KŠHÂˆYˆ
+HOOHŠH™]\›ˆYNÂˆYˆ
+H	‰ˆˆ	‰ˆ\[ÙˆHOH›Øš™XÝˆ	‰ˆ\[ÙˆˆOH›Øš™XÝŠHÂˆYˆ
+K˜ÛÛœÝXÝÜˆOOH‹˜ÛÛœÝXÝÜŠH™]\›ˆ˜[ÙNÂˆ˜\ˆ[™ÝKÙ^\ÎÂˆYˆ
+\œ˜^Kš\Ð\œ˜^JJJHÂˆ[™ÝHK›[™ÝÂˆYˆ
+[™ÝOH‹›[™Ý
+H™]\›ˆ˜[ÙNÂˆ›Üˆ
+HH[™ÝÈKKHOOHÈ
+BˆYˆ
+Y\]X[
+VÚWK–ÚWJJH™]\›ˆ˜[ÙNÂˆ™]\›ˆYNÂˆBˆYˆ
+K˜ÛÛœÝXÝÜˆOOH™YÑ^
+H™]\›ˆKœÛÝ\˜ÙHOOH‹œÛÝ\˜ÙH	‰ˆK™›YÜÈOOH‹™›YÜÎÂˆYˆ
+K˜[YSÙˆOOHØš™XÝœ›ÝÝ\K˜[YSÙŠH™]\›ˆK˜[YSÙŠ
+HOOH‹˜[YSÙŠ
+NÂˆYˆ
+KÔÝš[™ÈOOHØš™XÝœ›ÝÝ\KÔÝš[™ÊH™]\›ˆKÔÝš[™Ê
+HOOH‹ÔÝš[™Ê
+NÂˆÙ^\ÈHØš™XÝšÙ^\ÊJNÂˆ[™ÝHÙ^\Ë›[™ÝÂˆYˆ
+[™ÝOOHØš™XÝšÙ^\ÊŠK›[™Ý
+H™]\›ˆ˜[ÙNÂˆ›Üˆ
+HH[™ÝÈKKHOOHÈ
+BˆYˆ
+SØš™XÝœ›ÝÝ\Kš\ÓÝÛ”›Ü\K˜Ø[
+‹Ù^\ÖÚWJJH™]\›ˆ˜[ÙNÂˆ›Üˆ
+HH[™ÝÈKKHOOHÈ
+HÂˆ˜\ˆÙ^HHÙ^\ÖÚWNÂˆYˆ
+Y\]X[
+VÚÙ^WK–ÚÙ^WJJH™]\›ˆ˜[ÙNÂˆBˆ™]\›ˆYNÂˆBˆ™]\›ˆHOOHH	‰ˆˆOOHŽÂˆNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËÚœÛÛ‹\ØÚ[XK]˜]™\œÙKÚ[™^šœÂ˜\ˆ™\]Z\™WÚœÛÛ—ÜØÚ[XWÝ˜]™\œÙHH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËÚœÛÛ‹\ØÚ[XK]˜]™\œÙKÚ[™^šœÈŠ^ÜË[Ù[JHÂˆ\ÙHÝšXÝŽÂˆ˜\ˆ˜]™\œÙHH[Ù[K™^ÜÈH[˜Ý[ÛŠØÚ[XKÜËØŠHÂˆYˆ
+\[ÙˆÜÈOH™[˜Ý[ÛˆŠHÂˆØˆHÜÎÂˆÜÈHßNÂˆBˆØˆHÜË˜ØˆØŽÂˆ˜\ˆ™HH\[ÙˆØˆOH™[˜Ý[ÛˆˆÈØˆˆØ‹œ™H[˜Ý[ÛŠ
+HÂˆNÂˆ˜\ˆÜÝHØ‹œÜÝ[˜Ý[ÛŠ
+HÂˆNÂˆÝ˜]™\œÙJÜË™KÜÝØÚ[XKˆ‹ØÚ[XJNÂˆNÂˆ˜]™\œÙKšÙ^]ÛÜ™ÈHÂˆY][Û˜[][\ÎˆYKˆ][\ÎˆYKˆÛÛZ[œÎˆYKˆY][Û˜[›Ü\Y\ÎˆYKˆ›Ü\S˜[Y\ÎˆYKˆ›ÝˆYKˆYŽˆYKˆ[ŽˆYKˆ[ÙNˆYBˆNÂˆ˜]™\œÙK˜\œ˜^RÙ^]ÛÜ™ÈHÂˆ][\ÎˆYKˆ[ÙŽˆYKˆ[žSÙŽˆYKˆÛ™SÙŽˆYBˆNÂˆ˜]™\œÙKœ›ÜÒÙ^]ÛÜ™ÈHÂˆ	YœÎˆYKˆYš[š][ÛœÎˆYKˆ›Ü\Y\ÎˆYKˆ]\›”›Ü\Y\ÎˆYKˆ\[™[˜ÚY\ÎˆYBˆNÂˆ˜]™\œÙKœÚÚ\Ù^]ÛÜ™ÈHÂˆY˜][ˆYKˆ[[NˆYKˆÛÛœÝˆYKˆ™\]Z\™YˆYKˆX^[][NˆYKˆZ[š[][NˆYKˆ^Û\Ú]™SX^[][NˆYKˆ^Û\Ú]™SZ[š[][NˆYKˆ][\SÙŽˆYKˆX^[™ÝˆYKˆZ[“[™ÝˆYKˆ]\›ŽˆYKˆ›Ü›X]ˆYKˆX^][\ÎˆYKˆZ[’][\ÎˆYKˆ[š\]YR][\ÎˆYKˆX^›Ü\Y\ÎˆYKˆZ[”›Ü\Y\ÎˆYBˆNÂˆ[˜Ý[ÛˆÝ˜]™\œÙJÜË™KÜÝØÚ[XKœÛÛ”‹›ÛÝØÚ[XK\™[œÛÛ”‹\™[Ù^]ÛÜ™\™[ØÚ[XKÙ^R[™^
+HÂˆYˆ
+ØÚ[XH	‰ˆ\[ÙˆØÚ[XHOH›Øš™XÝˆ	‰ˆP\œ˜^Kš\Ð\œ˜^JØÚ[XJJHÂˆ™JØÚ[XKœÛÛ”‹›ÛÝØÚ[XK\™[œÛÛ”‹\™[Ù^]ÛÜ™\™[ØÚ[XKÙ^R[™^
+NÂˆ›Üˆ
+˜\ˆÙ^H[ˆØÚ[XJHÂˆ˜\ˆØÚHØÚ[XVÚÙ^WNÂˆYˆ
+\œ˜^Kš\Ð\œ˜^JØÚ
+JHÂˆYˆ
+Ù^H[ˆ˜]™\œÙK˜\œ˜^RÙ^]ÛÜ™ÊHÂˆ›Üˆ
+˜\ˆHHÈHØÚ›[™ÝÈJÊÊBˆÝ˜]™\œÙJÜË™KÜÝØÚÚWKœÛÛ”ˆ
+È‹Èˆ
+ÈÙ^H
+È‹Èˆ
+ÈK›ÛÝØÚ[XKœÛÛ”‹Ù^KØÚ[XKJNÂˆBˆH[ÙHYˆ
+Ù^H[ˆ˜]™\œÙKœ›ÜÒÙ^]ÛÜ™ÊHÂˆYˆ
+ØÚ	‰ˆ\[ÙˆØÚOH›Øš™XÝŠHÂˆ›Üˆ
+˜\ˆ›Ü[ˆØÚ
+BˆÝ˜]™\œÙJÜË™KÜÝØÚÜ›ÜKœÛÛ”ˆ
+È‹Èˆ
+ÈÙ^H
+È‹Èˆ
+È\ØØ\RœÛÛ”Š›Ü
+K›ÛÝØÚ[XKœÛÛ”‹Ù^KØÚ[XK›Ü
+NÂˆBˆH[ÙHYˆ
+Ù^H[ˆ˜]™\œÙKšÙ^]ÛÜ™ÈÜË˜[Ù^\È	‰ˆJÙ^H[ˆ˜]™\œÙKœÚÚ\Ù^]ÛÜ™ÊJHÂˆÝ˜]™\œÙJÜË™KÜÝØÚœÛÛ”ˆ
+È‹Èˆ
+ÈÙ^K›ÛÝØÚ[XKœÛÛ”‹Ù^KØÚ[XJNÂˆBˆBˆÜÝ
+ØÚ[XKœÛÛ”‹›ÛÝØÚ[XK\™[œÛÛ”‹\™[Ù^]ÛÜ™\™[ØÚ[XKÙ^R[™^
+NÂˆBˆBˆ[˜Ý[Ûˆ\ØØ\RœÛÛ”ŠÝŠHÂˆ™]\›ˆÝ‹œ™\XÙJß‹ÙËŸŒŠKœ™\XÙJ×ËÙËŸŒHŠNÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÜ™\ÛÛ™KšœÂ˜\ˆ™\]Z\™WÜ™\ÛÛ™HH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÜ™\ÛÛ™KšœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË™Ù]ØÚ[XT™YœÈH^ÜËœ™\ÛÛ™U\›H^ÜË››Ü›X[^™RYH^ÜË—ÙÙ][]H^ÜË™Ù][]H^ÜËš[›[™T™YˆH›ÚYÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ˜\ˆ\]X[H™\]Z\™WÙ˜\ÝÙY\Ù\]X[
+
+NÂˆ˜\ˆ˜]™\œÙHH™\]Z\™WÚœÛÛ—ÜØÚ[XWÝ˜]™\œÙJ
+NÂˆ˜\ˆÒSTWÒS“S‘QHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+Âˆ\H‹ˆ™›Ü›X]‹ˆœ]\›ˆ‹ˆ›X^[™Ý‹ˆ›Z[“[™Ý‹ˆ›X^›Ü\Y\È‹ˆ›Z[”›Ü\Y\È‹ˆ›X^][\È‹ˆ›Z[’][\È‹ˆ›X^[][H‹ˆ›Z[š[][H‹ˆ[š\]YR][\È‹ˆ›][\SÙˆ‹ˆœ™\]Z\™Y‹ˆ™[[H‹ˆ˜ÛÛœÝ‚ˆJNÂˆ[˜Ý[Ûˆ[›[™T™YŠØÚ[XK[Z]HYJHÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆYNÂˆYˆ
+[Z]OOHYJBˆ™]\›ˆZ\Ô™YŠØÚ[XJNÂˆYˆ
+[[Z]
+Bˆ™]\›ˆ˜[ÙNÂˆ™]\›ˆÛÝ[Ù^\ÊØÚ[XJHH[Z]ÂˆBˆ^ÜËš[›[™T™YˆH[›[™T™YŽÂˆ˜\ˆ‘Q—ÒÑVUÓÔ‘ÈHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+Âˆ‰™Yˆ‹ˆ‰™XÝ\œÚ]™T™Yˆ‹ˆ‰™XÝ\œÚ]™P[˜ÚÜˆ‹ˆ‰[˜[ZXÔ™Yˆ‹ˆ‰[˜[ZXÐ[˜ÚÜˆ‚ˆJNÂˆ[˜Ý[Ûˆ\Ô™YŠØÚ[XJHÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆØÚ[XJHÂˆYˆ
+‘Q—ÒÑVUÓÔ‘Ëš\ÊÙ^JJBˆ™]\›ˆYNÂˆÛÛœÝØÚHØÚ[XVÚÙ^WNÂˆYˆ
+\œ˜^Kš\Ð\œ˜^JØÚ
+H	‰ˆØÚœÛÛYJ\Ô™YŠJBˆ™]\›ˆYNÂˆYˆ
+\[ÙˆØÚOH›Øš™XÝˆ	‰ˆ\Ô™YŠØÚ
+JBˆ™]\›ˆYNÂˆBˆ™]\›ˆ˜[ÙNÂˆBˆ[˜Ý[ÛˆÛÝ[Ù^\ÊØÚ[XJHÂˆ]ÛÝ[HÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆØÚ[XJHÂˆYˆ
+Ù^HOOH‰™YˆŠBˆ™]\›ˆ[™š[š]NÂˆÛÝ[
+ÊÎÂˆYˆ
+ÒSTWÒS“S‘Qš\ÊÙ^JJBˆÛÛ[YNÂˆYˆ
+\[ÙˆØÚ[XVÚÙ^WHOH›Øš™XÝŠHÂˆ
+][ÌK™XXÚ][JJØÚ[XVÚÙ^WK
+ØÚ
+HOˆÛÝ[
+ÏHÛÝ[Ù^\ÊØÚ
+JNÂˆBˆYˆ
+ÛÝ[OOH[™š[š]JBˆ™]\›ˆ[™š[š]NÂˆBˆ™]\›ˆÛÝ[ÂˆBˆ[˜Ý[ÛˆÙ][]
+™\ÛÛ™\‹YHˆ‹›Ü›X[^™JHÂˆYˆ
+›Ü›X[^™HOOH˜[ÙJBˆYH›Ü›X[^™RY
+Y
+NÂˆÛÛœÝH™\ÛÛ™\‹œ\œÙJY
+NÂˆ™]\›ˆÙÙ][]
+™\ÛÛ™\‹
+NÂˆBˆ^ÜË™Ù][]HÙ][]Âˆ[˜Ý[ÛˆÙÙ][]
+™\ÛÛ™\‹
+HÂˆÛÛœÝÙ\šX[^™YH™\ÛÛ™\‹œÙ\šX[^™J
+NÂˆ™]\›ˆÙ\šX[^™YœÜ]
+ˆÈŠVÌH
+ÈˆÈŽÂˆBˆ^ÜË—ÙÙ][]HÙÙ][]Âˆ˜\ˆRSS‘×ÔÓTÒÒTÒHÈ×ÏÉÎÂˆ[˜Ý[Ûˆ›Ü›X[^™RY
+Y
+HÂˆ™]\›ˆYÈYœ™\XÙJRSS‘×ÔÓTÒÒTÒˆŠHˆˆŽÂˆBˆ^ÜË››Ü›X[^™RYH›Ü›X[^™RYÂˆ[˜Ý[Ûˆ™\ÛÛ™U\›
+™\ÛÛ™\‹˜\ÙRYY
+HÂˆYH›Ü›X[^™RY
+Y
+NÂˆ™]\›ˆ™\ÛÛ™\‹œ™\ÛÛ™J˜\ÙRYY
+NÂˆBˆ^ÜËœ™\ÛÛ™U\›H™\ÛÛ™U\›Âˆ˜\ˆSÒÔˆH×–ØK^—×VËXK^ŒNK—×J‰ÚNÂˆ[˜Ý[ÛˆÙ]ØÚ[XT™YœÊØÚ[XK˜\ÙRY
+HÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆßNÂˆÛÛœÝÈØÚ[XRY\šT™\ÛÛ™\ˆHH\Ë›ÜÎÂˆÛÛœÝØÚYH›Ü›X[^™RY
+ØÚ[XVÜØÚ[XRYH˜\ÙRY
+NÂˆÛÛœÝ˜\ÙRYÈHÈˆŽˆØÚYNÂˆÛÛœÝ]™Yš^HÙ][]
+\šT™\ÛÛ™\‹ØÚY˜[ÙJNÂˆÛÛœÝØØ[™YœÈHßNÂˆÛÛœÝØÚ[XT™YœÈHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+
+NÂˆ˜]™\œÙJØÚ[XKÈ[Ù^\ÎˆYHK
+ØÚœÛÛ”‹Ë\™[œÛÛ”ŠHOˆÂˆYˆ
+\™[œÛÛ”ˆOOH›ÚY
+Bˆ™]\›ŽÂˆÛÛœÝ[]H]™Yš^
+ÈœÛÛ”ŽÂˆ][›™\˜\ÙRYH˜\ÙRYÖÜ\™[œÛÛ”—NÂˆYˆ
+\[ÙˆØÚÜØÚ[XRYHOHœÝš[™ÈŠBˆ[›™\˜\ÙRYHY™Y‹˜Ø[
+\ËØÚÜØÚ[XRYJNÂˆY[˜ÚÜ‹˜Ø[
+\ËØÚ‰[˜ÚÜŠNÂˆY[˜ÚÜ‹˜Ø[
+\ËØÚ‰[˜[ZXÐ[˜ÚÜŠNÂˆ˜\ÙRYÖÚœÛÛ”—HH[›™\˜\ÙRYÂˆ[˜Ý[ÛˆY™YŠ™YŠHÂˆÛÛœÝÜ™\ÛÛ™HH\Ë›ÜË\šT™\ÛÛ™\‹œ™\ÛÛ™NÂˆ™YˆH›Ü›X[^™RY
+[›™\˜\ÙRYÈÜ™\ÛÛ™J[›™\˜\ÙRY™YŠHˆ™YŠNÂˆYˆ
+ØÚ[XT™YœËš\Ê™YŠJBˆ›ÝÈ[XšYÝ[ÜÊ™YŠNÂˆØÚ[XT™YœË˜Y
+™YŠNÂˆ]ØÚÜ”™YˆH\Ëœ™YœÖÜ™Y—NÂˆYˆ
+\[ÙˆØÚÜ”™YˆOHœÝš[™ÈŠBˆØÚÜ”™YˆH\Ëœ™YœÖÜØÚÜ”™Y—NÂˆYˆ
+\[ÙˆØÚÜ”™YˆOH›Øš™XÝŠHÂˆÚXÚÐ[XšYÝ[ÜÔ™YŠØÚØÚÜ”™Y‹œØÚ[XK™YŠNÂˆH[ÙHYˆ
+™YˆOOH›Ü›X[^™RY
+[]
+JHÂˆYˆ
+™Y–ÌHOOHˆÈŠHÂˆÚXÚÐ[XšYÝ[ÜÔ™YŠØÚØØ[™YœÖÜ™Y—K™YŠNÂˆØØ[™YœÖÜ™Y—HHØÚÂˆH[ÙHÂˆ\Ëœ™YœÖÜ™Y—HH[]ÂˆBˆBˆ™]\›ˆ™YŽÂˆBˆ[˜Ý[ÛˆY[˜ÚÜŠ[˜ÚÜŠHÂˆYˆ
+\[Ùˆ[˜ÚÜˆOHœÝš[™ÈŠHÂˆYˆ
+PSÒÔ‹\Ý
+[˜ÚÜŠJBˆ›ÝÈ™]È\œ›ÜŠ[˜[Y[˜ÚÜˆ‰Ø[˜ÚÜŸH˜
+NÂˆY™Y‹˜Ø[
+\ËÉØ[˜ÚÜŸX
+NÂˆBˆBˆJNÂˆ™]\›ˆØØ[™YœÎÂˆ[˜Ý[ÛˆÚXÚÐ[XšYÝ[ÜÔ™YŠØÚKØÚ‹™YŠHÂˆYˆ
+ØÚˆOOH›ÚY	‰ˆY\]X[
+ØÚKØÚŠJBˆ›ÝÈ[XšYÝ[ÜÊ™YŠNÂˆBˆ[˜Ý[Ûˆ[XšYÝ[ÜÊ™YŠHÂˆ™]\›ˆ™]È\œ›ÜŠ™Y™\™[˜ÙH‰Ü™YŸHˆ™\ÛÛ™\ÈÈ[Ü™H[ˆÛ™HØÚ[XX
+NÂˆBˆBˆ^ÜË™Ù]ØÚ[XT™YœÈHÙ]ØÚ[XT™YœÎÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÚ[™^šœÂ˜\ˆ™\]Z\™WÝ˜[Y]HH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÝ˜[Y]KÚ[™^šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜË™Ù]]HH^ÜË’Ù^]ÛÜ™ÞH^ÜË˜[Y]Q[˜Ý[ÛÛÙHH›ÚYÂˆ˜\ˆ›ÛÛØÚ[XWÌHH™\]Z\™WØ›ÛÛØÚ[XJ
+NÂˆ˜\ˆ]U\WÌHH™\]Z\™WÙ]U\J
+NÂˆ˜\ˆ\XØXš[]WÌHH™\]Z\™WØ\XØXš[]J
+NÂˆ˜\ˆ]U\WÌˆH™\]Z\™WÙ]U\J
+NÂˆ˜\ˆY˜][×ÌHH™\]Z\™WÙY˜][Ê
+NÂˆ˜\ˆÙ^]ÛÜ™ÌHH™\]Z\™WÚÙ^]ÛÜ™
+
+NÂˆ˜\ˆÝXœØÚ[XWÌHH™\]Z\™WÜÝXœØÚ[XJ
+NÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ˜[Y\×ÌHH™\]Z\™WÛ˜[Y\Ê
+NÂˆ˜\ˆ™\ÛÛ™WÌHH™\]Z\™WÜ™\ÛÛ™J
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ˜\ˆ\œ›Üœ×ÌHH™\]Z\™WÙ\œ›ÜœÊ
+NÂˆ[˜Ý[Ûˆ˜[Y]Q[˜Ý[ÛÛÙJ]
+HÂˆYˆ
+\ÔØÚ[XSØšŠ]
+JHÂˆÚXÚÒÙ^]ÛÜ™Ê]
+NÂˆYˆ
+ØÚ[XPÞ\Ô[\Ê]
+JHÂˆÜØÚ[XSØšÛÙJ]
+NÂˆ™]\›ŽÂˆBˆBˆ˜[Y]Q[˜Ý[ÛŠ]
+
+HOˆ
+›ÛÛØÚ[XWÌKÜ›ÛÛÜ‘[\TØÚ[XJJ]
+JNÂˆBˆ^ÜË˜[Y]Q[˜Ý[ÛÛÙHH˜[Y]Q[˜Ý[ÛÛÙNÂˆ[˜Ý[Ûˆ˜[Y]Q[˜Ý[ÛŠÈÙ[‹˜[Y]S˜[YKØÚ[XKØÚ[XQ[‹ÜÈK›ÙJHÂˆYˆ
+ÜË˜ÛÙK™\ÍJHÂˆÙ[‹™[˜Ê˜[Y]S˜[YK
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™]_K	Û˜[Y\×ÌK™Y˜][˜[ÞXØÚ[XQ[‹‰\Þ[˜Ë
+
+HOˆÂˆÙ[‹˜ÛÙJ
+ÛÙYÙ[—ÌK—ÊX\ÙHÝšXÝŽÈ	Ù[˜ÔÛÝ\˜ÙU\›
+ØÚ[XKÜÊ_X
+NÂˆ\ÝXÝ\™U˜[ÞTÍJÙ[‹ÜÊNÂˆÙ[‹˜ÛÙJ›ÙJNÂˆJNÂˆH[ÙHÂˆÙ[‹™[˜Ê˜[Y]S˜[YK
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™]_K	Ù\ÝXÝ\™U˜[Þ
+ÜÊ_XØÚ[XQ[‹‰\Þ[˜Ë
+
+HOˆÙ[‹˜ÛÙJ[˜ÔÛÝ\˜ÙU\›
+ØÚ[XKÜÊJK˜ÛÙJ›ÙJJNÂˆBˆBˆ[˜Ý[Ûˆ\ÝXÝ\™U˜[Þ
+ÜÊHÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊXÉÛ˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]OHˆ‹	Û˜[Y\×ÌK™Y˜][œ\™[]_K	Û˜[Y\×ÌK™Y˜][œ\™[]T›Ü\_K	Û˜[Y\×ÌK™Y˜][œ›ÛÝ]_OIÛ˜[Y\×ÌK™Y˜][™]_IÛÜË™[˜[ZXÔ™YˆÈ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™[˜[ZXÐ[˜ÚÜœßO^ßXˆÛÙYÙ[—ÌK›š[_O^ßXÂˆBˆ[˜Ý[Ûˆ\ÝXÝ\™U˜[ÞTÍJÙ[‹ÜÊHÂˆÙ[‹šYŠ˜[Y\×ÌK™Y˜][˜[Þ
+
+HOˆÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][˜[ÞK‰Û˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]X
+NÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][œ\™[]K
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][˜[ÞK‰Û˜[Y\×ÌK™Y˜][œ\™[]_X
+NÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][œ\™[]T›Ü\K
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][˜[ÞK‰Û˜[Y\×ÌK™Y˜][œ\™[]T›Ü\_X
+NÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][œ›ÛÝ]K
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][˜[ÞK‰Û˜[Y\×ÌK™Y˜][œ›ÛÝ]_X
+NÂˆYˆ
+ÜË™[˜[ZXÔ™YŠBˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][™[˜[ZXÐ[˜ÚÜœË
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][˜[ÞK‰Û˜[Y\×ÌK™Y˜][™[˜[ZXÐ[˜ÚÜœßX
+NÂˆK
+
+HOˆÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][š[œÝ[˜ÙT]
+ÛÙYÙ[—ÌK—ÊXˆ˜
+NÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][œ\™[]K
+ÛÙYÙ[—ÌK—ÊX[™Yš[™Y
+NÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][œ\™[]T›Ü\K
+ÛÙYÙ[—ÌK—ÊX[™Yš[™Y
+NÂˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][œ›ÛÝ]K˜[Y\×ÌK™Y˜][™]JNÂˆYˆ
+ÜË™[˜[ZXÔ™YŠBˆÙ[‹˜\Š˜[Y\×ÌK™Y˜][™[˜[ZXÐ[˜ÚÜœË
+ÛÙYÙ[—ÌK—ÊXßX
+NÂˆJNÂˆBˆ[˜Ý[ÛˆÜØÚ[XSØšÛÙJ]
+HÂˆÛÛœÝÈØÚ[XKÜËÙ[ˆHH]Âˆ˜[Y]Q[˜Ý[ÛŠ]
+
+HOˆÂˆYˆ
+ÜË‰ÛÛ[Y[	‰ˆØÚ[XK‰ÛÛ[Y[
+BˆÛÛ[Y[Ù^]ÛÜ™
+]
+NÂˆÚXÚÓ›ÑY˜][
+]
+NÂˆÙ[‹›]
+˜[Y\×ÌK™Y˜][‘\œ›ÜœË[
+NÂˆÙ[‹›]
+˜[Y\×ÌK™Y˜][™\œ›ÜœË
+NÂˆYˆ
+ÜË[™]˜[X]Y
+Bˆ™\Ù]]˜[X]Y
+]
+NÂˆ\P[™Ù^]ÛÜ™Ê]
+NÂˆ™]\›”™\Ý[Ê]
+NÂˆJNÂˆ™]\›ŽÂˆBˆ[˜Ý[Ûˆ™\Ù]]˜[X]Y
+]
+HÂˆÛÛœÝÈÙ[‹˜[Y]S˜[YHHH]Âˆ]™]˜[X]YHÙ[‹˜ÛÛœÝ
+™]˜[X]Y‹
+ÛÙYÙ[—ÌK—ÊX	Ý˜[Y]S˜[Y_K™]˜[X]Y
+NÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Ú]™]˜[X]YK™[˜[ZXÔ›ÜØ
+
+HOˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ú]™]˜[X]YKœ›ÜØ
+ÛÙYÙ[—ÌK—ÊX[™Yš[™Y
+JNÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Ú]™]˜[X]YK™[˜[ZXÒ][\Ø
+
+HOˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ú]™]˜[X]YKš][\Ø
+ÛÙYÙ[—ÌK—ÊX[™Yš[™Y
+JNÂˆBˆ[˜Ý[Ûˆ[˜ÔÛÝ\˜ÙU\›
+ØÚ[XKÜÊHÂˆÛÛœÝØÚYH\[ÙˆØÚ[XHOH›Øš™XÝˆ	‰ˆØÚ[XVÛÜËœØÚ[XRYNÂˆ™]\›ˆØÚY	‰ˆ
+ÜË˜ÛÙKœÛÝ\˜ÙHÜË˜ÛÙKœ›ØÙ\ÜÊHÈ
+ÛÙYÙ[—ÌK—ÊXÊˆÈÛÝ\˜ÙUT“IÜØÚYH
+‹ØˆÛÙYÙ[—ÌK›š[ÂˆBˆ[˜Ý[ÛˆÝXœØÚ[XPÛÙJ]˜[Y
+HÂˆYˆ
+\ÔØÚ[XSØšŠ]
+JHÂˆÚXÚÒÙ^]ÛÜ™Ê]
+NÂˆYˆ
+ØÚ[XPÞ\Ô[\Ê]
+JHÂˆÝX”ØÚ[XSØšÛÙJ]˜[Y
+NÂˆ™]\›ŽÂˆBˆBˆ
+›ÛÛØÚ[XWÌK˜›ÛÛÜ‘[\TØÚ[XJJ]˜[Y
+NÂˆBˆ[˜Ý[ÛˆØÚ[XPÞ\Ô[\ÊÈØÚ[XKÙ[ˆJHÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆŠBˆ™]\›ˆ\ØÚ[XNÂˆ›Üˆ
+ÛÛœÝÙ^H[ˆØÚ[XJBˆYˆ
+Ù[‹”•STË˜[ÚÙ^WJBˆ™]\›ˆYNÂˆ™]\›ˆ˜[ÙNÂˆBˆ[˜Ý[Ûˆ\ÔØÚ[XSØšŠ]
+HÂˆ™]\›ˆ\[Ùˆ]œØÚ[XHOH˜›ÛÛX[ˆŽÂˆBˆ[˜Ý[ÛˆÝX”ØÚ[XSØšÛÙJ]˜[Y
+HÂˆÛÛœÝÈØÚ[XKÙ[‹ÜÈHH]ÂˆYˆ
+ÜË‰ÛÛ[Y[	‰ˆØÚ[XK‰ÛÛ[Y[
+BˆÛÛ[Y[Ù^]ÛÜ™
+]
+NÂˆ\]PÛÛ^
+]
+NÂˆÚXÚÐ\Þ[˜ÔØÚ[XJ]
+NÂˆÛÛœÝ\œœÐÛÝ[HÙ[‹˜ÛÛœÝ
+—Ù\œœÈ‹˜[Y\×ÌK™Y˜][™\œ›ÜœÊNÂˆ\P[™Ù^]ÛÜ™Ê]\œœÐÛÝ[
+NÂˆÙ[‹˜\Š˜[Y
+ÛÙYÙ[—ÌK—ÊX	Ù\œœÐÛÝ[HOOH	Û˜[Y\×ÌK™Y˜][™\œ›ÜœßX
+NÂˆBˆ[˜Ý[ÛˆÚXÚÒÙ^]ÛÜ™Ê]
+HÂˆ
+][ÌK˜ÚXÚÕ[šÛ›ÝÛ”[\ÊJ]
+NÂˆÚXÚÔ™YœÐ[™Ù^]ÛÜ™Ê]
+NÂˆBˆ[˜Ý[Ûˆ\P[™Ù^]ÛÜ™Ê]\œœÐÛÝ[
+HÂˆYˆ
+]›ÜËš
+Bˆ™]\›ˆØÚ[XRÙ^]ÛÜ™Ê]×K˜[ÙK\œœÐÛÝ[
+NÂˆÛÛœÝ\\ÈH
+]U\WÌK™Ù]ØÚ[XU\\ÊJ]œØÚ[XJNÂˆÛÛœÝÚXÚÙY\\ÈH
+]U\WÌK˜ÛÙ\˜ÙP[™ÚXÚÑ]U\JJ]\\ÊNÂˆØÚ[XRÙ^]ÛÜ™Ê]\\ËXÚXÚÙY\\Ë\œœÐÛÝ[
+NÂˆBˆ[˜Ý[ÛˆÚXÚÔ™YœÐ[™Ù^]ÛÜ™Ê]
+HÂˆÛÛœÝÈØÚ[XK\œ”ØÚ[XT]ÜËÙ[ˆHH]ÂˆYˆ
+ØÚ[XK‰™Yˆ	‰ˆÜËšYÛ›Ü™RÙ^]ÛÜ™ÕÚ]™Yˆ	‰ˆ
+][ÌKœØÚ[XR\Ô[\Ð]™YŠJØÚ[XKÙ[‹”•STÊJHÂˆÙ[‹›ÙÙÙ\‹Ø\›Š	™YŽˆÙ^]ÛÜ™ÈYÛ›Ü™Y[ˆØÚ[XH]]‰Ù\œ”ØÚ[XT]H˜
+NÂˆBˆBˆ[˜Ý[ÛˆÚXÚÓ›ÑY˜][
+]
+HÂˆÛÛœÝÈØÚ[XKÜÈHH]ÂˆYˆ
+ØÚ[XK™Y˜][OOH›ÚY	‰ˆÜË\ÙQY˜][È	‰ˆÜËœÝšXÝØÚ[XJHÂˆ
+][ÌK˜ÚXÚÔÝšXÝ[ÙJJ]™Y˜][\ÈYÛ›Ü™Y[ˆHØÚ[XH›ÛÝŠNÂˆBˆBˆ[˜Ý[Ûˆ\]PÛÛ^
+]
+HÂˆÛÛœÝØÚYH]œØÚ[XVÚ]›ÜËœØÚ[XRYNÂˆYˆ
+ØÚY
+Bˆ]˜˜\ÙRYH
+™\ÛÛ™WÌKœ™\ÛÛ™U\›
+J]›ÜË\šT™\ÛÛ™\‹]˜˜\ÙRYØÚY
+NÂˆBˆ[˜Ý[ÛˆÚXÚÐ\Þ[˜ÔØÚ[XJ]
+HÂˆYˆ
+]œØÚ[XK‰\Þ[˜È	‰ˆZ]œØÚ[XQ[‹‰\Þ[˜ÊBˆ›ÝÈ™]È\œ›ÜŠ˜\Þ[˜ÈØÚ[XH[ˆÞ[˜ÈØÚ[XHŠNÂˆBˆ[˜Ý[ÛˆÛÛ[Y[Ù^]ÛÜ™
+ÈÙ[‹ØÚ[XQ[‹ØÚ[XK\œ”ØÚ[XT]ÜÈJHÂˆÛÛœÝ\ÙÈHØÚ[XK‰ÛÛ[Y[ÂˆYˆ
+ÜË‰ÛÛ[Y[OOHYJHÂˆÙ[‹˜ÛÙJ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][œÙ[ŸK›ÙÙÙ\‹›ÙÊ	Û\ÙßJX
+NÂˆH[ÙHYˆ
+\[ÙˆÜË‰ÛÛ[Y[OH™[˜Ý[ÛˆŠHÂˆÛÛœÝØÚ[XT]H
+ÛÙYÙ[—ÌKœÝŠX	Ù\œ”ØÚ[XT]KÉÛÛ[Y[ÂˆÛÛœÝ›ÛÝ˜[YHHÙ[‹œØÛÜU˜[YJœ›ÛÝ‹È™YŽˆØÚ[XQ[‹œ›ÛÝJNÂˆÙ[‹˜ÛÙJ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][œÙ[ŸK›ÜË‰ÛÛ[Y[
+	Û\ÙßK	ÜØÚ[XT]K	Ü›ÛÝ˜[Y_KœØÚ[XJX
+NÂˆBˆBˆ[˜Ý[Ûˆ™]\›”™\Ý[Ê]
+HÂˆÛÛœÝÈÙ[‹ØÚ[XQ[‹˜[Y]S˜[YK˜[Y][Û‘\œ›Ü‹ÜÈHH]ÂˆYˆ
+ØÚ[XQ[‹‰\Þ[˜ÊHÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™\œ›ÜœßHOOH
+
+HOˆÙ[‹œ™]\›Š˜[Y\×ÌK™Y˜][™]JK
+
+HOˆÙ[‹›ÝÊ
+ÛÙYÙ[—ÌK—ÊX™]È	Õ˜[Y][Û‘\œ›ÜŸJ	Û˜[Y\×ÌK™Y˜][‘\œ›ÜœßJX
+JNÂˆH[ÙHÂˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ý˜[Y]S˜[Y_K™\œ›ÜœØ˜[Y\×ÌK™Y˜][‘\œ›ÜœÊNÂˆYˆ
+ÜË[™]˜[X]Y
+Bˆ\ÜÚYÛ‘]˜[X]Y
+]
+NÂˆÙ[‹œ™]\›Š
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™\œ›ÜœßHOOH
+NÂˆBˆBˆ[˜Ý[Ûˆ\ÜÚYÛ‘]˜[X]Y
+ÈÙ[‹]˜[X]Y›ÜË][\Îˆ][\ÌˆJHÂˆYˆ
+›ÜÈ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YJBˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]˜[X]YKœ›ÜØ›ÜÊNÂˆYˆ
+][\Ìˆ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YJBˆÙ[‹˜\ÜÚYÛŠ
+ÛÙYÙ[—ÌK—ÊX	Ù]˜[X]YKš][\Ø][\ÌŠNÂˆBˆ[˜Ý[ÛˆØÚ[XRÙ^]ÛÜ™Ê]\\Ë\Q\œ›ÜœË\œœÐÛÝ[
+HÂˆÛÛœÝÈÙ[‹ØÚ[XK]K[\œ›ÜœËÜËÙ[ˆHH]ÂˆÛÛœÝÈ•STÈHHÙ[ŽÂˆYˆ
+ØÚ[XK‰™Yˆ	‰ˆ
+ÜËšYÛ›Ü™RÙ^]ÛÜ™ÕÚ]™YˆJ][ÌKœØÚ[XR\Ô[\Ð]™YŠJØÚ[XK•STÊJJHÂˆÙ[‹˜›ØÚÊ
+
+HOˆÙ^]ÛÜ™ÛÙJ]‰™Yˆ‹•STË˜[‰™Y‹™Yš[š][ÛŠJNÂˆ™]\›ŽÂˆBˆYˆ
+[ÜËš
+BˆÚXÚÔÝšXÝ\\Ê]\\ÊNÂˆÙ[‹˜›ØÚÊ
+
+HOˆÂˆ›Üˆ
+ÛÛœÝÜ›Ý\Ùˆ•STËœ[\ÊBˆÜ›Ý\Ù^]ÛÜ™ÊÜ›Ý\
+NÂˆÜ›Ý\Ù^]ÛÜ™Ê•STËœÜÝ
+NÂˆJNÂˆ[˜Ý[ÛˆÜ›Ý\Ù^]ÛÜ™ÊÜ›Ý\
+HÂˆYˆ
+J\XØXš[]WÌKœÚÝ[\ÙQÜ›Ý\
+JØÚ[XKÜ›Ý\
+JBˆ™]\›ŽÂˆYˆ
+Ü›Ý\\JHÂˆÙ[‹šYŠ
+]U\WÌ‹˜ÚXÚÑ]U\JJÜ›Ý\\K]KÜËœÝšXÝ[X™\œÊJNÂˆ]\˜]RÙ^]ÛÜ™Ê]Ü›Ý\
+NÂˆYˆ
+\\Ë›[™ÝOOHH	‰ˆ\\ÖÌHOOHÜ›Ý\\H	‰ˆ\Q\œ›ÜœÊHÂˆÙ[‹™[ÙJ
+NÂˆ
+]U\WÌ‹œ™\Ü\Q\œ›ÜŠJ]
+NÂˆBˆÙ[‹™[™YŠ
+NÂˆH[ÙHÂˆ]\˜]RÙ^]ÛÜ™Ê]Ü›Ý\
+NÂˆBˆYˆ
+X[\œ›ÜœÊBˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK—ÊX	Û˜[Y\×ÌK™Y˜][™\œ›ÜœßHOOH	Ù\œœÐÛÝ[X
+NÂˆBˆBˆ[˜Ý[Ûˆ]\˜]RÙ^]ÛÜ™Ê]Ü›Ý\
+HÂˆÛÛœÝÈÙ[‹ØÚ[XKÜÎˆÈ\ÙQY˜][ÈHHH]ÂˆYˆ
+\ÙQY˜][ÊBˆ
+Y˜][×ÌK˜\ÜÚYÛ‘Y˜][ÊJ]Ü›Ý\\JNÂˆÙ[‹˜›ØÚÊ
+
+HOˆÂˆ›Üˆ
+ÛÛœÝ[HÙˆÜ›Ý\œ[\ÊHÂˆYˆ
+
+\XØXš[]WÌKœÚÝ[\ÙT[JJØÚ[XK[JJHÂˆÙ^]ÛÜ™ÛÙJ][KšÙ^]ÛÜ™[K™Yš[š][Û‹Ü›Ý\\JNÂˆBˆBˆJNÂˆBˆ[˜Ý[ÛˆÚXÚÔÝšXÝ\\Ê]\\ÊHÂˆYˆ
+]œØÚ[XQ[‹›Y]HZ]›ÜËœÝšXÝ\\ÊBˆ™]\›ŽÂˆÚXÚÐÛÛ^\\Ê]\\ÊNÂˆYˆ
+Z]›ÜË˜[ÝÕ[š[Û•\\ÊBˆÚXÚÓ][\U\\Ê]\\ÊNÂˆÚXÚÒÙ^]ÛÜ™\\Ê]]™]U\\ÊNÂˆBˆ[˜Ý[ÛˆÚXÚÐÛÛ^\\Ê]\\ÊHÂˆYˆ
+]\\Ë›[™Ý
+Bˆ™]\›ŽÂˆYˆ
+Z]™]U\\Ë›[™Ý
+HÂˆ]™]U\\ÈH\\ÎÂˆ™]\›ŽÂˆBˆ\\Ë™›Ü‘XXÚ
+
+
+HOˆÂˆYˆ
+Z[˜ÛY\Õ\J]™]U\\Ë
+JHÂˆÝšXÝ\\Ñ\œ›ÜŠ]\H‰ÝHˆ›Ý[ÝÙYžHÛÛ^‰Ú]™]U\\Ëš›Ú[Š‹Š_H˜
+NÂˆBˆJNÂˆ˜\œ›ÝÔØÚ[XU\\Ê]\\ÊNÂˆBˆ[˜Ý[ÛˆÚXÚÓ][\U\\Ê]ÊHÂˆYˆ
+Ë›[™ÝˆH	‰ˆJË›[™ÝOOHˆ	‰ˆËš[˜ÛY\Ê›[ŠJJHÂˆÝšXÝ\\Ñ\œ›ÜŠ]\ÙH[ÝÕ[š[Û•\\ÈÈ[ÝÈ[š[Ûˆ\HÙ^]ÛÜ™ŠNÂˆBˆBˆ[˜Ý[ÛˆÚXÚÒÙ^]ÛÜ™\\Ê]ÊHÂˆÛÛœÝ[\ÈH]œÙ[‹”•STË˜[Âˆ›Üˆ
+ÛÛœÝÙ^]ÛÜ™[ˆ[\ÊHÂˆÛÛœÝ[HH[\ÖÚÙ^]ÛÜ™NÂˆYˆ
+\[Ùˆ[HOH›Øš™XÝˆ	‰ˆ
+\XØXš[]WÌKœÚÝ[\ÙT[JJ]œØÚ[XK[JJHÂˆÛÛœÝÈ\HHH[K™Yš[š][ÛŽÂˆYˆ
+\K›[™Ý	‰ˆ]\KœÛÛYJ
+
+HOˆ\Ð\XØX›U\JË
+JJHÂˆÝšXÝ\\Ñ\œ›ÜŠ]Z\ÜÚ[™È\H‰Ý\Kš›Ú[Š‹Š_Hˆ›ÜˆÙ^]ÛÜ™‰ÚÙ^]ÛÜ™H˜
+NÂˆBˆBˆBˆBˆ[˜Ý[Ûˆ\Ð\XØX›U\JØÚËÝÙ
+HÂˆ™]\›ˆØÚËš[˜ÛY\ÊÝÙ
+HÝÙOOH›[X™\ˆˆ	‰ˆØÚËš[˜ÛY\Êš[YÙ\ˆŠNÂˆBˆ[˜Ý[Ûˆ[˜ÛY\Õ\JË
+HÂˆ™]\›ˆËš[˜ÛY\Ê
+HOOHš[YÙ\ˆˆ	‰ˆËš[˜ÛY\Ê›[X™\ˆŠNÂˆBˆ[˜Ý[Ûˆ˜\œ›ÝÔØÚ[XU\\Ê]Ú]\\ÊHÂˆÛÛœÝÈH×NÂˆ›Üˆ
+ÛÛœÝÙˆ]™]U\\ÊHÂˆYˆ
+[˜ÛY\Õ\JÚ]\\Ë
+JBˆËœ\Ú
+
+NÂˆ[ÙHYˆ
+Ú]\\Ëš[˜ÛY\Êš[YÙ\ˆŠH	‰ˆOOH›[X™\ˆŠBˆËœ\Ú
+š[YÙ\ˆŠNÂˆBˆ]™]U\\ÈHÎÂˆBˆ[˜Ý[ÛˆÝšXÝ\\Ñ\œ›ÜŠ]\ÙÊHÂˆÛÛœÝØÚ[XT]H]œØÚ[XQ[‹˜˜\ÙRY
+È]™\œ”ØÚ[XT]Âˆ\ÙÈ
+ÏH]‰ÜØÚ[XT]Hˆ
+ÝšXÝ\\ÊXÂˆ
+][ÌK˜ÚXÚÔÝšXÝ[ÙJJ]\ÙË]›ÜËœÝšXÝ\\ÊNÂˆBˆ˜\ˆÙ^]ÛÜ™ÞHÛ\ÜÈÂˆÛÛœÝXÝÜŠ]Y‹Ù^]ÛÜ™
+HÂˆ
+Ù^]ÛÜ™ÌK˜[Y]RÙ^]ÛÜ™\ØYÙJJ]Y‹Ù^]ÛÜ™
+NÂˆ\Ë™Ù[ˆH]™Ù[ŽÂˆ\Ë˜[\œ›ÜœÈH]˜[\œ›ÜœÎÂˆ\ËšÙ^]ÛÜ™HÙ^]ÛÜ™Âˆ\Ë™]HH]™]NÂˆ\ËœØÚ[XHH]œØÚ[XVÚÙ^]ÛÜ™NÂˆ\Ë‰]HHY‹‰]H	‰ˆ]›ÜË‰]H	‰ˆ\ËœØÚ[XH	‰ˆ\ËœØÚ[XK‰]NÂˆ\ËœØÚ[XU˜[YHH
+][ÌKœØÚ[XT™Y“Ü•˜[
+J]\ËœØÚ[XKÙ^]ÛÜ™\Ë‰]JNÂˆ\ËœØÚ[XU\HHY‹œØÚ[XU\NÂˆ\Ëœ\™[ØÚ[XHH]œØÚ[XNÂˆ\Ëœ\˜[\ÈHßNÂˆ\Ëš]H]Âˆ\Ë™YˆHYŽÂˆYˆ
+\Ë‰]JHÂˆ\ËœØÚ[XPÛÙHH]™Ù[‹˜ÛÛœÝ
+”ØÚ[XH‹Ù]]J\Ë‰]K]
+JNÂˆH[ÙHÂˆ\ËœØÚ[XPÛÙHH\ËœØÚ[XU˜[YNÂˆYˆ
+JÙ^]ÛÜ™ÌK˜[YØÚ[XU\JJ\ËœØÚ[XKY‹œØÚ[XU\KY‹˜[ÝÕ[™Yš[™Y
+JHÂˆ›ÝÈ™]È\œ›ÜŠ	ÚÙ^]ÛÜ™H˜[YH]\Ý™H	Ò”ÓÓ‹œÝš[™ÚYžJY‹œØÚ[XU\J_X
+NÂˆBˆBˆYˆ
+˜ÛÙHˆ[ˆYˆÈY‹˜XÚÑ\œ›ÜœÈˆY‹™\œ›ÜœÈOOH˜[ÙJHÂˆ\Ë™\œœÐÛÝ[H]™Ù[‹˜ÛÛœÝ
+—Ù\œœÈ‹˜[Y\×ÌK™Y˜][™\œ›ÜœÊNÂˆBˆBˆ™\Ý[
+ÛÛ™][Û‹ÝXØÙ\ÜÐXÝ[Û‹˜Z[XÝ[ÛŠHÂˆ\Ë™˜Z[™\Ý[
+
+ÛÙYÙ[—ÌK››Ý
+JÛÛ™][ÛŠKÝXØÙ\ÜÐXÝ[Û‹˜Z[XÝ[ÛŠNÂˆBˆ˜Z[™\Ý[
+ÛÛ™][Û‹ÝXØÙ\ÜÐXÝ[Û‹˜Z[XÝ[ÛŠHÂˆ\Ë™Ù[‹šYŠÛÛ™][ÛŠNÂˆYˆ
+˜Z[XÝ[ÛŠBˆ˜Z[XÝ[ÛŠ
+NÂˆ[ÙBˆ\Ë™\œ›ÜŠ
+NÂˆYˆ
+ÝXØÙ\ÜÐXÝ[ÛŠHÂˆ\Ë™Ù[‹™[ÙJ
+NÂˆÝXØÙ\ÜÐXÝ[ÛŠ
+NÂˆYˆ
+\Ë˜[\œ›ÜœÊBˆ\Ë™Ù[‹™[™YŠ
+NÂˆH[ÙHÂˆYˆ
+\Ë˜[\œ›ÜœÊBˆ\Ë™Ù[‹™[™YŠ
+NÂˆ[ÙBˆ\Ë™Ù[‹™[ÙJ
+NÂˆBˆBˆ\ÜÊÛÛ™][Û‹˜Z[XÝ[ÛŠHÂˆ\Ë™˜Z[™\Ý[
+
+ÛÙYÙ[—ÌK››Ý
+JÛÛ™][ÛŠK›ÚY˜Z[XÝ[ÛŠNÂˆBˆ˜Z[
+ÛÛ™][ÛŠHÂˆYˆ
+ÛÛ™][ÛˆOOH›ÚY
+HÂˆ\Ë™\œ›ÜŠ
+NÂˆYˆ
+]\Ë˜[\œ›ÜœÊBˆ\Ë™Ù[‹šYŠ˜[ÙJNÂˆ™]\›ŽÂˆBˆ\Ë™Ù[‹šYŠÛÛ™][ÛŠNÂˆ\Ë™\œ›ÜŠ
+NÂˆYˆ
+\Ë˜[\œ›ÜœÊBˆ\Ë™Ù[‹™[™YŠ
+NÂˆ[ÙBˆ\Ë™Ù[‹™[ÙJ
+NÂˆBˆ˜Z[	]JÛÛ™][ÛŠHÂˆYˆ
+]\Ë‰]JBˆ™]\›ˆ\Ë™˜Z[
+ÛÛ™][ÛŠNÂˆÛÛœÝÈØÚ[XPÛÙHHH\ÎÂˆ\Ë™˜Z[
+
+ÛÙYÙ[—ÌK—ÊX	ÜØÚ[XPÛÙ_HOOH[™Yš[™Y	‰ˆ
+	ÊÛÙYÙ[—ÌK›ÜŠJ\Ëš[˜[Y	]J
+KÛÛ™][ÛŠ_JX
+NÂˆBˆ\œ›ÜŠ\[™\œ›Ü”\˜[\Ë\œ›Ü”]ÊHÂˆYˆ
+\œ›Ü”\˜[\ÊHÂˆ\ËœÙ]\˜[\Ê\œ›Ü”\˜[\ÊNÂˆ\Ë—Ù\œ›ÜŠ\[™\œ›Ü”]ÊNÂˆ\ËœÙ]\˜[\ÊßJNÂˆ™]\›ŽÂˆBˆ\Ë—Ù\œ›ÜŠ\[™\œ›Ü”]ÊNÂˆBˆÙ\œ›ÜŠ\[™\œ›Ü”]ÊHÂˆÂˆ
+\[™È\œ›Üœ×ÌKœ™\Ü^˜Q\œ›Üˆˆ\œ›Üœ×ÌKœ™\Ü\œ›ÜŠJ\Ë\Ë™Y‹™\œ›Ü‹\œ›Ü”]ÊNÂˆBˆ	]Q\œ›ÜŠ
+HÂˆ
+\œ›Üœ×ÌKœ™\Ü\œ›ÜŠJ\Ë\Ë™Y‹‰]Q\œ›Üˆ\œ›Üœ×ÌKšÙ^]ÛÜ™	]Q\œ›ÜŠNÂˆBˆ™\Ù]
+
+HÂˆYˆ
+\Ë™\œœÐÛÝ[OOH›ÚY
+Bˆ›ÝÈ™]È\œ›ÜŠ	ØY˜XÚÑ\œ›ÜœÈˆÈÙ^]ÛÜ™Yš[š][Û‰ÊNÂˆ
+\œ›Üœ×ÌKœ™\Ù]\œ›ÜœÐÛÝ[
+J\Ë™Ù[‹\Ë™\œœÐÛÝ[
+NÂˆBˆÚÊÛÛ™
+HÂˆYˆ
+]\Ë˜[\œ›ÜœÊBˆ\Ë™Ù[‹šYŠÛÛ™
+NÂˆBˆÙ]\˜[\ÊØš‹\ÜÚYÛŠHÂˆYˆ
+\ÜÚYÛŠBˆØš™XÝ˜\ÜÚYÛŠ\Ëœ\˜[\ËØšŠNÂˆ[ÙBˆ\Ëœ\˜[\ÈHØšŽÂˆBˆ›ØÚÉ]J˜[YÛÙP›ØÚË	]U˜[YHÛÙYÙ[—ÌK›š[
+HÂˆ\Ë™Ù[‹˜›ØÚÊ
+
+HOˆÂˆ\Ë˜ÚXÚÉ]J˜[Y	]U˜[Y
+NÂˆÛÙP›ØÚÊ
+NÂˆJNÂˆBˆÚXÚÉ]J˜[YHÛÙYÙ[—ÌK›š[	]U˜[YHÛÙYÙ[—ÌK›š[
+HÂˆYˆ
+]\Ë‰]JBˆ™]\›ŽÂˆÛÛœÝÈÙ[‹ØÚ[XPÛÙKØÚ[XU\KYˆHH\ÎÂˆÙ[‹šYŠ
+ÛÙYÙ[—ÌK›ÜŠJ
+ÛÙYÙ[—ÌK—ÊX	ÜØÚ[XPÛÙ_HOOH[™Yš[™Y	]U˜[Y
+JNÂˆYˆ
+˜[YOOHÛÙYÙ[—ÌK›š[
+BˆÙ[‹˜\ÜÚYÛŠ˜[YYJNÂˆYˆ
+ØÚ[XU\K›[™ÝY‹˜[Y]TØÚ[XJHÂˆÙ[‹™[ÙRYŠ\Ëš[˜[Y	]J
+JNÂˆ\Ë‰]Q\œ›ÜŠ
+NÂˆYˆ
+˜[YOOHÛÙYÙ[—ÌK›š[
+BˆÙ[‹˜\ÜÚYÛŠ˜[Y˜[ÙJNÂˆBˆÙ[‹™[ÙJ
+NÂˆBˆ[˜[Y	]J
+HÂˆÛÛœÝÈÙ[‹ØÚ[XPÛÙKØÚ[XU\KY‹]HH\ÎÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK›ÜŠJÜ›Û™É]U\J
+K[˜[Y	]TØÚ[XJ
+JNÂˆ[˜Ý[ÛˆÜ›Û™É]U\J
+HÂˆYˆ
+ØÚ[XU\K›[™Ý
+HÂˆYˆ
+JØÚ[XPÛÙH[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YJJBˆ›ÝÈ™]È\œ›ÜŠ˜Zˆ[\[Y[][Ûˆ\œ›ÜˆŠNÂˆÛÛœÝÝH\œ˜^Kš\Ð\œ˜^JØÚ[XU\JHÈØÚ[XU\HˆÜØÚ[XU\WNÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊX	Ê]U\WÌ‹˜ÚXÚÑ]U\\ÊJÝØÚ[XPÛÙK]›ÜËœÝšXÝ[X™\œË]U\WÌ‹‘]U\K•Ü›Û™Ê_XÂˆBˆ™]\›ˆÛÙYÙ[—ÌK›š[ÂˆBˆ[˜Ý[Ûˆ[˜[Y	]TØÚ[XJ
+HÂˆYˆ
+Y‹˜[Y]TØÚ[XJHÂˆÛÛœÝ˜[Y]TØÚ[XT™YˆHÙ[‹œØÛÜU˜[YJ˜[Y]I]H‹È™YŽˆY‹˜[Y]TØÚ[XHJNÂˆ™]\›ˆ
+ÛÙYÙ[—ÌK—ÊXIÝ˜[Y]TØÚ[XT™YŸJ	ÜØÚ[XPÛÙ_JXÂˆBˆ™]\›ˆÛÙYÙ[—ÌK›š[ÂˆBˆBˆÝXœØÚ[XJ\˜[Y
+HÂˆÛÛœÝÝXœØÚ[XHH
+ÝXœØÚ[XWÌK™Ù]ÝXœØÚ[XJJ\Ëš]\
+NÂˆ
+ÝXœØÚ[XWÌK™^[™ÝXœØÚ[XQ]JJÝXœØÚ[XK\Ëš]\
+NÂˆ
+ÝXœØÚ[XWÌK™^[™ÝXœØÚ[XS[ÙJJÝXœØÚ[XK\
+NÂˆÛÛœÝ™^ÛÛ^HÈ‹‹\Ëš]‹‹œÝXœØÚ[XK][\Îˆ›ÚY›ÜÎˆ›ÚYNÂˆÝXœØÚ[XPÛÙJ™^ÛÛ^˜[Y
+NÂˆ™]\›ˆ™^ÛÛ^ÂˆBˆY\™ÙQ]˜[X]Y
+ØÚ[XPÞÓ˜[YJHÂˆÛÛœÝÈ]Ù[ˆHH\ÎÂˆYˆ
+Z]›ÜË[™]˜[X]Y
+Bˆ™]\›ŽÂˆYˆ
+]œ›ÜÈOOHYH	‰ˆØÚ[XPÞœ›ÜÈOOH›ÚY
+HÂˆ]œ›ÜÈH][ÌK›Y\™ÙQ]˜[X]Yœ›ÜÊÙ[‹ØÚ[XPÞœ›ÜË]œ›ÜËÓ˜[YJNÂˆBˆYˆ
+]š][\ÈOOHYH	‰ˆØÚ[XPÞš][\ÈOOH›ÚY
+HÂˆ]š][\ÈH][ÌK›Y\™ÙQ]˜[X]Yš][\ÊÙ[‹ØÚ[XPÞš][\Ë]š][\ËÓ˜[YJNÂˆBˆBˆY\™ÙU˜[Y]˜[X]Y
+ØÚ[XPÞ˜[Y
+HÂˆÛÛœÝÈ]Ù[ˆHH\ÎÂˆYˆ
+]›ÜË[™]˜[X]Y	‰ˆ
+]œ›ÜÈOOHYH]š][\ÈOOHYJJHÂˆÙ[‹šYŠ˜[Y
+
+HOˆ\Ë›Y\™ÙQ]˜[X]Y
+ØÚ[XPÞÛÙYÙ[—ÌK“˜[YJJNÂˆ™]\›ˆYNÂˆBˆBˆNÂˆ^ÜË’Ù^]ÛÜ™ÞHÙ^]ÛÜ™ÞÂˆ[˜Ý[ÛˆÙ^]ÛÜ™ÛÙJ]Ù^]ÛÜ™Y‹[U\JHÂˆÛÛœÝÞH™]ÈÙ^]ÛÜ™Þ
+]Y‹Ù^]ÛÜ™
+NÂˆYˆ
+˜ÛÙHˆ[ˆYŠHÂˆY‹˜ÛÙJÞ[U\JNÂˆH[ÙHYˆ
+Þ‰]H	‰ˆY‹˜[Y]JHÂˆ
+Ù^]ÛÜ™ÌK™[˜ÒÙ^]ÛÜ™ÛÙJJÞYŠNÂˆH[ÙHYˆ
+›XXÜ›Èˆ[ˆYŠHÂˆ
+Ù^]ÛÜ™ÌK›XXÜ›ÒÙ^]ÛÜ™ÛÙJJÞYŠNÂˆH[ÙHYˆ
+Y‹˜ÛÛ\[HY‹˜[Y]JHÂˆ
+Ù^]ÛÜ™ÌK™[˜ÒÙ^]ÛÜ™ÛÙJJÞYŠNÂˆBˆBˆ˜\ˆ”ÓÓ—ÔÒS•TˆH×—ÊÎ–×Ÿ—_ŒŒJJ‰ÎÂˆ˜\ˆ‘SUU‘WÒ”ÓÓ—ÔÒS•TˆH×ŠÌNWJÊJßÊÎ–×Ÿ—_ŒŒJJŠOÉÎÂˆ[˜Ý[ÛˆÙ]]J	]KÈ]S]™[]S˜[Y\Ë]T]\œˆJHÂˆ]œÛÛ”Ú[\ŽÂˆ]]NÂˆYˆ
+	]HOOHˆŠBˆ™]\›ˆ˜[Y\×ÌK™Y˜][œ›ÛÝ]NÂˆYˆ
+	]VÌHOOH‹ÈŠHÂˆYˆ
+R”ÓÓ—ÔÒS•T‹\Ý
+	]JJBˆ›ÝÈ™]È\œ›ÜŠ[˜[Y”ÓÓ‹\Ú[\Žˆ	É]_X
+NÂˆœÛÛ”Ú[\ˆH	]NÂˆ]HH˜[Y\×ÌK™Y˜][œ›ÛÝ]NÂˆH[ÙHÂˆÛÛœÝX]Ú\ÈH‘SUU‘WÒ”ÓÓ—ÔÒS•T‹™^XÊ	]JNÂˆYˆ
+[X]Ú\ÊBˆ›ÝÈ™]È\œ›ÜŠ[˜[Y”ÓÓ‹\Ú[\Žˆ	É]_X
+NÂˆÛÛœÝ\H
+ÛX]Ú\ÖÌWNÂˆœÛÛ”Ú[\ˆHX]Ú\ÖÌ—NÂˆYˆ
+œÛÛ”Ú[\ˆOOHˆÈŠHÂˆYˆ
+\H]S]™[
+Bˆ›ÝÈ™]È\œ›ÜŠ\œ›Ü“\ÙÊœ›Ü\KÚ[™^‹\
+JNÂˆ™]\›ˆ]T]\œ–Ù]S]™[H\NÂˆBˆYˆ
+\ˆ]S]™[
+Bˆ›ÝÈ™]È\œ›ÜŠ\œ›Ü“\ÙÊ™]H‹\
+JNÂˆ]HH]S˜[Y\ÖÙ]S]™[H\NÂˆYˆ
+ZœÛÛ”Ú[\ŠBˆ™]\›ˆ]NÂˆBˆ]^ˆH]NÂˆÛÛœÝÙYÛY[ÈHœÛÛ”Ú[\‹œÜ]
+‹ÈŠNÂˆ›Üˆ
+ÛÛœÝÙYÛY[ÙˆÙYÛY[ÊHÂˆYˆ
+ÙYÛY[
+HÂˆ]HH
+ÛÙYÙ[—ÌK—ÊX	Ù]_IÊÛÙYÙ[—ÌK™Ù]›Ü\JJ
+][ÌK[™\ØØ\RœÛÛ”Ú[\ŠJÙYÛY[
+J_XÂˆ^ˆH
+ÛÙYÙ[—ÌK—ÊX	Ù^ŸH	‰ˆ	Ù]_XÂˆBˆBˆ™]\›ˆ^ŽÂˆ[˜Ý[Ûˆ\œ›Ü“\ÙÊÚ[\•\K\
+HÂˆ™]\›ˆØ[››ÝXØÙ\ÜÈ	ÜÚ[\•\_H	Ý\H]™[È\Ý\œ™[]™[\È	Ù]S]™[XÂˆBˆBˆ^ÜË™Ù]]HHÙ]]NÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝÜ[[YKÝ˜[Y][Û—Ù\œ›Ü‹šœÂ˜\ˆ™\]Z\™WÝ˜[Y][Û—Ù\œ›ÜˆH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝÜ[[YKÝ˜[Y][Û—Ù\œ›Ü‹šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ˜\ˆ˜[Y][Û‘\œ›ÜˆHÛ\ÜÈ^[™È\œ›ÜˆÂˆÛÛœÝXÝÜŠ\œ›ÜœÊHÂˆÝ\\Š˜[Y][Ûˆ˜Z[YŠNÂˆ\Ë™\œ›ÜœÈH\œ›ÜœÎÂˆ\Ë˜ZˆH\Ë˜[Y][ÛˆHYNÂˆBˆNÂˆ^ÜË™Y˜][H˜[Y][Û‘\œ›ÜŽÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÜ™Y—Ù\œ›Ü‹šœÂ˜\ˆ™\]Z\™WÜ™Y—Ù\œ›ÜˆH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÜ™Y—Ù\œ›Ü‹šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ˜\ˆ™\ÛÛ™WÌHH™\]Z\™WÜ™\ÛÛ™J
+NÂˆ˜\ˆZ\ÜÚ[™Ô™Y‘\œ›ÜˆHÛ\ÜÈ^[™È\œ›ÜˆÂˆÛÛœÝXÝÜŠ™\ÛÛ™\‹˜\ÙRY™Y‹\ÙÊHÂˆÝ\\Š\ÙÈØ[‰Ý™\ÛÛ™H™Y™\™[˜ÙH	Ü™YŸHœ›ÛHY	Ø˜\ÙRYX
+NÂˆ\Ë›Z\ÜÚ[™Ô™YˆH
+™\ÛÛ™WÌKœ™\ÛÛ™U\›
+J™\ÛÛ™\‹˜\ÙRY™YŠNÂˆ\Ë›Z\ÜÚ[™ÔØÚ[XHH
+™\ÛÛ™WÌK››Ü›X[^™RY
+J
+™\ÛÛ™WÌK™Ù][]
+J™\ÛÛ™\‹\Ë›Z\ÜÚ[™Ô™YŠJNÂˆBˆNÂˆ^ÜË™Y˜][HZ\ÜÚ[™Ô™Y‘\œ›ÜŽÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÚ[™^šœÂ˜\ˆ™\]Z\™WØÛÛ\[HH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝØÛÛ\[KÚ[™^šœÈŠ^ÜÊHÂˆ\ÙHÝšXÝŽÂˆØš™XÝ™Yš[™T›Ü\J^ÜË—×Ù\Ó[Ù[H‹È˜[YNˆYHJNÂˆ^ÜËœ™\ÛÛ™TØÚ[XHH^ÜË™Ù]ÛÛ\[[™ÔØÚ[XHH^ÜËœ™\ÛÛ™T™YˆH^ÜË˜ÛÛ\[TØÚ[XHH^ÜË”ØÚ[XQ[ˆH›ÚYÂˆ˜\ˆÛÙYÙ[—ÌHH™\]Z\™WØÛÙYÙ[Š
+NÂˆ˜\ˆ˜[Y][Û—Ù\œ›Ü—ÌHH™\]Z\™WÝ˜[Y][Û—Ù\œ›ÜŠ
+NÂˆ˜\ˆ˜[Y\×ÌHH™\]Z\™WÛ˜[Y\Ê
+NÂˆ˜\ˆ™\ÛÛ™WÌHH™\]Z\™WÜ™\ÛÛ™J
+NÂˆ˜\ˆ][ÌHH™\]Z\™WÝ][
+
+NÂˆ˜\ˆ˜[Y]WÌHH™\]Z\™WÝ˜[Y]J
+NÂˆ˜\ˆØÚ[XQ[ˆHÛ\ÜÈÂˆÛÛœÝXÝÜŠ[ŠHÂˆ˜\ˆØNÂˆ\Ëœ™YœÈHßNÂˆ\Ë™[˜[ZXÐ[˜ÚÜœÈHßNÂˆ]ØÚ[XNÂˆYˆ
+\[Ùˆ[‹œØÚ[XHOH›Øš™XÝŠBˆØÚ[XHH[‹œØÚ[XNÂˆ\ËœØÚ[XHH[‹œØÚ[XNÂˆ\ËœØÚ[XRYH[‹œØÚ[XRYÂˆ\Ëœ›ÛÝH[‹œ›ÛÝ\ÎÂˆ\Ë˜˜\ÙRYH
+ØHH[‹˜˜\ÙRY
+HOOH[	‰ˆØHOOH›ÚYÈØHˆ
+™\ÛÛ™WÌK››Ü›X[^™RY
+JØÚ[XHOOH[ØÚ[XHOOH›ÚYÈ›ÚYˆØÚ[XVÙ[‹œØÚ[XRY‰Y—JNÂˆ\ËœØÚ[XT]H[‹œØÚ[XT]Âˆ\Ë›ØØ[™YœÈH[‹›ØØ[™YœÎÂˆ\Ë›Y]HH[‹›Y]NÂˆ\Ë‰\Þ[˜ÈHØÚ[XHOOH[ØÚ[XHOOH›ÚYÈ›ÚYˆØÚ[XK‰\Þ[˜ÎÂˆ\Ëœ™YœÈHßNÂˆBˆNÂˆ^ÜË”ØÚ[XQ[ˆHØÚ[XQ[ŽÂˆ[˜Ý[ÛˆÛÛ\[TØÚ[XJØÚ
+HÂˆÛÛœÝÜØÚHÙ]ÛÛ\[[™ÔØÚ[XK˜Ø[
+\ËØÚ
+NÂˆYˆ
+ÜØÚ
+Bˆ™]\›ˆÜØÚÂˆÛÛœÝ›ÛÝYH
+™\ÛÛ™WÌK™Ù][]
+J\Ë›ÜË\šT™\ÛÛ™\‹ØÚœ›ÛÝ˜˜\ÙRY
+NÂˆÛÛœÝÈ\ÍK[™\ÈHH\Ë›ÜË˜ÛÙNÂˆÛÛœÝÈÝÛ”›Ü\Y\ÈHH\Ë›ÜÎÂˆÛÛœÝÙ[ˆH™]ÈÛÙYÙ[—ÌKÛÙQÙ[Š\ËœØÛÜKÈ\ÍK[™\ËÝÛ”›Ü\Y\ÈJNÂˆ]Õ˜[Y][Û‘\œ›ÜŽÂˆYˆ
+ØÚ‰\Þ[˜ÊHÂˆÕ˜[Y][Û‘\œ›ÜˆHÙ[‹œØÛÜU˜[YJ‘\œ›Üˆ‹Âˆ™YŽˆ˜[Y][Û—Ù\œ›Ü—ÌK™Y˜][ˆÛÙNˆ
+ÛÙYÙ[—ÌK—ÊX™\]Z\™J˜Z‹Ù\ÝÜ[[YKÝ˜[Y][Û—Ù\œ›ÜˆŠK™Y˜][ˆJNÂˆBˆÛÛœÝ˜[Y]S˜[YHHÙ[‹œØÛÜS˜[YJ˜[Y]HŠNÂˆØÚ˜[Y]S˜[YHH˜[Y]S˜[YNÂˆÛÛœÝØÚ[XPÞHÂˆÙ[‹ˆ[\œ›ÜœÎˆ\Ë›ÜË˜[\œ›ÜœËˆ]Nˆ˜[Y\×ÌK™Y˜][™]Kˆ\™[]Nˆ˜[Y\×ÌK™Y˜][œ\™[]Kˆ\™[]T›Ü\Nˆ˜[Y\×ÌK™Y˜][œ\™[]T›Ü\Kˆ]S˜[Y\ÎˆÛ˜[Y\×ÌK™Y˜][™]WKˆ]T]\œŽˆØÛÙYÙ[—ÌK›š[KˆËÈÑÈØ[ˆ]È[™Ý™H\ÙY\È]S]™[Yˆš[\È™[[Ý™YÂˆ]S]™[ˆˆ]U\\Îˆ×KˆYš[™Y›Ü\Y\ÎˆÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+
+KˆÜØÚ[XT™YŽˆÙ[‹œØÛÜU˜[YJœØÚ[XH‹\Ë›ÜË˜ÛÙKœÛÝ\˜ÙHOOHYHÈÈ™YŽˆØÚœØÚ[XKÛÙNˆ
+ÛÙYÙ[—ÌKœÝš[™ÚYžJJØÚœØÚ[XJHHˆÈ™YŽˆØÚœØÚ[XHJKˆ˜[Y]S˜[YKˆ˜[Y][Û‘\œ›ÜŽˆÕ˜[Y][Û‘\œ›Ü‹ˆØÚ[XNˆØÚœØÚ[XKˆØÚ[XQ[ŽˆØÚˆ›ÛÝYˆ˜\ÙRYˆØÚ˜˜\ÙRY›ÛÝYˆØÚ[XT]ˆÛÙYÙ[—ÌK›š[ˆ\œ”ØÚ[XT]ˆØÚœØÚ[XT]
+\Ë›ÜËšÈˆˆˆˆÈŠKˆ\œ›Ü”]ˆ
+ÛÙYÙ[—ÌK—ÊXˆ˜ˆÜÎˆ\Ë›ÜËˆÙ[Žˆ\ÂˆNÂˆ]ÛÝ\˜ÙPÛÙNÂˆžHÂˆ\Ë—ØÛÛ\[][ÛœË˜Y
+ØÚ
+NÂˆ
+˜[Y]WÌK˜[Y]Q[˜Ý[ÛÛÙJJØÚ[XPÞ
+NÂˆÙ[‹›Ü[Z^™J\Ë›ÜË˜ÛÙK›Ü[Z^™JNÂˆÛÛœÝ˜[Y]PÛÙHHÙ[‹ÔÝš[™Ê
+NÂˆÛÝ\˜ÙPÛÙHH	ÙÙ[‹œØÛÜT™YœÊ˜[Y\×ÌK™Y˜][œØÛÜJ_\™]\›ˆ	Ý˜[Y]PÛÙ_XÂˆYˆ
+\Ë›ÜË˜ÛÙKœ›ØÙ\ÜÊBˆÛÝ\˜ÙPÛÙHH\Ë›ÜË˜ÛÙKœ›ØÙ\ÜÊÛÝ\˜ÙPÛÙKØÚ
+NÂˆÛÛœÝXZÙU˜[Y]HH™]È[˜Ý[ÛŠ	Û˜[Y\×ÌK™Y˜][œÙ[ŸX	Û˜[Y\×ÌK™Y˜][œØÛÜ_XÛÝ\˜ÙPÛÙJNÂˆÛÛœÝ˜[Y]HHXZÙU˜[Y]J\Ë\ËœØÛÜK™Ù]
+
+JNÂˆ\ËœØÛÜK˜[YJ˜[Y]S˜[YKÈ™YŽˆ˜[Y]HJNÂˆ˜[Y]K™\œ›ÜœÈH[Âˆ˜[Y]KœØÚ[XHHØÚœØÚ[XNÂˆ˜[Y]KœØÚ[XQ[ˆHØÚÂˆYˆ
+ØÚ‰\Þ[˜ÊBˆ˜[Y]K‰\Þ[˜ÈHYNÂˆYˆ
+\Ë›ÜË˜ÛÙKœÛÝ\˜ÙHOOHYJHÂˆ˜[Y]KœÛÝ\˜ÙHHÈ˜[Y]S˜[YK˜[Y]PÛÙKØÛÜU˜[Y\ÎˆÙ[‹—Ý˜[Y\ÈNÂˆBˆYˆ
+\Ë›ÜË[™]˜[X]Y
+HÂˆÛÛœÝÈ›ÜË][\Îˆ][\ÌˆHHØÚ[XPÞÂˆ˜[Y]K™]˜[X]YHÂˆ›ÜÎˆ›ÜÈ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YHÈ›ÚYˆ›ÜËˆ][\Îˆ][\Ìˆ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YHÈ›ÚYˆ][\Ì‹ˆ[˜[ZXÔ›ÜÎˆ›ÜÈ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YKˆ[˜[ZXÒ][\Îˆ][\Ìˆ[œÝ[˜Ù[ÙˆÛÙYÙ[—ÌK“˜[YBˆNÂˆYˆ
+˜[Y]KœÛÝ\˜ÙJBˆ˜[Y]KœÛÝ\˜ÙK™]˜[X]YH
+ÛÙYÙ[—ÌKœÝš[™ÚYžJJ˜[Y]K™]˜[X]Y
+NÂˆBˆØÚ˜[Y]HH˜[Y]NÂˆ™]\›ˆØÚÂˆHØ]Ú
+JHÂˆ[]HØÚ˜[Y]NÂˆ[]HØÚ˜[Y]S˜[YNÂˆYˆ
+ÛÝ\˜ÙPÛÙJBˆ\Ë›ÙÙÙ\‹™\œ›ÜŠ‘\œ›ÜˆÛÛ\[[™ÈØÚ[XK[˜Ý[ÛˆÛÙNˆ‹ÛÝ\˜ÙPÛÙJNÂˆ›ÝÈNÂˆHš[˜[HÂˆ\Ë—ØÛÛ\[][ÛœË™[]JØÚ
+NÂˆBˆBˆ^ÜË˜ÛÛ\[TØÚ[XHHÛÛ\[TØÚ[XNÂˆ[˜Ý[Ûˆ™\ÛÛ™T™YŠ›ÛÝ˜\ÙRY™YŠHÂˆ˜\ˆØNÂˆ™YˆH
+™\ÛÛ™WÌKœ™\ÛÛ™U\›
+J\Ë›ÜË\šT™\ÛÛ™\‹˜\ÙRY™YŠNÂˆÛÛœÝØÚÜ‘[˜ÈH›ÛÝœ™YœÖÜ™Y—NÂˆYˆ
+ØÚÜ‘[˜ÊBˆ™]\›ˆØÚÜ‘[˜ÎÂˆ]ÜØÚH™\ÛÛ™K˜Ø[
+\Ë›ÛÝ™YŠNÂˆYˆ
+ÜØÚOOH›ÚY
+HÂˆÛÛœÝØÚ[XHH
+ØHH›ÛÝ›ØØ[™YœÊHOOH[ØHOOH›ÚYÈ›ÚYˆØVÜ™Y—NÂˆÛÛœÝÈØÚ[XRYHH\Ë›ÜÎÂˆYˆ
+ØÚ[XJBˆÜØÚH™]ÈØÚ[XQ[ŠÈØÚ[XKØÚ[XRY›ÛÝ˜\ÙRYJNÂˆBˆYˆ
+ÜØÚOOH›ÚY
+Bˆ™]\›ŽÂˆ™]\›ˆ›ÛÝœ™YœÖÜ™Y—HH[›[™SÜÛÛ\[K˜Ø[
+\ËÜØÚ
+NÂˆBˆ^ÜËœ™\ÛÛ™T™YˆH™\ÛÛ™T™YŽÂˆ[˜Ý[Ûˆ[›[™SÜÛÛ\[JØÚ
+HÂˆYˆ
+
+™\ÛÛ™WÌKš[›[™T™YŠJØÚœØÚ[XK\Ë›ÜËš[›[™T™YœÊJBˆ™]\›ˆØÚœØÚ[XNÂˆ™]\›ˆØÚ˜[Y]HÈØÚˆÛÛ\[TØÚ[XK˜Ø[
+\ËØÚ
+NÂˆBˆ[˜Ý[ÛˆÙ]ÛÛ\[[™ÔØÚ[XJØÚ[ŠHÂˆ›Üˆ
+ÛÛœÝØÚÙˆ\Ë—ØÛÛ\[][ÛœÊHÂˆYˆ
+Ø[YTØÚ[XQ[ŠØÚØÚ[ŠJBˆ™]\›ˆØÚÂˆBˆBˆ^ÜË™Ù]ÛÛ\[[™ÔØÚ[XHHÙ]ÛÛ\[[™ÔØÚ[XNÂˆ[˜Ý[ÛˆØ[YTØÚ[XQ[ŠÌKÌŠHÂˆ™]\›ˆÌKœØÚ[XHOOHÌ‹œØÚ[XH	‰ˆÌKœ›ÛÝOOHÌ‹œ›ÛÝ	‰ˆÌK˜˜\ÙRYOOHÌ‹˜˜\ÙRYÂˆBˆ[˜Ý[Ûˆ™\ÛÛ™J›ÛÝ™YŠHÂˆ]ØÚÂˆÚ[H
+\[Ùˆ
+ØÚH\Ëœ™YœÖÜ™Y—JHOHœÝš[™ÈŠBˆ™YˆHØÚÂˆ™]\›ˆØÚ\ËœØÚ[X\ÖÜ™Y—H™\ÛÛ™TØÚ[XK˜Ø[
+\Ë›ÛÝ™YŠNÂˆBˆ[˜Ý[Ûˆ™\ÛÛ™TØÚ[XJ›ÛÝ™YŠHÂˆÛÛœÝH\Ë›ÜË\šT™\ÛÛ™\‹œ\œÙJ™YŠNÂˆÛÛœÝ™Y”]H
+™\ÛÛ™WÌK—ÙÙ][]
+J\Ë›ÜË\šT™\ÛÛ™\‹
+NÂˆ]˜\ÙRYH
+™\ÛÛ™WÌK™Ù][]
+J\Ë›ÜË\šT™\ÛÛ™\‹›ÛÝ˜˜\ÙRY›ÚY
+NÂˆYˆ
+Øš™XÝšÙ^\Ê›ÛÝœØÚ[XJK›[™Ýˆ	‰ˆ™Y”]OOH˜\ÙRY
+HÂˆ™]\›ˆÙ]œÛÛ”Ú[\‹˜Ø[
+\Ë›ÛÝ
+NÂˆBˆÛÛœÝYH
+™\ÛÛ™WÌK››Ü›X[^™RY
+J™Y”]
+NÂˆÛÛœÝØÚÜ”™YˆH\Ëœ™YœÖÚYH\ËœØÚ[X\ÖÚYNÂˆYˆ
+\[ÙˆØÚÜ”™YˆOHœÝš[™ÈŠHÂˆÛÛœÝØÚH™\ÛÛ™TØÚ[XK˜Ø[
+\Ë›ÛÝØÚÜ”™YŠNÂˆYˆ
+\[Ùˆ
+ØÚOOH[ØÚOOH›ÚYÈ›ÚYˆØÚœØÚ[XJHOOH›Øš™XÝŠBˆ™]\›ŽÂˆ™]\›ˆÙ]œÛÛ”Ú[\‹˜Ø[
+\ËØÚ
+NÂˆBˆYˆ
+\[Ùˆ
+ØÚÜ”™YˆOOH[ØÚÜ”™YˆOOH›ÚYÈ›ÚYˆØÚÜ”™Y‹œØÚ[XJHOOH›Øš™XÝŠBˆ™]\›ŽÂˆYˆ
+\ØÚÜ”™Y‹˜[Y]JBˆÛÛ\[TØÚ[XK˜Ø[
+\ËØÚÜ”™YŠNÂˆYˆ
+YOOH
+™\ÛÛ™WÌK››Ü›X[^™RY
+J™YŠJHÂˆÛÛœÝÈØÚ[XHHHØÚÜ”™YŽÂˆÛÛœÝÈØÚ[XRYHH\Ë›ÜÎÂˆÛÛœÝØÚYHØÚ[XVÜØÚ[XRYNÂˆYˆ
+ØÚY
+Bˆ˜\ÙRYH
+™\ÛÛ™WÌKœ™\ÛÛ™U\›
+J\Ë›ÜË\šT™\ÛÛ™\‹˜\ÙRYØÚY
+NÂˆ™]\›ˆ™]ÈØÚ[XQ[ŠÈØÚ[XKØÚ[XRY›ÛÝ˜\ÙRYJNÂˆBˆ™]\›ˆÙ]œÛÛ”Ú[\‹˜Ø[
+\ËØÚÜ”™YŠNÂˆBˆ^ÜËœ™\ÛÛ™TØÚ[XHH™\ÛÛ™TØÚ[XNÂˆ˜\ˆ‘U‘S•ÔÐÓÔWÐÒS‘ÑHHÊˆ×ÔT‘W×È
+‹È™]ÈÙ]
+Âˆœ›Ü\Y\È‹ˆœ]\›”›Ü\Y\È‹ˆ™[[H‹ˆ™\[™[˜ÚY\È‹ˆ™Yš[š][ÛœÈ‚ˆJNÂˆ[˜Ý[ÛˆÙ]œÛÛ”Ú[\Š\œÙY™Y‹È˜\ÙRYØÚ[XK›ÛÝJHÂˆ˜\ˆØNÂˆYˆ
+
+
+ØHH\œÙY™Y‹™œ˜YÛY[
+HOOH[ØHOOH›ÚYÈ›ÚYˆØVÌJHOOH‹ÈŠBˆ™]\›ŽÂˆ›Üˆ
+ÛÛœÝ\Ùˆ\œÙY™Y‹™œ˜YÛY[œÛXÙJJKœÜ]
+‹ÈŠJHÂˆYˆ
+\[ÙˆØÚ[XHOOH˜›ÛÛX[ˆŠBˆ™]\›ŽÂˆÛÛœÝ\ØÚ[XHHØÚ[XVÊ][ÌK[™\ØØ\Qœ˜YÛY[
+J\
+WNÂˆYˆ
+\ØÚ[XHOOH›ÚY
+Bˆ™]\›ŽÂˆØÚ[XHH\ØÚ[XNÂˆÛÛœÝØÚYH\[ÙˆØÚ[XHOOH›Øš™XÝˆ	‰ˆØÚ[XVÝ\Ë›ÜËœØÚ[XRYNÂˆYˆ
+T‘U‘S•ÔÐÓÔWÐÒS‘ÑKš\Ê\
+H	‰ˆØÚY
+HÂˆ˜\ÙRYH
+™\ÛÛ™WÌKœ™\ÛÛ™U\›
+J\Ë›ÜË\šT™\ÛÛ™\‹˜\ÙRYØÚY
+NÂˆBˆBˆ][ŽÂˆYˆ
+\[ÙˆØÚ[XHOH˜›ÛÛX[ˆˆ	‰ˆØÚ[XK‰™Yˆ	‰ˆJ][ÌKœØÚ[XR\Ô[\Ð]™YŠJØÚ[XK\Ë”•STÊJHÂˆÛÛœÝ	™YˆH
+™\ÛÛ™WÌKœ™\ÛÛ™U\›
+J\Ë›ÜË\šT™\ÛÛ™\‹˜\ÙRYØÚ[XK‰™YŠNÂˆ[ˆH™\ÛÛ™TØÚ[XK˜Ø[
+\Ë›ÛÝ	™YŠNÂˆBˆÛÛœÝÈØÚ[XRYHH\Ë›ÜÎÂˆ[ˆH[ˆ™]ÈØÚ[XQ[ŠÈØÚ[XKØÚ[XRY›ÛÝ˜\ÙRYJNÂˆYˆ
+[‹œØÚ[XHOOH[‹œ›ÛÝœØÚ[XJBˆ™]\›ˆ[ŽÂˆ™]\›ˆ›ÚYÂˆBˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËØZ‹Ù\ÝÜ™YœËÙ]KšœÛÛ‚˜\ˆ™\]Z\™WÙ]HH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËØZ‹Ù\ÝÜ™YœËÙ]KšœÛÛˆŠ^ÜË[Ù[JHÂˆ[Ù[K™^ÜÈHÂˆ	YˆšÎ‹ËÜ˜]Ë™Ú]X\Ù\˜ÛÛ[˜ÛÛKØZ‹]˜[Y]Ü‹ØZ‹ÛX\Ý\‹ÛX‹Ü™YœËÙ]KšœÛÛˆÈ‹ˆ\ØÜš\[ÛŽˆ“Y]K\ØÚ[XH›Üˆ	]H™Y™\™[˜ÙH
+”ÓÓˆ[žTØÚ[XH^[œÚ[Ûˆ›ÜÜØ[
+H‹ˆ\Nˆ›Øš™XÝ‹ˆ™\]Z\™YˆÈ‰]H—Kˆ›Ü\Y\ÎˆÂˆ	]NˆÂˆ\NˆœÝš[™È‹ˆ[žSÙŽˆÞÈ›Ü›X]ˆœ™[]]™KZœÛÛ‹\Ú[\ˆˆKÈ›Ü›X]ˆšœÛÛ‹\Ú[\ˆˆWBˆBˆKˆY][Û˜[›Ü\Y\Îˆ˜[ÙBˆNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËÙ˜\Ý]\šKÛX‹Ý][ËšœÂ˜\ˆ™\]Z\™WÝ][ÈH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËÙ˜\Ý]\šKÛX‹Ý][ËšœÈŠ^ÜË[Ù[JHÂˆ\ÙHÝšXÝŽÂˆ˜\ˆ\ÕURQH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–×KY—^ÎKV×KY—^ÍKV×KY—^ÍKV×KY—^ÍKV×KY—^ÌLŸIÚ]JNÂˆ˜\ˆ\ÒTH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×ŠÎŠÎŒVÌMW_–ÌMWWÌŸ_ÌKNWW
+WŠ^ÌßJÎŒVÌMW_–ÌMWWÌŸ_ÌKNWW
+IÝJNÂˆ˜\ˆ\ÔÜH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×—
+‰ÝJNÂˆ˜\ˆ\Ò^Z\ˆH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–×KY—^ÌŸIÚ]JNÂˆ˜\ˆ\Õ[œ™\Ù\™YH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–×K^—K—ß—IÚ]JNÂˆ˜\ˆ\Ô]Ú\˜XÝ\ˆH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–ÐKV˜K^ŒNWK—ßˆI	‰Ê
+JŠËÏN×IÝJNÂˆ˜\ˆ\Ô]Y\žQœ˜YÛY[Ú\˜XÝ\ˆH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–ÐKV˜K^ŒNWK—ßˆI	‰Ê
+JŠËÏNÏ×IÝJNÂˆ˜\ˆ\Õ\Ù\š[™›ÐÚ\˜XÝ\ˆH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–ÐKV˜K^ŒNWK—ßˆI	‰Ê
+JŠËÏN—IÝJNÂˆ˜\ˆ–UWÒVH™]È\œ˜^JMŠNÂˆÂˆÛÛœÝVÑQÒUÈHŒLŒÍMÎPPÑQˆŽÂˆ›Üˆ
+]HHÈHMŽÈJÊÊHÂˆ–UWÒVÚWHH‰Hˆ
+ÈVÑQÒUÖÚHˆH
+ÈVÑQÒUÖÚH	ˆMWNÂˆBˆBˆ[˜Ý[Ûˆ\˜Ù[[˜ÛÙS›Û\ØÚZJÜ
+HÂˆYˆ
+ÜŒ
+HÂˆ™]\›ˆ–UWÒVÌNLˆÜˆ—H
+È–UWÒVÌLŽÜ	ˆŒ×NÂˆBˆYˆ
+ÜMLÍŠHÂˆ™]\›ˆ–UWÒVÌŒÜˆL—H
+È–UWÒVÌLŽÜˆˆ	ˆŒ×H
+È–UWÒVÌLŽÜ	ˆŒ×NÂˆBˆ™]\›ˆ–UWÒVÌÜˆNH
+È–UWÒVÌLŽÜˆLˆ	ˆŒ×H
+È–UWÒVÌLŽÜˆˆ	ˆŒ×H
+È–UWÒVÌLŽÜ	ˆŒ×NÂˆBˆ[˜Ý[ÛˆÝš[™Ð\œ˜^UÒ^Ýš\Y
+[œ]ŠHÂˆ]XØÈHˆŽÂˆ]ÛÙHHÂˆ]HHÂˆ›Üˆ
+HHÈH[œ]‹›[™ÝÈJÊÊHÂˆÛÙHH[œ]–ÚWK˜Ú\ÛÙP]
+
+NÂˆYˆ
+ÛÙHOOH
+HÂˆÛÛ[YNÂˆBˆYˆ
+JÛÙHH	‰ˆÛÙHHMÈÛÙHHH	‰ˆÛÙHHÌÛÙHHMÈ	‰ˆÛÙHHLŠJHÂˆ™]\›ˆˆŽÂˆBˆXØÈ
+ÏH[œ]–ÚWNÂˆœ™XZÎÂˆBˆ›Üˆ
+H
+ÏHNÈH[œ]‹›[™ÝÈJÊÊHÂˆÛÙHH[œ]–ÚWK˜Ú\ÛÙP]
+
+NÂˆYˆ
+JÛÙHH	‰ˆÛÙHHMÈÛÙHHH	‰ˆÛÙHHÌÛÙHHMÈ	‰ˆÛÙHHLŠJHÂˆ™]\›ˆˆŽÂˆBˆXØÈ
+ÏH[œ]–ÚWNÂˆBˆ™]\›ˆXØÎÂˆBˆ˜\ˆ\Ò^]H™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–×KQ˜KY—^ÌKIÊNÂˆ˜\ˆ\ÒT‘]\™HH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–Ý•—V×KQ˜KY—J×–ÐKV˜K^—K—ßˆI	‰Ê
+JŠËÏN—JÉÊNÂˆ˜\ˆ\Ö›Û™PÚ\˜XÝ\ˆH™YÑ^œ›ÝÝ\K\Ý˜š[™
+×–ÐKV˜K^—K—ß—IÊNÂˆ˜\ˆ›Û”Ú[\QÛXZ[ˆH™YÑ^œ›ÝÝ\K\Ý˜š[™
+Ö×ˆH‰	‰Ê
+JŠËKŽÏWØK^žß_—KÝJNÂˆ[˜Ý[Ûˆ\Ö›Û™RY[YšY\Š›Û™JHÂˆYˆ
+›Û™K›[™ÝOOH
+H™]\›ˆ˜[ÙNÂˆ›Üˆ
+]HHÈH›Û™K›[™ÝÈJÊÊHÂˆYˆ
+\Ö›Û™PÚ\˜XÝ\Š›Û™VÚWJJHÛÛ[YNÂˆYˆ
+›Û™VÚWHOOH‰Hˆ	‰ˆH
+Èˆ›Û™K›[™Ý	‰ˆ\Ò^Z\Š›Û™KœÛXÙJH
+ÈKH
+ÈÊJJHÂˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆ™]\›ˆ˜[ÙNÂˆBˆ™]\›ˆYNÂˆBˆ[˜Ý[ÛˆÛÛ\™\ÜÒT–™\›Ô[Š^]ÊHÂˆ]™\ÝÝ\HLNÂˆ]™\Ý[™ÝHÂˆ][”Ý\HLNÂˆ][“[™ÝHÂˆ›Üˆ
+]HHÈH^]Ë›[™ÝÈJÊÊHÂˆYˆ
+^]ÖÚWHOOHŒŠHÂˆYˆ
+[”Ý\OOHLJH[”Ý\HNÂˆ[“[™Ý
+ÊÎÂˆYˆ
+[“[™Ýˆ™\Ý[™Ý
+HÂˆ™\Ý[™ÝH[“[™ÝÂˆ™\ÝÝ\H[”Ý\ÂˆBˆH[ÙHÂˆ[”Ý\HLNÂˆ[“[™ÝHÂˆBˆBˆYˆ
+™\Ý[™ÝŠH™]\›ˆ^]Ëš›Ú[ŠŽˆŠNÂˆÛÛœÝXYH^]ËœÛXÙJ™\ÝÝ\
+Kš›Ú[ŠŽˆŠNÂˆÛÛœÝZ[H^]ËœÛXÙJ™\ÝÝ\
+È™\Ý[™Ý
+Kš›Ú[ŠŽˆŠNÂˆ™]\›ˆXY
+ÈŽŽˆˆ
+ÈZ[ÂˆBˆ[˜Ý[Ûˆ›Ü›X[^™RTY™\ÜÊ[œ]ŠHÂˆÛÛœÝÛÛ\™\ÜÚ[ÛˆH[œ]‹š[™^ÙŠŽŽˆŠNÂˆYˆ
+ÛÛ\™\ÜÚ[ÛˆOOHLH	‰ˆ[œ]‹š[™^ÙŠŽŽˆ‹ÛÛ\™\ÜÚ[Ûˆ
+ÈJHOOHLJH™]\›ˆ›ÚYÂˆÛÛœÝYHÛÛ\™\ÜÚ[ÛˆOOHLHÈ[œ]‹œÜ]
+ŽˆŠHˆ[œ]‹œÛXÙJÛÛ\™\ÜÚ[ÛŠKœÜ]
+ŽˆŠNÂˆÛÛœÝšYÚHÛÛ\™\ÜÚ[ÛˆOOHLHÈ×Hˆ[œ]‹œÛXÙJÛÛ\™\ÜÚ[Ûˆ
+ÈŠKœÜ]
+ŽˆŠNÂˆYˆ
+ÛÛ\™\ÜÚ[ÛˆOOHLJHÂˆYˆ
+Y›[™ÝOOHH	‰ˆYÌHOOHˆŠHY›[™ÝHÂˆYˆ
+šYÚ›[™ÝOOHH	‰ˆšYÚÌHOOHˆŠHšYÚ›[™ÝHÂˆBˆÛÛœÝ\ÈHY˜ÛÛ˜Ø]
+šYÚ
+NÂˆ]^]ÛÝ[HÂˆ›Üˆ
+]HHÈH\Ë›[™ÝÈJÊÊHÂˆÛÛœÝ\H\ÖÚWNÂˆYˆ
+\OOHˆŠH™]\›ˆ›ÚYÂˆYˆ
+\š[™^ÙŠ‹ˆŠHOOHLJHÂˆYˆ
+HOOH\Ë›[™ÝHHÛÛ\™\ÜÚ[ÛˆOOHLH	‰ˆšYÚ›[™ÝOOHZ\ÒT
+\
+JH™]\›ˆ›ÚYÂˆ^]ÛÝ[
+ÏHŽÂˆÛÛ[YNÂˆBˆYˆ
+Z\Ò^]
+\
+JH™]\›ˆ›ÚYÂˆ\ÖÚWHH\œÙR[
+\MŠKÔÝš[™ÊMŠNÂˆ^]ÛÝ[
+ÊÎÂˆBˆYˆ
+ÛÛ\™\ÜÚ[ÛˆOOHLJHÂˆYˆ
+^]ÛÝ[OOH
+H™]\›ˆ›ÚYÂˆ™]\›ˆÛÛ\™\ÜÒT–™\›Ô[Š\ÊNÂˆBˆYˆ
+^]ÛÝ[H
+H™]\›ˆ›ÚYÂˆÛÛœÝ^[™YH\ËœÛXÙJY›[™Ý
+NÂˆ›Üˆ
+]HH^]ÛÝ[ÈHÈJÊÊH^[™Yœ\Ú
+ŒŠNÂˆ›Üˆ
+]HHY›[™ÝÈH\Ë›[™ÝÈJÊÊH^[™Yœ\Ú
+\ÖÚWJNÂˆ™]\›ˆÛÛ\™\ÜÒT–™\›Ô[Š^[™Y
+NÂˆBˆ[˜Ý[Ûˆ›Ü›X[^™RTŠÜÝ
+HÂˆÛÛœÝœ˜XÚÙ]YHÜÝÌHOOH–Èˆ	‰ˆÜÝÚÜÝ›[™ÝHWHOOH—HŽÂˆÛÛœÝ\Ðœ˜XÚÙ]HÜÝÌHOOH–ÈˆÜÝÚÜÝ›[™ÝHWHOOH—HŽÂˆYˆ
+\Ðœ˜XÚÙ]	‰ˆXœ˜XÚÙ]Y
+H™]\›ˆÈÜÝ\ÒTŽˆ˜[ÙK\œ›ÜŽˆYHNÂˆ][œ]ˆHœ˜XÚÙ]YÈÜÝœÛXÙJKLJHˆÜÝÂˆYˆ
+œ˜XÚÙ]Y	‰ˆ\ÒT‘]\™J[œ]ŠJHÂˆ[œ]ˆH[œ]‹ÓÝÙ\Ø\ÙJ
+NÂˆ™]\›ˆÈÜÝˆÉÚ[œ]ŸWX\ØØ\YÜÝˆ[œ]‹\ÒTŽˆ˜[ÙK\ÒT‘]\™NˆYHNÂˆBˆYˆ
+š[™ÚÙ[Š[œ]‹ŽˆŠHŠHÂˆ™]\›ˆÈÜÝ\ÒTŽˆ˜[ÙK\œ›ÜŽˆœ˜XÚÙ]YNÂˆBˆ]›Û™RY[YšY\ˆHˆŽÂˆÛÛœÝ›Û™TÙ\\˜]ÜˆH[œ]‹š[™^ÙŠ‰HŠNÂˆYˆ
+›Û™TÙ\\˜]ÜˆOOHLJHÂˆÛÛœÝÙ\\˜]Ü“[™ÝH[œ]‹œÛXÙJ›Û™TÙ\\˜]Ü‹›Û™TÙ\\˜]Üˆ
+ÈÊKÓÝÙ\Ø\ÙJ
+HOOH‰LHˆÈÈˆNÂˆ›Û™RY[YšY\ˆH[œ]‹œÛXÙJ›Û™TÙ\\˜]Üˆ
+ÈÙ\\˜]Ü“[™Ý
+NÂˆYˆ
+Z\Ö›Û™RY[YšY\Š›Û™RY[YšY\ŠJH™]\›ˆÈÜÝ\ÒTŽˆ˜[ÙK\œ›ÜŽˆYHNÂˆ[œ]ˆH[œ]‹œÛXÙJ›Û™TÙ\\˜]ÜŠNÂˆBˆÛÛœÝY™\ÜÈH›Ü›X[^™RTY™\ÜÊ[œ]ŠNÂˆYˆ
+Y™\ÜÈOOH›ÚY
+H™]\›ˆÈÜÝ\ÒTŽˆ˜[ÙK\œ›ÜŽˆYHNÂˆ™]\›ˆÂˆÜÝˆY™\ÜÈ
+È
+›Û™RY[YšY\ˆÈ‰Hˆ
+È›Û™RY[YšY\ˆˆˆŠKˆ\ØØ\YÜÝˆY™\ÜÈ
+È
+›Û™RY[YšY\ˆÈ‰LHˆ
+È›Û™RY[YšY\ˆˆˆŠKˆ\ÒTŽˆYBˆNÂˆBˆ[˜Ý[Ûˆš[™ÚÙ[ŠÝ‹ÚÙ[ŠHÂˆ][™HÂˆ›Üˆ
+]HHÈHÝ‹›[™ÝÈJÊÊHÂˆYˆ
+Ý–ÚWHOOHÚÙ[ŠH[™
+ÊÎÂˆBˆ™]\›ˆ[™ÂˆBˆ[˜Ý[Ûˆ™[[Ý™QÝÙYÛY[Ê]
+HÂˆ][œ]ˆH]ÂˆÛÛœÝÝ]]ˆH×NÂˆ]™^Û\ÚHLNÂˆ][ˆHÂˆÚ[H
+[ˆH[œ]‹›[™Ý
+HÂˆYˆ
+[ˆOOHJHÂˆYˆ
+[œ]ˆOOH‹ˆŠHÂˆœ™XZÎÂˆH[ÙHYˆ
+[œ]ˆOOH‹ÈŠHÂˆÝ]]‹œ\Ú
+‹ÈŠNÂˆœ™XZÎÂˆH[ÙHÂˆÝ]]‹œ\Ú
+[œ]ŠNÂˆœ™XZÎÂˆBˆH[ÙHYˆ
+[ˆOOHŠHÂˆYˆ
+[œ]–ÌHOOH‹ˆŠHÂˆYˆ
+[œ]–ÌWHOOH‹ˆŠHÂˆœ™XZÎÂˆH[ÙHYˆ
+[œ]–ÌWHOOH‹ÈŠHÂˆ[œ]ˆH[œ]‹œÛXÙJŠNÂˆÛÛ[YNÂˆBˆH[ÙHYˆ
+[œ]–ÌHOOH‹ÈŠHÂˆYˆ
+[œ]–ÌWHOOH‹ˆˆ[œ]–ÌWHOOH‹ÈŠHÂˆÝ]]‹œ\Ú
+‹ÈŠNÂˆœ™XZÎÂˆBˆBˆH[ÙHYˆ
+[ˆOOHÊHÂˆYˆ
+[œ]ˆOOH‹Ë‹ˆŠHÂˆYˆ
+Ý]]‹›[™ÝOOH
+HÂˆÝ]]‹œÜ
+
+NÂˆBˆÝ]]‹œ\Ú
+‹ÈŠNÂˆœ™XZÎÂˆBˆBˆYˆ
+[œ]–ÌHOOH‹ˆŠHÂˆYˆ
+[œ]–ÌWHOOH‹ˆŠHÂˆYˆ
+[œ]–Ì—HOOH‹ÈŠHÂˆ[œ]ˆH[œ]‹œÛXÙJÊNÂˆÛÛ[YNÂˆBˆH[ÙHYˆ
+[œ]–ÌWHOOH‹ÈŠHÂˆ[œ]ˆH[œ]‹œÛXÙJŠNÂˆÛÛ[YNÂˆBˆH[ÙHYˆ
+[œ]–ÌHOOH‹ÈŠHÂˆYˆ
+[œ]–ÌWHOOH‹ˆŠHÂˆYˆ
+[œ]–Ì—HOOH‹ÈŠHÂˆ[œ]ˆH[œ]‹œÛXÙJŠNÂˆÛÛ[YNÂˆH[ÙHYˆ
+[œ]–Ì—HOOH‹ˆŠHÂˆYˆ
+[œ]–Ì×HOOH‹ÈŠHÂˆ[œ]ˆH[œ]‹œÛXÙJÊNÂˆYˆ
+Ý]]‹›[™ÝOOH
+HÂˆÝ]]‹œÜ
+
+NÂˆBˆÛÛ[YNÂˆBˆBˆBˆBˆYˆ
+
+™^Û\ÚH[œ]‹š[™^ÙŠ‹È‹JJHOOHLJHÂˆÝ]]‹œ\Ú
+[œ]ŠNÂˆœ™XZÎÂˆH[ÙHÂˆÝ]]‹œ\Ú
+[œ]‹œÛXÙJ™^Û\Ú
+JNÂˆ[œ]ˆH[œ]‹œÛXÙJ™^Û\Ú
+NÂˆBˆBˆ™]\›ˆÝ]]‹š›Ú[ŠˆŠNÂˆBˆ˜\ˆÔÕÑSSTÈHÈŽˆ‰M‹‹ÈŽˆ‰L‘ˆ‹ÈŽˆ‰LÑˆ‹ˆÈŽˆ‰LŒÈ‹ŽˆŽˆ‰LÐHˆNÂˆ˜\ˆÔÕÑSSWÔ‘HHÖÐÏÈÎ—KÙÎÂˆ˜\ˆÔÕÑSSWÓ“×ÐÓÓÓ—Ô‘HHÖÐÏÈ×KÙÎÂˆ[˜Ý[Ûˆ™Y\ØØ\RÜÝ[[Z]\œÊÜÝ\ÒT
+HÂˆÛÛœÝ™HH\ÒTÈÔÕÑSSWÓ“×ÐÓÓÓ—Ô‘HˆÔÕÑSSWÔ‘NÂˆ™K›\Ý[™^HÂˆ™]\›ˆÜÝœ™\XÙJ™K
+Ú
+HOˆÔÕÑSSTÖØÚJNÂˆBˆ[˜Ý[Ûˆ›Ü›X[^™T\˜Ù[[˜ÛÙ[™Ê[œ]‹XÛÙU[œ™\Ù\™YH˜[ÙJHÂˆYˆ
+[œ]‹š[™^ÙŠ‰HŠHOOHLJHÂˆ™]\›ˆ[œ]ŽÂˆBˆ]Ý]]ˆHˆŽÂˆ›Üˆ
+]HHÈH[œ]‹›[™ÝÈJÊÊHÂˆYˆ
+[œ]–ÚWHOOH‰Hˆ	‰ˆH
+Èˆ[œ]‹›[™Ý
+HÂˆÛÛœÝ^H[œ]‹œÛXÙJH
+ÈKH
+ÈÊNÂˆYˆ
+\Ò^Z\Š^
+JHÂˆÛÛœÝ›Ü›X[^™Y^H^Õ\\Ø\ÙJ
+NÂˆÛÛœÝXÛÙYHÝš[™Ë™œ›ÛPÚ\ÛÙJ\œÙR[
+›Ü›X[^™Y^MŠJNÂˆYˆ
+XÛÙU[œ™\Ù\™Y	‰ˆ\Õ[œ™\Ù\™Y
+XÛÙY
+JHÂˆÝ]]ˆ
+ÏHXÛÙYÂˆH[ÙHÂˆÝ]]ˆ
+ÏH‰Hˆ
+È›Ü›X[^™Y^ÂˆBˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆBˆÝ]]ˆ
+ÏH[œ]–ÚWNÂˆBˆ™]\›ˆÝ]]ŽÂˆBˆ[˜Ý[Ûˆ›Ü›X[^™T][˜ÛÙ[™Ê[œ]ŠHÂˆ]Ý]]ˆHˆŽÂˆ›Üˆ
+]HHÈH[œ]‹›[™ÝÈJÊÊHÂˆÛÛœÝÚH[œ]–ÚWNÂˆYˆ
+ÚOOH‰Hˆ	‰ˆH
+Èˆ[œ]‹›[™Ý
+HÂˆÛÛœÝ^H[œ]‹œÛXÙJH
+ÈKH
+ÈÊNÂˆYˆ
+\Ò^Z\Š^
+JHÂˆÛÛœÝ›Ü›X[^™Y^H^Õ\\Ø\ÙJ
+NÂˆÛÛœÝXÛÙYHÝš[™Ë™œ›ÛPÚ\ÛÙJ\œÙR[
+›Ü›X[^™Y^MŠJNÂˆYˆ
+XÛÙYOOH‹ˆˆ	‰ˆ\Õ[œ™\Ù\™Y
+XÛÙY
+JHÂˆÝ]]ˆ
+ÏHXÛÙYÂˆH[ÙHÂˆÝ]]ˆ
+ÏH‰Hˆ
+È›Ü›X[^™Y^ÂˆBˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆBˆYˆ
+\Ô]Ú\˜XÝ\ŠÚ
+JHÂˆÝ]]ˆ
+ÏHÚÂˆH[ÙHÂˆÛÛœÝÛÙHH[œ]‹˜Ú\ÛÙP]
+JNÂˆYˆ
+ÛÙHLŽ
+HÂˆÝ]]ˆ
+ÏH\Ñ\ØØ\TØY™JÛÙJHÈÚˆ–UWÒVØÛÙWNÂˆH[ÙHYˆ
+ÛÙHMLŽMˆÛÙHˆMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJÛÙJNÂˆH[ÙHYˆ
+ÛÙHHMŒÌNH	‰ˆH
+ÈH[œ]‹›[™Ý
+HÂˆÛÛœÝÝÈH[œ]‹˜Ú\ÛÙP]
+H
+ÈJNÂˆYˆ
+ÝÈHMŒÌŒ	‰ˆÝÈHMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÍˆ
+È
+ÛÙHHMLŽMˆL
+H
+È
+ÝÈHMŒÌŒ
+JNÂˆJÊÎÂˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆBˆBˆ™]\›ˆÝ]]ŽÂˆBˆ[˜Ý[ÛˆÙ\šX[^™T][˜ÛÙ[™Ê[œ]‹]›ÔØÚ[YHH˜[ÙJHÂˆ]Ý]]ˆHˆŽÂˆ]š\œÝÙYÛY[H]›ÔØÚ[YH	‰ˆ[œ]–ÌHOOH‹ÈŽÂˆ›Üˆ
+]HHÈH[œ]‹›[™ÝÈJÊÊHÂˆÛÛœÝÚH[œ]–ÚWNÂˆYˆ
+ÚOOH‰Hˆ	‰ˆH
+Èˆ[œ]‹›[™Ý
+HÂˆÛÛœÝ^H[œ]‹œÛXÙJH
+ÈKH
+ÈÊNÂˆYˆ
+\Ò^Z\Š^
+JHÂˆÝ]]ˆ
+ÏH‰Hˆ
+È^Õ\\Ø\ÙJ
+NÂˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆBˆYˆ
+ÚOOH‹ÈŠHÂˆš\œÝÙYÛY[H˜[ÙNÂˆBˆYˆ
+\Ô]Ú\˜XÝ\ŠÚ
+H	‰ˆ
+ÚOOHŽˆˆYš\œÝÙYÛY[
+JHÂˆÝ]]ˆ
+ÏHÚÂˆH[ÙHÂˆÛÛœÝÛÙHH[œ]‹˜Ú\ÛÙP]
+JNÂˆYˆ
+ÛÙHLŽ
+HÂˆÝ]]ˆ
+ÏH–UWÒVØÛÙWNÂˆH[ÙHYˆ
+ÛÙHMLŽMˆÛÙHˆMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJÛÙJNÂˆH[ÙHYˆ
+ÛÙHHMŒÌNH	‰ˆH
+ÈH[œ]‹›[™Ý
+HÂˆÛÛœÝÝÈH[œ]‹˜Ú\ÛÙP]
+H
+ÈJNÂˆYˆ
+ÝÈHMŒÌŒ	‰ˆÝÈHMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÍˆ
+È
+ÛÙHHMLŽMˆL
+H
+È
+ÝÈHMŒÌŒ
+JNÂˆJÊÎÂˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆBˆBˆ™]\›ˆÝ]]ŽÂˆBˆ[˜Ý[Ûˆ[˜ÛÙPÛÛ\Û™[
+[œ]‹\Ð[ÝÙY
+HÂˆ]Ý]]ˆHˆŽÂˆ›Üˆ
+]HHÈH[œ]‹›[™ÝÈJÊÊHÂˆÛÛœÝÚH[œ]–ÚWNÂˆYˆ
+ÚOOH‰Hˆ	‰ˆH
+Èˆ[œ]‹›[™Ý
+HÂˆÛÛœÝ^H[œ]‹œÛXÙJH
+ÈKH
+ÈÊNÂˆYˆ
+\Ò^Z\Š^
+JHÂˆÝ]]ˆ
+ÏH‰Hˆ
+È^Õ\\Ø\ÙJ
+NÂˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆBˆYˆ
+\Ð[ÝÙY
+Ú
+JHÂˆÝ]]ˆ
+ÏHÚÂˆH[ÙHÂˆÛÛœÝÛÙHH[œ]‹˜Ú\ÛÙP]
+JNÂˆYˆ
+ÛÙHLŽ
+HÂˆÝ]]ˆ
+ÏH–UWÒVØÛÙWNÂˆH[ÙHYˆ
+ÛÙHMLŽMˆÛÙHˆMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJÛÙJNÂˆH[ÙHYˆ
+ÛÙHHMŒÌNH	‰ˆH
+ÈH[œ]‹›[™Ý
+HÂˆÛÛœÝÝÈH[œ]‹˜Ú\ÛÙP]
+H
+ÈJNÂˆYˆ
+ÝÈHMŒÌŒ	‰ˆÝÈHMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÍˆ
+È
+ÛÙHHMLŽMˆL
+H
+È
+ÝÈHMŒÌŒ
+JNÂˆJÊÎÂˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆBˆBˆ™]\›ˆÝ]]ŽÂˆBˆ[˜Ý[Ûˆ[˜ÛÙU\Ù\š[™›Ê[œ]ŠHÂˆ™]\›ˆ[˜ÛÙPÛÛ\Û™[
+[œ]‹\Õ\Ù\š[™›ÐÚ\˜XÝ\ŠNÂˆBˆ[˜Ý[Ûˆ[˜ÛÙT]Y\žJ[œ]ŠHÂˆ™]\›ˆ[˜ÛÙPÛÛ\Û™[
+[œ]‹\Ô]Y\žQœ˜YÛY[Ú\˜XÝ\ŠNÂˆBˆ[˜Ý[Ûˆ[˜ÛÙQœ˜YÛY[
+[œ]ŠHÂˆ™]\›ˆ[˜ÛÙPÛÛ\Û™[
+[œ]‹\Ô]Y\žQœ˜YÛY[Ú\˜XÝ\ŠNÂˆBˆ[˜Ý[Ûˆ\Ñ\ØØ\TØY™JÜ
+HÂˆ™]\›ˆÜH	‰ˆÜHMÈÜHH	‰ˆÜHLÜHMÈ	‰ˆÜHLŒˆÜOOHˆÜOOHÈÜOOHHÜOOHˆÜOOHÈÜOOHÜOOHMNÂˆBˆ[˜Ý[Ûˆ›Ü›X[^™T]Y\žQœ˜YÛY[[˜ÛÙ[™Ê[œ]ŠHÂˆ]Ý]]ˆHˆŽÂˆ›Üˆ
+]HHÈH[œ]‹›[™ÝÈJÊÊHÂˆÛÛœÝÚH[œ]–ÚWNÂˆYˆ
+ÚOOH‰Hˆ	‰ˆH
+Èˆ[œ]‹›[™Ý
+HÂˆÛÛœÝ^H[œ]‹œÛXÙJH
+ÈKH
+ÈÊNÂˆYˆ
+\Ò^Z\Š^
+JHÂˆÛÛœÝ›Ü›X[^™Y^H^Õ\\Ø\ÙJ
+NÂˆÛÛœÝXÛÙYHÝš[™Ë™œ›ÛPÚ\ÛÙJ\œÙR[
+›Ü›X[^™Y^MŠJNÂˆYˆ
+\Õ[œ™\Ù\™Y
+XÛÙY
+JHÂˆÝ]]ˆ
+ÏHXÛÙYÂˆH[ÙHÂˆÝ]]ˆ
+ÏH‰Hˆ
+È›Ü›X[^™Y^ÂˆBˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆBˆYˆ
+\Ô]Y\žQœ˜YÛY[Ú\˜XÝ\ŠÚ
+JHÂˆÝ]]ˆ
+ÏHÚÂˆH[ÙHÂˆÛÛœÝÛÙHH[œ]‹˜Ú\ÛÙP]
+JNÂˆYˆ
+ÛÙHLŽ
+HÂˆÝ]]ˆ
+ÏH\Ñ\ØØ\TØY™JÛÙJHÈÚˆ–UWÒVØÛÙWNÂˆH[ÙHYˆ
+ÛÙHMLŽMˆÛÙHˆMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJÛÙJNÂˆH[ÙHYˆ
+ÛÙHHMŒÌNH	‰ˆH
+ÈH[œ]‹›[™Ý
+HÂˆÛÛœÝÝÈH[œ]‹˜Ú\ÛÙP]
+H
+ÈJNÂˆYˆ
+ÝÈHMŒÌŒ	‰ˆÝÈHMÌÍÊHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÍˆ
+È
+ÛÙHHMLŽMˆL
+H
+È
+ÝÈHMŒÌŒ
+JNÂˆJÊÎÂˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆH[ÙHÂˆÝ]]ˆ
+ÏH\˜Ù[[˜ÛÙS›Û\ØÚZJMLÌÊNÂˆBˆBˆBˆ™]\›ˆÝ]]ŽÂˆBˆ[˜Ý[Ûˆ\ØØ\T™\Ù\š[™Ñ\ØØ\\Ê[œ]ŠHÂˆ]Ý]]ˆHˆŽÂˆ›Üˆ
+]HHÈH[œ]‹›[™ÝÈJÊÊHÂˆYˆ
+[œ]–ÚWHOOH‰Hˆ	‰ˆH
+Èˆ[œ]‹›[™Ý
+HÂˆÛÛœÝ^H[œ]‹œÛXÙJH
+ÈKH
+ÈÊNÂˆYˆ
+\Ò^Z\Š^
+JHÂˆÝ]]ˆ
+ÏH‰Hˆ
+È^Õ\\Ø\ÙJ
+NÂˆH
+ÏHŽÂˆÛÛ[YNÂˆBˆBˆÝ]]ˆ
+ÏH\ØØ\J[œ]–ÚWJNÂˆBˆ™]\›ˆÝ]]ŽÂˆBˆ[˜Ý[Ûˆ™XÛÛ\ÜÙP]]Üš]JÛÛ\Û™[
+HÂˆÛÛœÝ\šUÚÙ[œÈH×NÂˆYˆ
+ÛÛ\Û™[\Ù\š[™›ÈOOH›ÚY
+HÂˆ\šUÚÙ[œËœ\Ú
+[˜ÛÙU\Ù\š[™›ÊÛÛ\Û™[\Ù\š[™›ÊJNÂˆ\šUÚÙ[œËœ\Ú
+ŠNÂˆBˆYˆ
+ÛÛ\Û™[šÜÝOOH›ÚY
+HÂˆ]ÜÝHÛÛ\Û™[šÜÝÂˆYˆ
+Z\ÒT
+ÜÝ
+JHÂˆ]\œ™\ÈH›Ü›X[^™RTŠÜÝ
+NÂˆYˆ
+\œ™\Ëš\ÒTˆOOHYH	‰ˆ\œ™\Ëš\ÒT‘]\™HOOHYJHÂˆÜÝH›Ü›X[^™T\˜Ù[[˜ÛÙ[™ÊÜÝYJNÂˆ\œ™\ÈH›Ü›X[^™RTŠÜÝ
+NÂˆBˆYˆ
+\œ™\Ëš\ÒTˆOOHYH\œ™\Ëš\ÒT‘]\™HOOHYJHÂˆÜÝHÉÚ\œ™\Ë™\ØØ\YÜÝWXÂˆH[ÙHÂˆÜÝH™Y\ØØ\RÜÝ[[Z]\œÊÜÝ˜[ÙJNÂˆBˆBˆ\šUÚÙ[œËœ\Ú
+ÜÝ
+NÂˆBˆYˆ
+\[ÙˆÛÛ\Û™[œÜOOH›[X™\ˆˆ\[ÙˆÛÛ\Û™[œÜOOHœÝš[™ÈŠHÂˆÛÛœÝÜHÝš[™ÊÛÛ\Û™[œÜ
+NÂˆYˆ
+Z\ÔÜ
+Ü
+JHÂˆ›ÝÈ™]È\Q\œ›ÜŠ•T’HÜ\ÈX[›Ü›YYˆŠNÂˆBˆ\šUÚÙ[œËœ\Ú
+ŽˆŠNÂˆ\šUÚÙ[œËœ\Ú
+Ü
+NÂˆBˆ™]\›ˆ\šUÚÙ[œË›[™ÝÈ\šUÚÙ[œËš›Ú[ŠˆŠHˆ›ÚYÂˆBˆ[Ù[K™^ÜÈHÂˆ›Û”Ú[\QÛXZ[‹ˆ™XÛÛ\ÜÙP]]Üš]Kˆ™Y\ØØ\RÜÝ[[Z]\œËˆ›Ü›X[^™T\˜Ù[[˜ÛÙ[™Ëˆ›Ü›X[^™T][˜ÛÙ[™ËˆÙ\šX[^™T][˜ÛÙ[™Ëˆ›Ü›X[^™T]Y\žQœ˜YÛY[[˜ÛÙ[™Ëˆ[˜ÛÙU\Ù\š[™›Ëˆ[˜ÛÙT]Y\žKˆ[˜ÛÙQœ˜YÛY[ˆ\ØØ\T™\Ù\š[™Ñ\ØØ\\Ëˆ™[[Ý™QÝÙYÛY[Ëˆ\ÒTˆ\ÕURQˆ›Ü›X[^™RT‹ˆÝš[™Ð\œ˜^UÒ^Ýš\YˆNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËÙ˜\Ý]\šKÛX‹ÜØÚ[Y\ËšœÂ˜\ˆ™\]Z\™WÜØÚ[Y\ÈH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËÙ˜\Ý]\šKÛX‹ÜØÚ[Y\ËšœÈŠ^ÜË[Ù[JHÂˆ\ÙHÝšXÝŽÂˆ˜\ˆÈ\ÕURQHH™\]Z\™WÝ][Ê
+NÂˆ˜\ˆT“—Ô‘QÈH×Š×K^—V×XK^—^ÌÌ_JNŠ
+Î–×ÈI	Ê
+JŠËK‹ÎŽÏP_	V×KY—^ÌŸJJÊIÚ]NÂˆ˜\ˆÝ\ÜYØÚ[YS˜[Y\ÈH
+ˆÊŠˆ\HØÛÛœÝH
+‹ÂˆÂˆš‹ˆšÈ‹ˆÜÈ‹ˆÜÜÈ‹ˆ\›ˆ‹ˆ\›Ž]ZY‚ˆBˆ
+NÂˆ[˜Ý[Ûˆ\Õ˜[YØÚ[YS˜[YJ˜[YJHÂˆ™]\›ˆÝ\ÜYØÚ[YS˜[Y\Ëš[™^ÙŠˆÊŠˆ\HÊŸH
+‹Âˆ˜[YBˆ
+HOOHLNÂˆBˆ[˜Ý[ÛˆÜÒ\ÔÙXÝ\™JÜÐÛÛ\Û™[
+HÂˆYˆ
+ÜÐÛÛ\Û™[œÙXÝ\™HOOHYJHÂˆ™]\›ˆYNÂˆH[ÙHYˆ
+ÜÐÛÛ\Û™[œÙXÝ\™HOOH˜[ÙJHÂˆ™]\›ˆ˜[ÙNÂˆH[ÙHYˆ
+ÜÐÛÛ\Û™[œØÚ[YJHÂˆ™]\›ˆÜÐÛÛ\Û™[œØÚ[YK›[™ÝOOHÈ	‰ˆ
+ÜÐÛÛ\Û™[œØÚ[YVÌHOOHÈˆÜÐÛÛ\Û™[œØÚ[YVÌHOOH•ÈŠH	‰ˆ
+ÜÐÛÛ\Û™[œØÚ[YVÌWHOOHœÈˆÜÐÛÛ\Û™[œØÚ[YVÌWHOOH”ÈŠH	‰ˆ
+ÜÐÛÛ\Û™[œØÚ[YVÌ—HOOHœÈˆÜÐÛÛ\Û™[œØÚ[YVÌ—HOOH”ÈŠNÂˆH[ÙHÂˆ™]\›ˆ˜[ÙNÂˆBˆBˆ[˜Ý[Ûˆ\œÙJÛÛ\Û™[
+HÂˆYˆ
+XÛÛ\Û™[šÜÝ
+HÂˆÛÛ\Û™[™\œ›ÜˆHÛÛ\Û™[™\œ›Üˆ’T’\È]\Ý]™HHÜÝˆŽÂˆBˆ™]\›ˆÛÛ\Û™[ÂˆBˆ[˜Ý[ÛˆÙ\šX[^™JÛÛ\Û™[
+HÂˆÛÛœÝÙXÝ\™HHÝš[™ÊÛÛ\Û™[œØÚ[YJKÓÝÙ\Ø\ÙJ
+HOOHšÈŽÂˆYˆ
+ÛÛ\Û™[œÜOOH
+ÙXÝ\™HÈÈˆ
+HÛÛ\Û™[œÜOOHˆŠHÂˆÛÛ\Û™[œÜH›ÚYÂˆBˆYˆ
+XÛÛ\Û™[œ]
+HÂˆÛÛ\Û™[œ]H‹ÈŽÂˆBˆ™]\›ˆÛÛ\Û™[ÂˆBˆ[˜Ý[ÛˆÜÔ\œÙJÜÐÛÛ\Û™[
+HÂˆÜÐÛÛ\Û™[œÙXÝ\™HHÜÒ\ÔÙXÝ\™JÜÐÛÛ\Û™[
+NÂˆÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YHH
+ÜÐÛÛ\Û™[œ]‹ÈŠH
+È
+ÜÐÛÛ\Û™[œ]Y\žHÈÈˆ
+ÈÜÐÛÛ\Û™[œ]Y\žHˆˆŠNÂˆÜÐÛÛ\Û™[œ]H›ÚYÂˆÜÐÛÛ\Û™[œ]Y\žHH›ÚYÂˆ™]\›ˆÜÐÛÛ\Û™[ÂˆBˆ[˜Ý[ÛˆÜÔÙ\šX[^™JÜÐÛÛ\Û™[
+HÂˆYˆ
+ÜÐÛÛ\Û™[œÜOOH
+ÜÒ\ÔÙXÝ\™JÜÐÛÛ\Û™[
+HÈÈˆ
+HÜÐÛÛ\Û™[œÜOOHˆŠHÂˆÜÐÛÛ\Û™[œÜH›ÚYÂˆBˆYˆ
+\[ÙˆÜÐÛÛ\Û™[œÙXÝ\™HOOH˜›ÛÛX[ˆŠHÂˆÜÐÛÛ\Û™[œØÚ[YHHÜÐÛÛ\Û™[œÙXÝ\™HÈÜÜÈˆˆÜÈŽÂˆÜÐÛÛ\Û™[œÙXÝ\™HH›ÚYÂˆBˆYˆ
+ÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YJHÂˆÛÛœÝ]Y\žR[™^HÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YKš[™^ÙŠÈŠNÂˆÛÛœÝ]H]Y\žR[™^OOHLHÈÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YHˆÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YKœÛXÙJ]Y\žR[™^
+NÂˆÜÐÛÛ\Û™[œ]H]	‰ˆ]OOH‹ÈˆÈ]ˆ›ÚYÂˆÜÐÛÛ\Û™[œ]Y\žHH]Y\žR[™^OOHLHÈ›ÚYˆÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YKœÛXÙJ]Y\žR[™^
+ÈJNÂˆÜÐÛÛ\Û™[œ™\ÛÝ\˜ÙS˜[YHH›ÚYÂˆBˆÜÐÛÛ\Û™[™œ˜YÛY[H›ÚYÂˆ™]\›ˆÜÐÛÛ\Û™[ÂˆBˆ[˜Ý[Ûˆ\›”\œÙJ\›ÛÛ\Û™[Ü[ÛœÊHÂˆYˆ
+]\›ÛÛ\Û™[œ]
+HÂˆ\›ÛÛ\Û™[™\œ›ÜˆH•T“ˆØ[ˆ›Ý™H\œÙYŽÂˆ™]\›ˆ\›ÛÛ\Û™[ÂˆBˆÛÛœÝX]Ú\ÈH\›ÛÛ\Û™[œ]›X]Ú
+T“—Ô‘QÊNÂˆYˆ
+X]Ú\È	‰ˆX]Ú\ÖÌHOOH\›ÛÛ\Û™[œ]
+HÂˆÛÛœÝØÚ[YHHÜ[ÛœËœØÚ[YH\›ÛÛ\Û™[œØÚ[YH\›ˆŽÂˆ\›ÛÛ\Û™[›šYHX]Ú\ÖÌWKÓÝÙ\Ø\ÙJ
+NÂˆ\›ÛÛ\Û™[›œÜÈHX]Ú\ÖÌ—NÂˆÛÛœÝ\›”ØÚ[YHH	ÜØÚ[Y_N‰ÛÜ[ÛœË›šY\›ÛÛ\Û™[›šYXÂˆÛÛœÝØÚ[YR[™\ˆHÙ]ØÚ[YR[™\Š\›”ØÚ[YJNÂˆ\›ÛÛ\Û™[œ]H›ÚYÂˆYˆ
+ØÚ[YR[™\ŠHÂˆ\›ÛÛ\Û™[HØÚ[YR[™\‹œ\œÙJ\›ÛÛ\Û™[Ü[ÛœÊNÂˆBˆH[ÙHÂˆ\›ÛÛ\Û™[™\œ›ÜˆH\›ÛÛ\Û™[™\œ›Üˆ•T“ˆØ[ˆ›Ý™H\œÙYˆŽÂˆBˆ™]\›ˆ\›ÛÛ\Û™[ÂˆBˆ[˜Ý[Ûˆ\›”Ù\šX[^™J\›ÛÛ\Û™[Ü[ÛœÊHÂˆYˆ
+\›ÛÛ\Û™[›šYOOH›ÚY
+HÂˆ›ÝÈ™]È\œ›ÜŠ•T“ˆÚ]Ý]šYØ[››Ý™HÙ\šX[^™YŠNÂˆBˆÛÛœÝØÚ[YHHÜ[ÛœËœØÚ[YH\›ÛÛ\Û™[œØÚ[YH\›ˆŽÂˆÛÛœÝšYH\›ÛÛ\Û™[›šYÓÝÙ\Ø\ÙJ
+NÂˆÛÛœÝ\›”ØÚ[YHH	ÜØÚ[Y_N‰ÛÜ[ÛœË›šYšYXÂˆÛÛœÝØÚ[YR[™\ˆHÙ]ØÚ[YR[™\Š\›”ØÚ[YJNÂˆYˆ
+ØÚ[YR[™\ŠHÂˆ\›ÛÛ\Û™[HØÚ[YR[™\‹œÙ\šX[^™J\›ÛÛ\Û™[Ü[ÛœÊNÂˆBˆÛÛœÝ\šPÛÛ\Û™[H\›ÛÛ\Û™[ÂˆÛÛœÝœÜÈH\›ÛÛ\Û™[›œÜÎÂˆ\šPÛÛ\Û™[œ]H	ÛšYÜ[ÛœË›šYN‰ÛœÜßXÂˆÜ[ÛœËœÚÚ\\ØØ\HHYNÂˆ™]\›ˆ\šPÛÛ\Û™[ÂˆBˆ[˜Ý[Ûˆ\›]ZY\œÙJ\›ÛÛ\Û™[Ü[ÛœÊHÂˆÛÛœÝ]ZYÛÛ\Û™[H\›ÛÛ\Û™[Âˆ]ZYÛÛ\Û™[]ZYH]ZYÛÛ\Û™[›œÜÎÂˆ]ZYÛÛ\Û™[›œÜÈH›ÚYÂˆYˆ
+[Ü[ÛœËÛ\˜[	‰ˆ
+]]ZYÛÛ\Û™[]ZYZ\ÕURQ
+]ZYÛÛ\Û™[]ZY
+JJHÂˆ]ZYÛÛ\Û™[™\œ›ÜˆH]ZYÛÛ\Û™[™\œ›Üˆ•URQ\È›Ý˜[YˆŽÂˆBˆ™]\›ˆ]ZYÛÛ\Û™[ÂˆBˆ[˜Ý[Ûˆ\›]ZYÙ\šX[^™J]ZYÛÛ\Û™[
+HÂˆÛÛœÝ\›ÛÛ\Û™[H]ZYÛÛ\Û™[Âˆ\›ÛÛ\Û™[›œÜÈH
+]ZYÛÛ\Û™[]ZYˆŠKÓÝÙ\Ø\ÙJ
+NÂˆ™]\›ˆ\›ÛÛ\Û™[ÂˆBˆ˜\ˆH
+ˆÊŠˆ\HÔØÚ[YR[™\ŸH
+‹ÂˆÂˆØÚ[YNˆš‹ˆÛXZ[’ÜÝˆYKˆ\œÙNˆ\œÙKˆÙ\šX[^™NˆÙ\šX[^™BˆBˆ
+NÂˆ˜\ˆÈH
+ˆÊŠˆ\HÔØÚ[YR[™\ŸH
+‹ÂˆÂˆØÚ[YNˆšÈ‹ˆÛXZ[’ÜÝˆ™ÛXZ[’ÜÝˆ\œÙNˆ\œÙKˆÙ\šX[^™NˆÙ\šX[^™BˆBˆ
+NÂˆ˜\ˆÜÈH
+ˆÊŠˆ\HÔØÚ[YR[™\ŸH
+‹ÂˆÂˆØÚ[YNˆÜÈ‹ˆÛXZ[’ÜÝˆYKˆ\œÙNˆÜÔ\œÙKˆÙ\šX[^™NˆÜÔÙ\šX[^™BˆBˆ
+NÂˆ˜\ˆÜÜÈH
+ˆÊŠˆ\HÔØÚ[YR[™\ŸH
+‹ÂˆÂˆØÚ[YNˆÜÜÈ‹ˆÛXZ[’ÜÝˆÜË™ÛXZ[’ÜÝˆ\œÙNˆÜËœ\œÙKˆÙ\šX[^™NˆÜËœÙ\šX[^™BˆBˆ
+NÂˆ˜\ˆ\›ˆH
+ˆÊŠˆ\HÔØÚ[YR[™\ŸH
+‹ÂˆÂˆØÚ[YNˆ\›ˆ‹ˆ\œÙNˆ\›”\œÙKˆÙ\šX[^™Nˆ\›”Ù\šX[^™KˆÚÚ\›Ü›X[^™NˆYBˆBˆ
+NÂˆ˜\ˆ\›]ZYH
+ˆÊŠˆ\HÔØÚ[YR[™\ŸH
+‹ÂˆÂˆØÚ[YNˆ\›Ž]ZY‹ˆ\œÙNˆ\›]ZY\œÙKˆÙ\šX[^™Nˆ\›]ZYÙ\šX[^™KˆÚÚ\›Ü›X[^™NˆYBˆBˆ
+NÂˆ˜\ˆÐÒSQTÈH
+ˆÊŠˆ\HÔ™XÛÜ™ØÚ[YS˜[YKØÚ[YR[™\ŸH
+‹ÂˆÂˆˆËˆÜËˆÜÜËˆ\›‹ˆ\›Ž]ZYŽˆ\›]ZYˆBˆ
+NÂˆØš™XÝœÙ]›ÝÝ\SÙŠÐÒSQTË[
+NÂˆ[˜Ý[ÛˆÙ]ØÚ[YR[™\ŠØÚ[YJHÂˆ™]\›ˆØÚ[YH	‰ˆ
+ÐÒSQTÖÂˆÊŠˆ\HÔØÚ[YS˜[Y_H
+‹ÂˆØÚ[YBˆHÐÒSQTÖÂˆÊŠˆ\HÔØÚ[YS˜[Y_H
+‹ÂˆØÚ[YKÓÝÙ\Ø\ÙJ
+BˆJH›ÚYÂˆBˆ[Ù[K™^ÜÈHÂˆÜÒ\ÔÙXÝ\™KˆÐÒSQTËˆ\Õ˜[YØÚ[YS˜[YKˆÙ]ØÚ[YR[™\‚ˆNÂˆBŸJNÂ‚‹ËÈ›ÙWÛ[Ù[\ËÙ˜\Ý]\šKÚ[™^šœÂ˜\ˆ™\]Z\™WÙ˜\ÝÝ\šHH×ØÛÛ[[Û’”ÊÂˆ››ÙWÛ[Ù[\ËÙ˜\Ý]\šKÚ[™^šœÈŠ^ÜË[Ù[JHÂˆ\ÙHÝšXÝŽÂˆ˜\ˆÈ›Ü›X[^™RT‹™[[Ý™QÝÙYÛY[Ë™XÛÛ\ÜÙP]]Üš]K›Ü›X[^™T\˜Ù[[˜ÛÙ[™Ë›Ü›X[^™T][˜ÛÙ[™ËÙ\šX[^™T][˜ÛÙ[™Ë›Ü›X[^™T]Y\žQœ˜YÛY[[˜ÛÙ[™Ë[˜ÛÙT]Y\žK[˜ÛÙQœ˜YÛY[™Y\ØØ\RÜÝ[[Z]\œË\ÒT›Û”Ú[\QÛXZ[ˆHH™\]Z\™WÝ][Ê
+NÂˆ˜\ˆÈÐÒSQTËÙ]ØÚ[YR[™\ˆHH™\]Z\™WÜØÚ[Y\Ê
+NÂˆ˜\ˆSQÔÐÒSQHH×–ÐKV˜K^—VÐKV˜K^ŒNJË‹WJ‰ÝNÂˆ˜\ˆPS“Ô“QQÔÐÒSQWÑT”“ÔˆH•T’HØÚ[YH\ÈX[›Ü›YYˆŽÂˆ[˜Ý[ÛˆXÛÙU˜[YØÚ[YJØÚ[YJHÂˆÛÛœÝXÛÙYØÚ[YHH[™\ØØ\JÝš[™ÊØÚ[YJJNÂˆYˆ
+USQÔÐÒSQK\Ý
+XÛÙYØÚ[YJJHÂˆ›ÝÈ™]È\Q\œ›ÜŠPS“Ô“QQÔÐÒSQWÑT”“ÔŠNÂˆBˆ™]\›ˆXÛÙYØÚ[YNÂˆBˆ[˜Ý[Ûˆ›Ü›X[^™J\šKÜ[ÛœÊHÂˆYˆ
+\[Ùˆ\šHOOHœÝš[™ÈŠHÂˆ\šHHÊŠˆ\HÕH
+‹Âˆ›Ü›X[^™TÝš[™Ê\šKÜ[ÛœÊNÂˆH[ÙHYˆ
+\[Ùˆ\šHOOH›Øš™XÝŠHÂˆ\šHHÊŠˆ\HÕH
+‹Âˆ\œÙJÙ\šX[^™J\šKÜ[ÛœÊKÜ[ÛœÊNÂˆBˆ™]\›ˆ\šNÂˆBˆ[˜Ý[Ûˆ™\ÛÛ™J˜\ÙUT’K™[]]™UT’KÜ[ÛœÊHÂˆÛÛœÝØÚ[Y[\ÜÓÜ[ÛœÈHÜ[ÛœÈÈØš™XÝ˜\ÜÚYÛŠÈØÚ[YNˆ›[ˆKÜ[ÛœÊHˆÈØÚ[YNˆ›[ˆNÂˆÛÛœÝÂˆ\œÙYˆ˜\ÙT\œÙYˆX[›Ü›YY]]Üš]SÜ”Üˆ˜\ÙSX[›Ü›YYˆX[›Ü›YY\˜Ù[[˜ÛÙ[™Îˆ˜\ÙSX[›Ü›YY\˜Ù[[˜ÛÙ[™ËˆX[›Ü›YYØÚ[YTÜXÚYšXÎˆ˜\ÙSX[›Ü›YYØÚ[YTÜXÚYšXËˆX[›Ü›YYÜÝˆ˜\ÙSX[›Ü›YYÜÝˆX[›Ü›YYØÚ[YNˆ˜\ÙSX[›Ü›YYØÚ[YBˆHH\œÙUÚ]Ý]\Ê˜\ÙUT’KØÚ[Y[\ÜÓÜ[ÛœÊNÂˆÛÛœÝÂˆ\œÙYˆ™[]]™T\œÙYˆX[›Ü›YY]]Üš]SÜ”Üˆ™[]]™SX[›Ü›YYˆX[›Ü›YY\˜Ù[[˜ÛÙ[™Îˆ™[]]™SX[›Ü›YY\˜Ù[[˜ÛÙ[™ËˆX[›Ü›YYØÚ[YTÜXÚYšXÎˆ™[]]™SX[›Ü›YYØÚ[YTÜXÚYšXËˆX[›Ü›YYÜÝˆ™[]]™SX[›Ü›YYÜÝˆX[›Ü›YYØÚ[YNˆ™[]]™SX[›Ü›YYØÚ[YBˆHH\œÙUÚ]Ý]\Ê™[]]™UT’KØÚ[Y[\ÜÓÜ[ÛœÊNÂˆYˆ
+˜\ÙSX[›Ü›YY™[]]™SX[›Ü›YY˜\ÙSX[›Ü›YY\˜Ù[[˜ÛÙ[™È™[]]™SX[›Ü›YY\˜Ù[[˜ÛÙ[™È˜\ÙSX[›Ü›YYØÚ[YTÜXÚYšXÈ™[]]™SX[›Ü›YYØÚ[YTÜXÚYšXÈ˜\ÙSX[›Ü›YYÜÝ™[]]™SX[›Ü›YYÜÝ˜\ÙSX[›Ü›YYØÚ[YH™[]]™SX[›Ü›YYØÚ[YJHÂˆ›ÝÈ™]È\œ›ÜŠ˜\ÙT\œÙY™\œ›Üˆ™[]]™T\œÙY™\œ›Üˆ•T’H\ÈX[›Ü›YYˆŠNÂˆBˆÛÛœÝ™\ÛÛ™YH™\ÛÛ™PÛÛ\Û™[
+˜\ÙT\œÙY™[]]™T\œÙYØÚ[Y[\ÜÓÜ[ÛœËYJNÂˆÛÛœÝ™\ÛÛ™YØÚ[YR[™\ˆHÙ]ØÚ[YR[™\ŠÜ[ÛœÈ	‰ˆÜ[ÛœËœØÚ[YH™\ÛÛ™YœØÚ[YJNÂˆÛÛœÝ™\ÛÛ™YÜÝH™\ÛÛ™YšÜÝÂˆÛÛœÝ™\ÛÛ™YÜÝ\ÒTH™\ÛÛ™YÜÝOOH›ÚY	‰ˆ™\ÛÛ™YÜÝOOHˆˆ	‰ˆ
+\ÒT
+™\ÛÛ™YÜÝ
+H›Ü›X[^™RTŠ™\ÛÛ™YÜÝ
+Kš\ÒTŠNÂˆØ[›ÛšXØ[^™RÜÝ
+™\ÛÛ™YÜ[ÛœÈßK™\ÛÛ™YØÚ[YR[™\‹™\ÛÛ™YÜÝ\ÒT
+NÂˆÛÛœÝ[˜ÛÙYTÐÒRRÜÝH™\ÛÛ™YÜÝ	‰ˆ™\ÛÛ™YÜÝš[™^ÙŠ‰HŠHOOHLH	‰ˆ[™]È™YÑ^
+—ÐTÐÒR_H‹HŠK\Ý
+™\ÛÛ™YÜÝ
+NÂˆYˆ
+™\ÛÛ™Y™\œ›Üˆ	‰ˆY[˜ÛÙYTÐÒRRÜÝ
+HÂˆ›ÝÈ™]È\œ›ÜŠ™\ÛÛ™Y™\œ›ÜŠNÂˆBˆØÚ[Y[\ÜÓÜ[ÛœËœÚÚ\\ØØ\HHYNÂˆ™]\›ˆÙ\šX[^™J™\ÛÛ™YØÚ[Y[\ÜÓÜ[ÛœÊNÂˆBˆ[˜Ý[Ûˆ™\ÛÛ™PÛÛ\Û™[
+˜\ÙK™[]]™KÜ[ÛœËÚÚ\›Ü›X[^˜][ÛŠHÂˆÛÛœÝ\™Ù]HßNÂˆYˆ
+\ÚÚ\›Ü›X[^˜][ÛŠHÂˆ˜\ÙHH\œÙJÙ\šX[^™J˜\ÙKÜ[ÛœÊKÜ[ÛœÊNÂˆ™[]]™HH\œÙJÙ\šX[^™J™[]]™KÜ[ÛœÊKÜ[ÛœÊNÂˆBˆÜ[ÛœÈHÜ[ÛœÈßNÂˆYˆ
+[Ü[ÛœËÛ\˜[	‰ˆ™[]]™KœØÚ[YJHÂˆ\™Ù]œØÚ[YHH™[]]™KœØÚ[YNÂˆ\™Ù]\Ù\š[™›ÈH™[]]™K\Ù\š[™›ÎÂˆ\™Ù]šÜÝH™[]]™KšÜÝÂˆ\™Ù]œÜH™[]]™KœÜÂˆ\™Ù]œ]H™[[Ý™QÝÙYÛY[Ê™[]]™Kœ]ˆŠNÂˆ\™Ù]œ]Y\žHH™[]]™Kœ]Y\žNÂˆH[ÙHÂˆYˆ
+™[]]™K\Ù\š[™›ÈOOH›ÚY™[]]™KšÜÝOOH›ÚY™[]]™KœÜOOH›ÚY
+HÂˆ\™Ù]\Ù\š[™›ÈH™[]]™K\Ù\š[™›ÎÂˆ\™Ù]šÜÝH™[]]™KšÜÝÂˆ\™Ù]œÜH™[]]™KœÜÂˆ\™Ù]œ]H™[[Ý™QÝÙYÛY[Ê™[]]™Kœ]ˆŠNÂˆ\™Ù]œ]Y\žHH™[]]™Kœ]Y\žNÂˆH[ÙHÂˆYˆ
+\™[]]™Kœ]
+HÂˆ\™Ù]œ]H˜\ÙKœ]ÂˆYˆ
+™[]]™Kœ]Y\žHOOH›ÚY
+HÂˆ\™Ù]œ]Y\žHH™[]]™Kœ]Y\žNÂˆH[ÙHÂˆ\™Ù]œ]Y\žHH˜\ÙKœ]Y\žNÂˆBˆH[ÙHÂˆYˆ
+™[]]™Kœ]ÌHOOH‹ÈŠHÂˆ\™Ù]œ]H™[[Ý™QÝÙYÛY[Ê™[]]™Kœ]
+NÂˆH[ÙHÂˆYˆ
+
+˜\ÙK\Ù\š[™›ÈOOH›ÚY˜\ÙKšÜÝOOH›ÚY˜\ÙKœÜOOH›ÚY
+H	‰ˆX˜\ÙKœ]
+HÂˆ\™Ù]œ]H‹Èˆ
+È™[]]™Kœ]ÂˆH[ÙHYˆ
+X˜\ÙKœ]
+HÂˆ\™Ù]œ]H™[]]™Kœ]ÂˆH[ÙHÂˆ\™Ù]œ]H˜\ÙKœ]œÛXÙJ˜\ÙKœ]›\Ý[™^ÙŠ‹ÈŠH
+ÈJH
+È™[]]™Kœ]ÂˆBˆ\™Ù]œ]H™[[Ý™QÝÙYÛY[Ê\™Ù]œ]
+NÂˆBˆ\™Ù]œ]Y\žHH™[]]™Kœ]uó<¶‰žËkºwµçT—FV×2"À¢G—S¢&'&’"À¢66†VÖG—S¢&&ööÆVâ"À¢FFF¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂFFÂFFFÂ66†VÖÂ&VçE66†VÖÂ66†VÖ6öFRÂ—BÒÒ7‡C°¢–b‚FFFbb66†VÖ¢&WGW&ã°¢6öç7BfÆ–BÒvVâæÆWB‚'fÆ–B"“°¢6öç7B—FVÕG—W2Ò&VçE66†VÖæ—FV×2òƒÂFFG—UóævWE66†VÖG—W2’‡&VçE66†VÖæ—FV×2’¢µÓ°¢7‡Bæ&Æö6²FFF‡fÆ–BÂfÆ–FFUVæ—VT—FV×2ÂƒÂ6öFVvVåóåò–G·66†VÖ6öFWÒÓÓÒfÇ6V“°¢7‡Bæö²‡fÆ–B“°¢gVæ7F–öâfÆ–FFUVæ—VT—FV×2‚’°¢6öç7B’ÒvVâæÆWB‚&’"ÂƒÂ6öFVvVåóåò–G¶FFÒæÆVæwF†“°¢6öç7B¢ÒvVâæÆWB‚&¢"“°¢7‡Bç6WE&×2‡²’Â¢Ò“°¢vVâæ76–vâ‡fÆ–BÂG'VR“°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶—ÒâÂ‚’Óâ†6ä÷F–Ö—¦R‚’òÆö÷â¢Æö÷ã"’†’Â¢’“°¢Ð¢gVæ7F–öâ6ä÷F–Ö—¦R‚’°¢&WGW&â—FVÕG—W2æÆVæwF‚âbb—FVÕG—W2ç6öÖR‚‡B’ÓâBÓÓÒ&ö&¦V7B"ÇÂBÓÓÒ&'&’"“°¢Ð¢gVæ7F–öâÆö÷â†’Â¢’°¢6öç7B—FVÒÒvVâææÖR‚&—FVÒ"“°¢6öç7Bw&öæuG—RÒƒÂFFG—Uóæ6†V6´FFG—W2’†—FVÕG—W2Â—FVÒÂ—Bæ÷G2ç7G&–7DçVÖ&W'2ÂFFG—UóäFFG—Råw&öær“°¢6öç7B–æF–6W2ÒvVâæ6öç7B‚&–æF–6W2"ÂƒÂ6öFVvVåóåò–·Ö“°¢vVâæf÷"‚ƒÂ6öFVvVåóåò–²G¶—ÒÒÓ¶Â‚’Óâ°¢vVâæÆWB†—FVÒÂƒÂ6öFVvVåóåò–G¶FFÕ²G¶—ÕÖ“°¢vVâæ–b‡w&öæuG—RÂƒÂ6öFVvVåóåò–6öçF–çVV“°¢–b†—FVÕG—W2æÆVæwF‚â¢vVâæ–b‚ƒÂ6öFVvVåóåò–G—VöbG¶—FV×ÒÓÒ'7G&–ær&ÂƒÂ6öFVvVåóåò–G¶—FV×Ò³Ò%ò&“°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G—VöbG¶–æF–6W7Õ²G¶—FV×ÕÒÓÒ&çVÖ&W"&Â‚’Óâ°¢vVâæ76–vâ†¢ÂƒÂ6öFVvVåóåò–G¶–æF–6W7Õ²G¶—FV×ÕÖ“°¢7‡BæW'&÷"‚“°¢vVâæ76–vâ‡fÆ–BÂfÇ6R’æ'&V²‚“°¢Ò’æ6öFR‚ƒÂ6öFVvVåóåò–G¶–æF–6W7Õ²G¶—FV×ÕÒÒG¶—Ö“°¢Ò“°¢Ð¢gVæ7F–öâÆö÷ã"†’Â¢’°¢6öç7BWÂÒƒÂWF–ÅóçW6TgVæ2’†vVâÂWVÅóæFVfVÇB“°¢6öç7B÷WFW"ÒvVâææÖR‚&÷WFW""“°¢vVâæÆ&VÂ†÷WFW"’æf÷"‚ƒÂ6öFVvVåóåò–²G¶—ÒÒÓ¶Â‚’ÓâvVâæf÷"‚ƒÂ6öFVvVåóåò–G¶§ÒÒG¶—Ó²G¶§ÒÒÓ¶Â‚’ÓâvVâæ–b‚ƒÂ6öFVvVåóåò–G¶WÇÒ‚G¶FFÕ²G¶—ÕÒÂG¶FFÕ²G¶§ÕÒ–Â‚’Óâ°¢7‡BæW'&÷"‚“°¢vVâæ76–vâ‡fÆ–BÂfÇ6R’æ'&V²†÷WFW"“°¢Ò’’“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâö6öç7Bæ§0§f"&WV—&Uö6öç7BÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâö6öç7Bæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"WVÅóÒ&WV—&UöWVÂ‚“°¢f"W'&÷"Ò°¢ÖW76vS¢&×W7B&RWVÂFò6öç7FçB"À¢&×3¢‡²66†VÖ6öFRÒ’ÓâƒÂ6öFVvVåóåò–¶ÆÆ÷vVEfÇVS¢G·66†VÖ6öFW×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&6öç7B"À¢FFF¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂFFÂFFFÂ66†VÖ6öFRÂ66†VÖÒÒ7‡C°¢–b‚FFFÇÂ66†VÖbbG—Vöb66†VÖÓÒ&ö&¦V7B"’°¢7‡Bæf–ÂFFF‚ƒÂ6öFVvVåóåò–G²ƒÂWF–ÅóçW6TgVæ2’†vVâÂWVÅóæFVfVÇB—Ò‚G¶FFÒÂG·66†VÖ6öFWÒ–“°¢ÒVÇ6R°¢7‡Bæf–Â‚ƒÂ6öFVvVåóåò–G·66†VÖÒÓÒG¶FFÖ“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâöVçVÒæ§0§f"&WV—&UöVçVÒÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâöVçVÒæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"WVÅóÒ&WV—&UöWVÂ‚“°¢f"W'&÷"Ò°¢ÖW76vS¢&×W7B&RWVÂFòöæRöbF†RÆÆ÷vVBfÇVW2"À¢&×3¢‡²66†VÖ6öFRÒ’ÓâƒÂ6öFVvVåóåò–¶ÆÆ÷vVEfÇVW3¢G·66†VÖ6öFW×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&VçVÒ"À¢66†VÖG—S¢&'&’"À¢FFF¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂFFÂFFFÂ66†VÖÂ66†VÖ6öFRÂ—BÒÒ7‡C°¢–b‚FFFbb66†VÖæÆVæwF‚ÓÓÒ¢F‡&÷ræWrW'&÷"‚&VçVÒ×W7B†fRæöâÖV×G’'&’"“°¢6öç7BW6TÆö÷Ò66†VÖæÆVæwF‚ãÒ—Bæ÷G2æÆö÷VçVÓ°¢ÆWBWÃ°¢6öç7BvWDWÂÒ‚’ÓâWÂÓÒçVÆÂbbWÂÓÒfö–BòWÂ¢WÂÒƒÂWF–ÅóçW6TgVæ2’†vVâÂWVÅóæFVfVÇB“°¢ÆWBfÆ–C°¢–b‡W6TÆö÷ÇÂFFF’°¢fÆ–BÒvVâæÆWB‚'fÆ–B"“°¢7‡Bæ&Æö6²FFF‡fÆ–BÂÆö÷VçVÒ“°¢ÒVÇ6R°¢–b‚'&’æ—4'&’‡66†VÖ’¢F‡&÷ræWrW'&÷"‚&§b–×ÆVÖVçFF–öâW'&÷""“°¢6öç7Be66†VÖÒvVâæ6öç7B‚'e66†VÖ"Â66†VÖ6öFR“°¢fÆ–BÒƒÂ6öFVvVåóæ÷"’‚ââç66†VÖæÖ‚…÷‚Â’’ÓâWVÄ6öFR‡e66†VÖÂ’’’“°¢Ð¢7‡Bç72‡fÆ–B“°¢gVæ7F–öâÆö÷VçVÒ‚’°¢vVâæ76–vâ‡fÆ–BÂfÇ6R“°¢vVâæf÷$öb‚'b"Â66†VÖ6öFRÂ‡b’ÓâvVâæ–b‚ƒÂ6öFVvVåóåò–G¶vWDWÂ‚—Ò‚G¶FFÒÂG·gÒ–Â‚’ÓâvVâæ76–vâ‡fÆ–BÂG'VR’æ'&V²‚’’“°¢Ð¢gVæ7F–öâWVÄ6öFR‡e66†VÖÂ’’°¢6öç7B66‚Ò66†VÖ¶•Ó°¢&WGW&âG—Vöb66‚ÓÓÒ&ö&¦V7B"bb66‚ÓÒçVÆÂòƒÂ6öFVvVåóåò–G¶vWDWÂ‚—Ò‚G¶FFÒÂG·e66†VÖÕ²G¶—ÕÒ–¢ƒÂ6öFVvVåóåò–G¶FFÒÓÓÒG·66‡Ö°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâö–æFW‚æ§0§f"&WV—&U÷fÆ–FF–öâÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"Æ–Ö—DçVÖ&W%óÒ&WV—&UöÆ–Ö—DçVÖ&W"‚“°¢f"×VÇF—ÆTöeóÒ&WV—&Uö×VÇF—ÆTöb‚“°¢f"Æ–Ö—DÆVæwF…óÒ&WV—&UöÆ–Ö—DÆVæwF‚‚“°¢f"GFW&åóÒ&WV—&U÷GFW&â‚“°¢f"Æ–Ö—E&÷W'F–W5óÒ&WV—&UöÆ–Ö—E&÷W'F–W2‚“°¢f"&WV—&VEóÒ&WV—&U÷&WV—&VB‚“°¢f"Æ–Ö—D—FV×5óÒ&WV—&UöÆ–Ö—D—FV×2‚“°¢f"Væ—VT—FV×5óÒ&WV—&U÷Væ—VT—FV×2‚“°¢f"6öç7EóÒ&WV—&Uö6öç7B‚“°¢f"VçVÕóÒ&WV—&UöVçVÒ‚“°¢f"fÆ–FF–öâÒ°¢òòçVÖ&W ¢Æ–Ö—DçVÖ&W%óæFVfVÇBÀ¢×VÇF—ÆTöeóæFVfVÇBÀ¢òò7G&–æp¢Æ–Ö—DÆVæwF…óæFVfVÇBÀ¢GFW&åóæFVfVÇBÀ¢òòö&¦V7@¢Æ–Ö—E&÷W'F–W5óæFVfVÇBÀ¢&WV—&VEóæFVfVÇBÀ¢òò'&¢Æ–Ö—D—FV×5óæFVfVÇBÀ¢Væ—VT—FV×5óæFVfVÇBÀ¢òòç¢²¶W—v÷&C¢'G—R"Â66†VÖG—S¢²'7G&–ær"Â&'&’%ÒÒÀ¢²¶W—v÷&C¢&çVÆÆ&ÆR"Â66†VÖG—S¢&&ööÆVâ"ÒÀ¢6öç7EóæFVfVÇBÀ¢VçVÕóæFVfVÇ@¢Ó°¢W‡÷'G2æFVfVÇBÒfÆ–FF–öã°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFF—F–öæÄ—FV×2æ§0§f"&WV—&UöFF—F–öæÄ—FV×2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFF—F–öæÄ—FV×2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2çfÆ–FFTFF—F–öæÄ—FV×2Òfö–B°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²&×3¢²ÆVâÒÒ’ÓâƒÂ6öFVvVåóç7G"–×W7BäõB†fRÖ÷&RF†âG¶ÆVçÒ—FV×6À¢&×3¢‡²&×3¢²ÆVâÒÒ’ÓâƒÂ6öFVvVåóåò–¶Æ–Ö—C¢G¶ÆVç×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&FF—F–öæÄ—FV×2"À¢G—S¢&'&’"À¢66†VÖG—S¢²&&ööÆVâ"Â&ö&¦V7B%ÒÀ¢&Vf÷&S¢'Væ—VT—FV×2"À¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²&VçE66†VÖÂ—BÒÒ7‡C°¢6öç7B²—FV×3¢—FV×3"ÒÒ&VçE66†VÖ°¢–b‚'&’æ—4'&’†—FV×3"’’°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂr&FF—F–öæÄ—FV×2"—2–væ÷&VBv†Vâ&—FV×2"—2æ÷Bâ'&’öb66†VÖ2r“°¢&WGW&ã°¢Ð¢fÆ–FFTFF—F–öæÄ—FV×2†7‡BÂ—FV×3"“°¢Ð¢Ó°¢gVæ7F–öâfÆ–FFTFF—F–öæÄ—FV×2†7‡BÂ—FV×3"’°¢6öç7B²vVâÂ66†VÖÂFFÂ¶W—v÷&BÂ—BÒÒ7‡C°¢—Bæ—FV×2ÒG'VS°¢6öç7BÆVâÒvVâæ6öç7B‚&ÆVâ"ÂƒÂ6öFVvVåóåò–G¶FFÒæÆVæwF†“°¢–b‡66†VÖÓÓÒfÇ6R’°¢7‡Bç6WE&×2‡²ÆVã¢—FV×3"æÆVæwF‚Ò“°¢7‡Bç72‚ƒÂ6öFVvVåóåò–G¶ÆVçÒÃÒG¶—FV×3"æÆVæwF‡Ö“°¢ÒVÇ6R–b‡G—Vöb66†VÖÓÒ&ö&¦V7B"bbƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’’°¢6öç7BfÆ–BÒvVâçf"‚'fÆ–B"ÂƒÂ6öFVvVåóåò–G¶ÆVçÒÃÒG¶—FV×3"æÆVæwF‡Ö“°¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâfÆ–FFT—FV×2‡fÆ–B’“°¢7‡Bæö²‡fÆ–B“°¢Ð¢gVæ7F–öâfÆ–FFT—FV×2‡fÆ–B’°¢vVâæf÷%&ævR‚&’"Â—FV×3"æÆVæwF‚ÂÆVâÂ†’’Óâ°¢7‡Bç7V'66†VÖ‡²¶W—v÷&BÂFF&÷¢’ÂFF&÷G—S¢WF–ÅóåG—RäçVÒÒÂfÆ–B“°¢–b‚—BæÆÄW'&÷'2¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâvVâæ'&V²‚’“°¢Ò“°¢Ð¢Ð¢W‡÷'G2çfÆ–FFTFF—F–öæÄ—FV×2ÒfÆ–FFTFF—F–öæÄ—FV×3°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö—FV×2æ§0§f"&WV—&Uö—FV×2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö—FV×2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2çfÆ–FFUGWÆRÒfö–B°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢f"FVbÒ°¢¶W—v÷&C¢&—FV×2"À¢G—S¢&'&’"À¢66†VÖG—S¢²&ö&¦V7B"Â&'&’"Â&&ööÆVâ%ÒÀ¢&Vf÷&S¢'Væ—VT—FV×2"À¢6öFR†7‡B’°¢6öç7B²66†VÖÂ—BÒÒ7‡C°¢–b„'&’æ—4'&’‡66†VÖ’¢&WGW&âfÆ–FFUGWÆR†7‡BÂ&FF—F–öæÄ—FV×2"Â66†VÖ“°¢—Bæ—FV×2ÒG'VS°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’¢&WGW&ã°¢7‡Bæö²‚ƒÂ6öFUóçfÆ–FFT'&’’†7‡B’“°¢Ð¢Ó°¢gVæ7F–öâfÆ–FFUGWÆR†7‡BÂW‡G&—FV×2Â66„'"Ò7‡Bç66†VÖ’°¢6öç7B²vVâÂ&VçE66†VÖÂFFÂ¶W—v÷&BÂ—BÒÒ7‡C°¢6†V6µ7G&–7EGWÆR‡&VçE66†VÖ“°¢–b†—Bæ÷G2çVæWfÇVFVBbb66„'"æÆVæwF‚bb—Bæ—FV×2ÓÒG'VR’°¢—Bæ—FV×2ÒWF–ÅóæÖW&vTWfÇVFVBæ—FV×2†vVâÂ66„'"æÆVæwF‚Â—Bæ—FV×2“°¢Ð¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢6öç7BÆVâÒvVâæ6öç7B‚&ÆVâ"ÂƒÂ6öFVvVåóåò–G¶FFÒæÆVæwF†“°¢66„'"æf÷$V6‚‚‡66‚Â’’Óâ°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66‚’¢&WGW&ã°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶ÆVçÒâG¶—ÖÂ‚’Óâ7‡Bç7V'66†VÖ‡°¢¶W—v÷&BÀ¢66†VÖ&÷¢’À¢FF&÷¢¢ÒÂfÆ–B’“°¢7‡Bæö²‡fÆ–B“°¢Ò“°¢gVæ7F–öâ6†V6µ7G&–7EGWÆR‡66‚’°¢6öç7B²÷G2ÂW'%66†VÖF‚ÒÒ—C°¢6öç7BÂÒ66„'"æÆVæwFƒ°¢6öç7BgVÆÅGWÆRÒÂÓÓÒ66‚æÖ–ä—FV×2bb†ÂÓÓÒ66‚æÖ„—FV×2ÇÂ66…¶W‡G&—FV×5ÒÓÓÒfÇ6R“°¢–b†÷G2ç7G&–7EGWÆW2bbgVÆÅGWÆR’°¢6öç7B×6rÒ"G¶¶W—v÷&GÒ"—2G¶ÇÒ×GWÆRÂ'WBÖ–ä—FV×2÷"Ö„—FV×2òG¶W‡G&—FV×7Ò&Ræ÷B7V6–f–VB÷"F–ffW&VçBBF‚"G¶W'%66†VÖF‡Ò&°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂ×6rÂ÷G2ç7G&–7EGWÆW2“°¢Ð¢Ð¢Ð¢W‡÷'G2çfÆ–FFUGWÆRÒfÆ–FFUGWÆS°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷&Vf—„—FV×2æ§0§f"&WV—&U÷&Vf—„—FV×2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷&Vf—„—FV×2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"—FV×5óÒ&WV—&Uö—FV×2‚“°¢f"FVbÒ°¢¶W—v÷&C¢'&Vf—„—FV×2"À¢G—S¢&'&’"À¢66†VÖG—S¢²&'&’%ÒÀ¢&Vf÷&S¢'Væ—VT—FV×2"À¢6öFS¢†7‡B’ÓâƒÂ—FV×5óçfÆ–FFUGWÆR’†7‡BÂ&—FV×2"¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö—FV×3##æ§0§f"&WV—&Uö—FV×3##Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö—FV×3##æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢f"FF—F–öæÄ—FV×5óÒ&WV—&UöFF—F–öæÄ—FV×2‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²&×3¢²ÆVâÒÒ’ÓâƒÂ6öFVvVåóç7G"–×W7BäõB†fRÖ÷&RF†âG¶ÆVçÒ—FV×6À¢&×3¢‡²&×3¢²ÆVâÒÒ’ÓâƒÂ6öFVvVåóåò–¶Æ–Ö—C¢G¶ÆVç×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&—FV×2"À¢G—S¢&'&’"À¢66†VÖG—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&Vf÷&S¢'Væ—VT—FV×2"À¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²66†VÖÂ&VçE66†VÖÂ—BÒÒ7‡C°¢6öç7B²&Vf—„—FV×2ÒÒ&VçE66†VÖ°¢—Bæ—FV×2ÒG'VS°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’¢&WGW&ã°¢–b‡&Vf—„—FV×2¢ƒÂFF—F–öæÄ—FV×5óçfÆ–FFTFF—F–öæÄ—FV×2’†7‡BÂ&Vf—„—FV×2“°¢VÇ6P¢7‡Bæö²‚ƒÂ6öFUóçfÆ–FFT'&’’†7‡B’“°¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö6öçF–ç2æ§0§f"&WV—&Uö6öçF–ç2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö6öçF–ç2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²&×3¢²Ö–âÂÖ‚ÒÒ’ÓâÖ‚ÓÓÒfö–BòƒÂ6öFVvVåóç7G"–×W7B6öçF–âBÆV7BG¶Ö–çÒfÆ–B—FVÒ‡2–¢ƒÂ6öFVvVåóç7G"–×W7B6öçF–âBÆV7BG¶Ö–çÒæBæòÖ÷&RF†âG¶Ö‡ÒfÆ–B—FVÒ‡2–À¢&×3¢‡²&×3¢²Ö–âÂÖ‚ÒÒ’ÓâÖ‚ÓÓÒfö–BòƒÂ6öFVvVåóåò–¶Ö–ä6öçF–ç3¢G¶Ö–ç×Ö¢ƒÂ6öFVvVåóåò–¶Ö–ä6öçF–ç3¢G¶Ö–çÒÂÖ„6öçF–ç3¢G¶Ö‡×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&6öçF–ç2"À¢G—S¢&'&’"À¢66†VÖG—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&Vf÷&S¢'Væ—VT—FV×2"À¢G&6´W'&÷'3¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂ&VçE66†VÖÂFFÂ—BÒÒ7‡C°¢ÆWBÖ–ã°¢ÆWBÖƒ°¢6öç7B²Ö–ä6öçF–ç2ÂÖ„6öçF–ç2ÒÒ&VçE66†VÖ°¢–b†—Bæ÷G2ææW‡B’°¢Ö–âÒÖ–ä6öçF–ç2ÓÓÒfö–Bò¢Ö–ä6öçF–ç3°¢Ö‚ÒÖ„6öçF–ç3°¢ÒVÇ6R°¢Ö–âÒ°¢Ð¢6öç7BÆVâÒvVâæ6öç7B‚&ÆVâ"ÂƒÂ6öFVvVåóåò–G¶FFÒæÆVæwF†“°¢7‡Bç6WE&×2‡²Ö–âÂÖ‚Ò“°¢–b†Ö‚ÓÓÒfö–BbbÖ–âÓÓÒ’°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂ&Ö–ä6öçF–ç2"ÓÒv—F†÷WB&Ö„6öçF–ç2#¢&6öçF–ç2"¶W—v÷&B–væ÷&VF“°¢&WGW&ã°¢Ð¢–b†Ö‚ÓÒfö–BbbÖ–ââÖ‚’°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂ&Ö–ä6öçF–ç2"â&Ö„6öçF–ç2"—2Çv—2–çfÆ–F“°¢7‡Bæf–Â‚“°¢&WGW&ã°¢Ð¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’’°¢ÆWB6öæBÒƒÂ6öFVvVåóåò–G¶ÆVçÒãÒG¶Ö–çÖ°¢–b†Ö‚ÓÒfö–B¢6öæBÒƒÂ6öFVvVåóåò–G¶6öæGÒbbG¶ÆVçÒÃÒG¶Ö‡Ö°¢7‡Bç72†6öæB“°¢&WGW&ã°¢Ð¢—Bæ—FV×2ÒG'VS°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢–b†Ö‚ÓÓÒfö–BbbÖ–âÓÓÒ’°¢fÆ–FFT—FV×2‡fÆ–BÂ‚’ÓâvVâæ–b‡fÆ–BÂ‚’ÓâvVâæ'&V²‚’’“°¢ÒVÇ6R–b†Ö–âÓÓÒ’°¢vVâæÆWB‡fÆ–BÂG'VR“°¢–b†Ö‚ÓÒfö–B¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶FFÒæÆVæwF‚âÂfÆ–FFT—FV×5v—F„6÷VçB“°¢ÒVÇ6R°¢vVâæÆWB‡fÆ–BÂfÇ6R“°¢fÆ–FFT—FV×5v—F„6÷VçB‚“°¢Ð¢7‡Bç&W7VÇB‡fÆ–BÂ‚’Óâ7‡Bç&W6WB‚’“°¢gVæ7F–öâfÆ–FFT—FV×5v—F„6÷VçB‚’°¢6öç7B66…fÆ–BÒvVâææÖR‚%÷fÆ–B"“°¢6öç7B6÷VçBÒvVâæÆWB‚&6÷VçB"Â“°¢fÆ–FFT—FV×2‡66…fÆ–BÂ‚’ÓâvVâæ–b‡66…fÆ–BÂ‚’Óâ6†V6´Æ–Ö—G2†6÷VçB’’“°¢Ð¢gVæ7F–öâfÆ–FFT—FV×2…÷fÆ–BÂ&Æö6²’°¢vVâæf÷%&ævR‚&’"ÂÂÆVâÂ†’’Óâ°¢7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢&6öçF–ç2"À¢FF&÷¢’À¢FF&÷G—S¢WF–ÅóåG—RäçVÒÀ¢6ö×÷6—FU'VÆS¢G'VP¢ÒÂ÷fÆ–B“°¢&Æö6²‚“°¢Ò“°¢Ð¢gVæ7F–öâ6†V6´Æ–Ö—G2†6÷VçB’°¢vVâæ6öFR‚ƒÂ6öFVvVåóåò–G¶6÷VçGÒ²¶“°¢–b†Ö‚ÓÓÒfö–B’°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶6÷VçGÒãÒG¶Ö–çÖÂ‚’ÓâvVâæ76–vâ‡fÆ–BÂG'VR’æ'&V²‚’“°¢ÒVÇ6R°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶6÷VçGÒâG¶Ö‡ÖÂ‚’ÓâvVâæ76–vâ‡fÆ–BÂfÇ6R’æ'&V²‚’“°¢–b†Ö–âÓÓÒ¢vVâæ76–vâ‡fÆ–BÂG'VR“°¢VÇ6P¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶6÷VçGÒãÒG¶Ö–çÖÂ‚’ÓâvVâæ76–vâ‡fÆ–BÂG'VR’“°¢Ð¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFWVæFVæ6–W2æ§0§f"&WV—&UöFWVæFVæ6–W2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFWVæFVæ6–W2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2çfÆ–FFU66†VÖFW2ÒW‡÷'G2çfÆ–FFU&÷W'G”FW2ÒW‡÷'G2æW'&÷"Òfö–B°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢W‡÷'G2æW'&÷"Ò°¢ÖW76vS¢‡²&×3¢²&÷W'G’ÂFW46÷VçBÂFW2ÒÒ’Óâ°¢6öç7B&÷W'G•ö–W2ÒFW46÷VçBÓÓÒò'&÷W'G’"¢'&÷W'F–W2#°¢&WGW&âƒÂ6öFVvVåóç7G"–×W7B†fRG·&÷W'G•ö–W7ÒG¶FW7Òv†Vâ&÷W'G’G·&÷W'G—Ò—2&W6VçF°¢ÒÀ¢&×3¢‡²&×3¢²&÷W'G’ÂFW46÷VçBÂFW2ÂÖ—76–æu&÷W'G’ÒÒ’ÓâƒÂ6öFVvVåóåò–·&÷W'G“¢G·&÷W'G—ÒÀ¢Ö—76–æu&÷W'G“¢G¶Ö—76–æu&÷W'G—ÒÀ¢FW46÷VçC¢G¶FW46÷VçGÒÀ¢FW3¢G¶FW7×Ö ¢òòDôDò6†ævRFò&VfW&Væ6P¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&FWVæFVæ6–W2"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢&ö&¦V7B"À¢W'&÷#¢W‡÷'G2æW'&÷"À¢6öFR†7‡B’°¢6öç7B·&÷FW2Â66„FW5ÒÒ7Æ—DFWVæFVæ6–W2†7‡B“°¢fÆ–FFU&÷W'G”FW2†7‡BÂ&÷FW2“°¢fÆ–FFU66†VÖFW2†7‡BÂ66„FW2“°¢Ð¢Ó°¢gVæ7F–öâ7Æ—DFWVæFVæ6–W2‡²66†VÖÒ’°¢6öç7B&÷W'G”FW2Ò·Ó°¢6öç7B66†VÖFW2Ò·Ó°¢f÷"†6öç7B¶W’–â66†VÖ’°¢–b†¶W’ÓÓÒ%õ÷&÷Fõõò"¢6öçF–çVS°¢6öç7BFW2Ò'&’æ—4'&’‡66†VÖ¶¶W•Ò’ò&÷W'G”FW2¢66†VÖFW3°¢FW5¶¶W•ÒÒ66†VÖ¶¶W•Ó°¢Ð¢&WGW&â·&÷W'G”FW2Â66†VÖFW5Ó°¢Ð¢gVæ7F–öâfÆ–FFU&÷W'G”FW2†7‡BÂ&÷W'G”FW2Ò7‡Bç66†VÖ’°¢6öç7B²vVâÂFFÂ—BÒÒ7‡C°¢–b„ö&¦V7Bæ¶W—2‡&÷W'G”FW2’æÆVæwF‚ÓÓÒ¢&WGW&ã°¢6öç7BÖ—76–ærÒvVâæÆWB‚&Ö—76–ær"“°¢f÷"†6öç7B&÷–â&÷W'G”FW2’°¢6öç7BFW2Ò&÷W'G”FW5·&÷Ó°¢–b†FW2æÆVæwF‚ÓÓÒ¢6öçF–çVS°¢6öç7B†5&÷W'G’ÒƒÂ6öFUóç&÷W'G”–äFF’†vVâÂFFÂ&÷Â—Bæ÷G2æ÷vå&÷W'F–W2“°¢7‡Bç6WE&×2‡°¢&÷W'G“¢&÷À¢FW46÷VçC¢FW2æÆVæwF‚À¢FW3¢FW2æ¦ö–â‚"Â"¢Ò“°¢–b†—BæÆÄW'&÷'2’°¢vVâæ–b††5&÷W'G’Â‚’Óâ°¢f÷"†6öç7BFW&÷öbFW2’°¢ƒÂ6öFUóæ6†V6µ&W÷'DÖ—76–æu&÷’†7‡BÂFW&÷“°¢Ð¢Ò“°¢ÒVÇ6R°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G¶†5&÷W'G—Òbb‚G²ƒÂ6öFUóæ6†V6´Ö—76–æu&÷’†7‡BÂFW2ÂÖ—76–ær—Ò–“°¢ƒÂ6öFUóç&W÷'DÖ—76–æu&÷’†7‡BÂÖ—76–ær“°¢vVâæVÇ6R‚“°¢Ð¢Ð¢Ð¢W‡÷'G2çfÆ–FFU&÷W'G”FW2ÒfÆ–FFU&÷W'G”FW3°¢gVæ7F–öâfÆ–FFU66†VÖFW2†7‡BÂ66†VÖFW2Ò7‡Bç66†VÖ’°¢6öç7B²vVâÂFFÂ¶W—v÷&BÂ—BÒÒ7‡C°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢f÷"†6öç7B&÷–â66†VÖFW2’°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖFW5·&÷Ò’¢6öçF–çVS°¢vVâæ–b€¢ƒÂ6öFUóç&÷W'G”–äFF’†vVâÂFFÂ&÷Â—Bæ÷G2æ÷vå&÷W'F–W2’À¢‚’Óâ°¢6öç7B66„7‡BÒ7‡Bç7V'66†VÖ‡²¶W—v÷&BÂ66†VÖ&÷¢&÷ÒÂfÆ–B“°¢7‡BæÖW&vUfÆ–DWfÇVFVB‡66„7‡BÂfÆ–B“°¢ÒÀ¢‚’ÓâvVâçf"‡fÆ–BÂG'VR¢òòDôDòf ¢“°¢7‡Bæö²‡fÆ–B“°¢Ð¢Ð¢W‡÷'G2çfÆ–FFU66†VÖFW2ÒfÆ–FFU66†VÖFW3°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷&÷W'G”æÖW2æ§0§f"&WV—&U÷&÷W'G”æÖW2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷&÷W'G”æÖW2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢'&÷W'G’æÖR×W7B&RfÆ–B"À¢&×3¢‡²&×2Ò’ÓâƒÂ6öFVvVåóåò–·&÷W'G”æÖS¢G·&×2ç&÷W'G”æÖW×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢'&÷W'G”æÖW2"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂFFÂ—BÒÒ7‡C°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’¢&WGW&ã°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢vVâæf÷$–â‚&¶W’"ÂFFÂ†¶W’’Óâ°¢7‡Bç6WE&×2‡²&÷W'G”æÖS¢¶W’Ò“°¢7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢'&÷W'G”æÖW2"À¢FF¢¶W’À¢FFG—W3¢²'7G&–ær%ÒÀ¢&÷W'G”æÖS¢¶W’À¢6ö×÷6—FU'VÆS¢G'VP¢ÒÂfÆ–B“°¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’Óâ°¢7‡BæW'&÷"‡G'VR“°¢–b‚—BæÆÄW'&÷'2¢vVâæ'&V²‚“°¢Ò“°¢Ò“°¢7‡Bæö²‡fÆ–B“°¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFF—F–öæÅ&÷W'F–W2æ§0§f"&WV—&UöFF—F–öæÅ&÷W'F–W2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFF—F–öæÅ&÷W'F–W2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"æÖW5óÒ&WV—&UöæÖW2‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢&×W7BäõB†fRFF—F–öæÂ&÷W'F–W2"À¢&×3¢‡²&×2Ò’ÓâƒÂ6öFVvVåóåò–¶FF—F–öæÅ&÷W'G“¢G·&×2æFF—F–öæÅ&÷W'G—×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&FF—F–öæÅ&÷W'F–W2"À¢G—S¢²&ö&¦V7B%ÒÀ¢66†VÖG—S¢²&&ööÆVâ"Â&ö&¦V7B%ÒÀ¢ÆÆ÷uVæFVf–æVC¢G'VRÀ¢G&6´W'&÷'3¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂ&VçE66†VÖÂFFÂW''46÷VçBÂ—BÒÒ7‡C°¢–b‚W''46÷VçB¢F‡&÷ræWrW'&÷"‚&§b–×ÆVÖVçFF–öâW'&÷""“°¢6öç7B²ÆÄW'&÷'2Â÷G2ÒÒ—C°¢—Bç&÷2ÒG'VS°¢–b†÷G2ç&VÖ÷fTFF—F–öæÂÓÒ&ÆÂ"bbƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’¢&WGW&ã°¢6öç7B&÷2ÒƒÂ6öFUóæÆÅ66†VÖ&÷W'F–W2’‡&VçE66†VÖç&÷W'F–W2“°¢6öç7BE&÷2ÒƒÂ6öFUóæÆÅ66†VÖ&÷W'F–W2’‡&VçE66†VÖçGFW&å&÷W'F–W2“°¢6†V6´FF—F–öæÅ&÷W'F–W2‚“°¢7‡Bæö²‚ƒÂ6öFVvVåóåò–G¶W''46÷VçGÒÓÓÒG¶æÖW5óæFVfVÇBæW'&÷'7Ö“°¢gVæ7F–öâ6†V6´FF—F–öæÅ&÷W'F–W2‚’°¢vVâæf÷$–â‚&¶W’"ÂFFÂ†¶W’’Óâ°¢–b‚&÷2æÆVæwF‚bbE&÷2æÆVæwF‚¢FF—F–öæÅ&÷W'G”6öFR†¶W’“°¢VÇ6P¢vVâæ–b†—4FF—F–öæÂ†¶W’’Â‚’ÓâFF—F–öæÅ&÷W'G”6öFR†¶W’’“°¢Ò“°¢Ð¢gVæ7F–öâ—4FF—F–öæÂ†¶W’’°¢ÆWBFVf–æVE&÷°¢–b‡&÷2æÆVæwF‚â‚’°¢6öç7B&÷566†VÖÒƒÂWF–Åóç66†VÖ&Vd÷%fÂ’†—BÂ&VçE66†VÖç&÷W'F–W2Â'&÷W'F–W2"“°¢FVf–æVE&÷ÒƒÂ6öFUóæ—4÷vå&÷W'G’’†vVâÂ&÷566†VÖÂ¶W’“°¢ÒVÇ6R–b‡&÷2æÆVæwF‚’°¢FVf–æVE&÷ÒƒÂ6öFVvVåóæ÷"’‚ââç&÷2æÖ‚‡’ÓâƒÂ6öFVvVåóåò–G¶¶W—ÒÓÓÒG·Ö’“°¢ÒVÇ6R°¢FVf–æVE&÷Ò6öFVvVåóææ–Ã°¢Ð¢–b‡E&÷2æÆVæwF‚’°¢FVf–æVE&÷ÒƒÂ6öFVvVåóæ÷"’†FVf–æVE&÷ÂââçE&÷2æÖ‚‡’ÓâƒÂ6öFVvVåóåò–G²ƒÂ6öFUóçW6UGFW&â’†7‡BÂ—ÒçFW7B‚G¶¶W—Ò–’“°¢Ð¢&WGW&âƒÂ6öFVvVåóææ÷B’†FVf–æVE&÷“°¢Ð¢gVæ7F–öâFVÆWFTFF—F–öæÂ†¶W’’°¢vVâæ6öFR‚ƒÂ6öFVvVåóåò–FVÆWFRG¶FFÕ²G¶¶W—ÕÖ“°¢Ð¢gVæ7F–öâFF—F–öæÅ&÷W'G”6öFR†¶W’’°¢–b†÷G2ç&VÖ÷fTFF—F–öæÂÓÓÒ&ÆÂ"ÇÂ÷G2ç&VÖ÷fTFF—F–öæÂbb66†VÖÓÓÒfÇ6R’°¢FVÆWFTFF—F–öæÂ†¶W’“°¢&WGW&ã°¢Ð¢–b‡66†VÖÓÓÒfÇ6R’°¢7‡Bç6WE&×2‡²FF—F–öæÅ&÷W'G“¢¶W’Ò“°¢7‡BæW'&÷"‚“°¢–b‚ÆÄW'&÷'2¢vVâæ'&V²‚“°¢&WGW&ã°¢Ð¢–b‡G—Vöb66†VÖÓÒ&ö&¦V7B"bbƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’’°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢–b†÷G2ç&VÖ÷fTFF—F–öæÂÓÓÒ&f–Æ–ær"’°¢Ç”FF—F–öæÅ66†VÖ†¶W’ÂfÆ–BÂfÇ6R“°¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’Óâ°¢7‡Bç&W6WB‚“°¢FVÆWFTFF—F–öæÂ†¶W’“°¢Ò“°¢ÒVÇ6R°¢Ç”FF—F–öæÅ66†VÖ†¶W’ÂfÆ–B“°¢–b‚ÆÄW'&÷'2¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâvVâæ'&V²‚’“°¢Ð¢Ð¢Ð¢gVæ7F–öâÇ”FF—F–öæÅ66†VÖ†¶W’ÂfÆ–BÂW'&÷'2’°¢6öç7B7V'66†VÖÒ°¢¶W—v÷&C¢&FF—F–öæÅ&÷W'F–W2"À¢FF&÷¢¶W’À¢FF&÷G—S¢WF–ÅóåG—Rå7G ¢Ó°¢–b†W'&÷'2ÓÓÒfÇ6R’°¢ö&¦V7Bæ76–vâ‡7V'66†VÖÂ°¢6ö×÷6—FU'VÆS¢G'VRÀ¢7&VFTW'&÷'3¢fÇ6RÀ¢ÆÄW'&÷'3¢fÇ6P¢Ò“°¢Ð¢7‡Bç7V'66†VÖ‡7V'66†VÖÂfÆ–B“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷&÷W'F–W2æ§0§f"&WV—&U÷&÷W'F–W2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷&÷W'F–W2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"fÆ–FFUóÒ&WV—&U÷fÆ–FFR‚“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"FF—F–öæÅ&÷W'F–W5óÒ&WV—&UöFF—F–öæÅ&÷W'F–W2‚“°¢f"FVbÒ°¢¶W—v÷&C¢'&÷W'F–W2"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢&ö&¦V7B"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂ&VçE66†VÖÂFFÂ—BÒÒ7‡C°¢–b†—Bæ÷G2ç&VÖ÷fTFF—F–öæÂÓÓÒ&ÆÂ"bb&VçE66†VÖæFF—F–öæÅ&÷W'F–W2ÓÓÒfö–B’°¢FF—F–öæÅ&÷W'F–W5óæFVfVÇBæ6öFR†æWrfÆ–FFUóä¶W—v÷&D7‡B†—BÂFF—F–öæÅ&÷W'F–W5óæFVfVÇBÂ&FF—F–öæÅ&÷W'F–W2"’“°¢Ð¢6öç7BÆÅ&÷2ÒƒÂ6öFUóæÆÅ66†VÖ&÷W'F–W2’‡66†VÖ“°¢f÷"†6öç7B&÷öbÆÅ&÷2’°¢—BæFVf–æVE&÷W'F–W2æFB‡&÷“°¢Ð¢–b†—Bæ÷G2çVæWfÇVFVBbbÆÅ&÷2æÆVæwF‚bb—Bç&÷2ÓÒG'VR’°¢—Bç&÷2ÒWF–ÅóæÖW&vTWfÇVFVBç&÷2†vVâÂƒÂWF–ÅóçFô†6‚’†ÆÅ&÷2’Â—Bç&÷2“°¢Ð¢6öç7B&÷W'F–W2ÒÆÅ&÷2æf–ÇFW"‚‡’ÓâƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ·Ò’“°¢–b‡&÷W'F–W2æÆVæwF‚ÓÓÒ¢&WGW&ã°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢f÷"†6öç7B&÷öb&÷W'F–W2’°¢–b††4FVfVÇB‡&÷’’°¢Ç•&÷W'G•66†VÖ‡&÷“°¢ÒVÇ6R°¢vVâæ–b‚ƒÂ6öFUóç&÷W'G”–äFF’†vVâÂFFÂ&÷Â—Bæ÷G2æ÷vå&÷W'F–W2’“°¢Ç•&÷W'G•66†VÖ‡&÷“°¢–b‚—BæÆÄW'&÷'2¢vVâæVÇ6R‚’çf"‡fÆ–BÂG'VR“°¢vVâæVæD–b‚“°¢Ð¢7‡Bæ—BæFVf–æVE&÷W'F–W2æFB‡&÷“°¢7‡Bæö²‡fÆ–B“°¢Ð¢gVæ7F–öâ†4FVfVÇB‡&÷’°¢&WGW&â—Bæ÷G2çW6TFVfVÇG2bb—Bæ6ö×÷6—FU'VÆRbb66†VÖ·&÷ÒæFVfVÇBÓÒfö–B°¢Ð¢gVæ7F–öâÇ•&÷W'G•66†VÖ‡&÷’°¢7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢'&÷W'F–W2"À¢66†VÖ&÷¢&÷À¢FF&÷¢&÷ ¢ÒÂfÆ–B“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷GFW&å&÷W'F–W2æ§0§f"&WV—&U÷GFW&å&÷W'F–W2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷GFW&å&÷W'F–W2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"WF–Åó"Ò&WV—&U÷WF–Â‚“°¢f"FVbÒ°¢¶W—v÷&C¢'GFW&å&÷W'F–W2"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢&ö&¦V7B"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂFFÂ&VçE66†VÖÂ—BÒÒ7‡C°¢6öç7B²÷G2ÒÒ—C°¢6öç7BGFW&ç2ÒƒÂ6öFUóæÆÅ66†VÖ&÷W'F–W2’‡66†VÖ“°¢6öç7BÇv—5fÆ–EGFW&ç2ÒGFW&ç2æf–ÇFW"‚‡’ÓâƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ·Ò’“°¢–b‡GFW&ç2æÆVæwF‚ÓÓÒÇÂÇv—5fÆ–EGFW&ç2æÆVæwF‚ÓÓÒGFW&ç2æÆVæwF‚bb‚—Bæ÷G2çVæWfÇVFVBÇÂ—Bç&÷2ÓÓÒG'VR’’°¢&WGW&ã°¢Ð¢6öç7B6†V6µ&÷W'F–W2Ò÷G2ç7G&–7E66†VÖbb÷G2æÆÆ÷tÖF6†–æu&÷W'F–W2bb&VçE66†VÖç&÷W'F–W3°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢–b†—Bç&÷2ÓÒG'VRbb†—Bç&÷2–ç7Fæ6Vöb6öFVvVåóäæÖR’’°¢—Bç&÷2ÒƒÂWF–Åó"æWfÇVFVE&÷5FôæÖR’†vVâÂ—Bç&÷2“°¢Ð¢6öç7B²&÷2ÒÒ—C°¢fÆ–FFUGFW&å&÷W'F–W2‚“°¢gVæ7F–öâfÆ–FFUGFW&å&÷W'F–W2‚’°¢f÷"†6öç7BBöbGFW&ç2’°¢–b†6†V6µ&÷W'F–W2¢6†V6´ÖF6†–æu&÷W'F–W2‡B“°¢–b†—BæÆÄW'&÷'2’°¢fÆ–FFU&÷W'F–W2‡B“°¢ÒVÇ6R°¢vVâçf"‡fÆ–BÂG'VR“°¢fÆ–FFU&÷W'F–W2‡B“°¢vVâæ–b‡fÆ–B“°¢Ð¢Ð¢Ð¢gVæ7F–öâ6†V6´ÖF6†–æu&÷W'F–W2‡B’°¢f÷"†6öç7B&÷–â6†V6µ&÷W'F–W2’°¢–b†æWr&VtW‡‡B’çFW7B‡&÷’’°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂ&÷W'G’G·&÷ÒÖF6†W2GFW&âG·GÒ‡W6RÆÆ÷tÖF6†–æu&÷W'F–W2–“°¢Ð¢Ð¢Ð¢gVæ7F–öâfÆ–FFU&÷W'F–W2‡B’°¢vVâæf÷$–â‚&¶W’"ÂFFÂ†¶W’’Óâ°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G²ƒÂ6öFUóçW6UGFW&â’†7‡BÂB—ÒçFW7B‚G¶¶W—Ò–Â‚’Óâ°¢6öç7BÇv—5fÆ–BÒÇv—5fÆ–EGFW&ç2æ–æ6ÇVFW2‡B“°¢–b‚Çv—5fÆ–B’°¢7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢'GFW&å&÷W'F–W2"À¢66†VÖ&÷¢BÀ¢FF&÷¢¶W’À¢FF&÷G—S¢WF–Åó"åG—Rå7G ¢ÒÂfÆ–B“°¢Ð¢–b†—Bæ÷G2çVæWfÇVFVBbb&÷2ÓÒG'VR’°¢vVâæ76–vâ‚ƒÂ6öFVvVåóåò–G·&÷7Õ²G¶¶W—ÕÖÂG'VR“°¢ÒVÇ6R–b‚Çv—5fÆ–Bbb—BæÆÄW'&÷'2’°¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâvVâæ'&V²‚’“°¢Ð¢Ò“°¢Ò“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öæ÷Bæ§0§f"&WV—&Uöæ÷BÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öæ÷Bæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"FVbÒ°¢¶W—v÷&C¢&æ÷B"À¢66†VÖG—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢G&6´W'&÷'3¢G'VRÀ¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂ—BÒÒ7‡C°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’’°¢7‡Bæf–Â‚“°¢&WGW&ã°¢Ð¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢&æ÷B"À¢6ö×÷6—FU'VÆS¢G'VRÀ¢7&VFTW'&÷'3¢fÇ6RÀ¢ÆÄW'&÷'3¢fÇ6P¢ÒÂfÆ–B“°¢7‡Bæf–Å&W7VÇB‡fÆ–BÂ‚’Óâ7‡Bç&W6WB‚’Â‚’Óâ7‡BæW'&÷"‚’“°¢ÒÀ¢W'&÷#¢²ÖW76vS¢&×W7BäõB&RfÆ–B"Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öç”öbæ§0§f"&WV—&Uöç”öbÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öç”öbæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFUóÒ&WV—&Uö6öFS"‚“°¢f"FVbÒ°¢¶W—v÷&C¢&ç”öb"À¢66†VÖG—S¢&'&’"À¢G&6´W'&÷'3¢G'VRÀ¢6öFS¢6öFUóçfÆ–FFUVæ–öâÀ¢W'&÷#¢²ÖW76vS¢&×W7BÖF6‚66†VÖ–âç”öb"Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ööæTöbæ§0§f"&WV—&UööæTöbÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ööæTöbæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢&×W7BÖF6‚W†7FÇ’öæR66†VÖ–âöæTöb"À¢&×3¢‡²&×2Ò’ÓâƒÂ6öFVvVåóåò–·76–æu66†VÖ3¢G·&×2ç76–æw×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&öæTöb"À¢66†VÖG—S¢&'&’"À¢G&6´W'&÷'3¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂ&VçE66†VÖÂ—BÒÒ7‡C°¢–b‚'&’æ—4'&’‡66†VÖ’¢F‡&÷ræWrW'&÷"‚&§b–×ÆVÖVçFF–öâW'&÷""“°¢–b†—Bæ÷G2æF—67&–Ö–æF÷"bb&VçE66†VÖæF—67&–Ö–æF÷"¢&WGW&ã°¢6öç7B66„'"Ò66†VÖ°¢6öç7BfÆ–BÒvVâæÆWB‚'fÆ–B"ÂfÇ6R“°¢6öç7B76–ærÒvVâæÆWB‚'76–ær"ÂçVÆÂ“°¢6öç7B66…fÆ–BÒvVâææÖR‚%÷fÆ–B"“°¢7‡Bç6WE&×2‡²76–ærÒ“°¢vVâæ&Æö6²‡fÆ–FFTöæTöb“°¢7‡Bç&W7VÇB‡fÆ–BÂ‚’Óâ7‡Bç&W6WB‚’Â‚’Óâ7‡BæW'&÷"‡G'VR’“°¢gVæ7F–öâfÆ–FFTöæTöb‚’°¢66„'"æf÷$V6‚‚‡66‚Â’’Óâ°¢ÆWB66„7‡C°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66‚’’°¢vVâçf"‡66…fÆ–BÂG'VR“°¢ÒVÇ6R°¢66„7‡BÒ7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢&öæTöb"À¢66†VÖ&÷¢’À¢6ö×÷6—FU'VÆS¢G'VP¢ÒÂ66…fÆ–B“°¢Ð¢–b†’â’°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G·66…fÆ–GÒbbG·fÆ–GÖ’æ76–vâ‡fÆ–BÂfÇ6R’æ76–vâ‡76–ærÂƒÂ6öFVvVåóåò–²G·76–æwÒÂG¶—ÕÖ’æVÇ6R‚“°¢Ð¢vVâæ–b‡66…fÆ–BÂ‚’Óâ°¢vVâæ76–vâ‡fÆ–BÂG'VR“°¢vVâæ76–vâ‡76–ærÂ’“°¢–b‡66„7‡B¢7‡BæÖW&vTWfÇVFVB‡66„7‡BÂ6öFVvVåóäæÖR“°¢Ò“°¢Ò“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öÆÄöbæ§0§f"&WV—&UöÆÄöbÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öÆÄöbæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"FVbÒ°¢¶W—v÷&C¢&ÆÄöb"À¢66†VÖG—S¢&'&’"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂ—BÒÒ7‡C°¢–b‚'&’æ—4'&’‡66†VÖ’¢F‡&÷ræWrW'&÷"‚&§b–×ÆVÖVçFF–öâW'&÷""“°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢66†VÖæf÷$V6‚‚‡66‚Â’’Óâ°¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66‚’¢&WGW&ã°¢6öç7B66„7‡BÒ7‡Bç7V'66†VÖ‡²¶W—v÷&C¢&ÆÄöb"Â66†VÖ&÷¢’ÒÂfÆ–B“°¢7‡Bæö²‡fÆ–B“°¢7‡BæÖW&vTWfÇVFVB‡66„7‡B“°¢Ò“°¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö–bæ§0§f"&WV—&Uö–bÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö–bæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²&×2Ò’ÓâƒÂ6öFVvVåóç7G"–×W7BÖF6‚"G·&×2æ–d6ÆW6WÒ"66†VÖÀ¢&×3¢‡²&×2Ò’ÓâƒÂ6öFVvVåóåò–¶f–Æ–æt¶W—v÷&C¢G·&×2æ–d6ÆW6W×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&–b"À¢66†VÖG—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢G&6´W'&÷'3¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ&VçE66†VÖÂ—BÒÒ7‡C°¢–b‡&VçE66†VÖçF†VâÓÓÒfö–Bbb&VçE66†VÖæVÇ6RÓÓÒfö–B’°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂr&–b"v—F†÷WB'F†Vâ"æB&VÇ6R"—2–væ÷&VBr“°¢Ð¢6öç7B†5F†VâÒ†566†VÖ†—BÂ'F†Vâ"“°¢6öç7B†4VÇ6RÒ†566†VÖ†—BÂ&VÇ6R"“°¢–b‚†5F†Vâbb†4VÇ6R¢&WGW&ã°¢6öç7BfÆ–BÒvVâæÆWB‚'fÆ–B"ÂG'VR“°¢6öç7B66…fÆ–BÒvVâææÖR‚%÷fÆ–B"“°¢fÆ–FFT–b‚“°¢7‡Bç&W6WB‚“°¢–b††5F†Vâbb†4VÇ6R’°¢6öç7B–d6ÆW6RÒvVâæÆWB‚&–d6ÆW6R"“°¢7‡Bç6WE&×2‡²–d6ÆW6RÒ“°¢vVâæ–b‡66…fÆ–BÂfÆ–FFT6ÆW6R‚'F†Vâ"Â–d6ÆW6R’ÂfÆ–FFT6ÆW6R‚&VÇ6R"Â–d6ÆW6R’“°¢ÒVÇ6R–b††5F†Vâ’°¢vVâæ–b‡66…fÆ–BÂfÆ–FFT6ÆW6R‚'F†Vâ"’“°¢ÒVÇ6R°¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡66…fÆ–B’ÂfÆ–FFT6ÆW6R‚&VÇ6R"’“°¢Ð¢7‡Bç72‡fÆ–BÂ‚’Óâ7‡BæW'&÷"‡G'VR’“°¢gVæ7F–öâfÆ–FFT–b‚’°¢6öç7B66„7‡BÒ7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢&–b"À¢6ö×÷6—FU'VÆS¢G'VRÀ¢7&VFTW'&÷'3¢fÇ6RÀ¢ÆÄW'&÷'3¢fÇ6P¢ÒÂ66…fÆ–B“°¢7‡BæÖW&vTWfÇVFVB‡66„7‡B“°¢Ð¢gVæ7F–öâfÆ–FFT6ÆW6R†¶W—v÷&BÂ–d6ÆW6R’°¢&WGW&â‚’Óâ°¢6öç7B66„7‡BÒ7‡Bç7V'66†VÖ‡²¶W—v÷&BÒÂ66…fÆ–B“°¢vVâæ76–vâ‡fÆ–BÂ66…fÆ–B“°¢7‡BæÖW&vUfÆ–DWfÇVFVB‡66„7‡BÂfÆ–B“°¢–b†–d6ÆW6R¢vVâæ76–vâ†–d6ÆW6RÂƒÂ6öFVvVåóåò–G¶¶W—v÷&GÖ“°¢VÇ6P¢7‡Bç6WE&×2‡²–d6ÆW6S¢¶W—v÷&BÒ“°¢Ó°¢Ð¢Ð¢Ó°¢gVæ7F–öâ†566†VÖ†—BÂ¶W—v÷&B’°¢6öç7B66†VÖÒ—Bç66†VÖ¶¶W—v÷&EÓ°¢&WGW&â66†VÖÓÒfö–BbbƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ“°¢Ð¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷F†VäVÇ6Ræ§0§f"&WV—&U÷F†VäVÇ6RÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"÷F†VäVÇ6Ræ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"FVbÒ°¢¶W—v÷&C¢²'F†Vâ"Â&VÇ6R%ÒÀ¢66†VÖG—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢6öFR‡²¶W—v÷&BÂ&VçE66†VÖÂ—BÒ’°¢–b‡&VçE66†VÖæ–bÓÓÒfö–B¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂ"G¶¶W—v÷&GÒ"v—F†÷WB&–b"—2–væ÷&VF“°¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö–æFW‚æ§0§f"&WV—&UöÆ–6F÷"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"ö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"FF—F–öæÄ—FV×5óÒ&WV—&UöFF—F–öæÄ—FV×2‚“°¢f"&Vf—„—FV×5óÒ&WV—&U÷&Vf—„—FV×2‚“°¢f"—FV×5óÒ&WV—&Uö—FV×2‚“°¢f"—FV×3##óÒ&WV—&Uö—FV×3##‚“°¢f"6öçF–ç5óÒ&WV—&Uö6öçF–ç2‚“°¢f"FWVæFVæ6–W5óÒ&WV—&UöFWVæFVæ6–W2‚“°¢f"&÷W'G”æÖW5óÒ&WV—&U÷&÷W'G”æÖW2‚“°¢f"FF—F–öæÅ&÷W'F–W5óÒ&WV—&UöFF—F–öæÅ&÷W'F–W2‚“°¢f"&÷W'F–W5óÒ&WV—&U÷&÷W'F–W2‚“°¢f"GFW&å&÷W'F–W5óÒ&WV—&U÷GFW&å&÷W'F–W2‚“°¢f"æ÷EóÒ&WV—&Uöæ÷B‚“°¢f"ç”öeóÒ&WV—&Uöç”öb‚“°¢f"öæTöeóÒ&WV—&UööæTöb‚“°¢f"ÆÄöeóÒ&WV—&UöÆÄöb‚“°¢f"–eóÒ&WV—&Uö–b‚“°¢f"F†VäVÇ6UóÒ&WV—&U÷F†VäVÇ6R‚“°¢gVæ7F–öâvWDÆ–6F÷"†G&gC##ÒfÇ6R’°¢6öç7BÆ–6F÷"Ò°¢òòç¢æ÷EóæFVfVÇBÀ¢ç”öeóæFVfVÇBÀ¢öæTöeóæFVfVÇBÀ¢ÆÄöeóæFVfVÇBÀ¢–eóæFVfVÇBÀ¢F†VäVÇ6UóæFVfVÇBÀ¢òòö&¦V7@¢&÷W'G”æÖW5óæFVfVÇBÀ¢FF—F–öæÅ&÷W'F–W5óæFVfVÇBÀ¢FWVæFVæ6–W5óæFVfVÇBÀ¢&÷W'F–W5óæFVfVÇBÀ¢GFW&å&÷W'F–W5óæFVfVÇ@¢Ó°¢–b†G&gC##¢Æ–6F÷"çW6‚‡&Vf—„—FV×5óæFVfVÇBÂ—FV×3##óæFVfVÇB“°¢VÇ6P¢Æ–6F÷"çW6‚†FF—F–öæÄ—FV×5óæFVfVÇBÂ—FV×5óæFVfVÇB“°¢Æ–6F÷"çW6‚†6öçF–ç5óæFVfVÇB“°¢&WGW&âÆ–6F÷#°¢Ð¢W‡÷'G2æFVfVÇBÒvWDÆ–6F÷#°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2öG–æÖ–4æ6†÷"æ§0§f"&WV—&UöG–æÖ–4æ6†÷"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2öG–æÖ–4æ6†÷"æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æG–æÖ–4æ6†÷"Òfö–B°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"æÖW5óÒ&WV—&UöæÖW2‚“°¢f"6ö×–ÆUóÒ&WV—&Uö6ö×–ÆR‚“°¢f"&VeóÒ&WV—&U÷&Vb‚“°¢f"FVbÒ°¢¶W—v÷&C¢"FG–æÖ–4æ6†÷""À¢66†VÖG—S¢'7G&–ær"À¢6öFS¢†7‡B’ÓâG–æÖ–4æ6†÷"†7‡BÂ7‡Bç66†VÖ¢Ó°¢gVæ7F–öâG–æÖ–4æ6†÷"†7‡BÂæ6†÷"’°¢6öç7B²vVâÂ—BÒÒ7‡C°¢—Bç66†VÖVçbç&ö÷BæG–æÖ–4æ6†÷'5¶æ6†÷%ÒÒG'VS°¢6öç7BbÒƒÂ6öFVvVåóåò–G¶æÖW5óæFVfVÇBæG–æÖ–4æ6†÷'7ÒG²ƒÂ6öFVvVåóævWE&÷W'G’’†æ6†÷"—Ö°¢6öç7BfÆ–FFRÒ—BæW'%66†VÖF‚ÓÓÒ"2"ò—BçfÆ–FFTæÖR¢övWEfÆ–FFR†7‡B“°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G·gÖÂ‚’ÓâvVâæ76–vâ‡bÂfÆ–FFR’“°¢Ð¢W‡÷'G2æG–æÖ–4æ6†÷"ÒG–æÖ–4æ6†÷#°¢gVæ7F–öâövWEfÆ–FFR†7‡B’°¢6öç7B²66†VÖVçbÂ66†VÖÂ6VÆbÒÒ7‡Bæ—C°¢6öç7B²&ö÷BÂ&6T–BÂÆö6Å&Vg2ÂÖWFÒÒ66†VÖVçbç&ö÷C°¢6öç7B²66†VÖ–BÒÒ6VÆbæ÷G3°¢6öç7B66‚ÒæWr6ö×–ÆUóå66†VÖVçb‡²66†VÖÂ66†VÖ–BÂ&ö÷BÂ&6T–BÂÆö6Å&Vg2ÂÖWFÒ“°¢6ö×–ÆUóæ6ö×–ÆU66†VÖæ6ÆÂ‡6VÆbÂ66‚“°¢&WGW&âƒÂ&VeóævWEfÆ–FFR’†7‡BÂ66‚“°¢Ð¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2öG–æÖ–5&Vbæ§0§f"&WV—&UöG–æÖ–5&VbÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2öG–æÖ–5&Vbæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æG–æÖ–5&VbÒfö–B°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"æÖW5óÒ&WV—&UöæÖW2‚“°¢f"&VeóÒ&WV—&U÷&Vb‚“°¢f"FVbÒ°¢¶W—v÷&C¢"FG–æÖ–5&Vb"À¢66†VÖG—S¢'7G&–ær"À¢6öFS¢†7‡B’ÓâG–æÖ–5&Vb†7‡BÂ7‡Bç66†VÖ¢Ó°¢gVæ7F–öâG–æÖ–5&Vb†7‡BÂ&Vb’°¢6öç7B²vVâÂ¶W—v÷&BÂ—BÒÒ7‡C°¢–b‡&Ve³ÒÓÒ"2"¢F‡&÷ræWrW'&÷"†"G¶¶W—v÷&GÒ"öæÇ’7W÷'G2†6‚g&vÖVçB&VfW&Væ6V“°¢6öç7Bæ6†÷"Ò&Vbç6Æ–6Rƒ“°¢–b†—BæÆÄW'&÷'2’°¢öG–æÖ–5&Vb‚“°¢ÒVÇ6R°¢6öç7BfÆ–BÒvVâæÆWB‚'fÆ–B"ÂfÇ6R“°¢öG–æÖ–5&Vb‡fÆ–B“°¢7‡Bæö²‡fÆ–B“°¢Ð¢gVæ7F–öâöG–æÖ–5&Vb‡fÆ–B’°¢–b†—Bç66†VÖVçbç&ö÷BæG–æÖ–4æ6†÷'5¶æ6†÷%Ò’°¢6öç7BbÒvVâæÆWB‚%÷b"ÂƒÂ6öFVvVåóåò–G¶æÖW5óæFVfVÇBæG–æÖ–4æ6†÷'7ÒG²ƒÂ6öFVvVåóævWE&÷W'G’’†æ6†÷"—Ö“°¢vVâæ–b‡bÂö6ÆÅ&Vb‡bÂfÆ–B’Âö6ÆÅ&Vb†—BçfÆ–FFTæÖRÂfÆ–B’“°¢ÒVÇ6R°¢ö6ÆÅ&Vb†—BçfÆ–FFTæÖRÂfÆ–B’‚“°¢Ð¢Ð¢gVæ7F–öâö6ÆÅ&Vb‡fÆ–FFRÂfÆ–B’°¢&WGW&âfÆ–Bò‚’ÓâvVâæ&Æö6²‚‚’Óâ°¢ƒÂ&Veóæ6ÆÅ&Vb’†7‡BÂfÆ–FFR“°¢vVâæÆWB‡fÆ–BÂG'VR“°¢Ò’¢‚’ÓâƒÂ&Veóæ6ÆÅ&Vb’†7‡BÂfÆ–FFR“°¢Ð¢Ð¢W‡÷'G2æG–æÖ–5&VbÒG–æÖ–5&Vc°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2÷&V7W'6—fTæ6†÷"æ§0§f"&WV—&U÷&V7W'6—fTæ6†÷"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2÷&V7W'6—fTæ6†÷"æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"G–æÖ–4æ6†÷%óÒ&WV—&UöG–æÖ–4æ6†÷"‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"FVbÒ°¢¶W—v÷&C¢"G&V7W'6—fTæ6†÷""À¢66†VÖG—S¢&&ööÆVâ"À¢6öFR†7‡B’°¢–b†7‡Bç66†VÖ¢ƒÂG–æÖ–4æ6†÷%óæG–æÖ–4æ6†÷"’†7‡BÂ""“°¢VÇ6P¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†7‡Bæ—BÂ"G&V7W'6—fTæ6†÷#¢fÇ6R—2–væ÷&VB"“°¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2÷&V7W'6—fU&Vbæ§0§f"&WV—&U÷&V7W'6—fU&VbÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2÷&V7W'6—fU&Vbæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"G–æÖ–5&VeóÒ&WV—&UöG–æÖ–5&Vb‚“°¢f"FVbÒ°¢¶W—v÷&C¢"G&V7W'6—fU&Vb"À¢66†VÖG—S¢'7G&–ær"À¢6öFS¢†7‡B’ÓâƒÂG–æÖ–5&VeóæG–æÖ–5&Vb’†7‡BÂ7‡Bç66†VÖ¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2ö–æFW‚æ§0§f"&WV—&UöG–æÖ–2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG–æÖ–2ö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"G–æÖ–4æ6†÷%óÒ&WV—&UöG–æÖ–4æ6†÷"‚“°¢f"G–æÖ–5&VeóÒ&WV—&UöG–æÖ–5&Vb‚“°¢f"&V7W'6—fTæ6†÷%óÒ&WV—&U÷&V7W'6—fTæ6†÷"‚“°¢f"&V7W'6—fU&VeóÒ&WV—&U÷&V7W'6—fU&Vb‚“°¢f"G–æÖ–2Ò¶G–æÖ–4æ6†÷%óæFVfVÇBÂG–æÖ–5&VeóæFVfVÇBÂ&V7W'6—fTæ6†÷%óæFVfVÇBÂ&V7W'6—fU&VeóæFVfVÇEÓ°¢W‡÷'G2æFVfVÇBÒG–æÖ–3°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâöFWVæFVçE&WV—&VBæ§0§f"&WV—&UöFWVæFVçE&WV—&VBÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâöFWVæFVçE&WV—&VBæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"FWVæFVæ6–W5óÒ&WV—&UöFWVæFVæ6–W2‚“°¢f"FVbÒ°¢¶W—v÷&C¢&FWVæFVçE&WV—&VB"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢&ö&¦V7B"À¢W'&÷#¢FWVæFVæ6–W5óæW'&÷"À¢6öFS¢†7‡B’ÓâƒÂFWVæFVæ6–W5óçfÆ–FFU&÷W'G”FW2’†7‡B¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFWVæFVçE66†VÖ2æ§0§f"&WV—&UöFWVæFVçE66†VÖ2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÆ–6F÷"öFWVæFVçE66†VÖ2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"FWVæFVæ6–W5óÒ&WV—&UöFWVæFVæ6–W2‚“°¢f"FVbÒ°¢¶W—v÷&C¢&FWVæFVçE66†VÖ2"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢&ö&¦V7B"À¢6öFS¢†7‡B’ÓâƒÂFWVæFVæ6–W5óçfÆ–FFU66†VÖFW2’†7‡B¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâöÆ–Ö—D6öçF–ç2æ§0§f"&WV—&UöÆ–Ö—D6öçF–ç2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷fÆ–FF–öâöÆ–Ö—D6öçF–ç2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"FVbÒ°¢¶W—v÷&C¢²&Ö„6öçF–ç2"Â&Ö–ä6öçF–ç2%ÒÀ¢G—S¢&'&’"À¢66†VÖG—S¢&çVÖ&W""À¢6öFR‡²¶W—v÷&BÂ&VçE66†VÖÂ—BÒ’°¢–b‡&VçE66†VÖæ6öçF–ç2ÓÓÒfö–B’°¢ƒÂWF–Åóæ6†V6µ7G&–7DÖöFR’†—BÂ"G¶¶W—v÷&GÒ"v—F†÷WB&6öçF–ç2"—2–væ÷&VF“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öæW‡Bæ§0§f"&WV—&UöæW‡BÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öæW‡Bæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"FWVæFVçE&WV—&VEóÒ&WV—&UöFWVæFVçE&WV—&VB‚“°¢f"FWVæFVçE66†VÖ5óÒ&WV—&UöFWVæFVçE66†VÖ2‚“°¢f"Æ–Ö—D6öçF–ç5óÒ&WV—&UöÆ–Ö—D6öçF–ç2‚“°¢f"æW‡BÒ¶FWVæFVçE&WV—&VEóæFVfVÇBÂFWVæFVçE66†VÖ5óæFVfVÇBÂÆ–Ö—D6öçF–ç5óæFVfVÇEÓ°¢W‡÷'G2æFVfVÇBÒæW‡C°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷VæWfÇVFVB÷VæWfÇVFVE&÷W'F–W2æ§0§f"&WV—&U÷VæWfÇVFVE&÷W'F–W2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷VæWfÇVFVB÷VæWfÇVFVE&÷W'F–W2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"æÖW5óÒ&WV—&UöæÖW2‚“°¢f"W'&÷"Ò°¢ÖW76vS¢&×W7BäõB†fRVæWfÇVFVB&÷W'F–W2"À¢&×3¢‡²&×2Ò’ÓâƒÂ6öFVvVåóåò–·VæWfÇVFVE&÷W'G“¢G·&×2çVæWfÇVFVE&÷W'G—×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢'VæWfÇVFVE&÷W'F–W2"À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢²&&ööÆVâ"Â&ö&¦V7B%ÒÀ¢G&6´W'&÷'3¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂFFÂW''46÷VçBÂ—BÒÒ7‡C°¢–b‚W''46÷VçB¢F‡&÷ræWrW'&÷"‚&§b–×ÆVÖVçFF–öâW'&÷""“°¢6öç7B²ÆÄW'&÷'2Â&÷2ÒÒ—C°¢–b‡&÷2–ç7Fæ6Vöb6öFVvVåóäæÖR’°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G·&÷7ÒÓÒG'VVÂ‚’ÓâvVâæf÷$–â‚&¶W’"ÂFFÂ†¶W’’ÓâvVâæ–b‡VæWfÇVFVDG–æÖ–2‡&÷2Â¶W’’Â‚’ÓâVæWfÇVFVE&÷6öFR†¶W’’’’“°¢ÒVÇ6R–b‡&÷2ÓÒG'VR’°¢vVâæf÷$–â‚&¶W’"ÂFFÂ†¶W’’Óâ&÷2ÓÓÒfö–BòVæWfÇVFVE&÷6öFR†¶W’’¢vVâæ–b‡VæWfÇVFVE7FF–2‡&÷2Â¶W’’Â‚’ÓâVæWfÇVFVE&÷6öFR†¶W’’’“°¢Ð¢—Bç&÷2ÒG'VS°¢7‡Bæö²‚ƒÂ6öFVvVåóåò–G¶W''46÷VçGÒÓÓÒG¶æÖW5óæFVfVÇBæW'&÷'7Ö“°¢gVæ7F–öâVæWfÇVFVE&÷6öFR†¶W’’°¢–b‡66†VÖÓÓÒfÇ6R’°¢7‡Bç6WE&×2‡²VæWfÇVFVE&÷W'G“¢¶W’Ò“°¢7‡BæW'&÷"‚“°¢–b‚ÆÄW'&÷'2¢vVâæ'&V²‚“°¢&WGW&ã°¢Ð¢–b‚ƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’’°¢6öç7BfÆ–BÒvVâææÖR‚'fÆ–B"“°¢7‡Bç7V'66†VÖ‡°¢¶W—v÷&C¢'VæWfÇVFVE&÷W'F–W2"À¢FF&÷¢¶W’À¢FF&÷G—S¢WF–ÅóåG—Rå7G ¢ÒÂfÆ–B“°¢–b‚ÆÄW'&÷'2¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâvVâæ'&V²‚’“°¢Ð¢Ð¢gVæ7F–öâVæWfÇVFVDG–æÖ–2†WfÇVFVE&÷2Â¶W’’°¢&WGW&âƒÂ6öFVvVåóåò–G¶WfÇVFVE&÷7ÒÇÂG¶WfÇVFVE&÷7Õ²G¶¶W—ÕÖ°¢Ð¢gVæ7F–öâVæWfÇVFVE7FF–2†WfÇVFVE&÷2Â¶W’’°¢6öç7B2ÒµÓ°¢f÷"†6öç7B–âWfÇVFVE&÷2’°¢–b†WfÇVFVE&÷5·ÒÓÓÒG'VR¢2çW6‚‚ƒÂ6öFVvVåóåò–G¶¶W—ÒÓÒG·Ö“°¢Ð¢&WGW&âƒÂ6öFVvVåóææB’‚ââç2“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷VæWfÇVFVB÷VæWfÇVFVD—FV×2æ§0§f"&WV—&U÷VæWfÇVFVD—FV×2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷VæWfÇVFVB÷VæWfÇVFVD—FV×2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²&×3¢²ÆVâÒÒ’ÓâƒÂ6öFVvVåóç7G"–×W7BäõB†fRÖ÷&RF†âG¶ÆVçÒ—FV×6À¢&×3¢‡²&×3¢²ÆVâÒÒ’ÓâƒÂ6öFVvVåóåò–¶Æ–Ö—C¢G¶ÆVç×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢'VæWfÇVFVD—FV×2"À¢G—S¢&'&’"À¢66†VÖG—S¢²&&ööÆVâ"Â&ö&¦V7B%ÒÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂ66†VÖÂFFÂ—BÒÒ7‡C°¢6öç7B—FV×3"Ò—Bæ—FV×2ÇÂ°¢–b†—FV×3"ÓÓÒG'VR¢&WGW&ã°¢6öç7BÆVâÒvVâæ6öç7B‚&ÆVâ"ÂƒÂ6öFVvVåóåò–G¶FFÒæÆVæwF†“°¢–b‡66†VÖÓÓÒfÇ6R’°¢7‡Bç6WE&×2‡²ÆVã¢—FV×3"Ò“°¢7‡Bæf–Â‚ƒÂ6öFVvVåóåò–G¶ÆVçÒâG¶—FV×3'Ö“°¢ÒVÇ6R–b‡G—Vöb66†VÖÓÒ&ö&¦V7B"bbƒÂWF–ÅóæÇv—5fÆ–E66†VÖ’†—BÂ66†VÖ’’°¢6öç7BfÆ–BÒvVâçf"‚'fÆ–B"ÂƒÂ6öFVvVåóåò–G¶ÆVçÒÃÒG¶—FV×3'Ö“°¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâfÆ–FFT—FV×2‡fÆ–BÂ—FV×3"’“°¢7‡Bæö²‡fÆ–B“°¢Ð¢—Bæ—FV×2ÒG'VS°¢gVæ7F–öâfÆ–FFT—FV×2‡fÆ–BÂg&öÒ’°¢vVâæf÷%&ævR‚&’"Âg&öÒÂÆVâÂ†’’Óâ°¢7‡Bç7V'66†VÖ‡²¶W—v÷&C¢'VæWfÇVFVD—FV×2"ÂFF&÷¢’ÂFF&÷G—S¢WF–ÅóåG—RäçVÒÒÂfÆ–B“°¢–b‚—BæÆÄW'&÷'2¢vVâæ–b‚ƒÂ6öFVvVåóææ÷B’‡fÆ–B’Â‚’ÓâvVâæ'&V²‚’“°¢Ò“°¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷VæWfÇVFVBö–æFW‚æ§0§f"&WV—&U÷VæWfÇVFVBÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2÷VæWfÇVFVBö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"VæWfÇVFVE&÷W'F–W5óÒ&WV—&U÷VæWfÇVFVE&÷W'F–W2‚“°¢f"VæWfÇVFVD—FV×5óÒ&WV—&U÷VæWfÇVFVD—FV×2‚“°¢f"VæWfÇVFVBÒ·VæWfÇVFVE&÷W'F–W5óæFVfVÇBÂVæWfÇVFVD—FV×5óæFVfVÇEÓ°¢W‡÷'G2æFVfVÇBÒVæWfÇVFVC°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öf÷&ÖBöf÷&ÖBæ§0§f"&WV—&Uöf÷&ÖBÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öf÷&ÖBöf÷&ÖBæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²66†VÖ6öFRÒ’ÓâƒÂ6öFVvVåóç7G"–×W7BÖF6‚f÷&ÖB"G·66†VÖ6öFWÒ&À¢&×3¢‡²66†VÖ6öFRÒ’ÓâƒÂ6öFVvVåóåò–¶f÷&ÖC¢G·66†VÖ6öFW×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&f÷&ÖB"À¢G—S¢²&çVÖ&W""Â'7G&–ær%ÒÀ¢66†VÖG—S¢'7G&–ær"À¢FFF¢G'VRÀ¢W'&÷"À¢6öFR†7‡BÂ'VÆUG—R’°¢6öç7B²vVâÂFFÂFFFÂ66†VÖÂ66†VÖ6öFRÂ—BÒÒ7‡C°¢6öç7B²÷G2ÂW'%66†VÖF‚Â66†VÖVçbÂ6VÆbÒÒ—C°¢–b‚÷G2çfÆ–FFTf÷&ÖG2¢&WGW&ã°¢–b‚FFF¢fÆ–FFRDFFf÷&ÖB‚“°¢VÇ6P¢fÆ–FFTf÷&ÖB‚“°¢gVæ7F–öâfÆ–FFRDFFf÷&ÖB‚’°¢6öç7Bf×G2ÒvVâç66÷UfÇVR‚&f÷&ÖG2"Â°¢&Vc¢6VÆbæf÷&ÖG2À¢6öFS¢÷G2æ6öFRæf÷&ÖG0¢Ò“°¢6öç7BdFVbÒvVâæ6öç7B‚&dFVb"ÂƒÂ6öFVvVåóåò–G¶f×G7Õ²G·66†VÖ6öFWÕÖ“°¢6öç7BeG—RÒvVâæÆWB‚&eG—R"“°¢6öç7Bf÷&ÖBÒvVâæÆWB‚&f÷&ÖB"“°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G—VöbG¶dFVgÒÓÒ&ö&¦V7B"bb‚G¶dFVgÒ–ç7Fæ6Vöb&VtW‡–Â‚’ÓâvVâæ76–vâ†eG—RÂƒÂ6öFVvVåóåò–G¶dFVgÒçG—RÇÂ'7G&–ær&’æ76–vâ†f÷&ÖBÂƒÂ6öFVvVåóåò–G¶dFVgÒçfÆ–FFV’Â‚’ÓâvVâæ76–vâ†eG—RÂƒÂ6öFVvVåóåò–'7G&–ær&’æ76–vâ†f÷&ÖBÂdFVb’“°¢7‡Bæf–ÂFFF‚ƒÂ6öFVvVåóæ÷"’‡Væ¶æ÷väf×B‚’Â–çfÆ–Df×B‚’’“°¢gVæ7F–öâVæ¶æ÷väf×B‚’°¢–b†÷G2ç7G&–7E66†VÖÓÓÒfÇ6R¢&WGW&â6öFVvVåóææ–Ã°¢&WGW&âƒÂ6öFVvVåóåò–G·66†VÖ6öFWÒbbG¶f÷&ÖGÖ°¢Ð¢gVæ7F–öâ–çfÆ–Df×B‚’°¢6öç7B6ÆÄf÷&ÖBÒ66†VÖVçbâF7–æ2òƒÂ6öFVvVåóåò–‚G¶dFVgÒæ7–æ2òv—BG¶f÷&ÖGÒ‚G¶FFÒ’¢G¶f÷&ÖGÒ‚G¶FFÒ’–¢ƒÂ6öFVvVåóåò–G¶f÷&ÖGÒ‚G¶FFÒ–°¢6öç7BfÆ–DFFÒƒÂ6öFVvVåóåò–‡G—VöbG¶f÷&ÖGÒÓÒ&gVæ7F–öâ"òG¶6ÆÄf÷&ÖGÒ¢G¶f÷&ÖGÒçFW7B‚G¶FFÒ’–°¢&WGW&âƒÂ6öFVvVåóåò–G¶f÷&ÖGÒbbG¶f÷&ÖGÒÓÒG'VRbbG¶eG—WÒÓÓÒG·'VÆUG—WÒbbG·fÆ–DFFÖ°¢Ð¢Ð¢gVæ7F–öâfÆ–FFTf÷&ÖB‚’°¢6öç7Bf÷&ÖDFVbÒ6VÆbæf÷&ÖG5·66†VÖÓ°¢–b‚f÷&ÖDFVb’°¢Væ¶æ÷väf÷&ÖB‚“°¢&WGW&ã°¢Ð¢–b†f÷&ÖDFVbÓÓÒG'VR¢&WGW&ã°¢6öç7B¶f×EG—RÂf÷&ÖBÂf×E&VeÒÒvWDf÷&ÖB†f÷&ÖDFVb“°¢–b†f×EG—RÓÓÒ'VÆUG—R¢7‡Bç72‡fÆ–D6öæF—F–öâ‚’“°¢gVæ7F–öâVæ¶æ÷väf÷&ÖB‚’°¢–b†÷G2ç7G&–7E66†VÖÓÓÒfÇ6R’°¢6VÆbæÆövvW"çv&â‡Væ¶æ÷vä×6r‚’“°¢&WGW&ã°¢Ð¢F‡&÷ræWrW'&÷"‡Væ¶æ÷vä×6r‚’“°¢gVæ7F–öâVæ¶æ÷vä×6r‚’°¢&WGW&âVæ¶æ÷vâf÷&ÖB"G·66†VÖÒ"–væ÷&VB–â66†VÖBF‚"G¶W'%66†VÖF‡Ò&°¢Ð¢Ð¢gVæ7F–öâvWDf÷&ÖB†f×DFVb’°¢6öç7B6öFRÒf×DFVb–ç7Fæ6Vöb&VtW‡òƒÂ6öFVvVåóç&VvW‡6öFR’†f×DFVb’¢÷G2æ6öFRæf÷&ÖG2òƒÂ6öFVvVåóåò–G¶÷G2æ6öFRæf÷&ÖG7ÒG²ƒÂ6öFVvVåóævWE&÷W'G’’‡66†VÖ—Ö¢fö–B°¢6öç7Bf×BÒvVâç66÷UfÇVR‚&f÷&ÖG2"Â²¶W“¢66†VÖÂ&Vc¢f×DFVbÂ6öFRÒ“°¢–b‡G—Vöbf×DFVbÓÒ&ö&¦V7B"bb†f×DFVb–ç7Fæ6Vöb&VtW‡’’°¢&WGW&â¶f×DFVbçG—RÇÂ'7G&–ær"Âf×DFVbçfÆ–FFRÂƒÂ6öFVvVåóåò–G¶f×GÒçfÆ–FFVÓ°¢Ð¢&WGW&â²'7G&–ær"Âf×DFVbÂf×EÓ°¢Ð¢gVæ7F–öâfÆ–D6öæF—F–öâ‚’°¢–b‡G—Vöbf÷&ÖDFVbÓÒ&ö&¦V7B"bb†f÷&ÖDFVb–ç7Fæ6Vöb&VtW‡’bbf÷&ÖDFVbæ7–æ2’°¢–b‚66†VÖVçbâF7–æ2¢F‡&÷ræWrW'&÷"‚&7–æ2f÷&ÖB–â7–æ266†VÖ"“°¢&WGW&âƒÂ6öFVvVåóåò–v—BG¶f×E&VgÒ‚G¶FFÒ–°¢Ð¢&WGW&âG—Vöbf÷&ÖBÓÒ&gVæ7F–öâ"òƒÂ6öFVvVåóåò–G¶f×E&VgÒ‚G¶FFÒ–¢ƒÂ6öFVvVåóåò–G¶f×E&VgÒçFW7B‚G¶FFÒ–°¢Ð¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öf÷&ÖBö–æFW‚æ§0§f"&WV—&Uöf÷&ÖC"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öf÷&ÖBö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"f÷&ÖEóÒ&WV—&Uöf÷&ÖB‚“°¢f"f÷&ÖBÒ¶f÷&ÖEóæFVfVÇEÓ°¢W‡÷'G2æFVfVÇBÒf÷&ÖC°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÖWFFFæ§0§f"&WV—&UöÖWFFFÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öÖWFFFæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æ6öçFVçEfö6'VÆ'’ÒW‡÷'G2æÖWFFFfö6'VÆ'’Òfö–B°¢W‡÷'G2æÖWFFFfö6'VÆ'’Ò°¢'F—FÆR"À¢&FW67&—F–öâ"À¢&FVfVÇB"À¢&FW&V6FVB"À¢'&VDöæÇ’"À¢'w&—FTöæÇ’"À¢&W†×ÆW2 ¢Ó°¢W‡÷'G2æ6öçFVçEfö6'VÆ'’Ò°¢&6öçFVçDÖVF–G—R"À¢&6öçFVçDVæ6öF–ær"À¢&6öçFVçE66†VÖ ¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG&gC##æ§0§f"&WV—&UöG&gC##Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG&gC##æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6÷&UóÒ&WV—&Uö6÷&S"‚“°¢f"fÆ–FF–öåóÒ&WV—&U÷fÆ–FF–öâ‚“°¢f"Æ–6F÷%óÒ&WV—&UöÆ–6F÷"‚“°¢f"G–æÖ–5óÒ&WV—&UöG–æÖ–2‚“°¢f"æW‡EóÒ&WV—&UöæW‡B‚“°¢f"VæWfÇVFVEóÒ&WV—&U÷VæWfÇVFVB‚“°¢f"f÷&ÖEóÒ&WV—&Uöf÷&ÖC"‚“°¢f"ÖWFFFóÒ&WV—&UöÖWFFF‚“°¢f"G&gC##fö6'VÆ&–W2Ò°¢G–æÖ–5óæFVfVÇBÀ¢6÷&UóæFVfVÇBÀ¢fÆ–FF–öåóæFVfVÇBÀ¢ƒÂÆ–6F÷%óæFVfVÇB’‡G'VR’À¢f÷&ÖEóæFVfVÇBÀ¢ÖWFFFóæÖWFFFfö6'VÆ'’À¢ÖWFFFóæ6öçFVçEfö6'VÆ'’À¢æW‡EóæFVfVÇBÀ¢VæWfÇVFVEóæFVfVÇ@¢Ó°¢W‡÷'G2æFVfVÇBÒG&gC##fö6'VÆ&–W3°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öF—67&–Ö–æF÷"÷G—W2æ§0§f"&WV—&U÷G—W2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öF—67&–Ö–æF÷"÷G—W2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2äF—67$W'&÷"Òfö–B°¢f"F—67$W'&÷#°¢†gVæ7F–öâ„F—67$W'&÷#"’°¢F—67$W'&÷#%²%Fr%ÒÒ'Fr#°¢F—67$W'&÷#%²$Ö–ær%ÒÒ&Ö–ær#°¢Ò’„F—67$W'&÷"ÇÂ†W‡÷'G2äF—67$W'&÷"ÒF—67$W'&÷"Ò·Ò’“°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öF—67&–Ö–æF÷"ö–æFW‚æ§0§f"&WV—&UöF—67&–Ö–æF÷"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öF—67&–Ö–æF÷"ö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"G—W5óÒ&WV—&U÷G—W2‚“°¢f"6ö×–ÆUóÒ&WV—&Uö6ö×–ÆR‚“°¢f"&VeöW'&÷%óÒ&WV—&U÷&VeöW'&÷"‚“°¢f"WF–ÅóÒ&WV—&U÷WF–Â‚“°¢f"W'&÷"Ò°¢ÖW76vS¢‡²&×3¢²F—67$W'&÷"ÂFtæÖRÒÒ’ÓâF—67$W'&÷"ÓÓÒG—W5óäF—67$W'&÷"åFròFr"G·FtæÖWÒ"×W7B&R7G&–æv¢fÇVRöbFr"G·FtæÖWÒ"×W7B&R–âöæTöfÀ¢&×3¢‡²&×3¢²F—67$W'&÷"ÂFrÂFtæÖRÒÒ’ÓâƒÂ6öFVvVåóåò–¶W'&÷#¢G¶F—67$W'&÷'ÒÂFs¢G·FtæÖWÒÂFufÇVS¢G·Fw×Ö ¢Ó°¢f"FVbÒ°¢¶W—v÷&C¢&F—67&–Ö–æF÷""À¢G—S¢&ö&¦V7B"À¢66†VÖG—S¢&ö&¦V7B"À¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂFFÂ66†VÖÂ&VçE66†VÖÂ—BÒÒ7‡C°¢6öç7B²öæTöbÒÒ&VçE66†VÖ°¢–b‚—Bæ÷G2æF—67&–Ö–æF÷"’°¢F‡&÷ræWrW'&÷"‚&F—67&–Ö–æF÷#¢&WV—&W2F—67&–Ö–æF÷"÷F–öâ"“°¢Ð¢6öç7BFtæÖRÒ66†VÖç&÷W'G”æÖS°¢–b‡G—VöbFtæÖRÒ'7G&–ær"¢F‡&÷ræWrW'&÷"‚&F—67&–Ö–æF÷#¢&WV—&W2&÷W'G”æÖR"“°¢–b‡66†VÖæÖ–ær¢F‡&÷ræWrW'&÷"‚&F—67&–Ö–æF÷#¢Ö–ær—2æ÷B7W÷'FVB"“°¢–b‚öæTöb¢F‡&÷ræWrW'&÷"‚&F—67&–Ö–æF÷#¢&WV—&W2öæTöb¶W—v÷&B"“°¢6öç7BfÆ–BÒvVâæÆWB‚'fÆ–B"ÂfÇ6R“°¢6öç7BFrÒvVâæ6öç7B‚'Fr"ÂƒÂ6öFVvVåóåò–G¶FFÒG²ƒÂ6öFVvVåóævWE&÷W'G’’‡FtæÖR—Ö“°¢vVâæ–b‚ƒÂ6öFVvVåóåò–G—VöbG·FwÒÓÒ'7G&–ær&Â‚’ÓâfÆ–FFTÖ–ær‚’Â‚’Óâ7‡BæW'&÷"†fÇ6RÂ²F—67$W'&÷#¢G—W5óäF—67$W'&÷"åFrÂFrÂFtæÖRÒ’“°¢7‡Bæö²‡fÆ–B“°¢gVæ7F–öâfÆ–FFTÖ–ær‚’°¢6öç7BÖ–ærÒvWDÖ–ær‚“°¢vVâæ–b†fÇ6R“°¢f÷"†6öç7BFufÇVR–âÖ–ær’°¢vVâæVÇ6T–b‚ƒÂ6öFVvVåóåò–G·FwÒÓÓÒG·FufÇVWÖ“°¢vVâæ76–vâ‡fÆ–BÂÇ•Fu66†VÖ†Ö–æu·FufÇVUÒ’“°¢Ð¢vVâæVÇ6R‚“°¢7‡BæW'&÷"†fÇ6RÂ²F—67$W'&÷#¢G—W5óäF—67$W'&÷"äÖ–ærÂFrÂFtæÖRÒ“°¢vVâæVæD–b‚“°¢Ð¢gVæ7F–öâÇ•Fu66†VÖ‡66†VÖ&÷’°¢6öç7B÷fÆ–BÒvVâææÖR‚'fÆ–B"“°¢6öç7B66„7‡BÒ7‡Bç7V'66†VÖ‡²¶W—v÷&C¢&öæTöb"Â66†VÖ&÷ÒÂ÷fÆ–B“°¢7‡BæÖW&vTWfÇVFVB‡66„7‡BÂ6öFVvVåóäæÖR“°¢&WGW&â÷fÆ–C°¢Ð¢gVæ7F–öâvWDÖ–ær‚’°¢f"ö°¢6öç7BöæTödÖ–ærÒ·Ó°¢6öç7BF÷&WV—&VBÒ†5&WV—&VB‡&VçE66†VÖ“°¢ÆWBFu&WV—&VBÒG'VS°¢f÷"†ÆWB’Ò²’ÂöæTöbæÆVæwFƒ²’²²’°¢ÆWB66‚ÒöæTöe¶•Ó°¢–b‚‡66‚ÓÓÒçVÆÂÇÂ66‚ÓÓÒfö–Bòfö–B¢66‚âG&Vb’bbƒÂWF–Åóç66†VÖ†5'VÆW4'WE&Vb’‡66‚Â—Bç6VÆbå%TÄU2’’°¢6öç7B&VbÒ66‚âG&Vc°¢66‚Ò6ö×–ÆUóç&W6öÇfU&Vbæ6ÆÂ†—Bç6VÆbÂ—Bç66†VÖVçbç&ö÷BÂ—Bæ&6T–BÂ&Vb“°¢–b‡66‚–ç7Fæ6Vöb6ö×–ÆUóå66†VÖVçb¢66‚Ò66‚ç66†VÖ°¢–b‡66‚ÓÓÒfö–B¢F‡&÷ræWr&VeöW'&÷%óæFVfVÇB†—Bæ÷G2çW&•&W6öÇfW"Â—Bæ&6T–BÂ&Vb“°¢Ð¢6öç7B&÷66‚Ò…öÒ66‚ÓÓÒçVÆÂÇÂ66‚ÓÓÒfö–Bòfö–B¢66‚ç&÷W'F–W2’ÓÓÒçVÆÂÇÂöÓÓÒfö–Bòfö–B¢ö·FtæÖUÓ°¢–b‡G—Vöb&÷66‚Ò&ö&¦V7B"’°¢F‡&÷ræWrW'&÷"†F—67&–Ö–æF÷#¢öæTöb7V'66†VÖ2†÷"&VfW&Væ6VB66†VÖ2’×W7B†fR'&÷W'F–W2òG·FtæÖWÒ&“°¢Ð¢Fu&WV—&VBÒFu&WV—&VBbb‡F÷&WV—&VBÇÂ†5&WV—&VB‡66‚’“°¢FDÖ–æw2‡&÷66‚Â’“°¢Ð¢–b‚Fu&WV—&VB¢F‡&÷ræWrW'&÷"†F—67&–Ö–æF÷#¢"G·FtæÖWÒ"×W7B&R&WV—&VF“°¢&WGW&âöæTödÖ–æs°¢gVæ7F–öâ†5&WV—&VB‡²&WV—&VBÒ’°¢&WGW&â'&’æ—4'&’‡&WV—&VB’bb&WV—&VBæ–æ6ÇVFW2‡FtæÖR“°¢Ð¢gVæ7F–öâFDÖ–æw2‡66‚Â’’°¢–b‡66‚æ6öç7B’°¢FDÖ–ær‡66‚æ6öç7BÂ’“°¢ÒVÇ6R–b‡66‚æVçVÒ’°¢f÷"†6öç7BFufÇVRöb66‚æVçVÒ’°¢FDÖ–ær‡FufÇVRÂ’“°¢Ð¢ÒVÇ6R°¢F‡&÷ræWrW'&÷"†F—67&–Ö–æF÷#¢'&÷W'F–W2òG·FtæÖWÒ"×W7B†fR&6öç7B"÷"&VçVÒ&“°¢Ð¢Ð¢gVæ7F–öâFDÖ–ær‡FufÇVRÂ’’°¢–b‡G—VöbFufÇVRÒ'7G&–ær"ÇÂFufÇVR–âöæTödÖ–ær’°¢F‡&÷ræWrW'&÷"†F—67&–Ö–æF÷#¢"G·FtæÖWÒ"fÇVW2×W7B&RVæ—VR7G&–æw6“°¢Ð¢öæTödÖ–æu·FufÇVUÒÒ“°¢Ð¢Ð¢Ð¢Ó°¢W‡÷'G2æFVfVÇBÒFVc°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"÷66†VÖæ§6öà§f"&WV—&U÷66†VÖÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"÷66†VÖæ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"ö6÷&R#¢G'VRÀ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"öÆ–6F÷"#¢G'VRÀ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"÷VæWfÇVFVB#¢G'VRÀ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"÷fÆ–FF–öâ#¢G'VRÀ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"öÖWFÖFF#¢G'VRÀ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"öf÷&ÖBÖææ÷FF–öâ#¢G'VRÀ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"ö6öçFVçB#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢$6÷&RæBfÆ–FF–öâ7V6–f–6F–öç2ÖWF×66†VÖ"À¢ÆÄöc¢°¢²G&Vc¢&ÖWFö6÷&R"ÒÀ¢²G&Vc¢&ÖWFöÆ–6F÷""ÒÀ¢²G&Vc¢&ÖWF÷VæWfÇVFVB"ÒÀ¢²G&Vc¢&ÖWF÷fÆ–FF–öâ"ÒÀ¢²G&Vc¢&ÖWFöÖWFÖFF"ÒÀ¢²G&Vc¢&ÖWFöf÷&ÖBÖææ÷FF–öâ"ÒÀ¢²G&Vc¢&ÖWFö6öçFVçB"Ð¢ÒÀ¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢F6öÖÖVçC¢%F†—2ÖWF×66†VÖÇ6òFVf–æW2¶W—v÷&G2F†B†fRV&VB–â&Wf–÷W2G&gG2–â÷&FW"Fò&WfVçB–æ6ö×F–&ÆRW‡FVç6–öç22F†W’&VÖ–â–â6öÖÖöâW6Râ"À¢&÷W'F–W3¢°¢FVf–æ—F–öç3¢°¢F6öÖÖVçC¢r&FVf–æ—F–öç2"†2&VVâ&WÆ6VB'’"FFVg2"ârÀ¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢FW&V6FVC¢G'VRÀ¢FVfVÇC¢·Ð¢ÒÀ¢FWVæFVæ6–W3¢°¢F6öÖÖVçC¢r&FWVæFVæ6–W2"†2&VVâ7Æ—BæB&WÆ6VB'’&FWVæFVçE66†VÖ2"æB&FWVæFVçE&WV—&VB"–â÷&FW"Fò6W'fRF†V—"F–ffW&–ær6VÖçF–72ârÀ¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢°¢ç”öc¢·²FG–æÖ–5&Vc¢"6ÖWF"ÒÂ²G&Vc¢&ÖWF÷fÆ–FF–öâ2òFFVg2÷7G&–æt'&’"ÕÐ¢ÒÀ¢FW&V6FVC¢G'VRÀ¢FVfVÇC¢·Ð¢ÒÀ¢G&V7W'6—fTæ6†÷#¢°¢F6öÖÖVçC¢r"G&V7W'6—fTæ6†÷""†2&VVâ&WÆ6VB'’"FG–æÖ–4æ6†÷""ârÀ¢G&Vc¢&ÖWFö6÷&R2òFFVg2öæ6†÷%7G&–ær"À¢FW&V6FVC¢G'VP¢ÒÀ¢G&V7W'6—fU&Vc¢°¢F6öÖÖVçC¢r"G&V7W'6—fU&Vb"†2&VVâ&WÆ6VB'’"FG–æÖ–5&Vb"ârÀ¢G&Vc¢&ÖWFö6÷&R2òFFVg2÷W&•&VfW&Væ6U7G&–ær"À¢FW&V6FVC¢G'VP¢Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFöÆ–6F÷"æ§6öà§f"&WV—&UöÆ–6F÷#"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFöÆ–6F÷"æ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWFöÆ–6F÷""À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"öÆ–6F÷"#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢$Æ–6F÷"fö6'VÆ'’ÖWF×66†VÖ"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢&Vf—„—FV×3¢²G&Vc¢"2òFFVg2÷66†VÖ'&’"ÒÀ¢—FV×3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢6öçF–ç3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢FF—F–öæÅ&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢&÷W'F–W3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢FVfVÇC¢·Ð¢ÒÀ¢GFW&å&÷W'F–W3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢&÷W'G”æÖW3¢²f÷&ÖC¢'&VvW‚"ÒÀ¢FVfVÇC¢·Ð¢ÒÀ¢FWVæFVçE66†VÖ3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢FVfVÇC¢·Ð¢ÒÀ¢&÷W'G”æÖW3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢–c¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢F†Vã¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢VÇ6S¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢ÆÄöc¢²G&Vc¢"2òFFVg2÷66†VÖ'&’"ÒÀ¢ç”öc¢²G&Vc¢"2òFFVg2÷66†VÖ'&’"ÒÀ¢öæTöc¢²G&Vc¢"2òFFVg2÷66†VÖ'&’"ÒÀ¢æ÷C¢²FG–æÖ–5&Vc¢"6ÖWF"Ð¢ÒÀ¢FFVg3¢°¢66†VÖ'&“¢°¢G—S¢&'&’"À¢Ö–ä—FV×3¢À¢—FV×3¢²FG–æÖ–5&Vc¢"6ÖWF"Ð¢Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWF÷VæWfÇVFVBæ§6öà§f"&WV—&U÷VæWfÇVFVC"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWF÷VæWfÇVFVBæ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWF÷VæWfÇVFVB"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"÷VæWfÇVFVB#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢%VæWfÇVFVBÆ–6F÷"fö6'VÆ'’ÖWF×66†VÖ"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢VæWfÇVFVD—FV×3¢²FG–æÖ–5&Vc¢"6ÖWF"ÒÀ¢VæWfÇVFVE&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFö6öçFVçBæ§6öà§f"&WV—&Uö6öçFVçBÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFö6öçFVçBæ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWFö6öçFVçB"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"ö6öçFVçB#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢$6öçFVçBfö6'VÆ'’ÖWF×66†VÖ"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢6öçFVçDVæ6öF–æs¢²G—S¢'7G&–ær"ÒÀ¢6öçFVçDÖVF–G—S¢²G—S¢'7G&–ær"ÒÀ¢6öçFVçE66†VÖ¢²FG–æÖ–5&Vc¢"6ÖWF"Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFö6÷&Ræ§6öà§f"&WV—&Uö6÷&S2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFö6÷&Ræ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWFö6÷&R"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"ö6÷&R#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢$6÷&Rfö6'VÆ'’ÖWF×66†VÖ"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢F–C¢°¢G&Vc¢"2òFFVg2÷W&•&VfW&Væ6U7G&–ær"À¢F6öÖÖVçC¢$æöâÖV×G’g&vÖVçG2æ÷BÆÆ÷vVBâ"À¢GFW&ã¢%åµâ5Ò¢3òB ¢ÒÀ¢G66†VÖ¢²G&Vc¢"2òFFVg2÷W&•7G&–ær"ÒÀ¢G&Vc¢²G&Vc¢"2òFFVg2÷W&•&VfW&Væ6U7G&–ær"ÒÀ¢Fæ6†÷#¢²G&Vc¢"2òFFVg2öæ6†÷%7G&–ær"ÒÀ¢FG–æÖ–5&Vc¢²G&Vc¢"2òFFVg2÷W&•&VfW&Væ6U7G&–ær"ÒÀ¢FG–æÖ–4æ6†÷#¢²G&Vc¢"2òFFVg2öæ6†÷%7G&–ær"ÒÀ¢Gfö6'VÆ'“¢°¢G—S¢&ö&¦V7B"À¢&÷W'G”æÖW3¢²G&Vc¢"2òFFVg2÷W&•7G&–ær"ÒÀ¢FF—F–öæÅ&÷W'F–W3¢°¢G—S¢&&ööÆVâ ¢Ð¢ÒÀ¢F6öÖÖVçC¢°¢G—S¢'7G&–ær ¢ÒÀ¢FFVg3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²FG–æÖ–5&Vc¢"6ÖWF"Ð¢Ð¢ÒÀ¢FFVg3¢°¢æ6†÷%7G&–æs¢°¢G—S¢'7G&–ær"À¢GFW&ã¢%å´Õ¦×¥õÕ²ÔÕ¦×£Ó’åõÒ¢B ¢ÒÀ¢W&•7G&–æs¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'W&’ ¢ÒÀ¢W&•&VfW&Væ6U7G&–æs¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'W&’×&VfW&Væ6R ¢Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFöf÷&ÖBÖææ÷FF–öâæ§6öà§f"&WV—&Uöf÷&ÖEöææ÷FF–öâÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFöf÷&ÖBÖææ÷FF–öâæ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWFöf÷&ÖBÖææ÷FF–öâ"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"öf÷&ÖBÖææ÷FF–öâ#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢$f÷&ÖBfö6'VÆ'’ÖWF×66†VÖf÷"ææ÷FF–öâ&W7VÇG2"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢f÷&ÖC¢²G—S¢'7G&–ær"Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFöÖWFÖFFæ§6öà§f"&WV—&UöÖWFöFFÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWFöÖWFÖFFæ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWFöÖWFÖFF"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"öÖWFÖFF#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢$ÖWFÖFFfö6'VÆ'’ÖWF×66†VÖ"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢F—FÆS¢°¢G—S¢'7G&–ær ¢ÒÀ¢FW67&—F–öã¢°¢G—S¢'7G&–ær ¢ÒÀ¢FVfVÇC¢G'VRÀ¢FW&V6FVC¢°¢G—S¢&&ööÆVâ"À¢FVfVÇC¢fÇ6P¢ÒÀ¢&VDöæÇ“¢°¢G—S¢&&ööÆVâ"À¢FVfVÇC¢fÇ6P¢ÒÀ¢w&—FTöæÇ“¢°¢G—S¢&&ööÆVâ"À¢FVfVÇC¢fÇ6P¢ÒÀ¢W†×ÆW3¢°¢G—S¢&'&’"À¢—FV×3¢G'VP¢Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWF÷fÆ–FF–öâæ§6öà§f"&WV—&U÷fÆ–FF–öã"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"öÖWF÷fÆ–FF–öâæ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"öÖWF÷fÆ–FF–öâ"À¢Gfö6'VÆ'“¢°¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷fö6"÷fÆ–FF–öâ#¢G'VP¢ÒÀ¢FG–æÖ–4æ6†÷#¢&ÖWF"À¢F—FÆS¢%fÆ–FF–öâfö6'VÆ'’ÖWF×66†VÖ"À¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢G—S¢°¢ç”öc¢°¢²G&Vc¢"2òFFVg2÷6–×ÆUG—W2"ÒÀ¢°¢G—S¢&'&’"À¢—FV×3¢²G&Vc¢"2òFFVg2÷6–×ÆUG—W2"ÒÀ¢Ö–ä—FV×3¢À¢Væ—VT—FV×3¢G'VP¢Ð¢Ð¢ÒÀ¢6öç7C¢G'VRÀ¢VçVÓ¢°¢G—S¢&'&’"À¢—FV×3¢G'VP¢ÒÀ¢×VÇF—ÆTöc¢°¢G—S¢&çVÖ&W""À¢W†6ÇW6—fTÖ–æ–×VÓ¢ ¢ÒÀ¢Ö†–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢W†6ÇW6—fTÖ†–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢Ö–æ–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢W†6ÇW6—fTÖ–æ–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢Ö„ÆVæwFƒ¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–äÆVæwFƒ¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW$FVfVÇC"ÒÀ¢GFW&ã¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'&VvW‚ ¢ÒÀ¢Ö„—FV×3¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–ä—FV×3¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW$FVfVÇC"ÒÀ¢Væ—VT—FV×3¢°¢G—S¢&&ööÆVâ"À¢FVfVÇC¢fÇ6P¢ÒÀ¢Ö„6öçF–ç3¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–ä6öçF–ç3¢°¢G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW""À¢FVfVÇC¢¢ÒÀ¢Ö…&÷W'F–W3¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–å&÷W'F–W3¢²G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW$FVfVÇC"ÒÀ¢&WV—&VC¢²G&Vc¢"2òFFVg2÷7G&–æt'&’"ÒÀ¢FWVæFVçE&WV—&VC¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢°¢G&Vc¢"2òFFVg2÷7G&–æt'&’ ¢Ð¢Ð¢ÒÀ¢FFVg3¢°¢æöäæVvF—fT–çFVvW#¢°¢G—S¢&–çFVvW""À¢Ö–æ–×VÓ¢ ¢ÒÀ¢æöäæVvF—fT–çFVvW$FVfVÇC¢°¢G&Vc¢"2òFFVg2öæöäæVvF—fT–çFVvW""À¢FVfVÇC¢ ¢ÒÀ¢6–×ÆUG—W3¢°¢VçVÓ¢²&'&’"Â&&ööÆVâ"Â&–çFVvW""Â&çVÆÂ"Â&çVÖ&W""Â&ö&¦V7B"Â'7G&–ær%Ð¢ÒÀ¢7G&–æt'&“¢°¢G—S¢&'&’"À¢—FV×3¢²G—S¢'7G&–ær"ÒÀ¢Væ—VT—FV×3¢G'VRÀ¢FVfVÇC¢µÐ¢Ð¢Ð¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"ö–æFW‚æ§0§f"&WV—&Uö§6öå÷66†VÖó##ó"Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÓ##Ó"ö–æFW‚æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"ÖWF66†VÖÒ&WV—&U÷66†VÖ‚“°¢f"Æ–6F÷"Ò&WV—&UöÆ–6F÷#"‚“°¢f"VæWfÇVFVBÒ&WV—&U÷VæWfÇVFVC"‚“°¢f"6öçFVçBÒ&WV—&Uö6öçFVçB‚“°¢f"6÷&S"Ò&WV—&Uö6÷&S2‚“°¢f"f÷&ÖBÒ&WV—&Uöf÷&ÖEöææ÷FF–öâ‚“°¢f"ÖWFFFÒ&WV—&UöÖWFöFF‚“°¢f"fÆ–FF–öâÒ&WV—&U÷fÆ–FF–öã"‚“°¢f"ÔUDõ5Uõ%EôDDÒ²"÷&÷W'F–W2%Ó°¢gVæ7F–öâFDÖWF66†VÖ##‚FFF’°¢°¢°¢ÖWF66†VÖÀ¢Æ–6F÷"À¢VæWfÇVFVBÀ¢6öçFVçBÀ¢6÷&S"À¢v—F‚FFF‡F†—2Âf÷&ÖB’À¢ÖWFFFÀ¢v—F‚FFF‡F†—2ÂfÆ–FF–öâ¢Òæf÷$V6‚‚‡66‚’ÓâF†—2æFDÖWF66†VÖ‡66‚Âfö–BÂfÇ6R’“°¢&WGW&âF†—3°¢gVæ7F–öâv—F‚FFF†§c"Â66‚’°¢&WGW&âFFFò§c"âFFFÖWF66†VÖ‡66‚ÂÔUDõ5Uõ%EôDD’¢66ƒ°¢Ð¢Ð¢W‡÷'G2æFVfVÇBÒFDÖWF66†VÖ##°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7Bó##æ§0§f"&WV—&UõòÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7Bó##æ§2"†W‡÷'G2ÂÖöGVÆR’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2äÖ—76–æu&VdW'&÷"ÒW‡÷'G2åfÆ–FF–öäW'&÷"ÒW‡÷'G2ä6öFTvVâÒW‡÷'G2äæÖRÒW‡÷'G2ææ–ÂÒW‡÷'G2ç7G&–æv–g’ÒW‡÷'G2ç7G"ÒW‡÷'G2åòÒW‡÷'G2ä¶W—v÷&D7‡BÒW‡÷'G2ä§c##Òfö–B°¢f"6÷&UóÒ&WV—&Uö6÷&R‚“°¢f"G&gC##óÒ&WV—&UöG&gC##‚“°¢f"F—67&–Ö–æF÷%óÒ&WV—&UöF—67&–Ö–æF÷"‚“°¢f"§6öå÷66†VÖó##ó%óÒ&WV—&Uö§6öå÷66†VÖó##ó"‚“°¢f"ÔUDõ44„TÔô”BÒ&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ#°¢f"§c##Ò6Æ72W‡FVæG26÷&UóæFVfVÇB°¢6öç7G'V7F÷"†÷G2Ò·Ò’°¢7WW"‡°¢ââæ÷G2À¢G–æÖ–5&Vc¢G'VRÀ¢æW‡C¢G'VRÀ¢VæWfÇVFVC¢G'VP¢Ò“°¢Ð¢öFEfö6'VÆ&–W2‚’°¢7WW"åöFEfö6'VÆ&–W2‚“°¢G&gC##óæFVfVÇBæf÷$V6‚‚‡b’ÓâF†—2æFEfö6'VÆ'’‡b’“°¢–b‡F†—2æ÷G2æF—67&–Ö–æF÷"¢F†—2æFD¶W—v÷&B†F—67&–Ö–æF÷%óæFVfVÇB“°¢Ð¢öFDFVfVÇDÖWF66†VÖ‚’°¢7WW"åöFDFVfVÇDÖWF66†VÖ‚“°¢6öç7B²FFFÂÖWFÒÒF†—2æ÷G3°¢–b‚ÖWF¢&WGW&ã°¢§6öå÷66†VÖó##ó%óæFVfVÇBæ6ÆÂ‡F†—2ÂFFF“°¢F†—2ç&Vg5²&‡GG¢òö§6öâ×66†VÖæ÷&r÷66†VÖ%ÒÒÔUDõ44„TÔô”C°¢Ð¢FVfVÇDÖWF‚’°¢&WGW&âF†—2æ÷G2æFVfVÇDÖWFÒ7WW"æFVfVÇDÖWF‚’ÇÂ‡F†—2ævWE66†VÖ„ÔUDõ44„TÔô”B’òÔUDõ44„TÔô”B¢fö–B“°¢Ð¢Ó°¢W‡÷'G2ä§c##Ò§c##°¢ÖöGVÆRæW‡÷'G2ÒW‡÷'G2Ò§c##°¢ÖöGVÆRæW‡÷'G2ä§c##Ò§c##°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æFVfVÇBÒ§c##°¢f"fÆ–FFUóÒ&WV—&U÷fÆ–FFR‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$¶W—v÷&D7‡B"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&âfÆ–FFUóä¶W—v÷&D7‡C°¢ÒÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%ò"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóåó°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â'7G""Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóç7G#°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â'7G&–æv–g’"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóç7G&–æv–g“°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â&æ–Â"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóææ–Ã°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$æÖR"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóäæÖS°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$6öFTvVâ"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóä6öFTvVã°¢ÒÒ“°¢f"fÆ–FF–öåöW'&÷%óÒ&WV—&U÷fÆ–FF–öåöW'&÷"‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%fÆ–FF–öäW'&÷""Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&âfÆ–FF–öåöW'&÷%óæFVfVÇC°¢ÒÒ“°¢f"&VeöW'&÷%óÒ&WV—&U÷&VeöW'&÷"‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$Ö—76–æu&VdW'&÷""Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â&VeöW'&÷%óæFVfVÇC°¢ÒÒ“°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§bÖf÷&ÖG2öF—7Böf÷&ÖG2æ§0§f"&WV—&Uöf÷&ÖG2Òõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§bÖf÷&ÖG2öF—7Böf÷&ÖG2æ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æf÷&ÖDæÖW2ÒW‡÷'G2æf7Df÷&ÖG2ÒW‡÷'G2ægVÆÄf÷&ÖG2Òfö–B°¢gVæ7F–öâf×DFVb‡fÆ–FFRÂ6ö×&R’°¢&WGW&â²fÆ–FFRÂ6ö×&RÓ°¢Ð¢W‡÷'G2ægVÆÄf÷&ÖG2Ò°¢òòFFS¢‡GG¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f3333’76V7F–öâÓRã`¢FFS¢f×DFVb†FFRÂ6ö×&TFFR’À¢òòFFR×F–ÖS¢‡GG¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f3333’76V7F–öâÓRã`¢F–ÖS¢f×DFVb†vWEF–ÖR‡G'VR’Â6ö×&UF–ÖR’À¢&FFR×F–ÖR#¢f×DFVb†vWDFFUF–ÖR‡G'VR’Â6ö×&TFFUF–ÖR’À¢&—6ò×F–ÖR#¢f×DFVb†vWEF–ÖR‚’Â6ö×&T—6õF–ÖR’À¢&—6òÖFFR×F–ÖR#¢f×DFVb†vWDFFUF–ÖR‚’Â6ö×&T—6ôFFUF–ÖR’À¢òòGW&F–öã¢‡GG3¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f3333’6VæF—‚Ô¢GW&F–öã¢õåƒòB’‚…ÆBµ’“ò…ÆB´Ò“ò…ÆB´B“ò…BƒóÕÆB’…ÆB´‚“ò…ÆB´Ò“ò…ÆBµ2“ò“÷Â…ÆBµr“ò’BòÀ¢W&’À¢'W&’×&VfW&Væ6R#¢õâƒó¥¶×¥Õ¶×£Ó’µÂÒåÒ£¢“òƒó¥ÂóõÂòƒó¢ƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¥×ÂU³Ó–Öe×³'Ò’¤“òƒó¥Å²ƒó¢ƒó¢ƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³g×Ã£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³W×Âƒó¥³Ó–Öe×³ÃGÒ“ó£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³G×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃÕ³Ó–Öe×³ÃGÒ“ó£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³7×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³Ã'Õ³Ó–Öe×³ÃGÒ“ó£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³'×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³Ã7Õ³Ó–Öe×³ÃGÒ“ó£¥³Ó–Öe×³ÃGÓ§Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃGÕ³Ó–Öe×³ÃGÒ“ó£¢’ƒó¥³Ó–Öe×³ÃGÓ¥³Ó–Öe×³ÃG×Âƒó¢ƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò•Ââ—³7Òƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò’—Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃWÕ³Ó–Öe×³ÃGÒ“ó£¥³Ó–Öe×³ÃG×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃgÕ³Ó–Öe×³ÃGÒ“ó£¢—ÅµgeÕ³Ó–ÖeÒµÂå¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¥Ò²•Å×Âƒó¢ƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò•Ââ—³7Òƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò—Âƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Õ×ÂU³Ó–Öe×³'Ò’¢’ƒó£¥ÆB¢“òƒó¥Âòƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’¢’§ÅÂòƒó¢ƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’²ƒó¥Âòƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’¢’¢“÷Âƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’²ƒó¥Âòƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’¢’¢“òƒó¥Ãòƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤óõ×ÂU³Ó–Öe×³'Ò’¢“òƒó¢2ƒó¥¶×£Ó•ÂÒå÷âBbr"‚’¢²Ã³Ó¤óõ×ÂU³Ó–Öe×³'Ò’¢“òBö’À¢òòW&’×FV×ÆFS¢‡GG3¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f3cSs ¢'W&’×FV×ÆFR#¢õâƒó¢ƒó¥µåÇƒÕÇƒ#"sÃâUÅÅæ·ÇÕ×ÂU³Ó–Öe×³'Ò—ÅÇµ²²2âó³òcÒÂÅÓòƒó¥¶×£Ó•õ×ÂU³Ó–Öe×³'Ò’²ƒó£¥³Ó•Õ³Ó•×³Ã7×ÅÂ¢“òƒó¢Âƒó¥¶×£Ó•õ×ÂU³Ó–Öe×³'Ò’²ƒó£¥³Ó•Õ³Ó•×³Ã7×ÅÂ¢“ò’¥ÇÒ’¢Bö’À¢òòf÷"F†R6÷W&6S¢‡GG3¢òöv—7Bæv—F‡V"æ6öÒöGW&–æ’ós#“#“@¢òòf÷"FW7B66W3¢‡GG3¢òöÖF†–6'–æVç2æ&RöFVÖò÷W&Â×&VvW€¢W&Ã¢õâƒó¦‡GG3÷ÆgG“¥ÂõÂòƒó¥Å2²ƒó£¥Å2¢“ô“òƒó¢ƒòƒó£Ã#r’ƒó¥ÂåÆG³Ã7Ò—³7Ò’ƒòƒó£c•Âã#SGÃ“%Âãc‚’ƒó¥ÂåÆG³Ã7Ò—³'Ò’ƒòs%Ââƒó£³bÓ•×Ã%ÆGÃ5³ÓÒ’ƒó¥ÂåÆG³Ã7Ò—³'Ò’ƒó¥³Ó•ÕÆC÷ÃÆEÆGÃ%³ÕÆGÃ#%³Ó5Ò’ƒó¥Ââƒó£õÆG³Ã'×Ã%³ÓEÕÆGÃ#U³ÓUÒ’—³'Òƒó¥Ââƒó¥³Ó•ÕÆC÷ÃÆEÆGÃ%³ÓEÕÆGÃ#U³ÓEÒ’—Âƒó¢ƒó¥¶×£Ó•ÇW³ÒÕÇW¶fffgÕÒ²Ò’¥¶×£Ó•ÇW³ÒÕÇW¶fffgÕÒ²’ƒó¥Ââƒó¥¶×£Ó•ÇW³ÒÕÇW¶fffgÕÒ²Ò’¥¶×£Ó•ÇW³ÒÕÇW¶fffgÕÒ²’¢ƒó¥Ââƒó¥¶×¥ÇW³ÒÕÇW¶fffgÕ×³"ÇÒ’’’ƒó£¥ÆG³"ÃWÒ“òƒó¥ÂõµåÇ5Ò¢“òBö—RÀ¢VÖ–Ã¢õå¶×£Ó’2BRbr¢²óÓõåö·Ç×âÕÒ²ƒó¥Âå¶×£Ó’2BRbr¢²óÓõåö·Ç×âÕÒ²’¤ƒó¥¶×£Ó•Òƒó¥¶×£Ó’ÕÒ¥¶×£Ó•Ò“õÂâ’µ¶×£Ó•Òƒó¥¶×£Ó’ÕÒ¥¶×£Ó•Ò“òBö’À¢†÷7FæÖS¢õâƒóÒç³Ã#S7ÕÂãòB•¶×£Ó•Òƒó¥¶×£Ó’Õ×³ÃcÕ¶×£Ó•Ò“òƒó¥Âå¶×£Ó•Òƒó¥²ÓÓ–×¥×³ÃcÕ³Ó–×¥Ò“ò’¥ÂãòBö’À¢òò÷F–Ö—¦VB‡GG3¢ò÷wwrç6f&–&öö·6öæÆ–æRæ6öÒöÆ–'&'’÷f–Wr÷&VwVÆ"ÖW‡&W76–öç2Ö6öö¶&öö²ó“sƒS“cƒ#ƒ3rö6ƒw3bæ‡FÖÀ¢—cC¢õâƒó¢ƒó£#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB•Ââ—³7Òƒó£#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’BòÀ¢—cc¢õâ‚‚…³Ó–Öe×³ÃGÓ¢—³wÒ…³Ó–Öe×³ÃG×Ã¢’—Â‚…³Ó–Öe×³ÃGÓ¢—³gÒƒ¥³Ó–Öe×³ÃG×Â‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò—Ã¢’—Â‚…³Ó–Öe×³ÃGÓ¢—³WÒ‚‚ƒ¥³Ó–Öe×³ÃGÒ—³Ã'Ò—Ã¢‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò—Ã¢’—Â‚…³Ó–Öe×³ÃGÓ¢—³GÒ‚‚ƒ¥³Ó–Öe×³ÃGÒ—³Ã7Ò—Â‚ƒ¥³Ó–Öe×³ÃGÒ“ó¢‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò’—Ã¢’—Â‚…³Ó–Öe×³ÃGÓ¢—³7Ò‚‚ƒ¥³Ó–Öe×³ÃGÒ—³ÃGÒ—Â‚ƒ¥³Ó–Öe×³ÃGÒ—³Ã'Ó¢‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò’—Ã¢’—Â‚…³Ó–Öe×³ÃGÓ¢—³'Ò‚‚ƒ¥³Ó–Öe×³ÃGÒ—³ÃWÒ—Â‚ƒ¥³Ó–Öe×³ÃGÒ—³Ã7Ó¢‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò’—Ã¢’—Â‚…³Ó–Öe×³ÃGÓ¢—³Ò‚‚ƒ¥³Ó–Öe×³ÃGÒ—³ÃgÒ—Â‚ƒ¥³Ó–Öe×³ÃGÒ—³ÃGÓ¢‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò’—Ã¢’—Âƒ¢‚‚ƒ¥³Ó–Öe×³ÃGÒ—³ÃwÒ—Â‚ƒ¥³Ó–Öe×³ÃGÒ—³ÃWÓ¢‚ƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’…Ââƒ#U³ÓU×Ã%³ÓEÕÆGÃÆEÆGÅ³Ó•ÓõÆB’—³7Ò’—Ã¢’’’Bö’À¢&VvW‚À¢òòWV–C¢‡GG¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f3C# ¢WV–C¢õâƒó§W&ã§WV–C¢“õ³Ó–Öe×³‡ÒÒƒó¥³Ó–Öe×³GÒÒ—³7Õ³Ó–Öe×³'ÒBö’À¢òò¥4ôâ×ö–çFW#¢‡GG3¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f3c“¢òòW&’g&vÖVçC¢‡GG3¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂ÷&f33“ƒb6VæF—‚Ô¢&§6öâ×ö–çFW"#¢õâƒó¥Âòƒó¥µçâõ×ÇãÇã’¢’¢BòÀ¢&§6öâ×ö–çFW"×W&’Ög&vÖVçB#¢õâ2ƒó¥Âòƒó¥¶×£Ó•õÂÒâBbr‚’¢²Ã³£Ô×ÂU³Ó–Öe×³'×ÇãÇã’¢’¢Bö’À¢òò&VÆF—fR¥4ôâ×ö–çFW#¢‡GG¢ò÷FööÇ2æ–WFbæ÷&rö‡FÖÂöG&gBÖÇVfb×&VÆF—fRÖ§6öâ×ö–çFW"Ó ¢'&VÆF—fRÖ§6öâ×ö–çFW"#¢õâƒó£Å³Ó•Õ³Ó•Ò¢’ƒó¢7Âƒó¥Âòƒó¥µçâõ×ÇãÇã’¢’¢’BòÀ¢òòF†RföÆÆ÷v–ærf÷&ÖG2&RW6VB'’F†R÷Væ’7V6–f–6F–öã¢‡GG3¢ò÷7V2æ÷Væ—2æ÷&röö2÷c2ãã6FF×G—W0¢òò'—FS¢‡GG3¢òöv—F‡V"æ6öÒöÖ–wVVÆÖ÷Fö—2Ö&6Sc@¢'—FRÀ¢òò6–væVB3"&—B–çFVvW ¢–çC3#¢²G—S¢&çVÖ&W""ÂfÆ–FFS¢fÆ–FFT–çC3"ÒÀ¢òò6–væVBcB&—B–çFVvW ¢–çCcC¢²G—S¢&çVÖ&W""ÂfÆ–FFS¢fÆ–FFT–çCcBÒÀ¢òò2×G—RfÆö@¢fÆöC¢²G—S¢&çVÖ&W""ÂfÆ–FFS¢fÆ–FFTçVÖ&W"ÒÀ¢òò2×G—RF÷V&ÆP¢F÷V&ÆS¢²G—S¢&çVÖ&W""ÂfÆ–FFS¢fÆ–FFTçVÖ&W"ÒÀ¢òò†–çBFòF†RT’Fò†–FR–çWB7G&–æw0¢77v÷&C¢G'VRÀ¢òòVæ6†V6¶VB7G&–ær–Æö@¢&–æ'“¢G'VP¢Ó°¢W‡÷'G2æf7Df÷&ÖG2Ò°¢ââæW‡÷'G2ægVÆÄf÷&ÖG2À¢FFS¢f×DFVb‚õåÆEÆEÆEÆBÕ³ÓÕÆBÕ³Ó5ÕÆBBòÂ6ö×&TFFR’À¢F–ÖS¢f×DFVb‚õâƒó¥³Ó%ÕÆC¥³ÓUÕÆC¥³ÓUÕÆGÃ#3£S“£c’ƒó¥ÂåÆB²“òƒó§§Å²²ÕÕÆEÆBƒó££õÆEÆB“ò’Bö’Â6ö×&UF–ÖR’À¢&FFR×F–ÖR#¢f×DFVb‚õåÆEÆEÆEÆBÕ³ÓÕÆBÕ³Ó5ÕÆGBƒó¥³Ó%ÕÆC¥³ÓUÕÆC¥³ÓUÕÆGÃ#3£S“£c’ƒó¥ÂåÆB²“òƒó§§Å²²ÕÕÆEÆBƒó££õÆEÆB“ò’Bö’Â6ö×&TFFUF–ÖR’À¢&—6ò×F–ÖR#¢f×DFVb‚õâƒó¥³Ó%ÕÆC¥³ÓUÕÆC¥³ÓUÕÆGÃ#3£S“£c’ƒó¥ÂåÆB²“òƒó§§Å²²ÕÕÆEÆBƒó££õÆEÆB“ò“òBö’Â6ö×&T—6õF–ÖR’À¢&—6òÖFFR×F–ÖR#¢f×DFVb‚õåÆEÆEÆEÆBÕ³ÓÕÆBÕ³Ó5ÕÆE·EÇ5Òƒó¥³Ó%ÕÆC¥³ÓUÕÆC¥³ÓUÕÆGÃ#3£S“£c’ƒó¥ÂåÆB²“òƒó§§Å²²ÕÕÆEÆBƒó££õÆEÆB“ò“òBö’Â6ö×&T—6ôFFUF–ÖR’À¢òòW&“¢‡GG3¢òöv—F‡V"æ6öÒöÖf–çF÷6‚ö—2Ö×’Ö§6öâ×fÆ–Bö&Æö"öÖ7FW"öf÷&ÖG2æ§0¢W&“¢õâƒó¥¶×¥Õ¶×£Ó’µÂÒåÒ£¢’ƒó¥ÂóõÂò“õµåÇ5Ò¢Bö’À¢'W&’×&VfW&Væ6R#¢õâƒó¢ƒó¥¶×¥Õ¶×£Ó’µÂÒåÒ£¢“õÂóõÂò“òƒó¥µåÅÅÇ25ÕµåÇ25Ò¢“òƒó¢5µåÅÅÇ5Ò¢“òBö’À¢òòVÖ–Â‡6÷W&6W2g&öÒ§6VâfÆ–FF÷"“ ¢òò‡GG¢ò÷7F6¶÷fW&fÆ÷ræ6öÒ÷VW7F–öç2ó#3#2÷W6–ærÖ×&VwVÆ"ÖW‡&W76–öâ×Fò×fÆ–FFRÖâÖVÖ–ÂÖFG&W726ç7vW"Óƒƒ#“3c0¢òò‡GG¢ò÷wwrçs2æ÷&rõE"ö‡FÖÃRöf÷&×2æ‡FÖÂ7fÆ–BÖRÖÖ–ÂÖFG&W72‡6V&6‚f÷"wv–ÆgVÂf–öÆF–öâr¢VÖ–Ã¢õå¶×£Ó’â2BRbr¢²óÓõåö·Ç×âÕÒ´¶×£Ó•Òƒó¥¶×£Ó’Õ×³ÃcÕ¶×£Ó•Ò“òƒó¥Âå¶×£Ó•Òƒó¥¶×£Ó’Õ×³ÃcÕ¶×£Ó•Ò“ò’¢Bö¢Ó°¢W‡÷'G2æf÷&ÖDæÖW2Òö&¦V7Bæ¶W—2†W‡÷'G2ægVÆÄf÷&ÖG2“°¢gVæ7F–öâ—4ÆV–V"‡–V"’°¢&WGW&â–V"RBÓÓÒbb‡–V"RÓÒÇÂ–V"RCÓÓÒ“°¢Ð¢f"DDRÒõâ…ÆEÆEÆEÆB’Ò…ÆEÆB’Ò…ÆEÆB’Bó°¢f"D•2Ò³Â3Â#‚Â3Â3Â3Â3Â3Â3Â3Â3Â3Â3Ó°¢gVæ7F–öâFFR‡7G"’°¢6öç7BÖF6†W2ÒDDRæW†V2‡7G"“°¢–b‚ÖF6†W2¢&WGW&âfÇ6S°¢6öç7B–V"Ò¶ÖF6†W5³Ó°¢6öç7BÖöçF‚Ò¶ÖF6†W5³%Ó°¢6öç7BF“"Ò¶ÖF6†W5³5Ó°¢&WGW&âÖöçF‚ãÒbbÖöçF‚ÃÒ"bbF“"ãÒbbF“"ÃÒ†ÖöçF‚ÓÓÒ"bb—4ÆV–V"‡–V"’ò#’¢D•5¶ÖöçF…Ò“°¢Ð¢gVæ7F–öâ6ö×&TFFR†CÂC"’°¢–b‚†CbbC"’¢&WGW&âfö–B°¢–b†CâC"¢&WGW&â°¢–b†CÂC"¢&WGW&âÓ°¢&WGW&â°¢Ð¢f"D”ÔRÒõâ…ÆEÆB“¢…ÆEÆB“¢…ÆEÆBƒó¥ÂåÆB²“ò’‡§Â…²²ÕÒ’…ÆEÆB’ƒó££ò…ÆEÆB’“ò“òBö“°¢gVæ7F–öâvWEF–ÖR‡7G&–7EF–ÖU¦öæR’°¢&WGW&âgVæ7F–öâF–ÖR‡7G"’°¢6öç7BÖF6†W2ÒD”ÔRæW†V2‡7G"“°¢–b‚ÖF6†W2¢&WGW&âfÇ6S°¢6öç7B‡"Ò¶ÖF6†W5³Ó°¢6öç7BÖ–âÒ¶ÖF6†W5³%Ó°¢6öç7B6V2Ò¶ÖF6†W5³5Ó°¢6öç7BG¢ÒÖF6†W5³EÓ°¢6öç7BG¥6–vâÒÖF6†W5³UÒÓÓÒ"Ò"òÓ¢°¢6öç7BG¤‚Ò²†ÖF6†W5³eÒÇÂ“°¢6öç7BG¤ÒÒ²†ÖF6†W5³uÒÇÂ“°¢–b‡G¤‚â#2ÇÂG¤ÒâS’ÇÂ7G&–7EF–ÖU¦öæRbbG¢¢&WGW&âfÇ6S°¢–b†‡"ÃÒ#2bbÖ–âÃÒS’bb6V2Âc¢&WGW&âG'VS°¢6öç7BWF4Ö–âÒÖ–âÒG¤Ò¢G¥6–vã°¢6öç7BWF4‡"Ò‡"ÒG¤‚¢G¥6–vâÒ‡WF4Ö–âÂò¢“°¢&WGW&â‡WF4‡"ÓÓÒ#2ÇÂWF4‡"ÓÓÒÓ’bb‡WF4Ö–âÓÓÒS’ÇÂWF4Ö–âÓÓÒÓ’bb6V2Âc°¢Ó°¢Ð¢gVæ7F–öâ6ö×&UF–ÖR‡3Â3"’°¢–b‚‡3bb3"’¢&WGW&âfö–B°¢6öç7BCÒ‚ò¢õõU$Uõò¢òæWrFFR‚###ÓÓB"²3’’çfÇVTöb‚“°¢6öç7BC"Ò‚ò¢õõU$Uõò¢òæWrFFR‚###ÓÓB"²3"’’çfÇVTöb‚“°¢–b‚‡CbbC"’¢&WGW&âfö–B°¢&WGW&âCÒC#°¢Ð¢gVæ7F–öâ6ö×&T—6õF–ÖR‡CÂC"’°¢–b‚‡CbbC"’¢&WGW&âfö–B°¢6öç7BÒD”ÔRæW†V2‡C“°¢6öç7B"ÒD”ÔRæW†V2‡C"“°¢–b‚†bb"’¢&WGW&âfö–B°¢CÒ³Ò²³%Ò²³5Ó°¢C"Ò%³Ò²%³%Ò²%³5Ó°¢–b‡CâC"¢&WGW&â°¢–b‡CÂC"¢&WGW&âÓ°¢&WGW&â°¢Ð¢f"DDUõD”ÔUõ4U$Dõ"Ò÷GÅÇ2ö“°¢gVæ7F–öâvWDFFUF–ÖR‡7G&–7EF–ÖU¦öæR’°¢6öç7BF–ÖRÒvWEF–ÖR‡7G&–7EF–ÖU¦öæR“°¢&WGW&âgVæ7F–öâFFU÷F–ÖR‡7G"’°¢6öç7BFFUF–ÖRÒ7G"ç7Æ—B„DDUõD”ÔUõ4U$Dõ"“°¢&WGW&âFFUF–ÖRæÆVæwF‚ÓÓÒ"bbFFR†FFUF–ÖU³Ò’bbF–ÖR†FFUF–ÖU³Ò“°¢Ó°¢Ð¢gVæ7F–öâ6ö×&TFFUF–ÖR†GCÂGC"’°¢–b‚†GCbbGC"’¢&WGW&âfö–B°¢6öç7BCÒæWrFFR†GC’çfÇVTöb‚“°¢6öç7BC"ÒæWrFFR†GC"’çfÇVTöb‚“°¢–b‚†CbbC"’¢&WGW&âfö–B°¢&WGW&âCÒC#°¢Ð¢gVæ7F–öâ6ö×&T—6ôFFUF–ÖR†GCÂGC"’°¢–b‚†GCbbGC"’¢&WGW&âfö–B°¢6öç7B¶CÂCÒÒGCç7Æ—B„DDUõD”ÔUõ4U$Dõ"“°¢6öç7B¶C"ÂC%ÒÒGC"ç7Æ—B„DDUõD”ÔUõ4U$Dõ"“°¢6öç7B&W2Ò6ö×&TFFR†CÂC"“°¢–b‡&W2ÓÓÒfö–B¢&WGW&âfö–B°¢&WGW&â&W2ÇÂ6ö×&UF–ÖR‡CÂC"“°¢Ð¢f"äõEõU$•ôe$tÔTåBÒõÂ÷Ã¢ó°¢f"U$’Òõâƒó¥¶×¥Õ¶×£Ó’µÂÒåÒ£¢’ƒó¥ÂóõÂòƒó¢ƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¥×ÂU³Ó–Öe×³'Ò’¤“òƒó¥Å²ƒó¢ƒó¢ƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³g×Ã£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³W×Âƒó¥³Ó–Öe×³ÃGÒ“ó£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³G×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃÕ³Ó–Öe×³ÃGÒ“ó£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³7×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³Ã'Õ³Ó–Öe×³ÃGÒ“ó£¢ƒó¥³Ó–Öe×³ÃGÓ¢—³'×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³Ã7Õ³Ó–Öe×³ÃGÒ“ó£¥³Ó–Öe×³ÃGÓ§Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃGÕ³Ó–Öe×³ÃGÒ“ó£¢’ƒó¥³Ó–Öe×³ÃGÓ¥³Ó–Öe×³ÃG×Âƒó¢ƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò•Ââ—³7Òƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò’—Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃWÕ³Ó–Öe×³ÃGÒ“ó£¥³Ó–Öe×³ÃG×Âƒó¢ƒó¥³Ó–Öe×³ÃGÓ¢—³ÃgÕ³Ó–Öe×³ÃGÒ“ó£¢—ÅµgeÕ³Ó–ÖeÒµÂå¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¥Ò²•Å×Âƒó¢ƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò•Ââ—³7Òƒó£#U³ÓU×Ã%³ÓEÕÆGÅ³ÓõÆEÆCò—Âƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Õ×ÂU³Ó–Öe×³'Ò’¢’ƒó£¥ÆB¢“òƒó¥Âòƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’¢’§ÅÂòƒó¢ƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’²ƒó¥Âòƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’¢’¢“÷Âƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’²ƒó¥Âòƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤×ÂU³Ó–Öe×³'Ò’¢’¢’ƒó¥Ãòƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤óõ×ÂU³Ó–Öe×³'Ò’¢“òƒó¢2ƒó¥¶×£Ó•ÂÒå÷âBbr‚’¢²Ã³Ó¤óõ×ÂU³Ó–Öe×³'Ò’¢“òBö“°¢gVæ7F–öâW&’‡7G"’°¢&WGW&âäõEõU$•ôe$tÔTåBçFW7B‡7G"’bbU$’çFW7B‡7G"“°¢Ð¢f"%•DRÒõâƒó¥´Õ¦×£Ó’²õ×³GÒ’¢ƒó¥´Õ¦×£Ó’²õ×³'ÓÓ×Å´Õ¦×£Ó’²õ×³7ÓÒ“òBövÓ°¢gVæ7F–öâ'—FR‡7G"’°¢%•DRæÆ7D–æFW‚Ò°¢&WGW&â%•DRçFW7B‡7G"“°¢Ð¢f"Ô”åô”åC3"ÒÒƒ"¢¢3“°¢f"Ô…ô”åC3"Ò"¢¢3Ò°¢gVæ7F–öâfÆ–FFT–çC3"‡fÇVR’°¢&WGW&âçVÖ&W"æ—4–çFVvW"‡fÇVR’bbfÇVRÃÒÔ…ô”åC3"bbfÇVRãÒÔ”åô”åC3#°¢Ð¢gVæ7F–öâfÆ–FFT–çCcB‡fÇVR’°¢&WGW&âçVÖ&W"æ—4–çFVvW"‡fÇVR“°¢Ð¢gVæ7F–öâfÆ–FFTçVÖ&W"‚’°¢&WGW&âG'VS°¢Ð¢f"¥ôä4„õ"ÒõµåÅÅÕÅÅ¢ó°¢gVæ7F–öâ&VvW‚‡7G"’°¢–b…¥ôä4„õ"çFW7B‡7G"’¢&WGW&âfÇ6S°¢G'’°¢æWr&VtW‡‡7G"“°¢&WGW&âG'VS°¢Ò6F6‚†R’°¢&WGW&âfÇ6S°¢Ð¢Ð¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG&gCræ§0§f"&WV—&UöG&gCrÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷fö6'VÆ&–W2öG&gCræ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"6÷&UóÒ&WV—&Uö6÷&S"‚“°¢f"fÆ–FF–öåóÒ&WV—&U÷fÆ–FF–öâ‚“°¢f"Æ–6F÷%óÒ&WV—&UöÆ–6F÷"‚“°¢f"f÷&ÖEóÒ&WV—&Uöf÷&ÖC"‚“°¢f"ÖWFFFóÒ&WV—&UöÖWFFF‚“°¢f"G&gCufö6'VÆ&–W2Ò°¢6÷&UóæFVfVÇBÀ¢fÆ–FF–öåóæFVfVÇBÀ¢ƒÂÆ–6F÷%óæFVfVÇB’‚’À¢f÷&ÖEóæFVfVÇBÀ¢ÖWFFFóæÖWFFFfö6'VÆ'’À¢ÖWFFFóæ6öçFVçEfö6'VÆ'¢Ó°¢W‡÷'G2æFVfVÇBÒG&gCufö6'VÆ&–W3°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÖG&gBÓræ§6öà§f"&WV—&Uö§6öå÷66†VÖöG&gEórÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7B÷&Vg2ö§6öâ×66†VÖÖG&gBÓræ§6öâ"†W‡÷'G2ÂÖöGVÆR’°¢ÖöGVÆRæW‡÷'G2Ò°¢G66†VÖ¢&‡GG¢òö§6öâ×66†VÖæ÷&röG&gBÓr÷66†VÖ2"À¢F–C¢&‡GG¢òö§6öâ×66†VÖæ÷&röG&gBÓr÷66†VÖ2"À¢F—FÆS¢$6÷&R66†VÖÖWF×66†VÖ"À¢FVf–æ—F–öç3¢°¢66†VÖ'&“¢°¢G—S¢&'&’"À¢Ö–ä—FV×3¢À¢—FV×3¢²G&Vc¢"2"Ð¢ÒÀ¢æöäæVvF—fT–çFVvW#¢°¢G—S¢&–çFVvW""À¢Ö–æ–×VÓ¢ ¢ÒÀ¢æöäæVvF—fT–çFVvW$FVfVÇC¢°¢ÆÄöc¢·²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW""ÒÂ²FVfVÇC¢ÕÐ¢ÒÀ¢6–×ÆUG—W3¢°¢VçVÓ¢²&'&’"Â&&ööÆVâ"Â&–çFVvW""Â&çVÆÂ"Â&çVÖ&W""Â&ö&¦V7B"Â'7G&–ær%Ð¢ÒÀ¢7G&–æt'&“¢°¢G—S¢&'&’"À¢—FV×3¢²G—S¢'7G&–ær"ÒÀ¢Væ—VT—FV×3¢G'VRÀ¢FVfVÇC¢µÐ¢Ð¢ÒÀ¢G—S¢²&ö&¦V7B"Â&&ööÆVâ%ÒÀ¢&÷W'F–W3¢°¢F–C¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'W&’×&VfW&Væ6R ¢ÒÀ¢G66†VÖ¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'W&’ ¢ÒÀ¢G&Vc¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'W&’×&VfW&Væ6R ¢ÒÀ¢F6öÖÖVçC¢°¢G—S¢'7G&–ær ¢ÒÀ¢F—FÆS¢°¢G—S¢'7G&–ær ¢ÒÀ¢FW67&—F–öã¢°¢G—S¢'7G&–ær ¢ÒÀ¢FVfVÇC¢G'VRÀ¢&VDöæÇ“¢°¢G—S¢&&ööÆVâ"À¢FVfVÇC¢fÇ6P¢ÒÀ¢W†×ÆW3¢°¢G—S¢&'&’"À¢—FV×3¢G'VP¢ÒÀ¢×VÇF—ÆTöc¢°¢G—S¢&çVÖ&W""À¢W†6ÇW6—fTÖ–æ–×VÓ¢ ¢ÒÀ¢Ö†–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢W†6ÇW6—fTÖ†–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢Ö–æ–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢W†6ÇW6—fTÖ–æ–×VÓ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢Ö„ÆVæwFƒ¢²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–äÆVæwFƒ¢²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW$FVfVÇC"ÒÀ¢GFW&ã¢°¢G—S¢'7G&–ær"À¢f÷&ÖC¢'&VvW‚ ¢ÒÀ¢FF—F–öæÄ—FV×3¢²G&Vc¢"2"ÒÀ¢—FV×3¢°¢ç”öc¢·²G&Vc¢"2"ÒÂ²G&Vc¢"2öFVf–æ—F–öç2÷66†VÖ'&’"ÕÒÀ¢FVfVÇC¢G'VP¢ÒÀ¢Ö„—FV×3¢²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–ä—FV×3¢²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW$FVfVÇC"ÒÀ¢Væ—VT—FV×3¢°¢G—S¢&&ööÆVâ"À¢FVfVÇC¢fÇ6P¢ÒÀ¢6öçF–ç3¢²G&Vc¢"2"ÒÀ¢Ö…&÷W'F–W3¢²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW""ÒÀ¢Ö–å&÷W'F–W3¢²G&Vc¢"2öFVf–æ—F–öç2öæöäæVvF—fT–çFVvW$FVfVÇC"ÒÀ¢&WV—&VC¢²G&Vc¢"2öFVf–æ—F–öç2÷7G&–æt'&’"ÒÀ¢FF—F–öæÅ&÷W'F–W3¢²G&Vc¢"2"ÒÀ¢FVf–æ—F–öç3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²G&Vc¢"2"ÒÀ¢FVfVÇC¢·Ð¢ÒÀ¢&÷W'F–W3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²G&Vc¢"2"ÒÀ¢FVfVÇC¢·Ð¢ÒÀ¢GFW&å&÷W'F–W3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢²G&Vc¢"2"ÒÀ¢&÷W'G”æÖW3¢²f÷&ÖC¢'&VvW‚"ÒÀ¢FVfVÇC¢·Ð¢ÒÀ¢FWVæFVæ6–W3¢°¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢°¢ç”öc¢·²G&Vc¢"2"ÒÂ²G&Vc¢"2öFVf–æ—F–öç2÷7G&–æt'&’"ÕÐ¢Ð¢ÒÀ¢&÷W'G”æÖW3¢²G&Vc¢"2"ÒÀ¢6öç7C¢G'VRÀ¢VçVÓ¢°¢G—S¢&'&’"À¢—FV×3¢G'VRÀ¢Ö–ä—FV×3¢À¢Væ—VT—FV×3¢G'VP¢ÒÀ¢G—S¢°¢ç”öc¢°¢²G&Vc¢"2öFVf–æ—F–öç2÷6–×ÆUG—W2"ÒÀ¢°¢G—S¢&'&’"À¢—FV×3¢²G&Vc¢"2öFVf–æ—F–öç2÷6–×ÆUG—W2"ÒÀ¢Ö–ä—FV×3¢À¢Væ—VT—FV×3¢G'VP¢Ð¢Ð¢ÒÀ¢f÷&ÖC¢²G—S¢'7G&–ær"ÒÀ¢6öçFVçDÖVF–G—S¢²G—S¢'7G&–ær"ÒÀ¢6öçFVçDVæ6öF–æs¢²G—S¢'7G&–ær"ÒÀ¢–c¢²G&Vc¢"2"ÒÀ¢F†Vã¢²G&Vc¢"2"ÒÀ¢VÇ6S¢²G&Vc¢"2"ÒÀ¢ÆÄöc¢²G&Vc¢"2öFVf–æ—F–öç2÷66†VÖ'&’"ÒÀ¢ç”öc¢²G&Vc¢"2öFVf–æ—F–öç2÷66†VÖ'&’"ÒÀ¢öæTöc¢²G&Vc¢"2öFVf–æ—F–öç2÷66†VÖ'&’"ÒÀ¢æ÷C¢²G&Vc¢"2"Ð¢ÒÀ¢FVfVÇC¢G'VP¢Ó°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§böF—7Bö§bæ§0§f"&WV—&Uö§bÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§böF—7Bö§bæ§2"†W‡÷'G2ÂÖöGVÆR’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2äÖ—76–æu&VdW'&÷"ÒW‡÷'G2åfÆ–FF–öäW'&÷"ÒW‡÷'G2ä6öFTvVâÒW‡÷'G2äæÖRÒW‡÷'G2ææ–ÂÒW‡÷'G2ç7G&–æv–g’ÒW‡÷'G2ç7G"ÒW‡÷'G2åòÒW‡÷'G2ä¶W—v÷&D7‡BÒW‡÷'G2ä§bÒfö–B°¢f"6÷&UóÒ&WV—&Uö6÷&R‚“°¢f"G&gCuóÒ&WV—&UöG&gCr‚“°¢f"F—67&–Ö–æF÷%óÒ&WV—&UöF—67&–Ö–æF÷"‚“°¢f"G&gCtÖWF66†VÖÒ&WV—&Uö§6öå÷66†VÖöG&gEór‚“°¢f"ÔUDõ5Uõ%EôDDÒ²"÷&÷W'F–W2%Ó°¢f"ÔUDõ44„TÔô”BÒ&‡GG¢òö§6öâ×66†VÖæ÷&röG&gBÓr÷66†VÖ#°¢f"§c"Ò6Æ72W‡FVæG26÷&UóæFVfVÇB°¢öFEfö6'VÆ&–W2‚’°¢7WW"åöFEfö6'VÆ&–W2‚“°¢G&gCuóæFVfVÇBæf÷$V6‚‚‡b’ÓâF†—2æFEfö6'VÆ'’‡b’“°¢–b‡F†—2æ÷G2æF—67&–Ö–æF÷"¢F†—2æFD¶W—v÷&B†F—67&–Ö–æF÷%óæFVfVÇB“°¢Ð¢öFDFVfVÇDÖWF66†VÖ‚’°¢7WW"åöFDFVfVÇDÖWF66†VÖ‚“°¢–b‚F†—2æ÷G2æÖWF¢&WGW&ã°¢6öç7BÖWF66†VÖÒF†—2æ÷G2âFFFòF†—2âFFFÖWF66†VÖ†G&gCtÖWF66†VÖÂÔUDõ5Uõ%EôDD’¢G&gCtÖWF66†VÖ°¢F†—2æFDÖWF66†VÖ†ÖWF66†VÖÂÔUDõ44„TÔô”BÂfÇ6R“°¢F†—2ç&Vg5²&‡GG¢òö§6öâ×66†VÖæ÷&r÷66†VÖ%ÒÒÔUDõ44„TÔô”C°¢Ð¢FVfVÇDÖWF‚’°¢&WGW&âF†—2æ÷G2æFVfVÇDÖWFÒ7WW"æFVfVÇDÖWF‚’ÇÂ‡F†—2ævWE66†VÖ„ÔUDõ44„TÔô”B’òÔUDõ44„TÔô”B¢fö–B“°¢Ð¢Ó°¢W‡÷'G2ä§bÒ§c#°¢ÖöGVÆRæW‡÷'G2ÒW‡÷'G2Ò§c#°¢ÖöGVÆRæW‡÷'G2ä§bÒ§c#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æFVfVÇBÒ§c#°¢f"fÆ–FFUóÒ&WV—&U÷fÆ–FFR‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$¶W—v÷&D7‡B"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&âfÆ–FFUóä¶W—v÷&D7‡C°¢ÒÒ“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%ò"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóåó°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â'7G""Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóç7G#°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â'7G&–æv–g’"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóç7G&–æv–g“°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â&æ–Â"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóææ–Ã°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$æÖR"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóäæÖS°¢ÒÒ“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$6öFTvVâ"Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â6öFVvVåóä6öFTvVã°¢ÒÒ“°¢f"fÆ–FF–öåöW'&÷%óÒ&WV—&U÷fÆ–FF–öåöW'&÷"‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%fÆ–FF–öäW'&÷""Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&âfÆ–FF–öåöW'&÷%óæFVfVÇC°¢ÒÒ“°¢f"&VeöW'&÷%óÒ&WV—&U÷&VeöW'&÷"‚“°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â$Ö—76–æu&VdW'&÷""Â²VçVÖW&&ÆS¢G'VRÂvWC¢gVæ7F–öâ‚’°¢&WGW&â&VeöW'&÷%óæFVfVÇC°¢ÒÒ“°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§bÖf÷&ÖG2öF—7BöÆ–Ö—Bæ§0§f"&WV—&UöÆ–Ö—BÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§bÖf÷&ÖG2öF—7BöÆ–Ö—Bæ§2"†W‡÷'G2’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æf÷&ÖDÆ–Ö—DFVf–æ—F–öâÒfö–B°¢f"§eóÒ&WV—&Uö§b‚“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"÷2Ò6öFVvVåóæ÷W&F÷'3°¢f"µtG2Ò°¢f÷&ÖDÖ†–×VÓ¢²öµ7G#¢#ÃÒ"Âö³¢÷2äÅDRÂf–Ã¢÷2äuBÒÀ¢f÷&ÖDÖ–æ–×VÓ¢²öµ7G#¢#ãÒ"Âö³¢÷2äuDRÂf–Ã¢÷2äÅBÒÀ¢f÷&ÖDW†6ÇW6—fTÖ†–×VÓ¢²öµ7G#¢#Â"Âö³¢÷2äÅBÂf–Ã¢÷2äuDRÒÀ¢f÷&ÖDW†6ÇW6—fTÖ–æ–×VÓ¢²öµ7G#¢#â"Âö³¢÷2äuBÂf–Ã¢÷2äÅDRÐ¢Ó°¢f"W'&÷"Ò°¢ÖW76vS¢‡²¶W—v÷&BÂ66†VÖ6öFRÒ’ÓâƒÂ6öFVvVåóç7G"–6†÷VÆB&RG´µtG5¶¶W—v÷&EÒæöµ7G'ÒG·66†VÖ6öFWÖÀ¢&×3¢‡²¶W—v÷&BÂ66†VÖ6öFRÒ’ÓâƒÂ6öFVvVåóåò–¶6ö×&—6öã¢G´µtG5¶¶W—v÷&EÒæöµ7G'ÒÂÆ–Ö—C¢G·66†VÖ6öFW×Ö ¢Ó°¢W‡÷'G2æf÷&ÖDÆ–Ö—DFVf–æ—F–öâÒ°¢¶W—v÷&C¢ö&¦V7Bæ¶W—2„µtG2’À¢G—S¢'7G&–ær"À¢66†VÖG—S¢'7G&–ær"À¢FFF¢G'VRÀ¢W'&÷"À¢6öFR†7‡B’°¢6öç7B²vVâÂFFÂ66†VÖ6öFRÂ¶W—v÷&BÂ—BÒÒ7‡C°¢6öç7B²÷G2Â6VÆbÒÒ—C°¢–b‚÷G2çfÆ–FFTf÷&ÖG2¢&WGW&ã°¢6öç7Bd7‡BÒæWr§eóä¶W—v÷&D7‡B†—BÂ6VÆbå%TÄU2æÆÂæf÷&ÖBæFVf–æ—F–öâÂ&f÷&ÖB"“°¢–b†d7‡BâFFF¢fÆ–FFRDFFf÷&ÖB‚“°¢VÇ6P¢fÆ–FFTf÷&ÖB‚“°¢gVæ7F–öâfÆ–FFRDFFf÷&ÖB‚’°¢6öç7Bf×G2ÒvVâç66÷UfÇVR‚&f÷&ÖG2"Â°¢&Vc¢6VÆbæf÷&ÖG2À¢6öFS¢÷G2æ6öFRæf÷&ÖG0¢Ò“°¢6öç7Bf×BÒvVâæ6öç7B‚&f×B"ÂƒÂ6öFVvVåóåò–G¶f×G7Õ²G¶d7‡Bç66†VÖ6öFWÕÖ“°¢7‡Bæf–ÂFFF‚ƒÂ6öFVvVåóæ÷"’‚ƒÂ6öFVvVåóåò–G—VöbG¶f×GÒÒ&ö&¦V7B&ÂƒÂ6öFVvVåóåò–G¶f×GÒ–ç7Fæ6Vöb&VtW‡ÂƒÂ6öFVvVåóåò–G—VöbG¶f×GÒæ6ö×&RÒ&gVæ7F–öâ&Â6ö×&T6öFR†f×B’’“°¢Ð¢gVæ7F–öâfÆ–FFTf÷&ÖB‚’°¢6öç7Bf÷&ÖBÒd7‡Bç66†VÖ°¢6öç7Bf×DFVbÒ6VÆbæf÷&ÖG5¶f÷&ÖEÓ°¢–b‚f×DFVbÇÂf×DFVbÓÓÒG'VR¢&WGW&ã°¢–b‡G—Vöbf×DFVbÒ&ö&¦V7B"ÇÂf×DFVb–ç7Fæ6Vöb&VtW‡ÇÂG—Vöbf×DFVbæ6ö×&RÒ&gVæ7F–öâ"’°¢F‡&÷ræWrW'&÷"†"G¶¶W—v÷&GÒ#¢f÷&ÖB"G¶f÷&ÖGÒ"FöW2æ÷BFVf–æR&6ö×&R"gVæ7F–öæ“°¢Ð¢6öç7Bf×BÒvVâç66÷UfÇVR‚&f÷&ÖG2"Â°¢¶W“¢f÷&ÖBÀ¢&Vc¢f×DFVbÀ¢6öFS¢÷G2æ6öFRæf÷&ÖG2òƒÂ6öFVvVåóåò–G¶÷G2æ6öFRæf÷&ÖG7ÒG²ƒÂ6öFVvVåóævWE&÷W'G’’†f÷&ÖB—Ö¢fö–B ¢Ò“°¢7‡Bæf–ÂFFF†6ö×&T6öFR†f×B’“°¢Ð¢gVæ7F–öâ6ö×&T6öFR†f×B’°¢&WGW&âƒÂ6öFVvVåóåò–G¶f×GÒæ6ö×&R‚G¶FFÒÂG·66†VÖ6öFWÒ’G´µtG5¶¶W—v÷&EÒæf–ÇÒ°¢Ð¢ÒÀ¢FWVæFVæ6–W3¢²&f÷&ÖB%Ð¢Ó°¢f"f÷&ÖDÆ–Ö—EÇVv–âÒ†§c"’Óâ°¢§c"æFD¶W—v÷&B†W‡÷'G2æf÷&ÖDÆ–Ö—DFVf–æ—F–öâ“°¢&WGW&â§c#°¢Ó°¢W‡÷'G2æFVfVÇBÒf÷&ÖDÆ–Ö—EÇVv–ã°¢Ð§Ò“° ¢òòæöFUöÖöGVÆW2ö§bÖf÷&ÖG2öF—7Bö–æFW‚æ§0§f"&WV—&UöF—7BÒõö6öÖÖöä¥2‡°¢&æöFUöÖöGVÆW2ö§bÖf÷&ÖG2öF—7Bö–æFW‚æ§2"†W‡÷'G2ÂÖöGVÆR’°¢'W6R7G&–7B#°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢f"f÷&ÖG5óÒ&WV—&Uöf÷&ÖG2‚“°¢f"Æ–Ö—EóÒ&WV—&UöÆ–Ö—B‚“°¢f"6öFVvVåóÒ&WV—&Uö6öFVvVâ‚“°¢f"gVÆÄæÖRÒæWr6öFVvVåóäæÖR‚&gVÆÄf÷&ÖG2"“°¢f"f7DæÖRÒæWr6öFVvVåóäæÖR‚&f7Df÷&ÖG2"“°¢f"f÷&ÖG5ÇVv–âÒ†§c"Â÷G2Ò²¶W—v÷&G3¢G'VRÒ’Óâ°¢–b„'&’æ—4'&’†÷G2’’°¢FDf÷&ÖG3"†§c"Â÷G2Âf÷&ÖG5óægVÆÄf÷&ÖG2ÂgVÆÄæÖR“°¢&WGW&â§c#°¢Ð¢6öç7B¶f÷&ÖG2ÂW‡÷'DæÖUÒÒ÷G2æÖöFRÓÓÒ&f7B"ò¶f÷&ÖG5óæf7Df÷&ÖG2Âf7DæÖUÒ¢¶f÷&ÖG5óægVÆÄf÷&ÖG2ÂgVÆÄæÖUÓ°¢6öç7BÆ—7BÒ÷G2æf÷&ÖG2ÇÂf÷&ÖG5óæf÷&ÖDæÖW3°¢FDf÷&ÖG3"†§c"ÂÆ—7BÂf÷&ÖG2ÂW‡÷'DæÖR“°¢–b†÷G2æ¶W—v÷&G2¢ƒÂÆ–Ö—EóæFVfVÇB’†§c"“°¢&WGW&â§c#°¢Ó°¢f÷&ÖG5ÇVv–âævWBÒ†æÖRÂÖöFRÒ&gVÆÂ"’Óâ°¢6öç7Bf÷&ÖG2ÒÖöFRÓÓÒ&f7B"òf÷&ÖG5óæf7Df÷&ÖG2¢f÷&ÖG5óægVÆÄf÷&ÖG3°¢6öç7BbÒf÷&ÖG5¶æÖUÓ°¢–b‚b¢F‡&÷ræWrW'&÷"†Væ¶æ÷vâf÷&ÖB"G¶æÖWÒ&“°¢&WGW&âc°¢Ó°¢gVæ7F–öâFDf÷&ÖG3"†§c"ÂÆ—7BÂg2ÂW‡÷'DæÖR’°¢f"ö°¢f"ö#°¢…öÒ…ö"Ò§c"æ÷G2æ6öFR’æf÷&ÖG2’ÓÒçVÆÂbböÓÒfö–Bòö¢ö"æf÷&ÖG2ÒƒÂ6öFVvVåóåò–&WV—&R‚&§bÖf÷&ÖG2öF—7Böf÷&ÖG2"’âG¶W‡÷'DæÖWÖ°¢f÷"†6öç7BböbÆ—7B¢§c"æFDf÷&ÖB†bÂg5¶eÒ“°¢Ð¢ÖöGVÆRæW‡÷'G2ÒW‡÷'G2Òf÷&ÖG5ÇVv–ã°¢ö&¦V7BæFVf–æU&÷W'G’†W‡÷'G2Â%õöW4ÖöGVÆR"Â²fÇVS¢G'VRÒ“°¢W‡÷'G2æFVfVÇBÒf÷&ÖG5ÇVv–ã°¢Ð§Ò“° ¢òòââö6Æ’æÖ§0¦–×÷'B²7&VFT–çFW&f6RÒg&öÒ&æöFS§&VFÆ–æR#° ¢òò7&2ö6÷&RçG0§f"–×÷'EõòÒõ÷FôU4Ò‡&WV—&Uõò‚’Â“°§f"–×÷'Eö§eöf÷&ÖG2Òõ÷FôU4Ò‡&WV—&UöF—7B‚’Â“° ¢òò7&2÷&÷Fö6öÂç66†VÖæ§6öà§f"&÷Fö6öÅ÷66†VÖöFVfVÇBÒ°¢FFVg3¢°¢f–VÆD†–çC¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢FW67&—F–öã¢%ÇStTC•ÇScc4UÇSs“4ÇST3C%ÇSscƒEÇST#SuÇSd$#UÇS„$TEÇSDSC•ÇSc4CÇSs“4ÇS3%ÆåÆåÇS„dC•ÇS“45ÇSc44eÇS„dcÇScSsÇSc3dUÇSscƒEÇSSC$%ÇSDSC•ÇTdc5ÇSDSEÇSc44eÇS„dc&V7BÇStT3EÇSDTceÇS3…DÔÅÇS3552ÇSc#eÇSTS5ÇST3CÇS3""À¢&÷W'F–W3¢°¢Fƒ¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%F‚"À¢G—S¢'7G&–ær ¢ÒÀ¢Æ&VÃ¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$Æ&VÂ ¢ÒÀ¢&öÆS¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%&öÆR ¢ÒÀ¢f÷&ÖC¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$f÷&ÖB ¢ÒÀ¢Væ—C¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%Væ—B ¢ÒÀ¢&V6—6–öã¢°¢ç”öc¢°¢°¢G—S¢&–çFVvW" ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%&V6—6–öâ ¢ÒÀ¢÷&FW#¢°¢ç”öc¢°¢°¢G—S¢&–çFVvW" ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$÷&FW" ¢ÒÀ¢f—6–&ÆS¢°¢ç”öc¢°¢°¢G—S¢&&ööÆVâ ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%f—6–&ÆR ¢Ð¢ÒÀ¢&WV—&VC¢°¢'F‚ ¢ÒÀ¢F—FÆS¢$f–VÆD†–çB"À¢G—S¢&ö&¦V7B ¢ÒÀ¢§6öåfÇVS¢°¢ç”öc¢°¢°¢G—S¢&&ööÆVâ ¢ÒÀ¢°¢G—S¢&–çFVvW" ¢ÒÀ¢°¢G—S¢&çVÖ&W" ¢ÒÀ¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢—FV×3¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢ÒÀ¢G—S¢&'&’ ¢ÒÀ¢°¢FF—F–öæÅ&÷W'F–W3¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢ÒÀ¢G—S¢&ö&¦V7B ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢Ð¢ÒÀ¢&W6VçFF–öã¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢FW67&—F–öã¢%ÇSS4TeÇS“•ÇSscƒEÇS„$TEÇSDSC•ÇSSCC…ÇSs4#ÇSc4CÇSs“4ÇS3""À¢&÷W'F–W3¢°¢F—FÆS¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%F—FÆR ¢ÒÀ¢&öÆS¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%&öÆR ¢ÒÀ¢f–VÆG3¢°¢FVfVÇC¢µÒÀ¢—FV×3¢°¢G&Vc¢"2òFFVg2ôf–VÆD†–çB ¢ÒÀ¢F—FÆS¢$f–VÆG2"À¢G—S¢&'&’ ¢Ð¢ÒÀ¢F—FÆS¢%&W6VçFF–öâ"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V”7F–öã¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢7F–öåö–C¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$7F–öâ–B"À¢G—S¢'7G&–ær ¢ÒÀ¢¶–æC¢°¢VçVÓ¢°¢&VF—B"À¢'6VÆV7B"À¢'VW'’"À¢&–çfö¶R"À¢'&W6WB"À¢&F—6Ö—72 ¢ÒÀ¢F—FÆS¢$¶–æB"À¢G—S¢'7G&–ær ¢ÒÀ¢F&vWC¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%F&vWB"À¢G—S¢'7G&–ær ¢ÒÀ¢FF¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR"À¢FVfVÇC¢çVÆÀ¢ÒÀ¢÷W&F–öã¢°¢ç”öc¢°¢°¢Ö–äÆVæwFƒ¢À¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$÷W&F–öâ ¢Ð¢ÒÀ¢&WV—&VC¢°¢&7F–öåö–B"À¢&¶–æB"À¢'F&vWB ¢ÒÀ¢F—FÆS¢%V”7F–öâ"À¢G—S¢&ö&¦V7B"À¢ÆÄöc¢°¢°¢–c¢°¢&÷W'F–W3¢°¢¶–æC¢°¢6öç7C¢&–çfö¶R ¢Ð¢ÒÀ¢&WV—&VC¢°¢&¶–æB ¢Ð¢ÒÀ¢F†Vã¢°¢&WV—&VC¢°¢&÷W&F–öâ ¢ÒÀ¢&÷W'F–W3¢°¢÷W&F–öã¢°¢G—S¢'7G&–ær"À¢Ö–äÆVæwFƒ¢¢Ð¢Ð¢Ð¢Ð¢Ð¢ÒÀ¢V”g&ÖS¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢¶–æC¢°¢VçVÓ¢°¢&7F–öâ"À¢'&WVW7B"À¢'&W7öç6R"À¢'7FFR"À¢&6Æ÷6R ¢ÒÀ¢F—FÆS¢$¶–æB"À¢G—S¢'7G&–ær ¢ÒÀ¢7F–öã¢°¢ç”öc¢°¢°¢G&Vc¢"2òFFVg2õV”7F–öâ ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÀ¢ÒÀ¢&WVW7C¢°¢ç”öc¢°¢°¢G&Vc¢"2òFFVg2õV•&WVW7B ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÀ¢ÒÀ¢ÖW76vW3¢°¢FVfVÇC¢µÒÀ¢—FV×3¢°¢G&Vc¢"2òFFVg2õV”ÖW76vR ¢ÒÀ¢F—FÆS¢$ÖW76vW2"À¢G—S¢&'&’ ¢ÒÀ¢7FFS¢°¢ç”öc¢°¢°¢G&Vc¢"2òFFVg2õV•7FFR ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÀ¢Ð¢ÒÀ¢&WV—&VC¢°¢&¶–æB ¢ÒÀ¢F—FÆS¢%V”g&ÖR"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V”Æ–æ³¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢FW67&—F–öã¢%ÇSdCƒ…ÇScdeÇSDS$EÇSscƒEÇSSs5ÇSt4d%ÇS“DdUÇSc4UÇTdc5ÇSDSEÇSƒ”3EÇST#”ÇSSsuÇSDcS5ÇSDc#ÇS„c“5ÇScT#•ÇSTceÇS3""À¢&÷W'F–W3¢°¢&VÃ¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%&VÂ"À¢G—S¢'7G&–ær ¢ÒÀ¢‡&Vc¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$‡&Vb"À¢G—S¢'7G&–ær ¢ÒÀ¢G—S¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%G—R ¢Ð¢ÒÀ¢&WV—&VC¢°¢'&VÂ"À¢&‡&Vb ¢ÒÀ¢F—FÆS¢%V”Æ–æ²"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V”ÖW76vS¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢FW67&—F–öã¢%ÇSSCUÇStTeÇSSC„5ÇSS#DEÇStTeÇSDSD%ÇS“TcEÇSSS$eÇSDSÇSscƒEÇS“ÇSsS#…ÇS„$TEÇSDSC•ÇSdCƒ…ÇScdeÇS3""À¢&÷W'F–W3¢°¢ÖW76vUö–C¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$ÖW76vR–B"À¢G—S¢'7G&–ær ¢ÒÀ¢¶–æC¢°¢VçVÓ¢°¢'&W6÷W&6R"À¢&6öÆÆV7F–öâ"À¢'6W&–W2"À¢&Fö7VÖVçB"À¢&÷W&F–öâ"À¢&WfVçB"À¢'&ö&ÆVÒ"À¢&7W7FöÒ ¢ÒÀ¢F—FÆS¢$¶–æB"À¢G—S¢'7G&–ær ¢ÒÀ¢G—S¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%G—R"À¢G—S¢'7G&–ær ¢ÒÀ¢66†VÖ¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%66†VÖ"À¢G—S¢'7G&–ær ¢ÒÀ¢FF¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢ÒÀ¢6÷'&VÆF–öåö–C¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$6÷'&VÆF–öâ–B ¢ÒÀ¢&W6VçFF–öã¢°¢ç”öc¢°¢°¢G&Vc¢"2òFFVg2õ&W6VçFF–öâ ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÀ¢ÒÀ¢Æ–æ·3¢°¢FVfVÇC¢µÒÀ¢—FV×3¢°¢G&Vc¢"2òFFVg2õV”Æ–æ² ¢ÒÀ¢F—FÆS¢$Æ–æ·2"À¢G—S¢&'&’ ¢ÒÀ¢W‡FVç6–öç3¢°¢GFW&å&÷W'F–W3¢°¢%â‚â£¢â§Ç‚Òâ¢’B#¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢Ð¢ÒÀ¢F—FÆS¢$W‡FVç6–öç2"À¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢fÇ6P¢ÒÀ¢&÷Fö6öÃ¢°¢6öç7C¢&Æ–æv‡VçV’"À¢FVfVÇC¢&Æ–æv‡VçV’"À¢F—FÆS¢%&÷Fö6öÂ"À¢G—S¢'7G&–ær ¢ÒÀ¢fW'6–öã¢°¢6öç7C¢À¢FVfVÇC¢À¢F—FÆS¢%fW'6–öâ"À¢G—S¢&–çFVvW" ¢Ð¢ÒÀ¢&WV—&VC¢°¢&ÖW76vUö–B"À¢&¶–æB"À¢'G—R"À¢'66†VÖ"À¢&FF ¢ÒÀ¢F—FÆS¢%V”ÖW76vR"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V”÷W&F–öã¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢÷W&F–öã¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$÷W&F–öâ"À¢G—S¢'7G&–ær ¢ÒÀ¢–çWE÷66†VÖ¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$–çWB66†VÖ"À¢G—S¢'7G&–ær ¢ÒÀ¢&W7öç6U÷66†VÖ3¢°¢—FV×3¢°¢Ö–äÆVæwFƒ¢À¢G—S¢'7G&–ær ¢ÒÀ¢F—FÆS¢%&W7öç6R66†VÖ2"À¢G—S¢&'&’ ¢ÒÀ¢ÖöFS¢°¢FVfVÇC¢'&VB"À¢VçVÓ¢°¢'&VB"À¢'w&—FR ¢ÒÀ¢F—FÆS¢$ÖöFR"À¢G—S¢'7G&–ær ¢Ð¢ÒÀ¢&WV—&VC¢°¢&÷W&F–öâ"À¢&–çWE÷66†VÖ"À¢'&W7öç6U÷66†VÖ2 ¢ÒÀ¢F—FÆS¢%V”÷W&F–öâ"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V”÷W&F–öå7FFS¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢f–Æ&ÆS¢°¢FVfVÇC¢fÇ6RÀ¢F—FÆS¢$f–Æ&ÆR"À¢G—S¢&&ööÆVâ ¢ÒÀ¢7FGW3¢°¢FVfVÇC¢&–FÆR"À¢VçVÓ¢°¢&–FÆR"À¢'VæF–ær"À¢'7V66VVFVB"À¢&f–ÆVB ¢ÒÀ¢F—FÆS¢%7FGW2"À¢G—S¢'7G&–ær ¢ÒÀ¢&WVW7Eö–C¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢%&WVW7B–B ¢ÒÀ¢&Wf—6–öã¢°¢FVfVÇC¢À¢F—FÆS¢%&Wf—6–öâ"À¢G—S¢&–çFVvW" ¢ÒÀ¢–çWC¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR"À¢FVfVÇC¢çVÆÀ¢ÒÀ¢&W7VÇEö–çWC¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR"À¢FVfVÇC¢çVÆÀ¢Ð¢ÒÀ¢F—FÆS¢%V”÷W&F–öå7FFR"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V•&ö&ÆVÓ¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢FW67&—F–öã¢%ÇSS4TeÇScS4UÇSScR&ö&ÆVÖÇSdCƒ…ÇScdeÇSd#c5ÇScSƒuÇSscƒEÇS“ÇSsS#…ÇS“TTUÇS“ƒ“…ÇS3""À¢&÷W'F–W3¢°¢G—S¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%G—R"À¢G—S¢'7G&–ær ¢ÒÀ¢6öFS¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$6öFR"À¢G—S¢'7G&–ær ¢ÒÀ¢F—FÆS¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%F—FÆR"À¢G—S¢'7G&–ær ¢ÒÀ¢FWF–Ã¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$FWF–Â ¢ÒÀ¢f–VÆC¢°¢ç”öc¢°¢°¢G—S¢'7G&–ær ¢ÒÀ¢°¢G—S¢&çVÆÂ ¢Ð¢ÒÀ¢FVfVÇC¢çVÆÂÀ¢F—FÆS¢$f–VÆB ¢ÒÀ¢&WG'–&ÆS¢°¢FVfVÇC¢fÇ6RÀ¢F—FÆS¢%&WG'–&ÆR"À¢G—S¢&&ööÆVâ ¢ÒÀ¢W‡FVç6–öç3¢°¢GFW&å&÷W'F–W3¢°¢%â‚â£¢â§Ç‚Òâ¢’B#¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢Ð¢ÒÀ¢F—FÆS¢$W‡FVç6–öç2"À¢G—S¢&ö&¦V7B"À¢FF—F–öæÅ&÷W'F–W3¢fÇ6P¢Ð¢ÒÀ¢&WV—&VC¢°¢'G—R"À¢&6öFR"À¢'F—FÆR ¢ÒÀ¢F—FÆS¢%V•&ö&ÆVÒ"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V•&WVW7C¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢&WVW7Eö–C¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%&WVW7B–B"À¢G—S¢'7G&–ær ¢ÒÀ¢÷W&F–öã¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢$÷W&F–öâ"À¢G—S¢'7G&–ær ¢ÒÀ¢66†VÖ¢°¢Ö–äÆVæwFƒ¢À¢F—FÆS¢%66†VÖ"À¢G—S¢'7G&–ær ¢ÒÀ¢FF¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢Ð¢ÒÀ¢&WV—&VC¢°¢'&WVW7Eö–B"À¢&÷W&F–öâ"À¢'66†VÖ"À¢&FF ¢ÒÀ¢F—FÆS¢%V•&WVW7B"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V•6Æ÷C¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢&Wf—6–öã¢°¢FVfVÇC¢À¢F—FÆS¢%&Wf—6–öâ"À¢G—S¢&–çFVvW" ¢ÒÀ¢fÇVW3¢°¢FF—F–öæÅ&÷W'F–W3¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢ÒÀ¢F—FÆS¢%fÇVW2"À¢G—S¢&ö&¦V7B ¢ÒÀ¢6VÆV7F–öã¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR"À¢FVfVÇC¢çVÆÀ¢ÒÀ¢VW'“¢°¢FF—F–öæÅ&÷W'F–W3¢°¢G&Vc¢"2òFFVg2ô§6öåfÇVR ¢ÒÀ¢F—FÆS¢%VW'’"À¢G—S¢&ö&¦V7B ¢ÒÀ¢ÖW76vW3¢°¢FVfVÇC¢µÒÀ¢—FV×3¢°¢G&Vc¢"2òFFVg2õV”ÖW76vR ¢ÒÀ¢F—FÆS¢$ÖW76vW2"À¢G—S¢&'&’ ¢ÒÀ¢&ö&ÆV×3¢°¢FVfVÇC¢µÒÀ¢—FV×3¢°¢G&Vc¢"2òFFVg2õV•&ö&ÆVÒ ¢ÒÀ¢F—FÆS¢%&ö&ÆV×2"À¢G—S¢&'&’ ¢ÒÀ¢÷W&F–öç3¢°¢FF—F–öæÅ&÷W'F–W3¢°¢G&Vc¢"2òFFVg2õV”÷W&F–öå7FFR ¢ÒÀ¢F—FÆS¢$÷W&F–öç2"À¢G—S¢&ö&¦V7B ¢Ð¢ÒÀ¢F—FÆS¢%V•6Æ÷B"À¢G—S¢&ö&¦V7B ¢ÒÀ¢V•7FFS¢°¢FF—F–öæÅ&÷W'F–W3¢fÇ6RÀ¢&÷W'F–W3¢°¢&Wf—6–öã¢°¢FVfVÇC¢À¢F—FÆS¢%&Wf—6–öâ"À¢G—S¢&–çFVvW" ¢ÒÀ¢F&vWG3¢°¢FF—F–öæÅ&÷W'F–W3¢°¢G&Vc¢"2òFFVg2õV•6Æ÷B ¢ÒÀ¢F—FÆS¢%F&vWG2"À¢G—S¢&ö&¦V7B ¢Ð¢ÒÀ¢F—FÆS¢%V•7FFR"À¢G—S¢&ö&¦V7B ¢Ð¢ÒÀ¢ç”öc¢°¢°¢G&Vc¢"2òFFVg2õV”7F–öâ ¢ÒÀ¢°¢G&Vc¢"2òFFVg2õV•&WVW7B ¢ÒÀ¢°¢G&Vc¢"2òFFVg2õV•7FFR ¢ÒÀ¢°¢G&Vc¢"2òFFVg2õV”ÖW76vR ¢ÒÀ¢°¢G&Vc¢"2òFFVg2õV•&ö&ÆVÒ ¢ÒÀ¢°¢G&Vc¢"2òFFVg2õV”÷W&F–öâ ¢ÒÀ¢°¢G&Vc¢"2òFFVg2õV”g&ÖR ¢Ð¢ÒÀ¢G66†VÖ¢&‡GG3¢òö§6öâ×66†VÖæ÷&röG&gBó##Ó"÷66†VÖ"À¢F–C¢'W&ã¦Æ–æv‡V§V“§c §Ó° ¢òò7&2ö6÷&RçG0§f"§bÒæWr–×÷'EõòæFVfVÇB‡²7G&–7C¢fÇ6RÂÆÄW'&÷'3¢G'VRÒ“°¢ƒÂ–×÷'Eö§eöf÷&ÖG2æFVfVÇB’†§b“°¦§bæFE66†VÖ‡&÷Fö6öÅ÷66†VÖöFVfVÇB“°§f"fÆ–FF÷'2Òò¢õõU$Uõò¢òæWrÖ‚“°¦gVæ7F–öâfÆ–FFUv—&R†ÖöFVÂÂfÇVR’°¢G'’°¢76W'D§6öâ‡fÇVR“°¢Ò6F6‚°¢&WGW&âfÇ6S°¢Ð¢ÆWB6†V6²ÒfÆ–FF÷'2ævWB†ÖöFVÂ“°¢–b‚6†V6²’°¢6†V6²Ò§bæ6ö×–ÆR‡²G&Vc¢W&ã¦Æ–æv‡V§V“§c2òFFVg2òG¶ÖöFVÇÖÒ“°¢fÆ–FF÷'2ç6WB†ÖöFVÂÂ6†V6²“°¢Ð¢&WGW&â6†V6²‡fÇVR“°§Ð¦gVæ7F–öâ76W'D§6öâ‡fÇVR’°¢–b‡fÇVRÓÓÒçVÆÂÇÂG—VöbfÇVRÓÓÒ'7G&–ær"ÇÂG—VöbfÇVRÓÓÒ&&ööÆVâ"’&WGW&ã°¢–b‡G—VöbfÇVRÓÓÒ&çVÖ&W""bbçVÖ&W"æ—4f–æ—FR‡fÇVR’’&WGW&ã°¢–b„'&’æ—4'&’‡fÇVR’’°¢fÇVRæf÷$V6‚†76W'D§6öâ“°¢&WGW&ã°¢Ð¢–b‡G—VöbfÇVRÓÓÒ&ö&¦V7B"bbö&¦V7BævWE&÷F÷G—Töb‡fÇVR’ÓÓÒö&¦V7Bç&÷F÷G—R’°¢ö&¦V7BçfÇVW2‡fÇVR’æf÷$V6‚†76W'D§6öâ“°¢&WGW&ã°¢Ð¢F‡&÷rW'&÷"‚%ÇS“sTR¥4ôâÇScSsÇSc3dR"“°§Ð¦gVæ7F–öâg&VW¦R‡fÇVR’°¢–b‡fÇVRbbG—VöbfÇVRÓÓÒ&ö&¦V7B"’°¢ö&¦V7BçfÇVW2‡fÇVR’æf÷$V6‚†g&VW¦R“°¢ö&¦V7Bæg&VW¦R‡fÇVR“°¢Ð¢&WGW&âfÇVS°§Ð¦gVæ7F–öâV×G•6Æ÷B‚’°¢&WGW&â²&Wf—6–öã¢ÂfÇVW3¢·ÒÂ6VÆV7F–öã¢çVÆÂÂVW'“¢·ÒÂÖW76vW3¢µÒÂ&ö&ÆV×3¢µÒÂ÷W&F–öç3¢·ÒÓ°§Ð¦gVæ7F–öâ&ö&ÆVÒ†6öFRÂF—FÆR’°¢&WGW&â²G—S¢'W&ã¦Æ–æv‡V§V“§&ö&ÆVÒ"Â6öFRÂF—FÆRÂ&WG'–&ÆS¢fÇ6RÓ°§Ð¦gVæ7F–öâö&¦V7B‡fÇVR’°¢–b‡fÇVRÓÓÒçVÆÂÇÂG—VöbfÇVRÓÒ&ö&¦V7B"ÇÂ'&’æ—4'&’‡fÇVR’’F‡&÷rW'&÷"‚%ÇS„c“5ÇSScUÇSTd3UÇS“ƒt%ÇScc$eÇST$c•ÇS„3c"“°¢&WGW&âfÇVS°§Ð¦gVæ7F–öâWFFR‡6Æ÷BÂ7F–öâ’°¢7v—F6‚†7F–öâæ¶–æB’°¢66R&VF—B# ¢&WGW&â²ââç6Æ÷BÂfÇVW3¢²ââç6Æ÷BçfÇVW2Âââæö&¦V7B†7F–öâæFF’ÒÂ&Wf—6–öã¢6Æ÷Bç&Wf—6–öâ²Â&ö&ÆV×3¢µÒÓ°¢66R'VW'’# ¢&WGW&â²ââç6Æ÷BÂVW'“¢ö&¦V7B†7F–öâæFF’Â&Wf—6–öã¢6Æ÷Bç&Wf—6–öâ²Â&ö&ÆV×3¢µÒÓ°¢66R'6VÆV7B# ¢&WGW&â²ââç6Æ÷BÂ6VÆV7F–öã¢7F–öâæFFóòçVÆÂÂ&Wf—6–öã¢6Æ÷Bç&Wf—6–öâ²Â&ö&ÆV×3¢µÒÓ°¢66R'&W6WB# ¢&WGW&â²ââæV×G•6Æ÷B‚’ÂfÇVW3¢ö&¦V7B†7F–öâæFF’Â&Wf—6–öã¢6Æ÷Bç&Wf—6–öâ²Ó°¢66R&F—6Ö—72# ¢&WGW&â²ââç6Æ÷BÂ&ö&ÆV×3¢6Æ÷Bç&ö&ÆV×2æf–ÇFW"‚‡’Óâæ6öFRÓÒ7F–öâæFF’Ó°¢66R&–çfö¶R# ¢&WGW&â6Æ÷C°¢Ð§Ð¦gVæ7F–öâ7&VFTF—7Æ’†÷F–öç2’°¢6öç7B÷W&F–öç2ÒæWrÖ†÷F–öç2æ÷W&F–öç2æÖ‚‡7V2’Óâ·7V2æ÷W&F–öâÂ7V5Ò’“°¢–b†÷W&F–öç2ç6—¦RÓÒ÷F–öç2æ÷W&F–öç2æÆVæwF‚’F‡&÷rW'&÷"‚%ÇS“4EÇSS“EÇScD4EÇSDcT5ÇSd4S…ÇSS„2"“°¢6öç7B&Vv—7G'’ÒæWr–×÷'EõòæFVfVÇB‡²7G&–7C¢fÇ6RÒ“°¢ƒÂ–×÷'Eö§eöf÷&ÖG2æFVfVÇB’‡&Vv—7G'’“°¢f÷"†6öç7B¶–C"Â&öG•Òöbö&¦V7BæVçG&–W2†÷F–öç2ç66†VÖ2’’&Vv—7G'’æFE66†VÖ†&öG’Â–C"“°¢6öç7B6†V6·2ÒæWrÖ„ö&¦V7Bæ¶W—2†÷F–öç2ç66†VÖ2’æÖ‚†–C"’Óâ¶–C"Â&Vv—7G'’ævWE66†VÖ†–C"•Ò’“°¢6öç7B6öçG&öÆÆW"ÒæWr&÷'D6öçG&öÆÆW"‚“°¢6öç7BÆ—7FVæW'2Òò¢õõU$Uõò¢òæWr6WB‚“°¢6öç7BVæF–ærÒò¢õõU$Uõò¢òæWrÖ‚“°¢6öç7B&÷fVBÒò¢õõU$Uõò¢òæWrÖ‚“°¢6öç7BF–ÖW'2Òò¢õõU$Uõò¢òæWrÖ‚“°¢ÆWB7FFRÒg&VW¦R‡²&Wf—6–öã¢ÂF&vWG3¢·ÒÒ’Â6Æ÷6VBÒfÇ6RÂ6W&–ÂÒ°¢6öç7B–BÒ÷F–öç2æ–Bóò‚‚’Óâ&WVW7BÒG²²·6W&–ÇÖ“°¢6öç7B¶W’Ò‡F&vWBÂ÷W&F–öâ’ÓâF&vWB²%Ã"²÷W&F–öã°¢6öç7B6Æ÷BÒ‡F&vWB’Óâ7FFRçF&vWG5·F&vWEÒóòV×G•6Æ÷B‚“°¢gVæ7F–öâWB‡F&vWBÂfÇVR’°¢–b†6Æ÷6VB’&WGW&ã°¢6öç7BæÖW2ÒæWr6WB„ö&¦V7Bæ¶W—2‡fÇVRæ÷W&F–öç2’“°¢f÷"†6öç7B7V2öb÷W&F–öç2çfÇVW2‚’’–b‡7V2ç&WV—&W2bbfÇVRæ÷W&F–öç5·7V2ç&WV—&W5Ò’æÖW2æFB‡7V2æ÷W&F–öâ“°¢6öç7B&Æö6¶VBÒ²ââçVæF–æræ¶W—2‚•Òç6öÖR‚†æÖR’ÓâæÖRç7F'G5v—F‚‡F&vWB²%Ã"’“°¢6öç7B7FFW2Ò²ââçfÇVRæ÷W&F–öç2Ó°¢f÷"†6öç7BæÖRöbæÖW2’°¢6öç7B7V2Ò÷W&F–öç2ævWB†æÖR“°¢6öç7Bf–Æ&ÆRÒ&Æö6¶VBbb‚7V3òç&WV—&W2ÇÂ&÷fVBævWB†¶W’‡F&vWBÂ7V2ç&WV—&W2’“òç&Wf—6–öâÓÓÒfÇVRç&Wf—6–öâ“°¢7FFW5¶æÖUÒÒ²7FGW3¢&–FÆR"Âââç7FFW5¶æÖUÒÂf–Æ&ÆRÓ°¢Ð¢7FFRÒg&VW¦R‡²&Wf—6–öã¢7FFRç&Wf—6–öâ²ÂF&vWG3¢²ââç7FFRçF&vWG2Â·F&vWEÓ¢²ââçfÇVRÂ÷W&F–öç3¢7FFW2ÒÒÒ“°¢f÷"†6öç7BÆ—7FVæW"öbÆ—7FVæW'2’Æ—7FVæW"‚“°¢Ð¢gVæ7F–öâ7F÷‡F&vWB’°¢f÷"†6öç7B¶²ÂF–ÖW%ÒöbF–ÖW'2’–b†²ç7F'G5v—F‚‡F&vWB²%Ã"’’°¢6ÆV%F–ÖV÷WB‡F–ÖW"“°¢F–ÖW'2æFVÆWFR†²“°¢Ð¢f÷"†6öç7B²öb&÷fVBæ¶W—2‚’’–b†²ç7F'G5v—F‚‡F&vWB²%Ã"’’&÷fVBæFVÆWFR†²“°¢Ð¢gVæ7F–öâf–Â‡F&vWBÂ6öFRÂF—FÆR’°¢WB‡F&vWBÂ²ââç6Æ÷B‡F&vWB’Â&ö&ÆV×3¢·&ö&ÆVÒ†6öFRÂF—FÆR•ÒÒ“°¢Ð¢gVæ7F–öâ66WB†ÖW76vRÂ7V2’°¢–b‚fÆ–FFUv—&R‚%V”ÖW76vR"ÂÖW76vR’’F‡&÷rW'&÷"‚%ÇSdCƒ…ÇScdeÇSDSEÇSt##eÇSSC…ÇSSd5ÇSSsÇSS3DeÇS„$R"“°¢–b‡7V2bb7V2ç&W7öç6U÷66†VÖ2æ–æ6ÇVFW2†ÖW76vRç66†VÖ’’F‡&÷rW'&÷"‚%ÇScs$ÇSd4S…ÇSS„5ÇSSD4EÇSTS“B66†VÖ"“°¢6öç7B6†V6²Ò6†V6·2ævWB†ÖW76vRç66†VÖ“°¢–b‚6†V6²ÇÂ6†V6²†ÖW76vRæFF’’F‡&÷rW'&÷"‚%ÇSSD4EÇSTS“EÇSd#c5ÇScSƒuÇSDSEÇSt##eÇSSC…ÇSd4S…ÇSS„266†VÖ"“°¢–b†ÖW76vRæ¶–æBÓÓÒ'&ö&ÆVÒ"bbfÆ–FFUv—&R‚%V•&ö&ÆVÒ"ÂÖW76vRæFF’’F‡&÷rW'&÷"‚%ÇS“TTUÇS“ƒ“…ÇSd#c5ÇScSƒuÇSDSEÇSt##eÇSSC…ÇSS3DeÇS„$R"“°¢–b†ÖW76vRæ¶–æBÓÓÒ&7W7FöÒ"bb÷F–öç2æ†æFÆW'3òå¶ÖW76vRçG—UÒ’F‡&÷rW'&÷"‚%ÇScs$ÇSd4S…ÇSS„5ÇSƒTÇST#”ÇSDSC•ÇSt3t%ÇSSs„""“°¢Ð¢gVæ7F–öâV&Æ—6‚‡F&vWBÂÖW76vW2Â7V2’°¢ÖW76vW2æf÷$V6‚‚†ÖW76vR’Óâ66WB†ÖW76vRÂ7V2’“°¢6öç7B&ö&ÆV×2ÒÖW76vW2æf–ÇFW"‚†Ò’ÓâÒæ¶–æBÓÓÒ'&ö&ÆVÒ"’æÖ‚†Ò’ÓâÒæFF“°¢WB‡F&vWBÂ²ââç6Æ÷B‡F&vWB’ÂÖW76vW3¢7G'V7GW&VD6ÆöæR†ÖW76vW2’Â&ö&ÆV×2ÂfÇVW3¢7V2bb&ö&ÆV×2æÆVæwF‚ò²ââç6Æ÷B‡F&vWB’çfÇVW2Â·7V2æ÷W&F–öåÓ¢ÖW76vW2æf–ÇFW"‚†Ò’ÓâÒæ¶–æBÓÒ'&ö&ÆVÒ"’æÖ‚†Ò’ÓâÒæFF’Ò¢6Æ÷B‡F&vWB’çfÇVW2Ò“°¢ÖW76vW2æf÷$V6‚‚†ÖW76vR’Óâ÷F–öç2æ†æFÆW'3òå¶ÖW76vRçG—UÓòâ†ÖW76vR’“°¢Ð¢7–æ2gVæ7F–öâF—7F6‚†7F–öâ’°¢–b†6Æ÷6VB’F‡&÷rW'&÷"‚'6W76–öâ6Æ÷6VB"“°¢–b‚fÆ–FFUv—&R‚%V”7F–öâ"Â7F–öâ’’F‡&÷rW'&÷"‚%ÇSS$…ÇSDcT5ÇSDSEÇSt##eÇSSC…ÇSSd5ÇSSsÇSS3DeÇS„$R"“°¢6öç7BF&vWBÒ7F–öâçF&vWC°¢–b†7F–öâæ¶–æBÓÒ&–çfö¶R"’°¢G'’°¢WB‡F&vWBÂWFFR‡6Æ÷B‡F&vWB’Â7F–öâ’“°¢–b…²&VF—B"Â'VW'’"Â'6VÆV7B"Â'&W6WB%Òæ–æ6ÇVFW2†7F–öâæ¶–æB’’7F÷‡F&vWB“°¢Ò6F6‚‡&V6öâ’°¢f–Â‡F&vWBÂ&–çfÆ–Eö–çWB"Â7G&–ær‡&V6öâ’“°¢Ð¢&WGW&â7FFS°¢Ð¢6öç7B7V2Ò÷W&F–öç2ævWB†7F–öâæ÷W&F–öâ“°¢–b‚7V2’°¢f–Â‡F&vWBÂ'Vç7W÷'FVB"Â%ÇScs$ÇSd4S…ÇSS„5ÇScD4EÇSDcT2"“°¢&WGW&â7FFS°¢Ð¢6öç7B²Ò¶W’‡F&vWBÂ7V2æ÷W&F–öâ’Â–æ—F–ÂÒ6Æ÷B‡F&vWB“°¢6öç7BF–ÖW"ÒF–ÖW'2ævWB†²“°¢–b‡F–ÖW"’°¢6ÆV%F–ÖV÷WB‡F–ÖW"“°¢F–ÖW'2æFVÆWFR†²“°¢Ð¢–b‡7V2æÖöFRÓÓÒ'w&—FR"bb²ââçVæF–æræ¶W—2‚•Òç6öÖR‚‡fÇVR’ÓâfÇVRç7F'G5v—F‚‡F&vWB²%Ã"’’’°¢f–Â‡F&vWBÂ'VæF–ær"Â%ÇScD4EÇSDcT5ÇSd#c5ÇSSs#…ÇSc#cuÇSƒƒD2"“°¢&WGW&â7FFS°¢Ð¢ÆWBFF°¢G'’°¢FFÒ7V2ç&W&Rò7V2ç&W&R†7F–öâæFFóòçVÆÂ’¢7F–öâæFFóòçVÆÃ°¢76W'D§6öâ†FF“°¢6öç7B6†V6³"Ò6†V6·2ævWB‡7V2æ–çWE÷66†VÖ“°¢–b‚6†V6³"ÇÂ6†V6³"†FF’’F‡&÷rW'&÷"‚%ÇS„c“5ÇSScUÇSDSEÇSt##eÇSSC…ÇSd4S…ÇSS„266†VÖ"“°¢Ò6F6‚‡&V6öâ’°¢f–Â‡F&vWBÂ&–çfÆ–Eö–çWB"Â7G&–ær‡&V6öâ’“°¢&WGW&â7FFS°¢Ð¢6öç7B–FVçF—G’Ò¥4ôâç7G&–æv–g’†FFÂ…öæÖRÂfÇVR’ÓâfÇVRbbG—VöbfÇVRÓÓÒ&ö&¦V7B"bb'&’æ—4'&’‡fÇVR’òö&¦V7Bæg&öÔVçG&–W2„ö&¦V7BæVçG&–W2‡fÇVR’ç6÷'B‚…¶ÒÂ¶%Ò’ÓâæÆö6ÆT6ö×&R†"’’’¢fÇVR“°¢6öç7B6†V6²Ò7V2ç&WV—&W2ò&÷fVBævWB†¶W’‡F&vWBÂ7V2ç&WV—&W2’’¢fö–B°¢–b‡7V2ç&WV—&W2bb†6†V6³òç&Wf—6–öâÓÒ–æ—F–Âç&Wf—6–öâÇÂ6†V6³òæ–FVçF—G’ÓÒ–FVçF—G’’’°¢f–Â‡F&vWBÂ&6†V6µ÷&WV—&VB"Â%ÇS„$cuÇS“4EÇScT#ÇSc„3ÇSctSUÇS„c“5ÇSScR"“°¢&WGW&â7FFS°¢Ð¢–b‚÷F–öç2æ&6¶VæB’°¢f–Â‡F&vWBÂ&æ÷Eö6öææV7FVB"Â%ÇScs$ÇS„dDUÇSc4R"“°¢WB‡F&vWBÂ²ââç6Æ÷B‡F&vWB’Â÷W&F–öç3¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç2Â·7V2æ÷W&F–öåÓ¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç5·7V2æ÷W&F–öåÒÂ7FGW3¢&f–ÆVB"Â&Wf—6–öã¢–æ—F–Âç&Wf—6–öâÂ–çWC¢7F–öâæFFÒÒÒ“°¢&WGW&â7FFS°¢Ð¢6öç7B&WVW7BÒ²&WVW7Eö–C¢–B‚’Â÷W&F–öã¢7V2æ÷W&F–öâÂ66†VÖ¢7V2æ–çWE÷66†VÖÂFF¢7G'V7GW&VD6ÆöæR†FF’Ó°¢VæF–ærç6WB†²Â²–C¢&WVW7Bç&WVW7Eö–BÂ&Wf—6–öã¢–æ—F–Âç&Wf—6–öâÒ“°¢WB‡F&vWBÂ²ââç6Æ÷B‡F&vWB’Â&ö&ÆV×3¢µÒÂ÷W&F–öç3¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç2Â·7V2æ÷W&F–öåÓ¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç5·7V2æ÷W&F–öåÒÂ7FGW3¢'VæF–ær"Â&WVW7Eö–C¢&WVW7Bç&WVW7Eö–BÂ&Wf—6–öã¢–æ—F–Âç&Wf—6–öâÂ–çWC¢7F–öâæFFÒÒÒ“°¢6öç7B7W'&VçBÒ‚’Óâ6Æ÷6VBbbVæF–ærævWB†²“òæ–BÓÓÒ&WVW7Bç&WVW7Eö–Bbb6Æ÷B‡F&vWB’ç&Wf—6–öâÓÓÒ–æ—F–Âç&Wf—6–öã°¢G'’°¢6öç7BÖ¶TÖW76vRÒ†FF"’Óâ‡²ÖW76vUö–C¢–B‚’Â6÷'&VÆF–öåö–C¢&WVW7Bç&WVW7Eö–BÂ¶–æC¢&÷W&F–öâ"ÂG—S¢&Æ–æv‡V¢"²7V2æ÷W&F–öâÂ66†VÖ¢7V2ç&W7öç6U÷66†VÖ5³ÒÂFF¢FF"Ò“°¢6öç7B6ÆÂÒ7–æ2†÷W&F–öâÂFF"’Óâ°¢6öç7BæW7FVBÒ÷W&F–öç2ævWB†÷W&F–öâ“°¢–b‚æW7FVBÇÂæW7FVBæW†V7WFR’F‡&÷rW'&÷"‚%ÇScs$ÇSd4S…ÇSS„5ÇSSCUÇStTeÇScD4EÇSDcT2"“°¢76W'D§6öâ†FF"“°¢–b‚6†V6·2ævWB†æW7FVBæ–çWE÷66†VÖ“òâ†FF"’’F‡&÷rW'&÷"‚%ÇS„c“5ÇSScUÇSDSEÇSt##eÇSSC…ÇSd4S…ÇSS„266†VÖ"“°¢6öç7B6†–ÆBÒ²&WVW7Eö–C¢–B‚’Â÷W&F–öâÂ66†VÖ¢æW7FVBæ–çWE÷66†VÖÂFF¢FF"Ó°¢6öç7B&WÆ–W2Òv—B÷F–öç2æ&6¶VæBç6VæB†6†–ÆB“°¢–b‚'&’æ—4'&’‡&WÆ–W2’ÇÂ&WÆ–W2ç6öÖR‚†Ò’ÓâÒæ6÷'&VÆF–öåö–BÓÒ6†–ÆBç&WVW7Eö–B’’F‡&÷rW'&÷"‚%ÇSSD4EÇSTS“EÇScƒuÇS„$3eÇSDSUÇS„$cuÇSd3C%ÇSDSEÇSS33•ÇS“DB"“°¢&WÆ–W2æf÷$V6‚‚†Ò’Óâ66WB†ÒÂæW7FVB’“°¢6öç7B—77VRÒ&WÆ–W2æf–æB‚†Ò’ÓâÒæ¶–æBÓÓÒ'&ö&ÆVÒ"“°¢–b†—77VR’°¢6öç7B&ö&ÆVÓ"Ò—77VRæFF°¢F‡&÷rW'&÷"‡&ö&ÆVÓ"æFWF–Âóò&ö&ÆVÓ"çF—FÆR“°¢Ð¢–b‡&WÆ–W2æÆVæwF‚ÓÒ’F‡&÷rW'&÷"‚%ÇS“sÇSƒ“ƒÇSDSÇSDS$ÇSSD4EÇSTS“B"“°¢&WGW&â&WÆ–W5³ÒæFF°¢Ó°¢6öç7BÖW76vW2Ò7V2æW†V7WFRò¶Ö¶TÖW76vR†v—B7V2æW†V7WFR†FFÂ²6ÆÂÂ6–væÃ¢6öçG&öÆÆW"ç6–væÂÂ&öw&W73¢‡fÇVR’Óâ°¢–b†7W'&VçB‚’’°¢V&Æ—6‚‡F&vWBÂ¶Ö¶TÖW76vR‡fÇVR•ÒÂ7V2“°¢÷F–öç2ç&öw&W73òâ‡7FFR“°¢Ð¢ÒÒ’•Ò¢v—B÷F–öç2æ&6¶VæBç6VæB‡&WVW7B“°¢–b‚7W'&VçB‚’’&WGW&â7FFS°¢–b‚'&’æ—4'&’†ÖW76vW2’’F‡&÷rW'&÷"‚%ÇSSD4EÇSTS“EÇSTd3UÇS“ƒt%ÇScc$eÇSdCƒ…ÇScdeÇSS#uÇSƒƒc‚"“°¢–b†ÖW76vW2ç6öÖR‚†ÖW76vR’ÓâÖW76vRæ6÷'&VÆF–öåö–BÓÒ&WVW7Bç&WVW7Eö–B’’F‡&÷rW'&÷"‚%ÇSSD4EÇSTS“EÇScƒuÇS„$3eÇSDSUÇS„$cuÇSd3C%ÇSDSEÇSS33•ÇS“DB"“°¢V&Æ—6‚‡F&vWBÂÖW76vW2Â7V2“°¢–b‡7V2æ6†ævW2bb6Æ÷B‡F&vWB’ç&ö&ÆV×2æÆVæwF‚’°¢f÷"†6öç7B¶æÖRÂfÇVW5Òöbö&¦V7BæVçG&–W2‡7V2æ6†ævW2‡7FFRÂF&vWBÂ&WVW7BÂÖW76vW2’’’°¢76W'D§6öâ‡fÇVW2“°¢WB†æÖRÂ²ââç6Æ÷B†æÖR’ÂfÇVW3¢²ââç6Æ÷B†æÖR’çfÇVW2ÂââçfÇVW2ÒÒ“°¢Ð¢Ð¢6öç7Bf–ÆVBÒ6Æ÷B‡F&vWB’ç&ö&ÆV×2æÆVæwF‚â°¢–b‚f–ÆVBbb‚7V2ç&VG’ÇÂ7V2ç&VG’†ÖW76vW2’’’&÷fVBç6WB†²Â²&Wf—6–öã¢–æ—F–Âç&Wf—6–öâÂ–FVçF—G’Ò“°¢VÇ6R&÷fVBæFVÆWFR†²“°¢WB‡F&vWBÂ²ââç6Æ÷B‡F&vWB’Â÷W&F–öç3¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç2Â·7V2æ÷W&F–öåÓ¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç5·7V2æ÷W&F–öåÒÂ7FGW3¢f–ÆVBò&f–ÆVB"¢'7V66VVFVB"Â&WVW7Eö–C¢&WVW7Bç&WVW7Eö–BÂ&Wf—6–öã¢–æ—F–Âç&Wf—6–öâÂ–çWC¢7F–öâæFFÂâââf–ÆVBò²&W7VÇEö–çWC¢7F–öâæFFÒ¢·ÒÒÒÒ“°¢–b‚f–ÆVBbb7V2çöÆÂbb‚7V2ç&WVBÇÂ7V2ç&WVB†ÖW76vW2’’’°¢6öç7BöÆBÒF–ÖW'2ævWB†²“°¢–b†öÆB’6ÆV%F–ÖV÷WB†öÆB“°¢F–ÖW'2ç6WB†²Â6WEF–ÖV÷WB‚‚’Óâ°¢F–ÖW'2æFVÆWFR†²“°¢fö–BF—7F6‚†7F–öâ“°¢ÒÂ7V2çöÆÂ’“°¢Ð¢Ò6F6‚‡&V6öâ’°¢–b†7W'&VçB‚’’°¢&÷fVBæFVÆWFR†²“°¢f–Â‡F&vWBÂ7G&–ær‡&V6öâ’æ–æ6ÇVFW2‚%ÇScs$ÇSd4S…ÇSS„2"’ò'Vç7W÷'FVB"¢&f–ÆVB"Â7G&–ær‡&V6öâ’“°¢WB‡F&vWBÂ²ââç6Æ÷B‡F&vWB’Â÷W&F–öç3¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç2Â·7V2æ÷W&F–öåÓ¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç5·7V2æ÷W&F–öåÒÂ7FGW3¢&f–ÆVB"Â&WVW7Eö–C¢&WVW7Bç&WVW7Eö–BÂ&Wf—6–öã¢–æ—F–Âç&Wf—6–öâÂ–çWC¢7F–öâæFFÒÒÒ“°¢Ð¢Òf–æÆÇ’°¢–b‡VæF–ærævWB†²“òæ–BÓÓÒ&WVW7Bç&WVW7Eö–B’°¢VæF–æræFVÆWFR†²“°¢–b‚6Æ÷6VB’°¢6öç7B7FGW2Ò6Æ÷B‡F&vWB’æ÷W&F–öç5·7V2æ÷W&F–öåÓòç7FGW3°¢WB‡F&vWBÂ7FGW2ÓÓÒ'VæF–ær"ò²ââç6Æ÷B‡F&vWB’Â÷W&F–öç3¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç2Â·7V2æ÷W&F–öåÓ¢²ââç6Æ÷B‡F&vWB’æ÷W&F–öç5·7V2æ÷W&F–öåÒÂ7FGW3¢&–FÆR"Â&Wf—6–öã¢6Æ÷B‡F&vWB’ç&Wf—6–öâÒÒÒ¢6Æ÷B‡F&vWB’“°¢Ð¢Ð¢Ð¢&WGW&â7FFS°¢Ð¢&WGW&â°¢F—7F6‚À¢6æ6†÷C¢‚’Óâ7FFRÀ¢7V'67&–&R†Æ—7FVæW"’°¢–b†6Æ÷6VB’F‡&÷rW'&÷"‚'6W76–öâ6Æ÷6VB"“°¢Æ—7FVæW'2æFB†Æ—7FVæW"“°¢&WGW&â‚’ÓâÆ—7FVæW'2æFVÆWFR†Æ—7FVæW"“°¢ÒÀ¢&V6V—fR†ÖW76vR’°¢–b†6Æ÷6VB’&WGW&ã°¢6öç7BF&vWBÒ÷F–öç2æWfVçG3òå¶ÖW76vRçG—UÓ°¢–b‚F&vWB’F‡&÷rW'&÷"‚%ÇScs$ÇSd4S…ÇSS„5ÇSdCƒ…ÇScdeÇSc4UÇScS3eÇSsdTUÇScƒr"“°¢V&Æ—6‚‡F&vWBÂ¶ÖW76vUÒ“°¢ÒÀ¢F—7÷6R‚’°¢6Æ÷6VBÒG'VS°¢6öçG&öÆÆW"æ&÷'B‚“°¢Æ—7FVæW'2æ6ÆV"‚“°¢f÷"†6öç7BF–ÖW"öbF–ÖW'2çfÇVW2‚’’6ÆV%F–ÖV÷WB‡F–ÖW"“°¢F–ÖW'2æ6ÆV"‚“°¢VæF–æræ6ÆV"‚“°¢&÷fVBæ6ÆV"‚“°¢Ð¢Ó°§Ð ¢òò7&2ö6öÆÆV7BçG0§f"—FV×2Ò‡fÇVR’Óâ°¢–b‡fÇVRÓÓÒfö–B’&WGW&âµÓ°¢6öç7BfÇVW2ÒfÇVRç7Æ—B‚"Â"’æÖ‚‡b’ÓâbçG&–Ò‚’“°¢–b‡fÇVW2ç6öÖR‚‡b’Óâb’’F‡&÷rW'&÷"‚%ÇSS#uÇSƒƒc…ÇS“ƒs•ÇSDSEÇSƒdEÇSDS4ÇStt"“°¢&WGW&â²ââææWr6WB‡fÇVW2•Ó°§Ó°§f"F’Ò‡fÇVR’Óâ°¢–b‚õåÆG³GÒÕÆG³'ÒÕÆG³'ÒBòçFW7B‡fÇVR’ÇÂæWrFFR‡fÇVR’çFô•4õ7G&–ær‚’ç6Æ–6RƒÂ’ÓÒfÇVR’F‡&÷rW'&÷"‚%ÇScTSUÇScseÇScTSÇScSC‚"“°¢&WGW&âfÇVS°§Ó°§f"6öÆÆV7BÒ7–æ2‡&rÂ²6ÆÂÂ&öw&W72Â6–væÂÒ’Óâ°¢6öç7BfÇVW2Ò²ââç&rÓ°¢6öç7B'G2ÒfÇVW2ç6VÆV7F÷"ç7Æ—B‚#¢"“°¢6öç7B¶æÖRÂ–çFVçEÒÒ'G3°¢6öç7B&ævRÒõåÅµÇ2¢…ÆG³GÒƒó¢ÕÆG³'ÒÕÆG³'Ò“ò•Ç2¢ÅÇ2¢…ÆG³GÒƒó¢ÕÆG³'ÒÕÆG³'Ò“ò•Ç2¥ÅÒBòæW†V2†–çFVçBóò""“°¢6öç7B6öÖÖæBÒ&ævRò'&ævR"¢–çFVçC°¢–b‡'G2æÆVæwF‚ÓÒ"ÇÂ²&ÆFW7B"Â'&ævR"Â&WFò"Â&6†V6²"Â'7FGW2%Òæ–æ6ÇVFW2†6öÖÖæB’’F‡&÷rW'&÷"‚%ÇS“sÇSƒ“ƒÆÖ&¶WCã¥·7F'BÆVæEÒÇSc#bÆFW7EÇS3&ævUÇS3WFõÇS36†V6µÇS37FGW2"“°¢–b‡&ævR’°¢–b‡fÇVW2ç7F'BÓÒfö–BÇÂfÇVW2æVæBÓÒfö–B’F‡&÷rW'&÷"‚%ÇSS34ÇS“TcEÇSDSEÇSƒdEÇSDSR7F'EÇS3VæBÇS“4EÇSS“EÇSSƒd%ÇSS“’"“°¢fÇVW2ç7F'BÒ&ævU³ÒæÆVæwF‚ÓÓÒBò&ævU³Ò²"ÓÓ"¢&ævU³Ó°¢fÇVW2æVæBÒ&ævU³%ÒæÆVæwF‚ÓÓÒBò&ævU³%Ò²"Ó"Ó3"¢&ævU³%Ó°¢Ð¢–b†6öÖÖæBÓÒ&WFò"bbfÇVW2æ–çFW'fÂÓÒfö–B’F‡&÷rW'&÷"‚&–çFW'fÂÇSDT3UÇSsS#…ÇSDS„RWFò"“°¢–b†6öÖÖæBÓÓÒ'7FGW2"bbö&¦V7Bæ¶W—2‡fÇVW2’ç6öÖR‚†¶W’’Óâ¶W’ÓÒ'6VÆV7F÷""’’F‡&÷rW'&÷"‚'7FGW2ÇSDSEÇSc4UÇSS4CuÇScS3eÇS“d3eÇSS43%ÇScSs"“°¢–b…²&ÆFW7B"Â&WFò%Òæ–æ6ÇVFW2†6öÖÖæB’bb‡fÇVW2ç7F'BÓÒfö–BÇÂfÇVW2æVæBÓÒfö–B’’F‡&÷rW'&÷"‚&ÆFW7BÇSSC„2WFòÇSƒTÇSS$…ÇSsƒdUÇST#”ÇScTSUÇScseÇTdc5ÇS„$cuÇSsS#‚&ævRÇSc3uÇST#”ÇSS34ÇS“TcB"“°¢–b†6öÖÖæBÓÓÒ'&ævR"bb‚fÇVW2ç7F'BÇÂfÇVW2æVæB’’F‡&÷rW'&÷"‚'&ævRÇS“sÇSƒ“ƒ7F'BÇSSC„2VæB"“°¢–b‡fÇVW2ç7F'BÓÓÒfö–BÓÒ‡fÇVW2æVæBÓÓÒfö–B’’F‡&÷rW'&÷"‚'7F'BÇSSC„2VæBÇSTd3UÇS“ƒt%ÇSSC5ÇScTceÇSSƒd%ÇSS“’"“°¢6öç7BGW&F–öâÒõâ…³Ó•ÕÆB¢’‡7Æ×Æ‡ÆB’BòæW†V2‡fÇVW2æ–çFW'fÂóò#B"“°¢–b‚GW&F–öâ’F‡&÷rW'&÷"‚&–çFW'fÂÇS“sÇSƒ“ƒÇSd#c5ÇScSsÇSSC„5ÇSS3SUÇSDcDB5ÇS3ÕÇS3‚ÇSc#bB"“°¢6öç7B–çFW'fÂÒçVÖ&W"†GW&F–öå³Ò’¢²3¢ÂÓ¢cÂƒ¢3cÂC¢ƒcCÕ¶GW&F–öå³%ÕÒ¢S3°¢–b‚çVÖ&W"æ—56fT–çFVvW"†–çFW'fÂ’ÇÂ–çFW'fÂâ#CsCƒ3cCr’F‡&÷rW'&÷"‚&–çFW'fÂÇS„CƒUÇSSdÇSƒ35ÇSSdcB"“°¢6öç7B&Vv—7G'’Òv—B6ÆÂ‚&6öÆÆV7F–öâæFW67&–&R"Â·Ò“°¢6öç7BÖ&¶WG2Ò&Vv—7G'’æÖ&¶WG2æf–ÇFW"‚†Ò’Óâ¶Òç66÷RÂÒææÖRÂââæÒæÆ–6W2óòµÕÒæ–æ6ÇVFW2†æÖR’“°¢–b†Ö&¶WG2æÆVæwF‚ÓÒ’F‡&÷rW'&÷"‚%ÇSTS%ÇSSs4ÇScs$ÇSSS$eÇSDSÇSsct%ÇS„$#ÇTdc"²æÖR“°¢6öç7BÖ&¶WBÒÖ&¶WG5³Ó°¢–b‡G—VöbÖ&¶WBçF–ÖW¦öæRÓÒ'7G&–ær"ÇÂÖ&¶WBçF–ÖW¦öæR’F‡&÷rW'&÷"‚%ÇSTS%ÇSSs4ÇScs$ÇSsct%ÇS„$#ÇScTceÇSS34"“°¢–b†6öÖÖæBÓÓÒ'7FGW2"’&WGW&â²Ö&¶WC¢Ö&¶WBç66÷RÂ6÷W&6W3¢v—B6ÆÂ‚&6öÆÆV7F–öâç6÷W&6W2"Â·Ò’Ó°¢6öç7B7V2ÒÖ&¶WBæ6öÆÆV7C°¢–b‚7V3òæFF’F‡&÷rW'&÷"‚%ÇSTS%ÇSSs4ÇScs$ÇSsct%ÇS„$#ÇScS3eÇS“d3eÇScSsÇSc3dUÇSdS“"“°¢ÆWBG—W2Ò—FV×2‡fÇVW2æFF“°¢–b‚G—W2æÆVæwF‚’G—W2Ò7V2æFVfVÇBóòµÓ°¢–b‡G—W2æÆVæwF‚ÓÓÒbbG—W5³ÒÓÓÒ&ÆÂ"’G—W2Òö&¦V7Bæ¶W—2‡7V2æFF“°¢–b‚G—W2æÆVæwF‚ÇÂG—W2ç6öÖR‚†¶–æB’Óâ7V2æFF¶¶–æEÒ’’F‡&÷rW'&÷"‚%ÇScSsÇSc3dUÇSt3t%ÇSSs„%ÇScs$ÇSsct%ÇS„$#"“°¢6öç7B6÷W&6RÒ†–B’Óâ°¢6öç7Bf÷VæBÒ&Vv—7G'’ç6÷W&6W2æf–æB‚‡2’Óâ2æ–BÓÓÒ–B“°¢–b‚f÷VæB’F‡&÷rW'&÷"‚%ÇScSsÇSc3dUÇSdS“ÇScs$ÇSsct%ÇS„$#ÇTdc"²–B“°¢&WGW&âf÷VæC°¢Ó°¢6öç7BFöF’Ò‚’ÓâæWr–çFÂäFFUF–ÖTf÷&ÖB‚&VâÔ4"Â²F–ÖU¦öæS¢Ö&¶WBçF–ÖW¦öæRÂ–V#¢&çVÖW&–2"ÂÖöçFƒ¢#"ÖF–v—B"ÂF“¢#"ÖF–v—B"Ò’æf÷&ÖB‚ò¢õõU$Uõò¢òæWrFFR‚’“°¢–b‡fÇVW2ç7F'B’°¢F’‡fÇVW2ç7F'B“°¢F’‡fÇVW2æVæB“°¢–b‡fÇVW2ç7F'BâfÇVW2æVæBÇÂfÇVW2æVæBâFöF’‚’’F‡&÷rW'&÷"‚%ÇScTSUÇScseÇSTS“EÇScs•ÇSTS„eÇSDSEÇSDSEÇSccTÇSDS„UÇSDT4ÇSS“#’"“°¢Ð¢6öç7B&WVW7FVBÒ—FV×2‡fÇVW2æ6öFW2“°¢6öç7B6öFW2Ò7–æ2‚’Óâ°¢–b‡7V2æ6öFW2’&WGW&â7V2æ6öFW3°¢6öç7B&–æF–ærÒ7V2ç6V7W&—F–W3°¢–b‚&–æF–ær’F‡&÷rW'&÷"‚%ÇSTS%ÇSSs4ÇScs$ÇSsct%ÇS„$#ÇS„$3ÇSS#3…ÇSsdTUÇSTcSUÇTdc5ÇS„$cuÇSc4CÇSDc”"6öFW2"“°¢6÷W&6R†&–æF–ærç6÷W&6R“°¢–b†6öÖÖæBÓÒ&6†V6²"’°¢6öç7B–çWC"Ò²6÷W&6Uö–C¢&–æF–ærç6÷W&6RÂ&Vg&W6ƒ¢G'VRÓ°¢–b†&–æF–æræW†6†ævW2ÓÒfö–B’–çWC"æW†6†ævW2Ò&–æF–æræW†6†ævW3°¢v—B6ÆÂ‚&6öÆÆV7F–öâç'Vâ"Â–çWC"“°¢Ð¢ÆWB&÷w2ÒµÒÂöfg6WBÒ°¢v†–ÆR‡G'VR’°¢6öç7BvRÒv—B6ÆÂ‚&6öÆÆV7F–öâç6æ6†÷B"Â²–C¢&–æF–ærç6÷W&6RÂöfg6WBÒ“°¢&÷w2çW6‚‚ââçvRç&V6÷&G2“°¢öfg6WB³ÒvRç&V6÷&G2æÆVæwFƒ°¢–b†öfg6WBãÒvRçF÷FÂÇÂvRç&V6÷&G2æÆVæwF‚’'&V³°¢Ð¢6öç7BW†6†ævW2Òò¢õõU$Uõò¢òæWr6WB‚“°¢6öç7B&W7VÇBÒ&÷w2æf–ÇFW"‚‡&÷r’Óâ°¢–b„ö&¦V7BæVçG&–W2†&–æF–æræf–ÇFW'2óò·Ò’ç6öÖR‚…¶f–VÆBÂÆÆ÷vVEÒ’ÓâÆÆ÷vVBæ–æ6ÇVFW2‡&÷u¶f–VÆEÒ’’’&WGW&âfÇ6S°¢6öç7B6öFRÒ&÷u¶&–æF–æræ6öFUÓ°¢–b‡G—Vöb6öFRÓÒ'7G&–ær"’F‡&÷rW'&÷"‚%ÇSsdTUÇSTcSUÇStc4ÇST3ÇS„$3ÇSS#3…ÇSDTS5ÇSsƒ"“°¢–b†Ö&¶WBæ6öFU÷GFW&âbbæWr&VtW‡‚%âƒó¢"²Ö&¶WBæ6öFU÷GFW&â²"’B"’çFW7B†6öFR’’&WGW&âfÇ6S°¢W†6†ævW2æFB†6öFRç7Æ—B‚"â"•³Ò“°¢6öç7B÷VæVBÒ&÷u¶&–æF–æræg&öÕÒÂ6Æ÷6VBÒ&÷u¶&–æF–ærçFõÓ°¢&WGW&â†÷VæVBbb÷VæVBâ‡fÇVW2æVæBóòFöF’‚’’ÇÂ6Æ÷6VBbb‡fÇVW2ç7F'Bò6Æ÷6VBÂfÇVW2ç7F'B¢G'VR’“°¢Ò’æÖ‚‡&÷r’Óâ&÷u¶&–æF–æræ6öFUÒ“°¢–b‚†&–æF–æræW†6†ævW2óòµÒ’ç6öÖR‚†W†6†ævR’ÓâW†6†ævW2æ†2†W†6†ævR’’’F‡&÷rW'&÷"‚%ÇS„$3ÇSS#3…ÇSsdTUÇSTcSUÇStc4ÇST3ÇSsct%ÇS„$#ÇSscƒEÇSDTEÇScc5ÇSc#C"“°¢&WGW&â²ââææWr6WB‡&W7VÇB•Òç6÷'B‚“°¢Ó°¢6öç7B7–6ÆRÒ7–æ2‚’Óâ°¢6öç7BÆç2ÒµÒÂ¦ö'2ÒµÓ°¢ÆWBÖ&¶WD6öFW3°¢f÷"†6öç7B¶–æBöbG—W2’°¢–b‡6–væÂæ&÷'FVB’F‡&÷rW'&÷"‚%ÇSDcÇS„$DEÇSTDc%ÇSST5ÇSd#c""“°¢6öç7B&–æF–ærÒ7V2æFF¶¶–æEÓ°¢6÷W&6R†&–æF–ærç6÷W&6R“°¢6öç7B6VÆV7FVBÒ&–æF–æræ6öFW2óò‡&WVW7FVBæÆVæwF‚ò&WVW7FVB¢Ö&¶WD6öFW2óóÒv—B6öFW2‚’“°¢–b‚6VÆV7FVBæÆVæwF‚’F‡&÷rW'&÷"‚%ÇSS34ÇS“TcEÇSSƒUÇSd4ÇScs•ÇS„$3ÇSS#3‚"“°¢ÆWB7F'BÒfÇVW2ç7F'BÂVæBÒfÇVW2æVæC°¢–b‚7F'B’°¢6öç7B7F÷&VBÒv—B6ÆÂ‚&6öÆÆV7F–öâæ–ç7V7B"Â²6÷W&6Uö–C¢&–æF–ærç6÷W&6RÂ6öFW3¢6VÆV7FVBÒ“°¢–b‚7F÷&VBæÆ7EöFFR’F‡&÷rW'&÷"‚%ÇSd4ÇScs•ÇSTDc%ÇST#S…ÇScSsÇSc3dUÇTdc5ÇS„$cuÇSsS#‚&ævRÇSc3uÇST#”7F'BÇSSC„2VæB"“°¢7F'BÒ7F÷&VBæÆ7EöFFS°¢VæBÒFöF’‚“°¢Ð¢6öç7B&WVW7BÒ²6÷W&6Uö–C¢&–æF–ærç6÷W&6RÂ7F'BÂVæBÓ°¢–b‡fÇVW2æf–VÆG2’&WVW7Bæf–VÆG2Ò—FV×2‡fÇVW2æf–VÆG2“°¢6öç7B6—¦RÒ7V2æ&F6…÷6—¦RÓÓÒfö–Bò6VÆV7FVBæÆVæwF‚¢7V2æ&F6…÷6—¦S°¢–b‚çVÖ&W"æ—56fT–çFVvW"‡6—¦R’ÇÂ6—¦RÂ’F‡&÷rW'&÷"‚%ÇSTS%ÇSSs4ÇScS3eÇS“d3eÇSc#s•ÇS“4eÇS„$$UÇStcdUÇScTSÇScSC‚"“°¢f÷"†ÆWBöfg6WBÒ²öfg6WBÂ6VÆV7FVBæÆVæwFƒ²öfg6WB³Ò6—¦R’°¢–b‡6–væÂæ&÷'FVB’F‡&÷rW'&÷"‚%ÇSDcÇS„$DEÇSTDc%ÇSST5ÇSd#c""“°¢6öç7B&F6‚Ò²ââç&WVW7BÂ6öFW3¢6VÆV7FVBç6Æ–6R†öfg6WBÂöfg6WB²6—¦R’Ó°¢–b†6öÖÖæBÓÓÒ&6†V6²"’°¢6öç7B&W7VÇBÒv—B6ÆÂ‚&6öÆÆV7F–öâæ–ç7V7B"Â&F6‚“°¢Æç2çW6‚‡²FF¢¶–æBÂ&WVW7C¢&F6‚Â6÷fW&vS¢&W7VÇBæ6÷fW&vRÒ“°¢ÒVÇ6R°¢–b…²&ÆFW7B"Â&WFò%Òæ–æ6ÇVFW2†6öÖÖæB’’ö&¦V7Bæ76–vâ†&F6‚Â²f÷&6S¢G'VRÂ&Vg&W6ƒ¢G'VRÒ“°¢¦ö'2çW6‚†v—B6ÆÂ‚&6öÆÆV7F–öâç'Vâ"Â&F6‚’“°¢–b‡6VÆV7FVBæÆVæwF‚â6—¦R’&öw&W72‡²Ö&¶WC¢Ö&¶WBç66÷RÂFF¢¶–æBÂ7FGW3¢''Vææ–ær"Â6ö×ÆWFVC¢ÖF‚æÖ–â†öfg6WB²6—¦RÂ6VÆV7FVBæÆVæwF‚’ÂF÷FÃ¢6VÆV7FVBæÆVæwF‚Ò“°¢Ð¢Ð¢Ð¢&WGW&â6öÖÖæBÓÓÒ&6†V6²"ò²Ö&¶WC¢Ö&¶WBç66÷RÂ7FGW3¢Æç2æWfW'’‚‡’Óâæ6÷fW&vRæ6ö×ÆWFR’ò&6ö×ÆWFR"¢&–æ6ö×ÆWFR"ÂÆç2Ò¢²Ö&¶WC¢Ö&¶WBç66÷RÂ7FGW3¢'7V66VVFVB"Â¦ö'2Ó°¢Ó°¢Fò°¢6öç7B&W7VÇBÒv—B7–6ÆR‚“°¢–b†6öÖÖæBÓÒ&WFò"’&WGW&â&W7VÇC°¢&öw&W72‡&W7VÇB“°¢v—BæWr&öÖ—6R‚‡&W6öÇfRÂ&V¦V7B’Óâ°¢6öç7B&÷'BÒ‚’Óâ°¢6ÆV%F–ÖV÷WB‡F–ÖW"“°¢&V¦V7B„W'&÷"‚%ÇSDcÇS„$DEÇSTDc%ÇSST5ÇSd#c""’“°¢Ó°¢6öç7BF–ÖW"Ò6WEF–ÖV÷WB‚‚’Óâ°¢6–væÂç&VÖ÷fTWfVçDÆ—7FVæW"‚&&÷'B"Â&÷'B“°¢&W6öÇfR‚“°¢ÒÂ–çFW'fÂ“°¢6–væÂæFDWfVçDÆ—7FVæW"‚&&÷'B"Â&÷'BÂ²öæ6S¢G'VRÒ“°¢–b‡6–væÂæ&÷'FVB’&÷'B‚“°¢Ò“°¢Òv†–ÆR‚6–væÂæ&÷'FVB“°¢F‡&÷rW'&÷"‚%ÇSDcÇS„$DEÇSTDc%ÇSST5ÇSd#c""“°§Ó° ¢òò7&2÷&W6V&6‚÷7G&FVw’ÖÖöFVÂçG0¦gVæ7F–öâ&6·FW7D–çWB‡7V2ÂfÇVW2Â6—FÂÂ7F'BÂVæBÂFF6WB’°¢6öç7B–æ—F–Åö66‚ÒçVÖ&W"†6—FÂ“°¢–b‚6—FÂçG&–Ò‚’ÇÂçVÖ&W"æ—4f–æ—FR†–æ—F–Åö66‚’ÇÂ–æ—F–Åö66‚ÃÒ’F‡&÷ræWrW'&÷"‚%ÇSc#“UÇSScUÇS„CCEÇS“CÇSTd3UÇS“ƒt%ÇSS“#uÇSDS„R"“°¢6öç7BFFRÒ‡fÇVR’ÓâõåÆG³GÒÕÆG³'ÒÕÆG³'ÒBòçFW7B‡fÇVR’bbçVÖ&W"æ—4f–æ—FR„FFRç'6R‡fÇVR’’bbæWrFFR‡fÇVR’çFô•4õ7G&–ær‚’ç6Æ–6RƒÂ’ÓÓÒfÇVS°¢–b‚FFR‡7F'B’ÇÂFFR†VæB’’F‡&÷ræWrW'&÷"‚%ÇS„$cuÇS“•ÇSc$S•ÇScs•ÇScSC…ÇSscƒEÇSTcÇSS”4%ÇSDSUÇStTC5ÇScsTeÇScTSUÇScsb"“°¢–b‡7F'BâVæB’F‡&÷ræWrW'&÷"‚%ÇStTC5ÇScsTeÇScTSUÇScseÇSDSEÇSƒdEÇScTS•ÇSDS„UÇSTcÇSS”4%ÇScTSUÇScsb"“°¢6öç7B&×2Ò·Ó°¢f÷"†6öç7Bf–VÆBöb7V2ç&ÖWFW'2’°¢6öç7BfÇVRÒfÇVW5¶f–VÆBæ¶W•Ó°¢–b†f–VÆBçG—RÓÓÒ&&ööÆVâ"’°¢–b‡G—VöbfÇVRÓÒ&&ööÆVâ"’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSTd3UÇS“ƒt%ÇSDS4ÇSTcÇSSs5ÇSS46“°¢&×5¶f–VÆBæ¶W•ÒÒfÇVS°¢ÒVÇ6R–b†f–VÆBçG—RÓÓÒ&çVÖ&W""ÇÂf–VÆBçG—RÓÓÒ&–çFVvW""’°¢6öç7BçVÖ&W"ÒçVÖ&W"‡fÇVR“°¢–b‡G—VöbfÇVRÓÒ'7G&–ær"ÇÂfÇVRçG&–Ò‚’ÇÂçVÖ&W"æ—4f–æ—FR†çVÖ&W"’’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSTd3UÇS“ƒt%ÇSDS4ÇScSsÇST#Sv“°¢–b†f–VÆBçG—RÓÓÒ&–çFVvW""bbçVÖ&W"æ—4–çFVvW"†çVÖ&W"’’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSTd3UÇS“ƒt%ÇSDS4ÇScSsEÇScSs“°¢–b†f–VÆBæÖ–æ–×VÒÓÒfö–BbbçVÖ&W"Âf–VÆBæÖ–æ–×VÒ’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSDSEÇSƒdEÇST3eÇSDS„RG¶f–VÆBæÖ–æ–×V×Ö“°¢–b†f–VÆBæÖ†–×VÒÓÒfö–BbbçVÖ&W"âf–VÆBæÖ†–×VÒ’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSDSEÇSƒdEÇSS“#uÇSDS„RG¶f–VÆBæÖ†–×V×Ö“°¢–b†f–VÆBæW†6ÇW6—fUöÖ–æ–×VÒÓÒfö–BbbçVÖ&W"ÃÒf–VÆBæW†6ÇW6—fUöÖ–æ–×VÒ’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSTd3UÇS“ƒt%ÇSS“#uÇSDS„RG¶f–VÆBæW†6ÇW6—fUöÖ–æ–×V×Ö“°¢&×5¶f–VÆBæ¶W•ÒÒçVÖ&W#°¢ÒVÇ6R°¢–b‡G—VöbfÇVRÓÒ'7G&–ær"’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSTd3UÇS“ƒt%ÇSDS4ÇScSƒuÇScs$6“°¢&×5¶f–VÆBæ¶W•ÒÒfÇVS°¢Ð¢–b†f–VÆBæ÷F–öç2bbf–VÆBæ÷F–öç2æ–æ6ÇVFW2‡&×5¶f–VÆBæ¶W•Ò’’F‡&÷ræWrW'&÷"†G¶f–VÆBæÆ&VÇÕÇSDSEÇSSs#…ÇSS4TeÇS“•ÇSƒ35ÇSSdcEÇSSƒV“°¢Ð¢&WGW&â²ÖöGVÆS¢7V2æÖöGVÆRÂ&×2Â–æ—F–Åö66‚Â7F'BÂVæBÂFF6WEö–C¢FF6WBÓ°§Ð ¢òò7&2öfVGW&W2çG0§f"ö&¦V7C"Ò‡&÷W'F–W2Ò·ÒÂ&WV—&VBÒö&¦V7Bæ¶W—2‡&÷W'F–W2’’Óâ‡²G—S¢&ö&¦V7B"Â&÷W'F–W2Â&WV—&VBÂFF—F–öæÅ&÷W'F–W3¢fÇ6RÒ“°§f"FW‡BÒ²G—S¢'7G&–ær"Ó°§f"–çFVvW"Ò²G—S¢&–çFVvW""ÂÖ–æ–×VÓ¢Ó°§f"&ööÆVâÒ²G—S¢&&ööÆVâ"Ó°§f"FVg2Ò°¢&&6·FW7Bç7G&FVv–W2#¢²–çWC¢ö&¦V7C"‚’ÒÀ¢'&W6V&6‚ç'Vç2#¢²–çWC¢ö&¦V7C"‚’ÒÀ¢'&W6V&6‚ç'Vâ#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÂöfg6WC¢–çFVvW"Ò’ÒÀ¢'&W6V&6‚æ&Væ6†Ö&·2#¢²–çWC¢ö&¦V7C"‚’ÒÀ¢'&W6V&6‚æ&Væ6†Ö&²#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÂ7F'C¢FW‡BÂVæC¢FW‡BÒ’ÒÀ¢&6öÆÆV7F–öâç6÷W&6W2#¢²–çWC¢ö&¦V7C"‚’ÂöÆÃ¢6S2ÒÀ¢&6öÆÆV7F–öâç7–æ2#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÂ–çWC¢²G—S¢&ö&¦V7B"ÒÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâç66†VGVÆR#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÂVæ&ÆVC¢&ööÆVâÂ–çFW'fÅ÷6V6öæG3¢²G—S¢&–çFVvW""ÂÖ–æ–×VÓ¢3ÒÂ–çWC¢²G—S¢&ö&¦V7B"ÒÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâæ¦ö"#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÒ’ÂöÆÃ¢S2ÒÀ¢&6öÆÆV7F–öâç6æ6†÷B#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÂöfg6WC¢–çFVvW"Ò’ÒÀ¢&6öÆÆV7F–öâæWf–FVæ6R#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÂ–æFWƒ¢–çFVvW"Ò’Â6†ævW3¢…÷7FFRÂ÷F&vWBÂ÷&WVW7BÂÖW76vW2’Óâ°¢6öç7B&V6÷&BÒÖW76vW5³ÓòæFF°¢6öç7B&Wf–WrÒ&V6÷&Bç&Wf–Ww3òå³Ó°¢&WGW&â²VF—C¢²7FGW3¢&Wf–Wsòç7FGW2óò'VæF–ær"Âæ÷FS¢&Wf–Wsòææ÷FRóò""ÒÓ°¢ÒÒÀ¢&FFç&W6V&6…ö–çWG2#¢²–çWC¢ö&¦V7C"‚’ÒÀ¢&FFç7FGW2#¢²–çWC¢ö&¦V7C"‡²&W66ã¢&ööÆVâÒ’ÂöÆÃ¢6S2ÒÀ¢&FFç6V&6‚#¢²–çWC¢ö&¦V7C"‡²¢FW‡BÒ’ÒÀ¢&FFæ&'2#¢²–çWC¢ö&¦V7C"‡²6öFS¢FW‡BÂg&W¢FW‡BÂF£¢FW‡BÂ7F'C¢FW‡BÂVæC¢FW‡BÒÂ²&6öFR"Â&g&W"Â&F¢%Ò’ÒÀ¢&6öÆÆV7F–öâç7F'B#¢²–çWC¢²G—S¢&ö&¦V7B"ÒÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâæ7W'&VçB#¢²–çWC¢ö&¦V7C"‚’ÂöÆÃ¢S2ÒÀ¢&6öÆÆV7F–öâç7F÷#¢²–çWC¢ö&¦V7C"‚’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâæWFöÖF–2#¢²–çWC¢ö&¦V7C"‚’ÂöÆÃ¢S2ÒÀ¢&6öÆÆV7F–öâç6WEöWFöÖF–2#¢²–çWC¢ö&¦V7C"‡²Væ&ÆVC¢&ööÆVâÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâæÖW&vR#¢²–çWC¢ö&¦V7C"‡²G'•'Vã¢&ööÆVâÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâæÖW&vUö¦ö"#¢²–çWC¢ö&¦V7C"‚’ÂöÆÃ¢S2ÒÀ¢&FFæ6†V6²#¢²–çWC¢ö&¦V7C"‚’ÂöÆÃ¢6S2ÒÀ¢&6öÆÆV7F–öâç&W—"#¢²–çWC¢ö&¦V7C"‡²–C¢FW‡BÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâç&W—%ö¦ö"#¢²–çWC¢ö&¦V7C"‚’ÂöÆÃ¢S2ÒÀ¢&6Æ’æ–ævW7B#¢²–çWC¢ö&¦V7C"‡²&–6S¢FW‡BÂgVæFÖVçFÇ3¢FW‡BÂfÇVF–öç3¢FW‡BÂ÷WGWC¢FW‡BÂÖ…÷7–Ö&öÇ3¢²ç”öc¢¶–çFVvW"Â²G—S¢&çVÆÂ"ÕÒÒÂ&–6U÷'C¢²ç”öc¢·²G—S¢&'&’"Â—FV×3¢–çFVvW"ÒÂ²G—S¢&çVÆÂ"ÕÒÒÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6Æ’æ&6·FW7B#¢²–çWC¢ö&¦V7C"‡²6öæf–s¢FW‡BÒ’ÂÖöFS¢'w&—FR"ÒÀ¢&6öÆÆV7F–öâæFW67&–&R#¢²–çWC¢ö&¦V7C"‚’ÒÀ¢&6öÆÆV7F–öâæ–ç7V7B#¢²–çWC¢ö&¦V7C"‡²6÷W&6Uö–C¢FW‡BÂ6öFW3¢²G—S¢&'&’"Â—FV×3¢FW‡BÒÂ7F'C¢FW‡BÂVæC¢FW‡BÂf–VÆG3¢²G—S¢&'&’"Â—FV×3¢FW‡BÒÒÂ²'6÷W&6Uö–B%Ò’ÒÀ¢&6öÆÆV7F–öâç'Vâ#¢²–çWC¢²G—S¢&ö&¦V7B"Â&WV—&VC¢²'6÷W&6Uö–B%ÒÂ&÷W'F–W3¢²6÷W&6Uö–C¢FW‡BÒÂFF—F–öæÅ&÷W'F–W3¢G'VRÒÂÖöFS¢'w&—FR"ÒÀ¢&6Æ’æ6öÆÆV7B#¢²–çWC¢ö&¦V7C"‡²6VÆV7F÷#¢FW‡BÂFF¢FW‡BÂ6öFW3¢FW‡BÂf–VÆG3¢FW‡BÂ7F'C¢FW‡BÂVæC¢FW‡BÂ–çFW'fÃ¢FW‡BÒÂ²'6VÆV7F÷"%Ò’ÂÖöFS¢'w&—FR"Ð§Ó°§f"–çWE66†VÖÒ†÷W&F–öâ’ÓâW&ã¦Æ–æv‡V§V“¦–çWC¢G¶÷W&F–öçÓ§c°§f"÷WGWE66†VÖÒ†÷W&F–öâ’ÓâW&ã¦Æ–æv‡V§V“¦÷WGWC¢G¶÷W&F–öçÓ§c°¦gVæ7F–öâfVGW&W2‚’°¢6öç7B66†VÖ2Ò²'W&ã¦Æ–æv‡V§V“§&ö&ÆVÓ§c#¢²G—S¢&ö&¦V7B"ÒÓ°¢6öç7B÷W&F–öç2Òö&¦V7BæVçG&–W2†FVg2’æÖ‚…¶÷W&F–öâÂFVf–æ—F–öåÒ’Óâ°¢66†VÖ5¶–çWE66†VÖ†÷W&F–öâ•ÒÒFVf–æ—F–öâæ–çWC°¢66†VÖ5¶÷WGWE66†VÖ†÷W&F–öâ•ÒÒ·Ó°¢&WGW&â²÷W&F–öâÂ–çWE÷66†VÖ¢–çWE66†VÖ†÷W&F–öâ’Â&W7öç6U÷66†VÖ3¢¶÷WGWE66†VÖ†÷W&F–öâ’Â'W&ã¦Æ–æv‡V§V“§&ö&ÆVÓ§c%ÒÂÖöFS¢FVf–æ—F–öâæÖöFRóò'&VB"ÂöÆÃ¢FVf–æ—F–öâçöÆÂÂ6†ævW3¢FVf–æ—F–öâæ6†ævW2Âââæ÷W&F–öâÓÓÒ&6Æ’æ6öÆÆV7B"ò²W†V7WFS¢6öÆÆV7BÒ¢·ÒÓ°¢Ò“°¢6öç7B&W&RÒ‡&r’Óâ°¢6öç7BFFÒ&s°¢6öç7B–çWC"Ò&6·FW7D–çWB†FFç7V2ÂFFçfÇVW2ÂFFæ6—FÂÂFFç7F'BÂFFæVæBÂFFæFF6WB“°¢&WGW&â²ââæ–çWC"Â–æ—F–Åö66ƒ¢FFæ6—FÂçG&–Ò‚’Ó°¢Ó°¢6öç7Bf÷&ÒÒ²G—S¢&ö&¦V7B"Â&WV—&VC¢²'7V2"Â'fÇVW2"Â&6—FÂ"Â'7F'B"Â&VæB"Â&FF6WB%ÒÓ°¢f÷"†6öç7B÷W&F–öâöb²&&6·FW7Bç&W&R"Â&&6·FW7Bç'Vâ%Ò’°¢66†VÖ5¶–çWE66†VÖ†÷W&F–öâ•ÒÒ²G—S¢&ö&¦V7B"Â&WV—&VC¢²&ÖöGVÆR"Â'&×2"Â&–æ—F–Åö66‚"Â'7F'B"Â&VæB"Â&FF6WEö–B%ÒÂ&÷W'F–W3¢²ÖöGVÆS¢FW‡BÂ&×3¢²G—S¢&ö&¦V7B"ÒÂ–æ—F–Åö66ƒ¢²G—S¢'7G&–ær"ÂGFW&ã¢%å³Ó•Ò²…ÅÂå³Ó•Ò²“òB"ÒÂ7F'C¢FW‡BÂVæC¢FW‡BÂFF6WEö–C¢FW‡BÒÂFF—F–öæÅ&÷W'F–W3¢fÇ6RÓ°¢66†VÖ5¶÷WGWE66†VÖ†÷W&F–öâ•ÒÒ²G—S¢&ö&¦V7B"Ó°¢÷W&F–öç2çW6‚‡°¢÷W&F–öâÀ¢–çWE÷66†VÖ¢–çWE66†VÖ†÷W&F–öâ’À¢&W7öç6U÷66†VÖ3¢¶÷WGWE66†VÖ†÷W&F–öâ’Â'W&ã¦Æ–æv‡V§V“§&ö&ÆVÓ§c%ÒÀ¢ÖöFS¢'w&—FR"À¢&W&RÀ¢ââæ÷W&F–öâÓÓÒ&&6·FW7Bç'Vâ"ò²&WV—&W3¢&&6·FW7Bç&W&R"Â6†ævW3¢‡7FFRÂF&vWBÂ&WVW7BÂÖW76vW2’Óâ°¢6öç7B6ö×ÆWFVBÒ²–çWC¢&WVW7BæFFÂ&W7VÇC¢ÖW76vW2æf–æB‚†Ò’ÓâÒæ¶–æBÓÒ'&ö&ÆVÒ"’æFFÓ°¢6öç7B6ö×&—6öâÒ7FFRçF&vWG5·F&vWB²#¦6ö×&—6öâ%ÓòçfÇVW2óò·Ó°¢6öç7B&W7VÇBÒ6ö×ÆWFVBç&W7VÇC°¢6öç7B'Vç2Ò7FFRçF&vWG5²'&W6V&6ƒ¦&6†—fW2%ÓòçfÇVW5²'&W6V&6‚ç'Vç2%Óòå³ÒóòµÓ°¢&WGW&â°¢·F&vWB²#¦6ö×&—6öâ%Ó¢²&6VÆ–æS¢6ö×&—6öâæ&6VÆ–æRóò6ö×ÆWFVBÂÆFW7C¢6ö×ÆWFVBÒÀ¢'&W6V&6ƒ¦&6†—fW2#¢²'&W6V&6‚ç'Vç2#¢µ·&W7VÇBÂââç'Vç2æf–ÇFW"‚‡'Vâ’Óâ'Vãòæ–BÓÒ&W7VÇBæ–B•ÕÒÒÀ¢&W6V&6ƒ¢²7W'&VçC¢&W7VÇBæ–BÐ¢Ó°¢ÒÒ¢²&VG“¢†ÖW76vW2’ÓâÖW76vW2ç6öÖR‚†Ò’ÓâÒæFFòç&VG’ÓÓÒG'VR’Ð¢Ò“°¢Ð¢66†VÖ5²'W&ã¦Æ–æv‡V§V“¦f÷&Ó§c%ÒÒf÷&Ó°¢&WGW&â²÷W&F–öç2Â66†VÖ2Ó°§Ð ¢òòââö6Æ’æÖ§0§f"v—G2Òò¢õõU$Uõò¢òæWrÖ‚“°§f"÷WGWBÒ‡fÇVR’Óâ&ö6W72ç7FF÷WBçw&—FR„¥4ôâç7G&–æv–g’‡fÇVR’²%Æâ"“°§f"&6¶VæBÒ&ö6W72æ&wbæ–æ6ÇVFW2‚"ÒÖ6öææV7FVB"’ò²6VæC¢‡&WVW7B’ÓâæWr&öÖ—6R‚‡&W6öÇfRÂ&V¦V7B’Óâ°¢v—G2ç6WB‡&WVW7Bç&WVW7Eö–BÂ²&W6öÇfRÂ&V¦V7BÒ“°¢÷WGWB‡²¶–æC¢'&WVW7B"Â&WVW7BÒ“°§Ò’Ò¢fö–B°§f"6÷&RÒ7&VFTF—7Æ’‡²ââæfVGW&W2‚’Â&6¶VæBÂ&öw&W73¢‡7FFR’Óâ÷WGWB‡²¶–æC¢'7FFR"Â7FFRÒ’Ò“°§f"–çWBÒ7&VFT–çFW&f6R‡²–çWC¢&ö6W72ç7FF–âÂ7&ÆdFVÆ“¢–æf–æ—G’Ò“°¦gVæ7F–öâ6Æ÷6R‚’°¢6÷&RæF—7÷6R‚“°¢f÷"†6öç7Bv—Böbv—G2çfÇVW2‚’’v—Bç&V¦V7B„W'&÷"‚'6W76–öâ6Æ÷6VB"’“°¢v—G2æ6ÆV"‚“°¢–çWBæ6Æ÷6R‚“°§Ð§f"'Vææ–ærÒfÇ6S°¦–çWBæöâ‚&Æ–æR"Â7–æ2†Æ–æR’Óâ°¢G'’°¢6öç7Bg&ÖRÒ¥4ôâç'6R†Æ–æR“°¢–b‚fÆ–FFUv—&R‚%V”g&ÖR"Âg&ÖR’’F‡&÷rW'&÷"‚$–çfÆ–B'&–FvRg&ÖR"“°¢–b†g&ÖRæ¶–æBÓÓÒ&6Æ÷6R"’°¢6Æ÷6R‚“°¢&WGW&ã°¢Ð¢–b†g&ÖRæ¶–æBÓÓÒ'&W7öç6R"’°¢6öç7Bv—BÒv—G2ævWB†g&ÖRç&WVW7Còç&WVW7Eö–B“°¢–b‚v—B’F‡&÷rW'&÷"‚%Væ¶æ÷vâ&W7öç6R&WVW7B"“°¢v—G2æFVÆWFR†g&ÖRç&WVW7Bç&WVW7Eö–B“°¢v—Bç&W6öÇfR†g&ÖRæÖW76vW2“°¢&WGW&ã°¢Ð¢–b†g&ÖRæ¶–æBÓÒ&7F–öâ"ÇÂg&ÖRæ7F–öâÇÂ'Vææ–ær’F‡&÷rW'&÷"‚$W‡V7FVBöæR7F–öâBF–ÖR"“°¢'Vææ–ærÒG'VS°¢6öç7B7FFRÒv—B6÷&RæF—7F6‚†g&ÖRæ7F–öâ“°¢÷WGWB‡²¶–æC¢'7FFR"Â7FFRÒ“°¢'Vææ–ærÒfÇ6S°¢Ò6F6‚‡&V6öâ’°¢&ö6W72ç7FFW'"çw&—FR…7G&–ær‡&V6öâ’²%Æâ"“°¢&ö6W72æW†—D6öFRÒ°¢6Æ÷6R‚“°¢Ð§Ò“°¦–çWBæöâ‚&6Æ÷6R"Â‚’Óâ°¢6÷&RæF—7÷6R‚“°¢f÷"†6öç7Bv—Böbv—G2çfÇVW2‚’’v—Bç&V¦V7B„W'&÷"‚'6W76–öâ6Æ÷6VB"’“°¢v—G2æ6ÆV"‚“°§Ò“°§&ö6W72æöæ6R‚%4”t”åB"Â6Æ÷6R“°§&ö6W72æöæ6R‚%4”uDU$Ò"Â6Æ÷6R“°

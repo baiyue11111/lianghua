@@ -40,6 +40,89 @@ def payload(**changes):
 
 
 class HistoricalDataTests(unittest.TestCase):
+    def test_index_reads_standard_records_after_each_publication(self):
+        from plugins.data import Adapter
+        class Source:
+            records = [dict(code='sh.600003', index='I', effective='2020-01-01',
+                            known='2020-01-01T08:00:00+08:00', included=True)]
+            def read(self, kind, source, file):
+                if source == 'registry':
+                    return json.dumps({'markets': [{
+                        'scope': 'EXCHANGE', 'dataset_id': 'fixture',
+                        'code_pattern': r'sh\.60\d{4}',
+                        'members': dict(source='components', file='records.json', code='code',
+                                        index='index', effective='effective', known='known',
+                                        included='included')}]}).encode()
+                self.assert_source(source, file)
+                return json.dumps({'records': self.records}).encode()
+            def assert_source(self, source, file):
+                assert (source, file) == ('components', 'records.json')
+        source = Source()
+        args = ('fixture', date(2020, 1, 1), date(2020, 2, 1))
+        market = {'scope': 'EXCHANGE', 'index': 'I'}
+        self.assertEqual(Adapter.candidates(source, market, *args), ('sh.600003',))
+        source.records.append(dict(code='sh.600004', index='I', effective='2020-01-20',
+                                   known='2020-01-19T08:00:00+08:00', included=True))
+        self.assertEqual(Adapter.candidates(source, market, *args), ('sh.600003', 'sh.600004'))
+
+    def test_index_rejects_records_that_do_not_cover_requested_history(self):
+        from plugins.data import Adapter
+        registry = dict(scope='TEST', timezone='Asia/Shanghai', session_open='09:30',
+                        session_close='15:00', fields={},
+                        members=dict(code='code', index='index', effective='effective',
+                                     known='known', included='included'))
+        rows = [dict(code='A', index='I', effective='2026-01-01',
+                     known='2026-01-01T08:00:00+08:00', included=True)]
+        with self.assertRaisesRegex(ValueError, 'history'):
+            Adapter.eligible({'scope': 'TEST', 'index': 'I'}, registry,
+                             (date(2014, 1, 2),), ('A',), {}, rows)
+
+    def test_full_market_candidates_use_registered_code_pattern(self):
+        from plugins.data import Adapter
+        class Source:
+            def read(self, *args):
+                return json.dumps({'markets': [{
+                    'scope': 'EXCHANGE', 'dataset_id': 'fixture',
+                    'code_normalizer': 'normalize_security_id',
+                    'code_pattern': r'(?:sh\.(?:60|68)\d{4}|sz\.(?:00|30)\d{4})',
+                }]}).encode()
+            def manifest(self, dataset):
+                return {'scope': {'symbols': ['600003', 'sz.000001', 'sh.000300', 'bj.430047']}}
+        source = Source()
+        args = ('fixture', date(2020, 1, 1), date(2020, 2, 1))
+        self.assertEqual(Adapter.candidates(source, {'scope': 'EXCHANGE'}, *args),
+                         ('600003', 'sz.000001'))
+        with self.assertRaisesRegex(ValueError, 'outside.*market'):
+            Adapter.candidates(source, {'scope': 'EXCHANGE', 'codes': ['sh.000300']}, *args)
+        with self.assertRaisesRegex(ValueError, 'membership'):
+            Adapter.candidates(source, {'scope': 'EXCHANGE', 'index': 'I'}, *args)
+
+    def test_full_market_eligibility_does_not_require_membership(self):
+        from plugins.data import Adapter
+        day = date(2020, 1, 2)
+        registry = {'scope': 'EXCHANGE', 'timezone': 'Asia/Shanghai',
+                    'session_open': '09:30', 'session_close': '15:00',
+                    'fields': {}, 'code_pattern': r'sh\.60\d{4}'}
+        closing, opening = Adapter.eligible({'scope': 'EXCHANGE'}, registry,
+            (day,), ('sh.600003', 'sh.000300'), {}, ())
+        self.assertEqual(closing[day], ('sh.600003',))
+        self.assertEqual(opening[day], ('sh.600003',))
+
+    def test_full_market_reads_every_matching_stock_without_membership(self):
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=('600003', '600004'))
+            path = root / 'data/source/registry/sources.json'
+            registry = json.loads(path.read_text())
+            self.assertNotIn('members', registry['markets'][0])
+            registry['markets'][0]['code_pattern'] = r'sh\.60\d{4}'
+            path.write_text(json.dumps(registry))
+            bus = DataBus(DataStore(root))
+            dataset = bus.query(DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
+                               FIELDS, 20, 'adjusted', market={'scope': 'CN_A'}))
+            self.assertEqual(dataset.scope['symbols'], ('600003', '600004'))
+            self.assertEqual(tuple(dataset.records[-1].frame.fields), ('600003', '600004'))
+
     def test_market_eligibility_uses_effective_and_known_dates_and_and_filters(self):
         from plugins.data import Adapter
 
@@ -228,7 +311,7 @@ class HistoricalDataTests(unittest.TestCase):
             dataset = DataBus(DataStore(root)).query(query)
             self.assertEqual(dataset.scope["symbols"], ("600003",))
             self.assertEqual(tuple(dataset.records[-1].frame.fields), ("600003",))
-            with self.assertRaisesRegex(DataError, "membership"):
+            with self.assertRaisesRegex(DataError, "factor"):
                 DataBus(DataStore(root)).query(DataQuery(
                     "fixture", date(2020, 1, 31), date(2020, 2, 4),
                     ("open", "high", "low", "close", "volume", "amount"), 20,

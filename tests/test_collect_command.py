@@ -94,6 +94,24 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(self.calls[0]['codes'], ['X', 'Y'])
         self.assertEqual(self.calls[0]['start'], '2026-10-01')
 
+    def test_catalogue_uses_the_shared_market_code_rule(self):
+        self.sources.register({'id': 'catalogue', 'name': 'Catalogue',
+                               'method': 'catalogue_fixture', 'data_type': 'catalogue',
+                               'frequency': 'snapshot', 'defaults': {},
+                               'params': {'key_fields': ['code']}})
+        self.collect.methods.handlers['catalogue_fixture'] = lambda source, request: {
+            'records': [{'code': 'X'}, {'code': 'Y'}], 'raw': [], 'scope': {}}
+        def change(registry):
+            market = registry['markets'][0]
+            market['code_pattern'] = 'X'
+            market['collect'].pop('codes')
+            market['collect']['securities'] = {
+                'source': 'catalogue', 'code': 'code', 'from': 'listed', 'to': 'delisted'}
+            return registry
+        self.bus.update_registry(change)
+        self.invoke('TEST:range', start='2026-10-01', end='2026-10-14')
+        self.assertEqual(self.calls[-1]['codes'], ['X'])
+
     def test_latest_includes_last_stored_day_and_today(self):
         self.invoke('TEST:range', start='2026-10-01', end='2026-10-14')
         self.invoke('TEST:latest')

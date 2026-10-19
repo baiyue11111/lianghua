@@ -73,7 +73,7 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
    if(Object.entries(binding.filters??{}).some(([field,allowed])=>!(allowed as unknown[]).includes(row[field])))return false;
    const code=row[binding.code];
    if(typeof code!=='string')throw Error('目录缺少证券代码');
-   if(binding.pattern&&!new RegExp('^(?:'+binding.pattern+')$').test(code))return false;
+   if(market.code_pattern&&!new RegExp('^(?:'+market.code_pattern+')$').test(code))return false;
    exchanges.add(code.split('.')[0]);
    const opened=row[binding.from],closed=row[binding.to];
    return !(opened&&opened>(values.end??today())||closed&&(values.start?closed<values.start:true));

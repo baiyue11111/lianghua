@@ -798,6 +798,92 @@ class Methods:
                 }
         return result
 
+    def complete_facts(self, dataset, manifest, request, *, check=False):
+        """Complete the dataset's declared stock facts before publishing its new range."""
+        if not manifest.get('inputs'):
+            return True if check else manifest
+        inputs = manifest['inputs']
+        registry = json.loads(self.data.read('sources', 'registry', 'sources.json'))
+        patterns = [m['code_pattern'] for m in registry.get('markets', ())
+                    if m.get('dataset_id') == dataset and m.get('code_pattern')]
+        if not patterns:
+            raise DataError("market_not_registered", "stock fact collection requires a registered code rule")
+        selected = {normalize_security_id(code) for code in request.get('codes', ())
+                    if any(re.fullmatch(pattern, normalize_security_id(code)) for pattern in patterns)}
+        if not selected:
+            return True if check else manifest
+        start, end = inputs['adjustments']['start'], max(inputs['adjustments']['end'], request['end'])
+        # A shared factor window advances together; other facts only need the requested stocks.
+        codes = sorted(selected if end == inputs['adjustments']['end'] else selected | {
+            normalize_security_id(code) for code in manifest['scope']['symbols']
+            if any(re.fullmatch(pattern, normalize_security_id(code)) for pattern in patterns)})
+        calendar = json.loads(self.data.read('sources', dataset, manifest['calendar']))
+        first = min([request['start'], *(span['start'] for span in calendar['coverage'])])
+        pending = []
+        def location(name):
+            parts = name.split('/')
+            return (parts[1], '/'.join(parts[2:])) if parts[0] == 'source' else (dataset, name)
+        for code in codes:
+            tasks = [(inputs['adjustments']['template'], Request('adjust', code, start, end, None))]
+            if code in selected:
+                tasks += [(inputs['securities']['template'], Request('security', code, None, None, None)),
+                          *((inputs['distributions']['template'], Request('dividend', code, None, None, str(year)))
+                            for year in range(int(first[:4]), int(end[:4]) + 1))]
+            for template, task in tasks:
+                name = template.format(symbol=code, start=start, end=end, year=task.year)
+                try:
+                    fact = json.loads(self.data.read('sources', *location(name)))
+                    _validate_cache(task, fact)
+                except DataError as error:
+                    if error.code != 'missing':
+                        raise
+                else:
+                    refresh = code in selected and request.get('refresh') and (
+                        task.kind != 'dividend' or task.year >= request['start'][:4])
+                    incomplete = (task.kind == 'adjust' and not fact['records']) or (task.kind == 'dividend'
+                        and any(row[field] is None for row in fact['records']
+                                for field in ('cash_per_share', 'stock_dividend_per_share', 'reserve_to_stock_per_share')))
+                    if not refresh and not incomplete:
+                        continue
+                pending.append((name, task))
+        if check:
+            return not pending
+        outputs, html = [], {}
+        if pending:
+            import baostock as bs
+            login_with_timeout(bs, DEFAULT_TIMEOUT)
+            try:
+                for name, task in pending:
+                    raw = (collect_stock_basic(bs, timeout=DEFAULT_TIMEOUT, code=task.code)
+                           if task.kind == 'security' else fetch_one(task, bs))
+                    fact = normalize_facts(raw)
+                    if task.kind == 'dividend' and any(row[field] is None for row in fact['records']
+                            for field in ('cash_per_share', 'stock_dividend_per_share', 'reserve_to_stock_per_share')):
+                        import requests
+                        if task.code not in html:
+                            response = requests.get('https://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'
+                                                    + task.code.split('.')[1] + '.phtml', timeout=DEFAULT_TIMEOUT)
+                            response.raise_for_status()
+                            html[task.code] = response.text
+                        fact = DividendHistory.normalize(fact, html[task.code])
+                        raw = {'base': raw, 'html': html[task.code]}
+                    _validate_cache(task, fact)
+                    if task.kind == 'adjust' and not fact['records']:
+                        raise CacheIntegrityError(f'no adjustment anchor for {task.code}')
+                    outputs.append((name, raw, _canonical(fact)))
+            finally:
+                bs.logout()
+        updated = deepcopy(manifest)
+        files = {row['file']: row for row in updated['files']}
+        for name, raw, content in outputs:
+            self.data.write('state', 'collect', f'{uuid4().hex}.json', _canonical(raw))
+            self.data.write('sources', *location(name), content)
+            if name in files:
+                files[name] = {**files[name], 'sha256': hashlib.sha256(content).hexdigest()}
+        updated['files'] = list(files.values())
+        updated['inputs']['adjustments']['end'] = end
+        return updated
+
     def coverage(self, source: Mapping, request: Mapping):
         if (source.get("data_type") != "daily" and source.get('method') != 'daily') or request.get("force") is True:
             return None
@@ -807,9 +893,13 @@ class Methods:
             symbols = tuple(request.get("codes", ()))
             fields = tuple(request.get("fields") or source.get("fields") or
                            ("open", "high", "low", "close", "volume", "amount"))
-            return self.daily_coverage(
-                source.get("dataset_id", source["id"]), symbols,
-                date.fromisoformat(request["start"]), date.fromisoformat(request["end"]), fields)
+            with self.data.transaction('sources'):
+                dataset = source.get("dataset_id", source["id"])
+                coverage = dict(self.daily_coverage(dataset, symbols,
+                    date.fromisoformat(request["start"]), date.fromisoformat(request["end"]), fields))
+                coverage['facts_complete'] = self.complete_facts(dataset, self.data.manifest(dataset), request, check=True)
+                coverage['complete'] &= coverage['facts_complete']
+                return coverage
         except DataError as error:
             if error.code == "missing":
                 return None
@@ -1166,6 +1256,7 @@ class Methods:
                 scope.pop("calendar_start", None)
                 scope.pop("calendar_end", None)
             updated["scope"] = scope
+            updated = self.complete_facts(dataset_id, updated, packet.get("request", {}))
             manifest_payload = json.dumps(updated, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
             self.data.write("sources", dataset_id, calendar_name, calendar_payload)
             for name, payload in payloads.items():
