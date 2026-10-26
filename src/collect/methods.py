@@ -211,7 +211,7 @@ def _fact_date(value):
     try:
         return date.fromisoformat(value).isoformat()
     except ValueError as error:
-        raise CacheIntegrityError("provider date is invalid") from error
+        raise CacheIntegrityError(f"provider date is invalid: {value!r}") from error
 
 
 def _fact_number(value, *, positive=False):
@@ -327,10 +327,97 @@ class DividendHistory:
     """Public-market distribution quantities from Sina, settlement dates from standard facts."""
 
     @staticmethod
-    def normalize(base, html):
+    def payment(code, key, amount, html):
+        from bs4 import BeautifulSoup
+        from datetime import datetime
+        soup = BeautifulSoup(html, 'html.parser')
+        if soup.title is None or code.upper() not in soup.title.get_text():
+            raise ValueError('payment security mismatch')
+        headers = ['公布日期','财政年度','事项','股权登记日','除权除息日','红利发放日']
+        tables = [table for table in soup.find_all('table')
+                  if [cell.get_text(strip=True) for cell in table.find('tr').find_all(['td','th'])] == headers]
+        if len(tables) != 1:
+            raise ValueError('one cash payment table is required')
+        matches = []
+        for row in tables[0].find_all('tr')[1:]:
+            cells = [cell.get_text(strip=True) for cell in row.find_all('td',recursive=False)]
+            if len(cells) != 6:
+                raise ValueError('cash payment fields are incomplete')
+            if cells[3] == '--' or cells[4] == '--':
+                continue
+            dates = tuple(datetime.strptime(value,'%d/%m/%Y').date().isoformat() for value in cells[3:5])
+            if dates != key:
+                continue
+            rate = re.fullmatch(r'10股派([0-9.]+)元\(含稅\)',cells[2])
+            if rate is None or Decimal(rate[1]) != Decimal(str(amount)):
+                raise ValueError('cash payment quantity mismatch')
+            paid = datetime.strptime(cells[5],'%d/%m/%Y').date().isoformat()
+            if paid < key[1]:
+                raise ValueError('cash payment precedes operation')
+            matches.append(paid)
+        if len(matches) != 1:
+            raise ValueError('one exact cash payment record is required')
+        return matches[0]
+
+    @staticmethod
+    def notice(code, announced, text):
+        """Read separately dated capital conversion and cash actions from a notice."""
+        import unicodedata
+        text = re.sub(r'\s+', '', unicodedata.normalize('NFKC', text))
+        code = normalize_security_id(code)
+        if set(re.findall(r'(?:证券|股票)代码[:：](\d{6})(?!\d)', text)) != {code.split('.')[1]}:
+            raise ValueError('distribution notice security mismatch')
+        def one(pattern):
+            values = set(re.findall(pattern, text))
+            if len(values) != 1:
+                raise ValueError(f'distribution notice field is missing or ambiguous: {code} {announced} {pattern}')
+            return values.pop()
+        def day(label):
+            value = one(label + r'(?:为)?[:：]?(\d{4}年\d{1,2}月\d{1,2}日)')
+            return datetime.strptime(value, '%Y年%m月%d日').date().isoformat()
+        if not re.search(r'每10股转增', text):
+            cash = Decimal(one(r'每10股派([\d.]+)元(?:人民币)?现金[(]含税')) / 10
+            registration, operation = day('股权登记日'), day('除息日')
+            payment = datetime.strptime(one(r'(?:本次社会公众股股息于|本公司此次委托中国结算深圳分公司代派的(?:股息|A股股东现金红利)将于)(\d{4}年\d{1,2}月\d{1,2}日)通过股东托管证券(?:商|公司(?:[(]或其他托管机构[)])?)直接划入其资金[帐账]户'), '%Y年%m月%d日').date().isoformat()
+            if not cash.is_finite() or cash <= 0 or not announced <= registration <= operation <= payment:
+                raise ValueError('cash distribution terms conflict')
+            rows = [dict(announce_date=announced,registration_date=registration,operation_date=operation,
+                         payment_date=payment,stock_market_date=None,cash_per_share=float(cash),
+                         stock_dividend_per_share=0.,reserve_to_stock_per_share=0.,cash_after_tax_text=None)]
+            validate_facts(dict(schema=1,kind='dividend',code=code,start=None,end=None,year=operation[:4],
+                                source_hash=_sha256(text),records=rows),kind='dividend',code=code,year=operation[:4])
+            return rows
+        reserve = Decimal(one(r'每10股转增([\d.]+)股')) / 10
+        cash_pattern = r'资本公积转增股本后[^。；;]{0,150}?每10股(?:派送现金红利|派)([\d.]+)元[(]含税[)]'
+        has_cash = bool(re.search(cash_pattern, text))
+        if not has_cash and re.search(r'每10股(?:派送现金红利|派)[\d.]+元', text):
+            raise ValueError('cash distribution basis is not explicit')
+        registration = day('资本公积转增股本股权登记日' if has_cash else '股权登记日')
+        operation = day('资本公积转增股本除权日' if has_cash else '除权日')
+        listing = day('新增(?:无限售条件|可)?流通股份上市日')
+        credit_pattern = r'(?:本次转增股份将于|股份到[帐账]日为)(\d{4}年\d{1,2}月\d{1,2}日)(?:直接记入股东证券帐户|[；;])'
+        credited = datetime.strptime(one(credit_pattern), '%Y年%m月%d日').date().isoformat()
+        if not reserve.is_finite() or reserve <= 0 or not announced <= registration <= operation <= min(listing,credited):
+            raise ValueError('capital distribution terms conflict')
+        rows = [dict(announce_date=announced, registration_date=registration, operation_date=operation,
+                     payment_date=credited, stock_market_date=listing, cash_per_share=0.,
+                     stock_dividend_per_share=0., reserve_to_stock_per_share=float(reserve), cash_after_tax_text=None)]
+        if has_cash:
+            cash = Decimal(one(cash_pattern)) / 10
+            cash_registration, payment = day('派送现金红利股权登记日'), day('除息及现金红利发放日')
+            if not cash.is_finite() or cash <= 0 or not announced <= cash_registration <= payment:
+                raise ValueError('cash distribution terms conflict')
+            rows.append(dict(announce_date=announced, registration_date=cash_registration, operation_date=payment,
+                             payment_date=payment, stock_market_date=None, cash_per_share=float(cash),
+                             stock_dividend_per_share=0., reserve_to_stock_per_share=0., cash_after_tax_text=None))
+        validate_facts(dict(schema=1,kind='dividend',code=code,start=None,end=None,year=operation[:4],
+                            source_hash=_sha256(text),records=rows), kind='dividend',code=code,year=operation[:4])
+        return rows
+
+    @staticmethod
+    def parse(html):
         from io import StringIO
         import pandas as pd
-        validate_facts(base, kind="dividend", code=base["code"], year=base["year"])
         tables = [table for table in pd.read_html(StringIO(html)) if "转增" in str(table.columns)]
         if len(tables) != 1:
             raise ValueError("one dividend history table is required")
@@ -341,17 +428,118 @@ class DividendHistory:
         fields = {"送股(股)", "转增(股)", "派息(税前)(元)", "进度", "除权除息日", "股权登记日", "红股上市日"}
         if len(set(table.columns)) != len(table.columns) or not fields <= set(table.columns):
             raise ValueError("dividend history fields are missing or duplicated")
+        return table, _sha256(html)
+
+    @staticmethod
+    def normalize(base, html, *, end=None, load=None, resolve=None, pay=None, parsed=None):
+        validate_facts(base, kind="dividend", code=base["code"], year=base["year"])
+        table, digest = DividendHistory.parse(html) if parsed is None else parsed
+        plans = table[table['进度'].astype(str) == '预案']
+        unimplemented = set(plans['公告日期'].astype(str)) if len(plans) else set()
+        implemented = table['进度'].astype(str) == '实施'
+        year = table['除权除息日'].astype(str).str[:4]
+        table = table[implemented & ((year == base['year']) if resolve is None else
+                      ((table['公告日期'].astype(str).str[:4] <= base['year']) & (year >= base['year'])))]
+        if end is not None:
+            date.fromisoformat(end)
+            table = table[table['除权除息日' if resolve is None else '公告日期'].astype(str) <= end]
+        keys = set(zip(table['股权登记日'].astype(str), table['除权除息日'].astype(str)))
         result = deepcopy(base)
+        records = [row for row in base['records'] if end is None or row['operation_date'] <= end]
+        records = [row for row in records if row['announce_date'] not in unimplemented
+                   or (row['registration_date'], row['operation_date']) in keys]
+        result['records'] = [row for row in deepcopy(records)
+                             if (row['registration_date'], row['operation_date']) in keys]
+        quantities = (('cash_per_share', '派息(税前)(元)'), ('stock_dividend_per_share', '送股(股)'),
+                      ('reserve_to_stock_per_share', '转增(股)'))
+        merged, texts = {}, {}
+        for row in result['records']:
+            key = (row['registration_date'], row['operation_date'])
+            if row['cash_after_tax_text']:
+                texts.setdefault(key, set()).add(row['cash_after_tax_text'])
+            for target, column in quantities:
+                left, right = merged.get(key, {}).get(target), row[target]
+                if left is not None and right is not None and left != right:
+                    rates = table[(table['股权登记日'].astype(str) == key[0])
+                                  & (table['除权除息日'].astype(str) == key[1])]
+                    if len(rates) != 1:
+                        raise ValueError('public market distribution rate is not unique')
+                    value = _fact_number(rates.iloc[0][column])
+                    amount = None if value is None else float(Decimal(str(value)) / Decimal(10))
+                    if amount not in (left, right):
+                        raise DataError('data_conflict', f'public market distribution rate mismatch: {key} {target}')
+                    merged[key][target] = row[target] = amount
+            merged[key] = Methods._merge_record(merged.get(key, {}), {**row, 'cash_after_tax_text': None}, key)
+        result['records'] = [{**row, 'cash_after_tax_text': ' | '.join(sorted(texts.get(key, ()))) or None}
+                             for key, row in merged.items()]
+        details, resolved = {}, set()
+        known = set(merged)
+        for _, row in table.iterrows():
+            key = (str(row['股权登记日']), str(row['除权除息日']))
+            if key in known or load is None:
+                continue
+            from bs4 import BeautifulSoup
+            notice = _fact_date(str(row['公告日期']))
+            url = ('https://vip.stock.finance.sina.com.cn/corp/view/vISSUE_ShareBonusDetail.php?'
+                   + urlencode({'stockid':base['code'].split('.')[1], 'type':1, 'end_date':notice}))
+            details[url] = load(url)
+            soup = BeautifulSoup(details[url], 'html.parser')
+            if soup.title is None or base['code'].split('.')[1] not in soup.title.get_text():
+                raise ValueError('dividend detail security mismatch')
+            fields = {cells[0].get_text(strip=True):cells[1].get_text(strip=True)
+                      for tr in soup.select('tr') if len(cells := tr.find_all('td', recursive=False)) == 2}
+            detail_key = (fields.get('登记日'), fields.get('除息日'))
+            if (detail_key == key and fields.get('红利/配股起始日（送、转股到账日）') in (None,'','--')
+                    and pay is not None and Decimal(str(row['送股(股)'])) == 0
+                    and Decimal(str(row['转增(股)'])) == 0 and Decimal(str(row['派息(税前)(元)'])) > 0):
+                evidence = pay(key, Decimal(str(row['派息(税前)(元)'])))
+                fields['红利/配股起始日（送、转股到账日）'] = _fact_date(evidence['payment_date'])
+                details['payment:'+notice] = evidence
+            if detail_key != key or fields.get('红利/配股起始日（送、转股到账日）') in (None,'','--'):
+                if resolve is None:
+                    raise ValueError(f'dividend detail date mismatch: {base["code"]} {notice} history={key} detail={detail_key}')
+                evidence = resolve(notice, key[0])
+                actions = evidence['records']
+                action_keys = {(item['registration_date'],item['operation_date']) for item in actions}
+                detail_rates = (('转增比例（10转增）','转增(股)'), ('送股比例（10送）','送股(股)'),
+                                ('税前红利（报价币种）','派息(税前)(元)'))
+                other_event = any(Decimal(str(row[column])).quantize(Decimal(str(value))) != Decimal(str(value))
+                                  for label,column in detail_rates
+                                  if fields.get(label) not in (None,'','--')
+                                  if (value := _fact_number(fields[label])) is not None)
+                missing_dates = all(value in (None,'','--') for value in detail_key)
+                if key not in action_keys or (detail_key not in action_keys and not (other_event or missing_dates)) or len(action_keys) != len(actions):
+                    raise ValueError('official actions do not identify the source event')
+                for target, column in quantities:
+                    amount = Decimal(str(row[column]))
+                    total = sum((Decimal(str(item[target])) * 10 for item in actions), Decimal(0))
+                    if not amount.is_finite() or total.quantize(amount) != amount:
+                        raise ValueError('official action quantity conflicts with history')
+                details['notice:'+notice] = evidence
+                keys.remove(key)
+                keys.update(action_keys)
+                resolved.update(action_keys)
+                result['records'].extend(actions)
+                known.add(key)
+                continue
+            result['records'].append({'announce_date':notice, 'registration_date':key[0], 'operation_date':key[1],
+                'payment_date':_fact_date(fields['红利/配股起始日（送、转股到账日）']),
+                'stock_market_date':None if fields['上市日']=='--' else _fact_date(fields['上市日']),
+                'cash_per_share':None, 'stock_dividend_per_share':None, 'reserve_to_stock_per_share':None,
+                'cash_after_tax_text':None})
+            known.add(key)
+        if (records and not keys) or len(result['records']) != len(keys) or keys != {(row['registration_date'], row['operation_date']) for row in result['records']}:
+            raise ValueError(f"implemented distribution dates are incomplete: {base['code']} {base['year']}")
         for record in result["records"]:
+            if (record["registration_date"], record["operation_date"]) in resolved:
+                continue
             matches = table[(table["除权除息日"].astype(str) == record["operation_date"])
                             & (table["股权登记日"].astype(str) == record["registration_date"])
                             & (table["进度"].astype(str) == "实施")]
             if len(matches) != 1:
                 raise ValueError("distribution requires an exact record-date and ex-date match")
             row = matches.iloc[0]
-            for target, source in (("cash_per_share", "派息(税前)(元)"),
-                                   ("stock_dividend_per_share", "送股(股)"),
-                                   ("reserve_to_stock_per_share", "转增(股)")):
+            for target, source in quantities:
                 value = _fact_number(row[source])
                 if value is None or value < 0:
                     raise ValueError("distribution quantity must be explicitly numeric")
@@ -362,31 +550,77 @@ class DividendHistory:
                 if record["stock_market_date"] not in (None, parsed):
                     raise ValueError("conflicting share listing date")
                 record["stock_market_date"] = parsed
-        result["source_hash"] = _sha256({"base": base, "html": html})
+        result['records'] = sorted((row for row in result['records'] if row['operation_date'][:4] == base['year']
+                                    and (end is None or row['operation_date'] <= end)),
+                                   key=lambda row:(row['operation_date'],row['registration_date']))
+        result["source_hash"] = _sha256({"base": base, "html_sha256": digest, "end": end, "details": details})
         validate_facts(result, kind="dividend", code=result["code"], year=result["year"])
         return result
 
-    def collect(self, data, code, start_year, end_year):
+    @staticmethod
+    def collect(code, years, *, end, get=None):
         import requests
+        get = requests.get if get is None else get
+        from bs4 import BeautifulSoup
         code = normalize_security_id(code)
-        url = f"https://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/{code.split('.')[1]}.phtml"
-        response = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        url = 'https://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/' + code.split('.')[1] + '.phtml'
+        response = get(url, timeout=DEFAULT_TIMEOUT)
         response.raise_for_status()
-        outputs = []
-        for year in range(start_year, end_year + 1):
-            name = f"dividend_{code}_{year}.json"
-            base = json.loads(data.read("sources", "facts", name))
-            fact = self.normalize(base, response.text)
-            outputs.append((name, base, fact))
-        # Validate the whole requested range before publishing any replacement.
-        with data.transaction("sources"):
-            for name, base, fact in outputs:
-                data.write("state", "collect", f"{uuid4().hex}.json",
-                    _canonical({"url": url, "source_hash": fact["source_hash"],
-                                "base": base, "html": response.text}))
-                data.write("sources", "facts", name, _canonical(fact))
-        return {"code": code, "years": len(outputs),
-                "records": sum(len(fact["records"]) for _, _, fact in outputs)}
+        response.encoding = 'gb18030'
+        html = response.text
+        soup = BeautifulSoup(html, 'html.parser')
+        tables = soup.select('table#sharebonus_1')
+        if (soup.title is None or code.split('.')[1] not in soup.title.get_text() or len(tables) != 1
+                or not tables[0].select('tbody tr td')
+                or any('下一页' in link.get_text() for link in soup.find_all('a'))):
+            raise ValueError('complete security dividend history is required')
+        details = {}
+        def load(url):
+            if url not in details:
+                response = get(url, timeout=DEFAULT_TIMEOUT)
+                response.raise_for_status()
+                response.encoding = 'utf-8' if url.startswith('https://etnet.com.hk/') else 'gb18030'
+                details[url] = response.text
+            return details[url]
+        def pay(key, amount):
+            url = 'https://etnet.com.hk/www/sc/ashares/quote_dividend.php?' + urlencode({'code':code.split('.')[1]})
+            html = load(url)
+            return {'payment_date':DividendHistory.payment(code,key,amount,html),
+                    'source':{'url':url,'html':html}}
+        notices = {}
+        def resolve(announced, registered):
+            if announced not in notices:
+                from io import BytesIO
+                from pypdf import PdfReader
+                from base64 import b64encode
+                packet = CninfoAnnouncements({}).collect({'start':announced,'end':registered,
+                                                         'codes':[code]})
+                matches = [row for row in packet['records'] if row['code'] == code.split('.')[1]
+                           and re.search(r'(分红|派息|转增|权益分派).*(?:实施|公告)', row['title'])]
+                if len(matches) != 1:
+                    raise ValueError(f'one official implementation notice is required: {code} {announced} matches={[(row["id"], row["title"]) for row in matches]}')
+                url = matches[0]['url']
+                response = get(url, timeout=DEFAULT_TIMEOUT)
+                response.raise_for_status()
+                if not response.content.startswith(b'%PDF-'):
+                    raise ValueError('official distribution notice must be a PDF')
+                text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
+                published = date.fromisoformat(url.split('/')[-2]).isoformat()
+                notices[announced] = {'records':DividendHistory.notice(code,published,text), 'source':{
+                    'query':packet,'url':url,'sha256':hashlib.sha256(response.content).hexdigest(),
+                    'pdf':b64encode(response.content).decode('ascii'),'text':text}}
+            return notices[announced]
+        facts = {}
+        parsed = DividendHistory.parse(str(tables[0]))
+        for year in years:
+            base = {'schema':1,'kind':'dividend','code':code,'start':None,'end':None,
+                    'year':str(year),'source_hash':_sha256(html),'records':[]}
+            try:
+                facts[str(year)] = DividendHistory.normalize(base, str(tables[0]), end=end, load=load, resolve=resolve, pay=pay, parsed=parsed)
+            except Exception as error:
+                raise CollectionError(f'year {year}: {error}') from error
+        return {'url':url,'html':html,'details':details,'notices':notices}, facts
+
 
 def _validate_cache(request: Request, payload: dict) -> None:
     try:
@@ -617,19 +851,119 @@ def validate_response(request, fields, rows):
     return len(rows)
 
 
-def fetch_sina_factors(symbol: str) -> list[tuple[str, float]]:
-    if not re.fullmatch(r"\d{6}", symbol):
-        raise ValueError("invalid security code")
-    code = ("sh" if symbol[0] in "69" else "sz") + symbol
-    response = urlopen(URLRequest(f"https://finance.sina.com.cn/realstock/company/{code}/hfq.js",
-                                  headers={"User-Agent": "Mozilla/5.0"}), timeout=25)
-    with response:
-        text = response.read().decode("utf-8")
-    match = re.search(r"=\s*\{", text)
-    if not match:
-        raise ValueError("missing adjustment-factor payload")
-    payload, _ = json.JSONDecoder().raw_decode(text[match.end() - 1:])
-    return sorted((row["d"], float(row["f"])) for row in payload["data"])
+class SinaFactors:
+    """Convert paired public factors within the security's actual active window."""
+
+    @staticmethod
+    def provider_code(code, changes):
+        code, seen = normalize_security_id(code), set()
+        while True:
+            matches = [e for e in changes if e['exchange'].lower()+'.'+e['old_code'] == code]
+            if not matches:
+                return code
+            if len(matches) != 1 or code in seen:
+                raise ValueError('ambiguous or cyclic security rename')
+            event = matches[0]
+            if (event.get('holder_share_ratio') != 1 or event.get('holding_period_continues') is not True
+                    or not str(event.get('source_url','')).startswith('https://static.cninfo.com.cn/finalpage/')):
+                raise ValueError('registered rename identity and holding terms are required')
+            seen.add(code)
+            code = event['exchange'].lower()+'.'+event['new_code']
+
+    @staticmethod
+    def verify_renames(payload, facts):
+        result = deepcopy(payload)
+        for event in result['events']:
+            exchange = event['exchange'].lower()+'.'
+            old_code, new_code = exchange+event['old_code'], exchange+event['new_code']
+            if old_code not in facts or new_code not in facts:
+                continue
+            if (event.get('holder_share_ratio') != 1 or event.get('holding_period_continues') is not True
+                    or not str(event.get('source_url','')).startswith('https://static.cninfo.com.cn/finalpage/')):
+                raise ValueError('registered rename identity and holding terms are required')
+            old, new = facts[old_code], facts[new_code]
+            for code, fact in ((old_code,old),(new_code,new)):
+                validate_facts(fact,kind='adjust',code=code,start=fact['start'],end=fact['end'])
+            cut = _fact_date(event['effective_date'])
+            before = [r for r in old['records'] if r['date'] < cut]
+            after = [r for r in new['records'] if r['date'] == cut]
+            if not before or len(after) != 1 or not math.isclose(before[-1]['backward'],after[0]['backward'],rel_tol=1e-8,abs_tol=1e-8):
+                raise ValueError('rename factor seam is missing or contradictory: '+old_code+' -> '+new_code)
+            event['factor_basis_continuity_verified'] = True
+            event['factor_basis_evidence'] = {'method':'equal_backward_factor_at_rename_seam',
+                'back_factor':after[0]['backward'],'old_factor_file_sha256':_sha256(old),
+                'new_factor_file_sha256':_sha256(new)}
+        return result
+
+    @staticmethod
+    def collect(request, security, *, get=None, changes=()):
+        import requests
+        get = requests.get if get is None else get
+        responses = {}
+        provider_code = SinaFactors.provider_code(request.code, changes)
+        for kind in ('qfq', 'hfq'):
+            url = 'https://finance.sina.com.cn/realstock/company/' + provider_code.replace('.', '') + '/' + kind + '.js'
+            response = get(url, timeout=DEFAULT_TIMEOUT)
+            response.raise_for_status()
+            responses[kind] = response.text
+        return {'responses':responses, 'security':security, 'changes':changes}, SinaFactors.normalize(request, security, responses, changes=changes)
+
+    @staticmethod
+    def normalize(request, security, payloads, *, changes=()):
+        from bisect import bisect_right
+        code = normalize_security_id(request.code)
+        if request.kind != 'adjust' or set(payloads) != {'qfq', 'hfq'}:
+            raise ValueError('paired adjustment responses are required')
+        validate_facts(security, kind='security', code=code)
+        stock = security['records'][0]
+        if not stock['listing_date'] or stock['type'] != '1' or stock['status'] not in {'0', '1'}:
+            raise ValueError('verified stock listing and status are required')
+        if stock['status'] == '0' and not stock['delisting_date']:
+            raise ValueError('inactive security requires its end date')
+        listing = date.fromisoformat(stock['listing_date'])
+        first = max(date.fromisoformat(request.start), listing)
+        last = date.fromisoformat(request.end)
+        if stock['delisting_date']:
+            last = min(last, date.fromisoformat(stock['delisting_date']))
+        if first > last:
+            raise ValueError('adjustment range does not intersect the security window')
+        series = {}
+        provider_code = SinaFactors.provider_code(code, changes)
+        for kind, text in payloads.items():
+            prefix = re.match(r'\s*var\s+' + re.escape(provider_code.replace('.', '') + kind) + r'\s*=\s*', text)
+            if prefix is None:
+                raise ValueError('adjustment response security or kind mismatch')
+            payload, _ = json.JSONDecoder().raw_decode(text[prefix.end():])
+            rows = payload['data']
+            if type(payload['total']) is not int or payload['total'] != len(rows) or not rows:
+                raise ValueError('adjustment response count is incomplete')
+            values = [(_fact_date(row['d']), _fact_number(row['f'], positive=True)) for row in rows]
+            days = [day for day, _ in values]
+            if any(day is None or value is None for day, value in values) or days != sorted(set(days), reverse=True):
+                raise ValueError('adjustment response dates or values are invalid')
+            series[kind] = list(reversed(values))
+        days = [day for day, _ in series['qfq']]
+        if days != [day for day, _ in series['hfq']] or days[0] > listing.isoformat():
+            raise ValueError('paired adjustment history lacks matching dates or a listing anchor')
+        products = [q[1] * h[1] for q, h in zip(series['qfq'], series['hfq'])]
+        if not all(math.isfinite(value) and math.isclose(value, products[0], rel_tol=1e-10) for value in products):
+            raise ValueError('forward and backward adjustment bases conflict')
+        at = lambda day: bisect_right(days, day) - 1
+        forward_base = series['qfq'][at(last.isoformat())][1]
+        backward_base = series['hfq'][at(listing.isoformat())][1]
+        anchors = {first.isoformat(), *(day for day in days if first.isoformat() < day <= last.isoformat())}
+        for change in changes:
+            if change['exchange'].lower()+'.'+change['new_code'] == code:
+                cut = date.fromisoformat(change['effective_date'])
+                if first <= cut <= last:
+                    anchors.add(cut.isoformat())
+        records = [{'date': day, 'forward': forward_base / series['qfq'][at(day)][1],
+                    'backward': series['hfq'][at(day)][1] / backward_base}
+                   for day in sorted(anchors)]
+        fact = {'schema':1, 'kind':'adjust', 'code':code, 'start':request.start, 'end':request.end,
+                'year':None, 'source_hash':_sha256({'responses':payloads, 'security':security, 'changes':changes}), 'records':records}
+        _validate_cache(request, fact)
+        return fact
 
 
 def listed_names():
@@ -677,6 +1011,9 @@ class Methods:
     def __init__(self, data, handlers: Mapping[str, object] | None = None):
         self.data = data
         self.handlers = dict(handlers or {})
+        self._evidence = {}
+        import requests
+        self._http = requests.Session()
 
     @staticmethod
     def _request_items(value, name):
@@ -798,10 +1135,129 @@ class Methods:
                 }
         return result
 
-    def complete_facts(self, dataset, manifest, request, *, check=False):
-        """Complete the dataset's declared stock facts before publishing its new range."""
+    def doctor(self, source, request):
+        """Plan once, then publish each complete security independently."""
+        if source.get('data_type') != 'daily' and source.get('method') != 'daily':
+            raise ValueError('doctor requires a registered daily source')
+        request = self.prepare_request(source, request)
+        dataset = source['dataset_id']
+        with self.data.transaction('sources'):
+            manifest = json.loads(self.data.read('sources', dataset, 'manifest.json'))
+            calendar = json.loads(self.data.read('sources', dataset, manifest['calendar']))
+            request.setdefault('start', min(span['start'] for span in calendar['coverage']))
+            request.setdefault('end', manifest['inputs']['adjustments']['end'])
+            if not request.get('codes'):
+                raise ValueError('doctor requires securities')
+            registry = json.loads(self.data.read('sources', 'registry', 'sources.json'))
+            markets = [m for m in registry.get('markets', ()) if m.get('dataset_id') == dataset and m.get('code_pattern')]
+            if any(not any(re.fullmatch(m['code_pattern'], normalize_security_id(code)) for m in markets) for code in request['codes']):
+                raise ValueError('doctor requires registered stock codes')
+            changes_name = manifest['inputs'].get('code_changes')
+            if changes_name:
+                parts = changes_name.split('/')
+                change_identity, change_file = (parts[1],'/'.join(parts[2:])) if parts[0] == 'source' else (dataset,changes_name)
+                changes = json.loads(self.data.read('sources',change_identity,change_file))
+                rows, archived = [], set()
+                ids = {m.get('collect',{}).get('securities',{}).get('source') for m in markets} - {None}
+                for source_id in ids:
+                    content = self.data.read('sources',source_id,'records.json')
+                    event = self._evidence.get(hashlib.sha256(content).hexdigest())
+                    if event is None:
+                        continue
+                    incoming = {item['record_hash'] for item in event.get('incoming',[])}
+                    values = [row for row in json.loads(content)['records']
+                              if any(re.fullmatch(m['code_pattern'],row['code']) for m in markets)]
+                    rows.extend(values)
+                    archived.update(row['code'] for row in values if _sha256(row) not in incoming)
+                raw, found = Catalogue.code_changes(changes,rows,archived & {normalize_security_id(code) for code in request['codes']},request['start'],request['end'])
+            pending = self.plan_facts(dataset, manifest, request, changes=found['events'] if changes_name else [])
+            groups, catalogues, windows = {}, {}, []
+            for name, task in pending:
+                groups.setdefault(task.code, []).append((name, task))
+                if task.kind != 'adjust':
+                    continue
+                path = manifest['inputs']['securities']['template'].format(symbol=task.code).split('/')
+                identity, filename = (path[1], '/'.join(path[2:])) if path[0] == 'source' else (dataset, '/'.join(path))
+                try:
+                    security = json.loads(self.data.read('sources', identity, filename))
+                    _validate_cache(Request('security',task.code,None,None,None), security)
+                except DataError as error:
+                    if error.code != 'missing':
+                        raise
+                    security = None
+                except (ValueError, KeyError, TypeError, CacheIntegrityError):
+                    security = None
+                if security is None:
+                    ids = {m['collect']['securities']['source'] for m in markets if re.fullmatch(m['code_pattern'],task.code)}
+                    for source_id in ids - catalogues.keys():
+                        catalogues[source_id] = json.loads(self.data.read('sources',source_id,'records.json'))['records']
+                    rows = [row for source_id in ids for row in catalogues[source_id] if row['code'] == task.code]
+                    if len(rows) != 1:
+                        raise ValueError('one registered security catalogue record is required: '+task.code)
+                    security = Catalogue.security(task.code, rows[0])
+                row = security['records'][0]
+                if row['listing_date'] > task.end or (row['delisting_date'] and row['delisting_date'] < task.start):
+                    windows.append(f"{task.code} {row['listing_date']}..{row['delisting_date']} vs {task.start}..{task.end}")
+            if windows:
+                raise ValueError("security window outside adjustment range: " + "; ".join(windows))
+            if changes_name and found != changes:
+                evidence = _canonical(raw)
+                self.data.write('state','collect',hashlib.sha256(evidence).hexdigest()+'.json',evidence)
+                content = _canonical(found)
+                self.data.write('sources',change_identity,change_file,content)
+                for row in manifest['files']:
+                    if row['file'] == changes_name:
+                        row['sha256'] = hashlib.sha256(content).hexdigest()
+                self.data.write('sources',dataset,'manifest.json',_canonical(manifest))
+        errors = []
+        original_end = manifest['inputs']['adjustments']['end']
+        for code, tasks in groups.items():
+            try:
+                with self.data.transaction('sources'):
+                    current = json.loads(self.data.read('sources', dataset, 'manifest.json'))
+                    updated = self.complete_facts(dataset, current, {**request,'codes':[code]}, pending=tasks)
+                    updated['inputs']['adjustments']['end'] = current['inputs']['adjustments']['end']
+                    if updated != current:
+                        self.data.write('sources', dataset, 'manifest.json', _canonical(updated))
+            except CollectionError as error:
+                errors.append(str(error))
+        if errors:
+            raise CollectionError('; '.join(errors))
+        with self.data.transaction('sources'):
+            updated = json.loads(self.data.read('sources', dataset, 'manifest.json'))
+            changes_name = updated['inputs'].get('code_changes')
+            if changes_name:
+                def location(name):
+                    parts = name.split('/')
+                    return (parts[1],'/'.join(parts[2:])) if parts[0] == 'source' else (dataset,name)
+                changes = json.loads(self.data.read('sources',*location(changes_name)))
+                facts = {}
+                selected = {normalize_security_id(code) for code in request['codes']}
+                end = max(original_end,request['end'])
+                for event in changes['events']:
+                    codes = [event['exchange'].lower()+'.'+event[key] for key in ('old_code','new_code')]
+                    if not selected.intersection(codes):
+                        continue
+                    for code in codes:
+                        name = updated['inputs']['adjustments']['template'].format(symbol=code,
+                            start=updated['inputs']['adjustments']['start'],end=end)
+                        facts[code] = json.loads(self.data.read('sources',*location(name)))
+                verified = SinaFactors.verify_renames(changes,facts)
+                if verified != changes:
+                    content = _canonical(verified)
+                    self.data.write('sources',*location(changes_name),content)
+                    for row in updated['files']:
+                        if row['file'] == changes_name:
+                            row['sha256'] = hashlib.sha256(content).hexdigest()
+            updated['inputs']['adjustments']['end'] = max(original_end,request['end'])
+            if updated != json.loads(self.data.read('sources',dataset,'manifest.json')):
+                self.data.write('sources', dataset, 'manifest.json', _canonical(updated))
+        return {'dataset': dataset, 'status': 'complete', 'facts_complete': True,
+                'codes': request['codes'], 'start': request['start'], 'end': request['end']}
+
+    def plan_facts(self, dataset, manifest, request, *, changes=None):
         if not manifest.get('inputs'):
-            return True if check else manifest
+            return []
         inputs = manifest['inputs']
         registry = json.loads(self.data.read('sources', 'registry', 'sources.json'))
         patterns = [m['code_pattern'] for m in registry.get('markets', ())
@@ -811,7 +1267,7 @@ class Methods:
         selected = {normalize_security_id(code) for code in request.get('codes', ())
                     if any(re.fullmatch(pattern, normalize_security_id(code)) for pattern in patterns)}
         if not selected:
-            return True if check else manifest
+            return []
         start, end = inputs['adjustments']['start'], max(inputs['adjustments']['end'], request['end'])
         # A shared factor window advances together; other facts only need the requested stocks.
         codes = sorted(selected if end == inputs['adjustments']['end'] else selected | {
@@ -823,7 +1279,10 @@ class Methods:
         def location(name):
             parts = name.split('/')
             return (parts[1], '/'.join(parts[2:])) if parts[0] == 'source' else (dataset, name)
+        if changes is None:
+            changes = json.loads(self.data.read('sources', *location(inputs['code_changes'])))['events'] if inputs.get('code_changes') else []
         for code in codes:
+            closed = None
             tasks = [(inputs['adjustments']['template'], Request('adjust', code, start, end, None))]
             if code in selected:
                 tasks += [(inputs['securities']['template'], Request('security', code, None, None, None)),
@@ -837,47 +1296,97 @@ class Methods:
                 except DataError as error:
                     if error.code != 'missing':
                         raise
+                except (CacheIntegrityError, ValueError, KeyError, TypeError):
+                    pass
                 else:
-                    refresh = code in selected and request.get('refresh') and (
+                    if task.kind == 'security':
+                        closed = fact['records'][0]['delisting_date']
+                    advanced = (end > inputs['adjustments']['end'] and task.kind == 'dividend'
+                                and task.year >= inputs['adjustments']['end'][:4]
+                                and (closed is None or closed > inputs['adjustments']['end']))
+                    if advanced:
+                        try:
+                            receipt = json.loads(self.data.read('state','collect','coverage/'+task.key+'.json'))
+                        except DataError as error:
+                            if error.code != 'missing':
+                                raise
+                        else:
+                            advanced = not (_fact_date(receipt['end']) >= end and receipt['sha256'] == _sha256(fact))
+                    refresh = advanced or code in selected and request.get('refresh') and (
                         task.kind != 'dividend' or task.year >= request['start'][:4])
-                    incomplete = (task.kind == 'adjust' and not fact['records']) or (task.kind == 'dividend'
+                    seams = {item['effective_date'] for item in changes
+                             if item['exchange'].lower()+'.'+item['new_code'] == code
+                             and start <= item['effective_date'] <= end}
+                    incomplete = (task.kind == 'adjust' and (not fact['records'] or not seams <= {r['date'] for r in fact['records']})) or (task.kind == 'dividend'
                         and any(row[field] is None for row in fact['records']
                                 for field in ('cash_per_share', 'stock_dividend_per_share', 'reserve_to_stock_per_share')))
                     if not refresh and not incomplete:
                         continue
                 pending.append((name, task))
+        return pending
+
+    def complete_facts(self, dataset, manifest, request, *, check=False, pending=None):
+        """Validate a repair plan before publishing its facts."""
+        if not manifest.get('inputs'):
+            return True if check else manifest
+        inputs = manifest['inputs']
+        end = max(inputs['adjustments']['end'], request['end'])
+        pending = self.plan_facts(dataset, manifest, request) if pending is None else pending
         if check:
             return not pending
-        outputs, html = [], {}
-        if pending:
-            import baostock as bs
-            login_with_timeout(bs, DEFAULT_TIMEOUT)
+        registry = json.loads(self.data.read('sources', 'registry', 'sources.json'))
+        def location(name):
+            parts = name.split('/')
+            return (parts[1], '/'.join(parts[2:])) if parts[0] == 'source' else (dataset, name)
+        changes = json.loads(self.data.read('sources', *location(inputs['code_changes'])))['events'] if inputs.get('code_changes') else []
+        outputs, securities, dividends = [], {}, {}
+        for name, task in pending:
+            if task.code not in securities:
+                security_task = Request('security', task.code, None, None, None)
+                if any(item.kind == 'security' and item.code == task.code for _, item in pending):
+                    sources = {m['collect']['securities']['source'] for m in registry['markets']
+                               if m.get('dataset_id') == dataset and m.get('code_pattern')
+                               and re.fullmatch(m['code_pattern'], task.code)}
+                    rows = [row for source in sources for row in json.loads(
+                        self.data.read('sources', source, 'records.json'))['records'] if row['code'] == task.code]
+                    if len(rows) != 1:
+                        raise ValueError('one registered security catalogue record is required: ' + task.code)
+                    securities[task.code] = (rows[0], Catalogue.security(task.code, rows[0]))
+                else:
+                    security = json.loads(self.data.read('sources', *location(
+                        inputs['securities']['template'].format(symbol=task.code))))
+                    _validate_cache(security_task, security)
+                    securities[task.code] = (security, security)
             try:
-                for name, task in pending:
-                    raw = (collect_stock_basic(bs, timeout=DEFAULT_TIMEOUT, code=task.code)
-                           if task.kind == 'security' else fetch_one(task, bs))
-                    fact = normalize_facts(raw)
-                    if task.kind == 'dividend' and any(row[field] is None for row in fact['records']
-                            for field in ('cash_per_share', 'stock_dividend_per_share', 'reserve_to_stock_per_share')):
-                        import requests
-                        if task.code not in html:
-                            response = requests.get('https://vip.stock.finance.sina.com.cn/corp/go.php/vISSUE_ShareBonus/stockid/'
-                                                    + task.code.split('.')[1] + '.phtml', timeout=DEFAULT_TIMEOUT)
-                            response.raise_for_status()
-                            html[task.code] = response.text
-                        fact = DividendHistory.normalize(fact, html[task.code])
-                        raw = {'base': raw, 'html': html[task.code]}
-                    _validate_cache(task, fact)
-                    if task.kind == 'adjust' and not fact['records']:
-                        raise CacheIntegrityError(f'no adjustment anchor for {task.code}')
-                    outputs.append((name, raw, _canonical(fact)))
-            finally:
-                bs.logout()
+                raw, security = securities[task.code]
+                if task.kind == 'security':
+                    fact = security
+                elif task.kind == 'adjust':
+                    raw, fact = SinaFactors.collect(task, security, get=self._http.get, changes=changes)
+                else:
+                    if task.code not in dividends:
+                        years = [item.year for _, item in pending if item.kind == 'dividend' and item.code == task.code]
+                        dividends[task.code] = DividendHistory.collect(task.code, years, end=end, get=self._http.get)
+                    raw, facts = dividends[task.code]
+                    fact = facts[task.year]
+                _validate_cache(task, fact)
+                if task.kind == 'adjust' and not fact['records']:
+                    raise CacheIntegrityError(f'no adjustment anchor for {task.code}')
+            except Exception as error:
+                raise CollectionError(f'{task.code} {task.kind}: {error}') from error
+            outputs.append((name, raw, _canonical(fact), task))
         updated = deepcopy(manifest)
         files = {row['file']: row for row in updated['files']}
-        for name, raw, content in outputs:
-            self.data.write('state', 'collect', f'{uuid4().hex}.json', _canonical(raw))
+        saved = set()
+        for name, raw, content, task in outputs:
+            if id(raw) not in saved:
+                evidence = _canonical(raw)
+                self.data.write('state', 'collect', hashlib.sha256(evidence).hexdigest() + '.json', evidence)
+                saved.add(id(raw))
             self.data.write('sources', *location(name), content)
+            if task.kind == 'dividend':
+                self.data.write('state','collect','coverage/'+task.key+'.json',
+                                _canonical({'end':end,'sha256':hashlib.sha256(content).hexdigest()}))
             if name in files:
                 files[name] = {**files[name], 'sha256': hashlib.sha256(content).hexdigest()}
         updated['files'] = list(files.values())
@@ -897,8 +1406,6 @@ class Methods:
                 dataset = source.get("dataset_id", source["id"])
                 coverage = dict(self.daily_coverage(dataset, symbols,
                     date.fromisoformat(request["start"]), date.fromisoformat(request["end"]), fields))
-                coverage['facts_complete'] = self.complete_facts(dataset, self.data.manifest(dataset), request, check=True)
-                coverage['complete'] &= coverage['facts_complete']
                 return coverage
         except DataError as error:
             if error.code == "missing":
@@ -989,15 +1496,17 @@ class Methods:
         if not packet['records']:
             return result
         try:
-            view = self.records(source, 0, 0)
-            self.log({'source_id': source['id'], 'snapshot_id': view['snapshot_id'],
+            version = self.records(source, 0, 0)['snapshot_id'] if source.get('method') == 'daily' or source.get('data_type') == 'daily' else result.sha256
+            event = {'source_id': source['id'], 'snapshot_id': version,
                       'raw': packet['raw'], 'request': packet.get('request', {}),
                       'scope': packet.get('scope', {}),
                       'incoming': [{'record_hash': _sha256({key: value for key, value in row.items()
                                                           if key != 'raw_page'}),
                                     'raw_page': row.get('raw_page')}
                                    for row in packet['records']],
-                      'collected_at': datetime.now(timezone.utc).isoformat()})
+                      'collected_at': datetime.now(timezone.utc).isoformat()}
+            self.log(event)
+            self._evidence[version] = event
         except Exception as error:
             warnings.warn(f'published source evidence log failed: {error}', RuntimeWarning)
         return result
@@ -1104,8 +1613,13 @@ class Methods:
 
     def record_evidence(self, record):
         digest = _sha256(record)
+        for event in reversed(tuple(self._evidence.values())):
+            for binding in event.get('incoming', []):
+                index = binding.get('raw_page')
+                if binding.get('record_hash') == digest and type(index) is int and 0 <= index < len(event.get('raw', [])):
+                    return [event['raw'][index]]
         for ref in self.data.list('state', 'collect'):
-            if '/' in ref.name:
+            if '/' in ref.name or not ref.name.endswith('.json'):
                 continue
             event = json.loads(self.data.read('state', 'collect', ref.name))
             for binding in event.get('incoming', []):
@@ -1116,11 +1630,14 @@ class Methods:
         return []
 
     def evidence(self, version):
+        if version in self._evidence:
+            return self._evidence[version]
         for ref in self.data.list('state', 'collect'):
-            if '/' in ref.name:
+            if '/' in ref.name or not ref.name.endswith('.json'):
                 continue
             value = json.loads(self.data.read('state', 'collect', ref.name))
             if value.get('snapshot_id') == version and isinstance(value.get('raw'), list):
+                self._evidence[version] = value
                 return value
         return {}
 
@@ -1145,6 +1662,8 @@ class Methods:
         if not calendar["sessions"]:
             raise DataError("invalid_packet", "daily calendar has no sessions")
         from datetime import date as _date
+        request = packet.get('request', {})
+        refreshed = {normalize_security_id(code) for code in request['codes']} if request.get('refresh') is True else set()
         incoming, years = {}, set()
         for row in rows:
             if not isinstance(row, Mapping):
@@ -1172,13 +1691,18 @@ class Methods:
         import pyarrow.parquet as pq
         with self.data.transaction('sources'):
             manifest = self.data.manifest(dataset_id)
+            if refreshed:
+                years.update(ref['file'].rsplit('/', 1)[-1][:-8] for ref in manifest['files']
+                             if ref['file'].startswith(f'source/{storage_id}/daily/')
+                             and ref['file'].endswith('.parquet')
+                             and request['start'][:4] <= ref['file'].rsplit('/', 1)[-1][:-8] <= request['end'][:4])
             current_calendar = json.loads(self.data.read( "sources", dataset_id, manifest["calendar"]))
             current_calendar = _calendar_payload(current_calendar)
             known_sessions = set(current_calendar["sessions"])
             known_sessions.update(calendar["sessions"])
             known_coverage = _calendar_coverage([
                 *current_calendar["coverage"], *calendar["coverage"]])
-            merged_by_year, payloads = {}, {}
+            counts, payloads = {}, {}
             for year in sorted(years):
                 name = f"daily/{year}.parquet"
                 old_rows, old_schema = [], None
@@ -1193,18 +1717,16 @@ class Methods:
                 merged = {}
                 for old in old_rows:
                     key = (normalize_security_id(str(old["code"])), str(old["date"]))
+                    if (key[0] in refreshed and request['start'] <= key[1] <= request['end']
+                            and key not in incoming):
+                        continue
                     merged[key] = self._merge_daily_row(merged[key], old, key) if key in merged else dict(old)
                 for key, row in incoming.items():
                     if key[1][:4] == year:
                         merged[key] = self._merge_daily_row(merged[key], row, key,
                             refresh=packet.get('request', {}).get('refresh') is True) if key in merged else row
-                merged_by_year[year] = (name, sorted(merged.values(),
-                    key=lambda item: (str(item["code"]), str(item["date"]))), old_schema)
-            calendar_name = manifest["calendar"]
-            calendar_payload = json.dumps(
-                {"sessions": sorted(known_sessions), "coverage": known_coverage},
-                ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
-            for year, (name, values, old_schema) in merged_by_year.items():
+                values = sorted(merged.values(), key=lambda item: (str(item["code"]), str(item["date"])))
+                counts[year] = len(values)
                 fields = list(old_schema.names) if old_schema is not None else []
                 for row in values:
                     for field in row:
@@ -1223,10 +1745,14 @@ class Methods:
                 output = pa.BufferOutputStream()
                 pq.write_table(pa.Table.from_arrays(arrays, schema=pa.schema(schema_fields)), output)
                 payloads[name] = output.getvalue().to_pybytes()
+            calendar_name = manifest["calendar"]
+            calendar_payload = json.dumps(
+                {"sessions": sorted(known_sessions), "coverage": known_coverage},
+                ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
             if dry_run:
                 return {
-                    "years": sorted(merged_by_year),
-                    "records": sum(len(values) for _, values, _ in merged_by_year.values()),
+                    "years": sorted(counts),
+                    "records": sum(counts.values()),
                     "incoming": len(incoming),
                     "calendar": len(known_sessions),
                 }
@@ -1256,7 +1782,6 @@ class Methods:
                 scope.pop("calendar_start", None)
                 scope.pop("calendar_end", None)
             updated["scope"] = scope
-            updated = self.complete_facts(dataset_id, updated, packet.get("request", {}))
             manifest_payload = json.dumps(updated, ensure_ascii=False, sort_keys=True, allow_nan=False).encode()
             self.data.write("sources", dataset_id, calendar_name, calendar_payload)
             for name, payload in payloads.items():
@@ -1612,6 +2137,7 @@ class EastmoneyQuotes:
 
 
 class BaostockDaily:
+    _last_request = None
     _numeric_fields = frozenset({
         "open", "high", "low", "close", "volume", "amount", "turn",
         "pctChg", "tradestatus", "isST", "peTTM", "pbMRQ", "psTTM",
@@ -1623,6 +2149,31 @@ class BaostockDaily:
 
     def __init__(self, config):
         self.config = config
+        params = config.get('params', {})
+        self.interval = params.get('interval', 1)
+        self.retry_delay = params.get('retry_delay', 30)
+        self.retries = params.get('retries', 2)
+        for value in (self.interval, self.retry_delay):
+            if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+                raise ValueError('BaoStock request intervals must be positive seconds')
+        if type(self.retries) is not int or not 0 <= self.retries <= 5:
+            raise ValueError('BaoStock retries must be an integer from 0 to 5')
+
+    def _call(self, query, *args, **kwargs):
+        for attempt in range(self.retries + 1):
+            previous = BaostockDaily._last_request
+            if previous is not None:
+                time.sleep(max(0, self.interval - (time.monotonic() - previous)))
+            BaostockDaily._last_request = time.monotonic()
+            try:
+                result = query(*args, **kwargs)
+            except OSError:
+                if attempt == self.retries:
+                    raise
+            else:
+                if str(result.error_code) not in {'10002001','10002002','10002003','10002004','10002005','10002006','10002007','10002008'} or attempt == self.retries:
+                    return result
+            time.sleep(self.retry_delay * 2 ** attempt)
 
     @staticmethod
     def _validate_request(request):
@@ -1671,14 +2222,14 @@ class BaostockDaily:
         return list(codes), frequency, adjustment, list(names)
 
     @staticmethod
-    def trade_calendar(bs, start: str, end: str):
+    def trade_calendar(bs, start: str, end: str, *, call=None):
         try:
             start_day, end_day = date.fromisoformat(start), date.fromisoformat(end)
         except (TypeError, ValueError) as error:
             raise ValueError("calendar dates must be ISO dates") from error
         if start_day > end_day:
             raise ValueError("calendar start must not exceed end")
-        response = bs.query_trade_dates(start_date=start, end_date=end)
+        response = (bs.query_trade_dates if call is None else call)(start_date=start, end_date=end)
         if str(getattr(response, "error_code", "")) != "0":
             raise ProviderError(
                 f"trade calendar failed: {getattr(response, 'error_code', '')} "
@@ -1723,7 +2274,7 @@ class BaostockDaily:
     def collect(self, request):
         import baostock as bs
         codes, frequency, adjustment, names = self._validate_request(request)
-        login = bs.login()
+        login = self._call(bs.login)
         if login.error_code != "0":
             raise RuntimeError(f"login {login.error_code}: {login.error_msg}")
         records, raw = [], []
@@ -1732,7 +2283,8 @@ class BaostockDaily:
             if frequency == "d":
                 calendar_end = request.get("calendar_end") or (date.fromisoformat(request['end']) + timedelta(days=31)).isoformat()
                 all_sessions, calendar_raw = self.trade_calendar(
-                    bs, request["start"], calendar_end)
+                    bs, request["start"], calendar_end,
+                    call=lambda **kw: self._call(bs.query_trade_dates, **kw))
                 calendar = {"sessions": [day.isoformat() for day in all_sessions],
                             "coverage": [{"start": request["start"], "end": calendar_end}]}
                 raw.append(calendar_raw)
@@ -1744,7 +2296,7 @@ class BaostockDaily:
                     raw.extend(packet['raw'])
                     continue
                 fields = ",".join(names)
-                response = bs.query_history_k_data_plus(
+                response = self._call(bs.query_history_k_data_plus,
                     code, fields, start_date=request["start"], end_date=request["end"],
                     frequency=frequency, adjustflag=adjustment)
                 if response.error_code != "0":
@@ -1839,11 +2391,24 @@ class CninfoAnnouncements:
     def collect(self, request):
         raw, records, expected, page = [], [], None, 1
         try:
+            stock = ''
+            codes = {normalize_security_id(code).split('.')[1] for code in request.get('codes', ())}
+            if codes:
+                url = 'https://www.cninfo.com.cn/new/data/szse_stock.json'
+                directory = self.transport(url)
+                raw.append({'url':url,'response':directory})
+                identities = []
+                for code in sorted(codes):
+                    rows = [row for row in directory['stockList'] if row['code'] == code]
+                    if len(rows) != 1 or not isinstance(rows[0].get('orgId'),str) or not rows[0]['orgId']:
+                        raise ValueError('one official announcement security identity is required: '+code)
+                    identities.append(code+','+rows[0]['orgId'])
+                stock = ';'.join(identities)
             while True:
                 query = {"pageNum": str(page), "pageSize": "30",
                          "seDate": request["start"] + "~" + request["end"],
                          "tabName": "fulltext", "column": "szse", "plate": "",
-                         "stock": "", "searchkey": request.get("keyword", ""),
+                         "stock": stock, "searchkey": request.get("keyword", ""),
                          "category": self.config.get("category", ""), "isHLtitle": "true"}
                 url = "https://www.cninfo.com.cn/new/hisAnnouncement/query"
                 response = self.transport(url, urlencode(query).encode())
@@ -1853,6 +2418,8 @@ class CninfoAnnouncements:
                     raise ValueError("announcement total changed during pagination")
                 expected = total
                 for row in rows:
+                    if codes and row["code"] not in codes:
+                        raise ValueError("announcement response security mismatch")
                     key = (row["id"], row["org_id"], row["code"])
                     if any((item["id"], item["org_id"], item["code"]) == key for item in records):
                         raise ValueError("duplicate announcement identity")
@@ -1866,7 +2433,7 @@ class CninfoAnnouncements:
                     "scope": {"start": request["start"], "end": request["end"],
                               "keyword": request.get("keyword", ""),
                               "category": self.config.get("category", ""),
-                              "pages": len(raw), "total": expected}}
+                              "pages": page, "total": expected}}
         except Exception as error:
             raise CollectionError(str(error), raw) from error
 
@@ -2173,6 +2740,86 @@ class EastmoneyFactors:
             raise CollectionError(str(error),raw) from error
 
 
+class SinaDaily:
+    """Sina's original unadjusted daily bars, in shares and CNY."""
+    fields = ('open','high','low','close','volume','amount')
+
+    def __init__(self, config, transport=None):
+        self.transport = self.get if transport is None else transport
+
+    @staticmethod
+    def get(url):
+        import requests
+        response = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        return response.text
+
+    @staticmethod
+    def decode(code, text):
+        from py_mini_racer import MiniRacer
+        from akshare.stock.cons import hk_js_decode
+        code = normalize_security_id(code)
+        match = re.match(r'\s*var\s+KLC_K2_' + re.escape(code.replace('.','')) + r'\s*=\s*', text)
+        if match is None:
+            raise ValueError('daily response security mismatch')
+        encoded, end = json.JSONDecoder().raw_decode(text[match.end():])
+        if not isinstance(encoded,str) or not encoded or not re.fullmatch(r'\s*;\s*(?:/\*[\s\S]*\*/)?\s*',text[match.end()+end:]):
+            raise ValueError('daily response format changed')
+        with MiniRacer() as js:
+            js.eval(hk_js_decode)
+            return js.call('d', encoded)
+
+    @staticmethod
+    def normalize(code, rows, request):
+        code = normalize_security_id(code)
+        start, end = date.fromisoformat(request['start']), date.fromisoformat(request['end'])
+        if start > end or not isinstance(rows,list):
+            raise ValueError('daily range or response is invalid')
+        result, previous = [], None
+        for row in rows:
+            value = row['date']
+            day = date.fromisoformat(value[:10])
+            if value not in (day.isoformat(), day.isoformat()+'T00:00:00.000Z') or (previous is not None and day <= previous):
+                raise ValueError('daily dates must be unique and increasing')
+            previous = day
+            if not start <= day <= end:
+                continue
+            values = {field:row[field] for field in SinaDaily.fields}
+            if (any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or v < 0 for v in values.values())
+                    or (values['volume'] == 0) != (values['amount'] == 0)):
+                raise ValueError(f'daily prices or turnover conflict: {code} {day} {values}')
+            if values['volume'] == 0:
+                continue
+            if (any(values[f] <= 0 for f in ('open','high','low','close'))
+                    or not values['low'] <= min(values['open'],values['close']) <= max(values['open'],values['close']) <= values['high']):
+                raise ValueError('daily OHLC values conflict')
+            if 'tradestatus' in request.get('fields', ()):
+                values['tradestatus'] = 1.
+            result.append({'code':code,'date':day.isoformat(),**values})
+        if not result:
+            raise ValueError('daily source has no observations in the requested range: '+code)
+        return result
+
+    def collect(self, request):
+        codes, frequency, adjustment, names = BaostockDaily._validate_request(request)
+        if frequency != 'd' or adjustment != '3' or set(names) - {'tradestatus'} != set(self.fields) | {'date','code'}:
+            raise ValueError('Sina daily supports only unadjusted daily OHLCV and amount')
+        records, raw = [], []
+        try:
+            for code in codes:
+                url = 'https://finance.sina.com.cn/realstock/company/' + code.replace('.','') + '/hisdata_klc2/klc_kl.js'
+                text = self.transport(url)
+                raw.append({'provider':'sina','url':url,'response':text,
+                            'price_basis':'raw','volume_unit':'share','amount_unit':'CNY'})
+                rows = self.normalize(code,self.decode(code,text),request)
+                records.extend({**row,'raw_page':len(raw)-1} for row in rows)
+        except Exception as error:
+            raise CollectionError(str(error),raw) from error
+        return {'records':records,'raw':raw,'price_basis':'raw','frequency':'daily',
+                'scope':{'codes':codes,'start':request['start'],'end':request['end']},
+                'data_as_of':max(row['date'] for row in records)}
+
+
 class EastmoneyDaily:
     """Eastmoney OHLCV; provider lots become standard shares."""
     fields = ('date','open','close','high','low','volume','amount','amplitude','pctChg','change','turn')
@@ -2256,46 +2903,162 @@ class EastmoneyDaily:
 
 
 class Catalogue:
-    """Provider security catalogue; publication uses the usual method packet."""
+    """Official security catalogues published through the shared method packet."""
+
+    @staticmethod
+    def code_changes(payload, rows, codes, start, end):
+        from io import BytesIO
+        from base64 import b64encode
+        from pypdf import PdfReader
+        import requests
+        known = {event['exchange'].lower()+'.'+event['old_code'] for event in payload['events']}
+        pending = set(codes) - known
+        if not pending:
+            return None, payload
+        query = CninfoAnnouncements({}).collect({'start':start,'end':end,'keyword':'证券代码'})
+        result, raw = deepcopy(payload), {'query':query,'notices':[]}
+        by_code = {row['code']:row for row in rows}
+        for row in query['records']:
+            candidates = [code for code in pending if code.split('.')[1] == row['code']]
+            if not candidates or '实施' not in row['title'] or '变更' not in row['title']:
+                continue
+            if len(candidates) != 1:
+                raise ValueError('announcement security identity is ambiguous')
+            code = candidates[0]
+            response = requests.get(row['url'],timeout=DEFAULT_TIMEOUT)
+            response.raise_for_status()
+            if not response.content.startswith(b'%PDF-'):
+                raise ValueError('code-change evidence must be an official PDF')
+            text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
+            events = Catalogue.rename(code.split('.')[0].upper(),row['url'].split('/')[-2],row['url'],text)
+            matched = [event for event in events if event['old_code'] == code.split('.')[1]]
+            if len(matched) != 1:
+                raise ValueError('code-change notice does not identify the requested security')
+            event = matched[0]
+            new_code = code.split('.')[0]+'.'+event['new_code']
+            if (new_code not in by_code or by_code[code]['ipoDate'] != by_code[new_code]['ipoDate']
+                    or by_code[code]['outDate'] != event['effective_date']):
+                raise ValueError('official code-change notice conflicts with security dates')
+            evidence = {'url':row['url'],'pdf':b64encode(response.content).decode(),
+                        'sha256':hashlib.sha256(response.content).hexdigest(),'text':text}
+            event['evidence_sha256'] = _sha256(evidence)
+            raw['notices'].append(evidence)
+            result['events'].append(event)
+            pending.remove(code)
+        return raw, result
+
+    @staticmethod
+    def rename(exchange, announced, url, text):
+        import unicodedata
+        text = re.sub(r'(?m)^\s*\d+\s*/\s*\d+\s*$','',text)
+        text = re.sub(r'\s+','',unicodedata.normalize('NFKC',text))
+        pairs = set(re.findall(r'证券代码由[“"]([0-9/]+)[”"]变更为[“"]([0-9/]+)[”"]',text))
+        days = set(re.findall(r'变更后的证券简称和证券代码启用日期[:：](\d{4}年\d{1,2}月\d{1,2}日)',text))
+        if (exchange not in ('SH','SZ') or len(pairs) != 1 or len(days) != 1
+                or '股份数量不变' not in text or '持股期限将持续计算' not in text
+                or not url.startswith('https://static.cninfo.com.cn/finalpage/')):
+            raise ValueError('explicit official rename and holding terms are required')
+        effective = datetime.strptime(days.pop(),'%Y年%m月%d日').date().isoformat()
+        if date.fromisoformat(announced).isoformat() > effective:
+            raise ValueError('rename announcement follows its effective date')
+        old, new = (part.split('/') for part in pairs.pop())
+        if len(old) != len(new) or len(set(old+new)) != len(old+new) or any(not re.fullmatch(r'\d{6}',c) for c in old+new):
+            raise ValueError('rename security identities are ambiguous')
+        return [dict(exchange=exchange,old_code=a,new_code=b,effective_date=effective,
+                     announcement_date=announced,source_url=url,holder_share_ratio=1,
+                     holding_period_continues=True,factor_basis_continuity_verified=False)
+                for a,b in zip(old,new)]
+
+    @staticmethod
+    def security(code, row):
+        code = normalize_security_id(code)
+        if row.get('code') != code or row.get('type') != '1' or row.get('status') not in {'0','1'}:
+            raise ValueError('catalogue security identity or stock status is invalid')
+        listing = date.fromisoformat(row['ipoDate']).isoformat()
+        end = date.fromisoformat(row['outDate']).isoformat() if row.get('outDate') else None
+        if (row['status'] == '0' and end is None) or (end is not None and end < listing):
+            raise ValueError('catalogue security end date is invalid')
+        fact = {'schema':1,'kind':'security','code':code,'start':None,'end':None,'year':None,
+                'source_hash':_sha256({'catalogue':row}), 'records':[{'listing_date':listing,
+                'delisting_date':end,'type':row['type'],'status':row['status']}]}
+        validate_facts(fact, kind='security', code=code)
+        return fact
+
+    @staticmethod
+    def normalize(exchange, listed, rows, page):
+        """Convert official exchange rows without inventing listing dates."""
+        fields = (('A_STOCK_CODE', 'COMPANY_ABBR', 'LIST_DATE', 'DELIST_DATE') if exchange == 'sh'
+                  else ('A股代码', 'A股简称', 'A股上市日期', None) if listed
+                  else ('证券代码', '证券简称', '上市日期', '终止上市日期'))
+        records = []
+        for row in rows:
+            code, name, start, end = (row.get(key) if key else None for key in fields)
+            if not isinstance(code, str) or not re.fullmatch(r'\d{6}', code) or not isinstance(name, str) or not name.strip() or name == '-':
+                raise ValueError('invalid official security identity')
+            dates = []
+            for value in (start,) if listed else (start, end):
+                value = str(value)
+                dates.append(datetime.strptime(value, '%Y%m%d' if exchange == 'sh' else '%Y-%m-%d').date().isoformat())
+            if not listed and dates[1] < dates[0]:
+                raise ValueError('delisting precedes listing')
+            records.append(dict(code=exchange+'.'+code, code_name=name, ipoDate=dates[0],
+                                outDate='' if listed else dates[1], type='1', status='1' if listed else '0', raw_page=page))
+        if not records or len({row['code'] for row in records}) != len(records):
+            raise ValueError('empty or duplicate official securities')
+        return records
+
     keys = ('code',)
 
     def __init__(self, config):
         self.config = config
 
     def collect(self, request):
-        import baostock as bs
+        import requests
+        from io import BytesIO
+        import pandas as pd
         exchanges = request.get('exchanges', ['sh','sz','bj'])
         if not isinstance(exchanges, (list, tuple)) or not exchanges or set(exchanges) - {'sh','sz','bj'}:
             raise ValueError('unsupported catalogue exchanges')
-        login = bs.login()
-        if str(login.error_code) != '0':
-            raise ProviderError('security catalogue login failed: ' + str(login.error_code))
-        raw = []
+        raw, records = [], []
         try:
-            with _timeout(DEFAULT_TIMEOUT):
-                response = bs.query_stock_basic()
-            if str(response.error_code) != '0':
-                raise ProviderError('security catalogue failed: ' + str(response.error_msg))
-            fields, rows = _response_rows(response, DEFAULT_TIMEOUT)
-            _validate_stock_basic_rows(fields, rows)
-            if not rows:
-                raise ProviderError('security catalogue is empty')
-            raw.append({'provider': 'baostock', 'request': {'method':'query_stock_basic'},
-                        'response': {'fields':fields,'rows':rows,'error_code':str(response.error_code)}})
-            records = [{**dict(zip(fields, row)), 'raw_page':0} for row in rows
-                       if row[fields.index('code')].split('.')[0] in exchanges]
-            if 'bj' in exchanges:
-                bse = BseCatalogue({}).collect({})
-                records.extend({**row,'raw_page':row['raw_page']+len(raw)} for row in bse['records'])
-                raw.extend(bse['raw'])
-            return {'records':records, 'raw':raw, 'scope':{'exchanges':list(exchanges)},
+            for exchange in exchanges:
+                if exchange == 'bj':
+                    packet = BseCatalogue({}).collect({})
+                    records.extend({**row,'raw_page':row['raw_page']+len(raw)} for row in packet['records'])
+                    raw.extend(packet['raw'])
+                    continue
+                for listed in (True, False):
+                    if exchange == 'sh':
+                        url = 'https://query.sse.com.cn/sseQuery/commonQuery.do'
+                        params = {'sqlId':'COMMON_SSE_CP_GPJCTPZ_GPLB_GP_L','STOCK_TYPE':'1,8',
+                                  'COMPANY_STATUS':'2,4,5,7,8' if listed else '3','type':'inParams',
+                                  'isPagination':'true','pageHelp.pageSize':10000,'pageHelp.pageNo':1}
+                        response = requests.get(url, params=params, headers={
+                            'Referer':'https://www.sse.com.cn/assortment/stock/list/share/'}, timeout=DEFAULT_TIMEOUT)
+                        response.raise_for_status()
+                        payload = response.json()
+                        rows = payload['result']
+                        raw.append({'provider':'sse','url':url,'params':params,'response':payload})
+                        if len(rows) != int(payload['pageHelp']['total']):
+                            raise ValueError('incomplete official security catalogue')
+                    else:
+                        url = 'https://www.szse.cn/api/report/ShowReport'
+                        params = {'SHOWTYPE':'xlsx','CATALOGID':'1110' if listed else '1793_ssgs',
+                                  'TABKEY':'tab1' if listed else 'tab2'}
+                        response = requests.get(url, params=params, timeout=DEFAULT_TIMEOUT)
+                        response.raise_for_status()
+                        rows = pd.read_excel(BytesIO(response.content), dtype=str).fillna('').to_dict('records')
+                        raw.append({'provider':'szse','url':url,'params':params,'response':rows,
+                                    'response_sha256':hashlib.sha256(response.content).hexdigest()})
+                    records.extend(self.normalize(exchange, listed, rows, len(raw)-1))
+            if len({row['code'] for row in records}) != len(records):
+                raise ValueError('overlapping official security catalogues')
+            return {'records':records,'raw':raw,'scope':{'exchanges':list(exchanges)},
                     'data_as_of':datetime.now(timezone.utc).isoformat()}
         except CollectionError as error:
             raise CollectionError(str(error), [*raw, *error.evidence]) from error
         except Exception as error:
             raise CollectionError(str(error), raw) from error
-        finally:
-            bs.logout()
 
 
 DEFAULT_METHODS = {
@@ -2303,6 +3066,7 @@ DEFAULT_METHODS = {
     "news": News,
     "quotes": EastmoneyQuotes,
     "daily": BaostockDaily,
+    "sina_daily": SinaDaily,
     "announcements": CninfoAnnouncements,
     "securities": Securities,
 }

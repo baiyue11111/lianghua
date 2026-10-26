@@ -156,9 +156,7 @@ class Collect:
                 self._active.discard(source_id)
 
     def _recover_tasks(self):
-        for ref in self.data.list("state", "collect"):
-            if not ref.name.startswith("jobs/"):
-                continue
+        for ref in self.data.list("state", "collect", "jobs"):
             try:
                 job = json.loads(self.data.read("state", "collect", ref.name))
             except Exception:
@@ -306,9 +304,7 @@ class Collect:
 
     def tick(self, at=None):
         now = time.time() if at is None else at
-        for ref in self.data.list("state", "collect"):
-            if not ref.name.startswith("schedules/"):
-                continue
+        for ref in self.data.list("state", "collect", "schedules"):
             schedule = json.loads(self.data.read("state", "collect", ref.name))
             next_at = schedule.get("next_at")
             if (not schedule.get("enabled") or next_at is None or
@@ -442,16 +438,13 @@ class Collect:
 
     def _schedule_list(self):
         return {"items": [json.loads(self.data.read("state", "collect", ref.name))
-                           for ref in self.data.list("state", "collect")
-                           if ref.name.startswith("schedules/")]}
+                           for ref in self.data.list("state", "collect", "schedules")]}
 
 
     def _source_view(self, source):
         source_id = source["id"]
         job = None
-        for ref in self.data.list("state", "collect"):
-            if not ref.name.startswith("jobs/"):
-                continue
+        for ref in self.data.list("state", "collect", "jobs"):
             item = json.loads(self.data.read("state", "collect", ref.name))
             if item.get("source_id") == source_id:
                 if job is None or item.get("finished_at", "") > job.get("finished_at", ""):

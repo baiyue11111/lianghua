@@ -1,0 +1,91 @@
+[
+  {
+    "final_cash": "50486.635",
+    "final_equity": "104486.635",
+    "positions": {
+      "600003": "4500"
+    },
+    "pending_orders": 0,
+    "equity": [
+      {
+        "day": "2020-01-31",
+        "cash": "100000",
+        "market_value": "0",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "100000",
+        "realized_pnl": "0",
+        "unrealized_pnl": "0",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-03",
+        "cash": "50486.635",
+        "market_value": "49500",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "99986.635",
+        "realized_pnl": "0",
+        "unrealized_pnl": "-13.365",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-04",
+        "cash": "50486.635",
+        "market_value": "54000",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "104486.635",
+        "realized_pnl": "0",
+        "unrealized_pnl": "4486.635",
+        "net_cash_income": "0"
+      }
+    ],
+    "targets": [
+      {
+        "day": "2020-01-31",
+        "weights": {
+          "600003": 0.5
+        },
+        "reasons": {
+          "600003": "fast_mean_above_slow_mean"
+        }
+      },
+      {
+        "day": "2020-02-03",
+        "weights": null,
+        "reasons": null
+      },
+      {
+        "day": "2020-02-04",
+        "weights": null,
+        "reasons": null
+      }
+    ],
+    "trades": [
+      {
+        "symbol": "600003",
+        "side": "buy",
+        "trade_date": "2020-02-03",
+        "shares": "4500",
+        "price": "11",
+        "gross_amount": "49500",
+        "commission": "12.375",
+        "stamp_duty": "0",
+        "status": "filled",
+        "reason": null,
+        "transfer_fee": "0.99"
+      }
+    ],
+    "metrics": {
+      "initial_equity": 100000.0,
+      "final_equity": 104486.635,
+      "total_return": 0.044866349999999944,
+      "cagr": 54.01537626392154,
+      "annualized_volatility": 0.5066914835564152,
+      "sharpe": 11.158502126597101,
+      "max_drawdown": -0.0001336500000000962,
+      "observations": 3
+    }
+  }
+]

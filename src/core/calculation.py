@@ -16,7 +16,7 @@ from statistics import fmean, stdev
 
 import numpy as np
 
-from protocol import Bar, Fill, Order, Side, TargetSet, Trial, validate_execution
+from protocol import Bar, Fill, MarketFrame, Order, Side, TargetSet, Trial, normalize_security_id, validate_execution
 from strategy import canonical_hash
 
 
@@ -38,6 +38,98 @@ def _candidate_parameters(candidate: Mapping[str, object]) -> dict[str, object]:
 
 
 class Calculation:
+    @staticmethod
+    def fundamentals(frame: MarketFrame, weights: Mapping[str, int | float]) -> MarketFrame:
+        """Score a current cross-section with explicit signed factor weights.
+
+        Each factor is population z-scored across securities with a known value.
+        The returned fields contain only normalized factors and score; history is
+        empty, and this method does not recalculate past cross-sections.
+        This is a transparent cross-sectional calculation, not a trained model,
+        and does not establish point-in-time data provenance.
+        """
+        if not isinstance(frame, MarketFrame):
+            raise TypeError("frame must be a MarketFrame")
+        if not isinstance(weights, Mapping) or not weights:
+            raise ValueError("weights must be a non-empty mapping")
+        names = []
+        numeric_weights = []
+        for name, weight in weights.items():
+            if type(name) is not str or not name.strip():
+                raise ValueError("factor names must be non-empty strings")
+            if name == "score":
+                raise ValueError("score is reserved")
+            if type(weight) not in (int, float) or weight == 0:
+                raise ValueError(f"weight for field {name!r} must be a non-zero number")
+            try:
+                weight = float(weight)
+            except (OverflowError, ValueError) as error:
+                raise ValueError(f"weight for field {name!r} must be finite") from error
+            if not isfinite(weight):
+                raise ValueError(f"weight for field {name!r} must be finite")
+            names.append(name)
+            numeric_weights.append(weight)
+
+        symbols = tuple(frame.fields)
+        columns = []
+        normalized = []
+        for name in names:
+            values = []
+            for symbol in symbols:
+                fields = frame.fields[symbol]
+                if name not in fields:
+                    raise ValueError(f"missing field {name!r} for security {symbol!r}")
+                value = fields[name]
+                if value is None:
+                    values.append(None)
+                    continue
+                if type(value) not in (int, float):
+                    raise ValueError(f"field {name!r} for security {symbol!r} must be numeric or None")
+                try:
+                    value = float(value)
+                except (OverflowError, ValueError) as error:
+                    raise ValueError(f"field {name!r} for security {symbol!r} must be finite") from error
+                if not isfinite(value):
+                    raise ValueError(f"field {name!r} for security {symbol!r} must be finite")
+                values.append(value)
+            present = np.array([value is not None for value in values], dtype=bool)
+            result = np.full(len(values), np.nan, dtype=np.float64)
+            if present.any():
+                observed = np.asarray([value for value in values if value is not None], dtype=np.float64)
+                scale = float(np.max(np.abs(observed)))
+                if scale == 0:
+                    result[present] = 0.0
+                else:
+                    scaled = observed / scale
+                    mean = float(np.mean(scaled))
+                    deviation = float(np.std(scaled, ddof=0))
+                    if not isfinite(mean) or not isfinite(deviation):
+                        raise ValueError(f"normalization overflow for field {name!r}")
+                    if deviation == 0:
+                        result[present] = 0.0
+                    else:
+                        result[present] = (scaled - mean) / deviation
+            columns.append(values)
+            normalized.append(result)
+
+        output = {}
+        for index, symbol in enumerate(symbols):
+            row = {}
+            for name, values, zscores in zip(names, columns, normalized, strict=True):
+                value = values[index]
+                row[name] = None if value is None else float(zscores[index])
+            if any(values[index] is None for values in columns):
+                row["score"] = None
+            else:
+                total = 0.0
+                for name, weight, zscores in zip(names, numeric_weights, normalized, strict=True):
+                    total += weight * float(zscores[index])
+                    if not isfinite(total):
+                        raise ValueError(f"score overflow for security {symbol!r} at field {name!r}")
+                row["score"] = total
+            output[symbol] = row
+        return MarketFrame(frame.at, frame.venue, output, frame.context)
+
     @staticmethod
     def select(candidates, positions, score, descending=True, symbol=lambda row: row[-1]):
         """Sort strategy candidates by a declared score and take the first N."""
@@ -100,7 +192,10 @@ class Calculation:
         if type(gross) not in (int, float) or not 0 <= gross <= 1:
             raise ValueError("gross must be finite in [0, 1]")
         Calculation._finite(gross, "gross")
-        return {symbol: gross / slots for symbol in symbols}
+        weight = gross / slots
+        if Decimal(str(weight)) * len(symbols) > Decimal(str(gross)):
+            weight = math.nextafter(weight, 0.)
+        return {symbol: weight for symbol in symbols}
 
     @staticmethod
     def evaluate(
@@ -815,7 +910,7 @@ class TradeRules:
             raise TypeError('fee and tax policies are required')
         self.fee_policy = fee_policy
         self.tax_policy = tax_policy
-        self._tax_ledger = TaxLedger(tax_policy)
+        self._tax_ledger = TaxLedger(tax_policy, enabled=self.tax_config['model'] == 'fifo')
 
     def allocate(self, target: TargetSet, *, next_session: date,
                  equity: Decimal, holdings: Mapping[str, int],
@@ -1005,7 +1100,8 @@ class TradeRules:
                 raise ValueError('fee effective date does not cover trade')
             return eligible[-1]
         stamp = rate(self.fee_policy.stamp_rates)
-        market=symbol.split('.',1)[0] if isinstance(symbol,str) and '.' in symbol else None
+        market=(normalize_security_id(symbol).split('.',1)[0] if symbol is not None
+                and any(row[3] is not None for row in self.fee_policy.transfer_rates) else None)
         terms=[row for row in self.fee_policy.transfer_rates
                if row[0]<=day and (row[3] is None or row[3]==market)]
         if not terms:
@@ -1039,8 +1135,8 @@ class TradeRules:
 
     def tax(self, day=None, fills=(), *, phase, acquired=None, disposed=None,
             registration=None, taxable_income=None, long_rate=None):
-        if self.tax_config['model'] != 'fifo':
-            raise ValueError('tax model must be fifo')
+        if self.tax_config['model'] == 'none' and phase in {'rate', 'amount'}:
+            raise ValueError('personal dividend tax is disabled')
         if phase == 'begin':
             self._tax_ledger.begin(day)
             return None
@@ -1760,7 +1856,8 @@ class TaxPayment:
 
 
 class TaxLedger:
-    def __init__(self,policy:TaxPolicy):
+    def __init__(self,policy:TaxPolicy, *, enabled=True):
+        self.enabled=enabled
         self.policy=policy; self.lots=(); self.pending={}; self.payments=[]
         self._day=None; self._opening=None; self._registrations={}; self._credits={}
         self.deliveries=[]
@@ -1771,14 +1868,15 @@ class TaxLedger:
         self._day=day; self._opening=(self.lots,dict(self.pending))
 
     def register(self,distribution_id,event,stock_nominal,reserve_taxable,source_sha256,*,credit_date=None):
-        if (event.registration_date is None or event.registration_date<self.policy.effective
+        if (event.registration_date is None or (self.enabled and event.registration_date<self.policy.effective)
                 or not event.executable or not distribution_id or not re.fullmatch('[0-9a-f]{64}',source_sha256)):
             raise ValueError('unsupported or unsourced registration tax facts')
-        stock_nominal,reserve_taxable=money(stock_nominal),money(reserve_taxable)
+        if self.enabled:
+            stock_nominal,reserve_taxable=money(stock_nominal),money(reserve_taxable)
         bonus=Decimal(str(event.stock_dividend_per_share))+Decimal(str(event.reserve_to_stock_per_share))
         if bonus:
-            if (self.policy.bonus_holding_period!='originating_lot'
-                    or self.policy.bonus_tax_allocation!='proportional_entitlement'
+            if (self.enabled and (self.policy.bonus_holding_period!='originating_lot'
+                    or self.policy.bonus_tax_allocation!='proportional_entitlement')
                     or not isinstance(credit_date,date)
                     or not event.operation_date<=credit_date<=event.stock_market_date):
                 raise ValueError('explicit sourced bonus holding-period/allocation policy required')
@@ -1788,22 +1886,23 @@ class TaxLedger:
         if key in self._registrations:
             if self._registrations[key]!=payload: raise ValueError('conflicting tax registration')
             return
-        rights=[]
-        cash=Decimal(str(event.cash_per_share))
-        shares=Decimal(str(event.stock_dividend_per_share))*stock_nominal+reserve_taxable
-        if cash: rights.append(TaxRight(event.registration_date,distribution_id,'cash',event.operation_date,event.payment_date,cash,source_sha256))
-        if shares: rights.append(TaxRight(event.registration_date,distribution_id,'shares',event.operation_date,credit_date,shares,source_sha256))
-        _,withholding_rate,policy=self.policy.terms(event.registration_date)
-        if withholding_rate:
-            for lot in self.lots:
-                if lot.symbol!=event.code:
-                    continue
-                for right in rights:
-                    identity=canonical_hash((distribution_id,right.component,lot.lot_id,'withholding'))
-                    self.pending[identity]=TaxPayment(identity,distribution_id,event.code,lot.acquired,
-                        event.registration_date,right.operation,right.due,
-                        right.income_per_share*lot.shares*withholding_rate,source_sha256,policy)
-        self.lots=tuple(replace(lot,rights=lot.rights+tuple(rights)) if lot.symbol==event.code else lot for lot in self.lots)
+        if self.enabled:
+            rights=[]
+            cash=Decimal(str(event.cash_per_share))
+            shares=Decimal(str(event.stock_dividend_per_share))*stock_nominal+reserve_taxable
+            if cash: rights.append(TaxRight(event.registration_date,distribution_id,'cash',event.operation_date,event.payment_date,cash,source_sha256))
+            if shares: rights.append(TaxRight(event.registration_date,distribution_id,'shares',event.operation_date,credit_date,shares,source_sha256))
+            _,withholding_rate,policy=self.policy.terms(event.registration_date)
+            if withholding_rate:
+                for lot in self.lots:
+                    if lot.symbol!=event.code:
+                        continue
+                    for right in rights:
+                        identity=canonical_hash((distribution_id,right.component,lot.lot_id,'withholding'))
+                        self.pending[identity]=TaxPayment(identity,distribution_id,event.code,lot.acquired,
+                            event.registration_date,right.operation,right.due,
+                            right.income_per_share*lot.shares*withholding_rate,source_sha256,policy)
+            self.lots=tuple(replace(lot,rights=lot.rights+tuple(rights)) if lot.symbol==event.code else lot for lot in self.lots)
         if bonus:
             for lot in self.lots:
                 if lot.symbol!=event.code: continue
@@ -1820,8 +1919,8 @@ class TaxLedger:
             if self._credits[identity]!=payload: raise ValueError('conflicting tax share credit')
             return
         if (type(shares) is not int or shares<=0 or acquired>day
-                or self.policy.bonus_holding_period!='originating_lot'
-                or self.policy.bonus_tax_allocation!='proportional_entitlement'):
+                or (self.enabled and (self.policy.bonus_holding_period!='originating_lot'
+                or self.policy.bonus_tax_allocation!='proportional_entitlement'))):
             raise ValueError('unsupported share-tax credit facts')
         existing=tuple(lot for lot in self.lots if lot.symbol==symbol and lot.acquired==acquired)
         count=sum(lot.shares for lot in existing); total=count+shares

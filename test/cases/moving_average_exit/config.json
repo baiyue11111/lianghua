@@ -1,0 +1,61 @@
+{
+  "run_id": "case-exit",
+  "module": "plugins.strategies.moving_average_cross",
+  "params": {
+    "fast_window": 2,
+    "slow_window": 3,
+    "rebalance": "daily",
+    "exposure": 1.0
+  },
+  "dataset_id": "fixture",
+  "market": {
+    "scope": "CN_A",
+    "codes": [
+      "600003"
+    ]
+  },
+  "initial_cash": "100000",
+  "accounting": "account",
+  "limits": {
+    "stock_weight": "1",
+    "adv_fraction": "0.01"
+  },
+  "execution": {
+    "price": {
+      "model": "ratio",
+      "params": {
+        "rate": "0",
+        "tick": "0.01"
+      }
+    },
+    "quantity": {
+      "model": "capacity",
+      "params": {}
+    },
+    "fees": {
+      "model": "dated",
+      "params": {
+        "rounding": "none"
+      }
+    },
+    "tax": {
+      "model": "fifo",
+      "params": {}
+    },
+    "check": {
+      "model": "cn_a_share",
+      "params": {
+        "tick": "0.01",
+        "min_qty": 100,
+        "step": 100
+      }
+    }
+  },
+  "intervals": [
+    {
+      "name": "case-exit",
+      "start": "2020-01-31",
+      "end": "2020-02-04"
+    }
+  ]
+}

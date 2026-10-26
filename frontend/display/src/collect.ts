@@ -17,12 +17,13 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
  const [name,intent]=parts;
  const range=/^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent??'');
  const command=range?'range':intent;
- if(parts.length!==2||!['latest','range','auto','check','status'].includes(command))throw Error('需要 <market>:[start,end] 或 latest、range、auto、check、status');
+ if(parts.length!==2||!['latest','range','auto','check','doctor','status'].includes(command))throw Error('需要 <market>:[start,end] 或 latest、range、auto、check、doctor、status');
  if(range){
   if(values.start!==undefined||values.end!==undefined)throw Error('区间不能与 start、end 重复填写');
   values.start=range[1].length===4?range[1]+'-01-01':range[1];
   values.end=range[2].length===4?range[2]+'-12-31':range[2];
  }
+ if(values.refresh&&!['range','doctor'].includes(command))throw Error('refresh 仅用于 range 或 doctor');
  if(command!=='auto'&&values.interval!==undefined)throw Error('interval 仅用于 auto');
  if(command==='status'&&Object.keys(values).some(key=>key!=='selector'))throw Error('status 不接受收集参数');
  if(['latest','auto'].includes(command)&&(values.start!==undefined||values.end!==undefined))throw Error('latest 和 auto 自动确定日期，请用 range 指定区间');
@@ -76,7 +77,7 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
    if(market.code_pattern&&!new RegExp('^(?:'+market.code_pattern+')$').test(code))return false;
    exchanges.add(code.split('.')[0]);
    const opened=row[binding.from],closed=row[binding.to];
-   return !(opened&&opened>(values.end??today())||closed&&(values.start?closed<values.start:true));
+   return !(opened&&opened>(values.end??today())||closed&&(values.start?closed<values.start:command!=='doctor'));
   }).map(row=>row[binding.code]);
   if((binding.exchanges??[]).some((exchange:string)=>!exchanges.has(exchange)))throw Error('证券目录缺少登记的交易所');
   return [...new Set<string>(result)].sort();
@@ -90,14 +91,14 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
    const selected=binding.codes??(requested.length?requested:(marketCodes??=await codes()));
    if(!selected.length)throw Error('区间内没有证券');
    let start=values.start,end=values.end;
-   if(!start){
+   if(!start&&command!=='doctor'){
     const stored=await call('collection.inspect',{source_id:binding.source,codes:selected}) as Row;
     if(!stored.last_date)throw Error('没有已存数据，请用 range 指定 start 和 end');
     start=stored.last_date;end=today();
    }
-   const request:Row={source_id:binding.source,start,end};
+   const request:Row={source_id:binding.source,...(start?{start,end}:{})};
    if(values.fields)request.fields=items(values.fields);
-   const size=spec.batch_size===undefined?selected.length:spec.batch_size;
+   const size=command==='doctor'||spec.batch_size===undefined?selected.length:spec.batch_size;
    if(!Number.isSafeInteger(size)||size<1)throw Error('市场收集批量设置无效');
    for(let offset=0;offset<selected.length;offset+=size){
     if(signal.aborted)throw Error('会话已停止');
@@ -106,8 +107,8 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
      const result=await call('collection.inspect',batch) as Row;
      plans.push({data:kind,request:batch,coverage:result.coverage});
     }else{
-     if(['latest','auto'].includes(command))Object.assign(batch,{force:true,refresh:true});
-     jobs.push(await call('collection.run',batch));
+     if(values.refresh||['latest','auto'].includes(command))Object.assign(batch,{refresh:true,...(command==='doctor'?{}:{force:true})});
+     jobs.push(await call(command==='doctor'?'collection.doctor':'collection.run',batch));
      if(selected.length>size)progress({market:market.scope,data:kind,status:'running',completed:Math.min(offset+size,selected.length),total:selected.length});
     }
    }

@@ -193,11 +193,13 @@ class MarketFrame:
         for instrument, rows in self.history.items():
             _name(instrument, "history instrument")
             rows = tuple(rows)
-            if any(not isinstance(row, HistoryBar) for row in rows):
-                raise TypeError("history rows must be HistoryBar")
-            times = tuple(row.at for row in rows)
-            if tuple(sorted(set(times))) != times or any(at > self.at for at in times):
-                raise ValueError("history must be ordered, unique and not future")
+            previous = None
+            for row in rows:
+                if not isinstance(row, HistoryBar):
+                    raise TypeError("history rows must be HistoryBar")
+                if row.at > self.at or previous is not None and row.at <= previous:
+                    raise ValueError("history must be ordered, unique and not future")
+                previous = row.at
             history[instrument] = rows
         object.__setattr__(self, "history", MappingProxyType(history))
 
@@ -238,9 +240,9 @@ class RegistrationAction:
     event: object
     source_sha256: str
     share_credit_date: date | None
-    stock_nominal: Decimal
-    reserve_taxable: Decimal
-    tax_source_sha256: str
+    stock_nominal: Decimal | None
+    reserve_taxable: Decimal | None
+    tax_source_sha256: str | None
 
 
 @dataclass(frozen=True)
@@ -302,8 +304,16 @@ class DataQuery:
     frequency: str = "daily"
     purpose: str = "trade"
     market: Mapping[str, object] | None = None
+    tax: str = "fifo"
+    accounting: str = "account"
 
     def __post_init__(self):
+        if self.accounting not in {"account", "research"}:
+            raise ValueError("unsupported accounting model")
+        if self.accounting == 'research' and self.tax != 'none':
+            raise ValueError('research accounting requires tax model none')
+        if self.tax not in {"fifo", "none"}:
+            raise ValueError("unsupported query tax model")
         if not isinstance(self.dataset, str) or not self.dataset.strip():
             raise ValueError("dataset is required")
         if not isinstance(self.start, date) or not isinstance(self.end, date) or self.start > self.end:
@@ -384,7 +394,7 @@ class DataPort(TypingProtocol):
     def read_ref(self, ref: DataRef) -> bytes: ...
     def read(self, kind: str, identity: str, name: str) -> bytes: ...
     def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef: ...
-    def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]: ...
+    def list(self, kind: str, identity: str | None = None, folder: str = "") -> tuple[DataRef, ...]: ...
     def path(self, kind: str, identity: str, name: str) -> Path: ...
     def delete(self, kind: str, identity: str, name: str) -> None: ...
     def manifest(self, dataset: str) -> Mapping[str, object]: ...
@@ -766,11 +776,15 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
     try:
         allowed = {"run_id", "module", "params", "dataset_id", "start", "end", "initial_cash",
                    "fields", "history", "price_basis", "as_of", "market", "limits", "evaluation", "benchmark_id",
-                   "execution", "search"}
+                   "execution", "search", "accounting"}
         unknown = set(data) - allowed
         if unknown:
             raise ValueError(f"unsupported request fields: {', '.join(sorted(unknown))}")
         settlement_parameters = {}
+        if "accounting" in data:
+            if data['accounting'] not in {'account','research'}:
+                raise ValueError('unsupported accounting model')
+            settlement_parameters['accounting'] = data['accounting']
         if data.get("limits") is not None:
             settlement_parameters["limits"] = _limits(data["limits"])
         if data.get("execution") is not None:
@@ -874,7 +888,7 @@ def validate_execution(value: JsonValue) -> dict[str, dict[str, object]]:
     fees = action("fees", {"dated"}, {"rounding"})
     if fees["params"]["rounding"] not in {"none", "half_up"}:
         raise ValueError("fees rounding must be none or half_up")
-    tax = action("tax", {"fifo"}, ())
+    tax = action("tax", {"fifo", "none"}, ())
     check = action("check", {"cn_a_share"}, {"tick", "min_qty", "step"},
                    {"limit_up", "limit_down", "limit_source"})
     number(check["params"]["tick"], "tick", positive=True)

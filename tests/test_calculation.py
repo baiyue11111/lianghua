@@ -4,11 +4,89 @@ import json
 import unittest
 
 from protocol import BacktestError, BacktestRequest
+from protocol import HistoryBar, MarketFrame
 from backend import save_backtest
 from core.calculation import Calculation
 
 
 class CalculationTests(unittest.TestCase):
+    def setUp(self):
+        self.at = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    def test_fundamentals_uses_signed_population_z_scores(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"quality": 1, "value": 4},
+            "B": {"quality": 3, "value": 2},
+        }, {"source": "fixture"})
+        result = Calculation.fundamentals(frame, {"quality": 2, "value": -1})
+        self.assertEqual(list(result.fields), ["A", "B"])
+        self.assertAlmostEqual(result.fields["A"]["quality"], -1.0)
+        self.assertAlmostEqual(result.fields["A"]["value"], 1.0)
+        self.assertAlmostEqual(result.fields["A"]["score"], -3.0)
+        self.assertAlmostEqual(result.fields["B"]["quality"], 1.0)
+        self.assertAlmostEqual(result.fields["B"]["value"], -1.0)
+        self.assertAlmostEqual(result.fields["B"]["score"], 3.0)
+        self.assertEqual(result.at, frame.at)
+        self.assertEqual(result.venue, frame.venue)
+        self.assertEqual(dict(result.context), dict(frame.context))
+        self.assertEqual(dict(result.history), {})
+
+    def test_fundamentals_keeps_missing_values_and_constant_columns(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": 1, "flat": 5},
+            "B": {"x": None, "flat": 5},
+            "C": {"x": 3, "flat": None},
+        })
+        result = Calculation.fundamentals(frame, {"x": 1, "flat": 2})
+        self.assertEqual([result.fields[s]["flat"] for s in ("A", "B", "C")], [0.0, 0.0, None])
+        self.assertAlmostEqual(result.fields["A"]["score"], -1.0)
+        self.assertIsNone(result.fields["B"]["score"])
+        self.assertIsNone(result.fields["C"]["score"])
+
+    def test_fundamentals_keeps_all_missing_and_empty_universes(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {"A": {"x": None}, "B": {"x": None}})
+        result = Calculation.fundamentals(frame, {"x": 1})
+        self.assertEqual([result.fields[s]["x"] for s in ("A", "B")], [None, None])
+        self.assertEqual([result.fields[s]["score"] for s in ("A", "B")], [None, None])
+        empty = Calculation.fundamentals(MarketFrame(self.at, "CN_EQUITY", {}), {"x": 1})
+        self.assertEqual(dict(empty.fields), {})
+
+    def test_fundamentals_validates_weights_and_factor_values(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {"A": {"x": 1}})
+        invalid_weights = (
+            {}, [], {"": 1}, {"x": 0}, {"x": True}, {"x": float("inf")},
+            {"score": 1}, {"y": 1},
+        )
+        for weights in invalid_weights:
+            with self.subTest(weights=weights), self.assertRaises((TypeError, ValueError)):
+                Calculation.fundamentals(frame, weights)
+        for value in (True, "1", float("nan"), float("inf")):
+            with self.subTest(value=value), self.assertRaises((TypeError, ValueError)):
+                Calculation.fundamentals(MarketFrame(self.at, "CN_EQUITY", {"A": {"x": value}}), {"x": 1})
+        with self.assertRaisesRegex(ValueError, "field 'x'.*security 'A'"):
+            Calculation.fundamentals(MarketFrame(self.at, "CN_EQUITY", {"A": {}}), {"x": 1})
+        with self.assertRaisesRegex(ValueError, "field 'x'.*security 'A'"):
+            Calculation.fundamentals(MarketFrame(self.at, "CN_EQUITY", {"A": {"x": 10 ** 1000}}), {"x": 1})
+        overflow = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": -1}, "B": {"x": 0}, "C": {"x": 1},
+        })
+        with self.assertRaisesRegex(ValueError, "score overflow.*security 'A'.*field 'x'"):
+            Calculation.fundamentals(overflow, {"x": 1.7e308})
+
+    def test_fundamentals_is_order_invariant_and_does_not_mutate_input_or_history(self):
+        history = {"A": (HistoryBar(self.at, {"x": 99}),)}
+        frame = MarketFrame(self.at, "CN_EQUITY", {"A": {"x": 1}, "B": {"x": 2}}, history=history)
+        before = {symbol: dict(fields) for symbol, fields in frame.fields.items()}
+        result = Calculation.fundamentals(frame, {"x": 3})
+        reverse = Calculation.fundamentals(MarketFrame(self.at, "CN_EQUITY", {"B": {"x": 2}, "A": {"x": 1}}), {"x": 3})
+        scaled = Calculation.fundamentals(MarketFrame(self.at, "CN_EQUITY", {"A": {"x": 10}, "B": {"x": 20}}), {"x": 3})
+        self.assertEqual(list(result.fields), ["A", "B"])
+        self.assertEqual(result.fields["A"]["score"], reverse.fields["A"]["score"])
+        self.assertEqual(result.fields["A"]["score"], scaled.fields["A"]["score"])
+        self.assertEqual({symbol: dict(fields) for symbol, fields in frame.fields.items()}, before)
+        self.assertEqual(len(frame.history["A"]), 1)
+        self.assertEqual(dict(result.history), {})
+
     def test_sma_uses_the_declared_window(self):
         self.assertEqual(Calculation.sma([1, 2, 3], 2), 2.5)
 

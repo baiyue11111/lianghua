@@ -24,6 +24,65 @@ def _calendar(sessions):
 
 
 class CollectionTests(unittest.TestCase):
+    def test_task_recovery_and_schedule_queries_do_not_read_raw_logs(self):
+        from collect.core import Collect
+        from collect.sources import Sources
+
+        with tempfile.TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            bus = DataBus(store)
+            sources = Sources(bus)
+            source = {"id": "fixture", "name": "Fixture", "method": "fixture",
+                      "frequency": "daily", "defaults": {}}
+            sources.register(source)
+            job = {"job_id": "one", "source_id": "fixture", "status": "succeeded",
+                   "finished_at": "2026-10-01T12:00:00"}
+            schedule = {"source_id": "fixture", "enabled": False, "next_at": None}
+            bus.write("state", "collect", "jobs/one.json", json.dumps(job).encode())
+            bus.write("state", "collect", "schedules/fixture.json", json.dumps(schedule).encode())
+            bus.write("state", "collect", "raw/large.bin", b"unrelated")
+            original = store._ref
+
+            def read(kind, identity, name, path):
+                self.assertNotEqual(name, "raw/large.bin")
+                return original(kind, identity, name, path)
+
+            with patch.object(store, "_ref", side_effect=read):
+                collect = Collect(sources, Methods(bus))
+                self.assertEqual(collect.status("one"), job)
+                self.assertEqual(collect._schedule_list(), {"items": [schedule]})
+                collect.tick(at=1)
+                view = collect._source_view(source)
+                self.assertEqual(view["job"], job)
+                self.assertEqual(view["schedule"], schedule)
+                collect.close()
+
+    def test_baostock_spacing_and_network_retry(self):
+        from collect.methods import BaostockDaily
+        from types import SimpleNamespace
+        from unittest.mock import Mock
+        clock=[0.]
+        def sleep(seconds): clock[0]+=seconds
+        times=[]
+        replies=iter(['10002007','0','0'])
+        def query():
+            times.append(clock[0])
+            return SimpleNamespace(error_code=next(replies),error_msg='network')
+        adapter=BaostockDaily({'params':{'interval':2,'retry_delay':10,'retries':1}})
+        with patch.object(BaostockDaily,'_last_request',None), patch('collect.methods.time.monotonic',side_effect=lambda:clock[0]), patch('collect.methods.time.sleep',side_effect=sleep):
+            self.assertEqual(adapter._call(query).error_code,'0')
+            BaostockDaily({'params':{'interval':2}})._call(query)
+        self.assertEqual(times,[0.,10.,12.])
+        failed=Mock(return_value=SimpleNamespace(error_code='10002007',error_msg='network'))
+        with patch.object(BaostockDaily,'_last_request',None),patch('collect.methods.time.sleep'):
+            self.assertEqual(adapter._call(failed).error_code,'10002007')
+        self.assertEqual(failed.call_count,2)
+        for code in ('10001011','10004011'):
+            call=Mock(return_value=SimpleNamespace(error_code=code,error_msg='denied'))
+            with patch.object(BaostockDaily,'_last_request',None),patch('collect.methods.time.sleep') as wait:
+                self.assertEqual(adapter._call(call).error_code,code)
+                call.assert_called_once();wait.assert_not_called()
+
     def test_methods_merge_unique_current_records_without_batch_files(self):
         from collect.methods import Methods
         with tempfile.TemporaryDirectory() as root:
@@ -331,7 +390,7 @@ class CollectionTests(unittest.TestCase):
                 query_history_k_data_plus=lambda *args, **kwargs: Rows())
             methods = Methods(bus)
             collect = Collect(sources, methods)
-            with patch.dict(sys.modules, {"baostock": provider}):
+            with patch.dict(sys.modules, {"baostock": provider}), patch('collect.methods.time.sleep'):
                 fetched = collect.handle("collection.start", {
                     "source_id": "daily", "codes": "600036", "fields": "basic",
                     "start": "2026-01-07", "end": "2026-01-07",
@@ -1244,7 +1303,7 @@ class CollectionTests(unittest.TestCase):
     def test_quote_values_must_be_finite_numbers(self):
         from collect.methods import EastmoneyQuotes, CollectionError
         import copy
-        fixture = json.loads((Path(__file__).parent / 'fixtures/collect-quotes-ab.json').read_bytes())
+        fixture = json.loads((Path(__file__).resolve().parents[1] / 'test/data/quotes.json').read_bytes())
         for field, value in (('f2', '-'), ('f3', float('nan')), ('f5', -1), ('f6', True), ('f124', False)):
             response = copy.deepcopy(fixture['response'])
             response['data']['diff'][0][field] = value
@@ -1383,13 +1442,13 @@ class CollectionTests(unittest.TestCase):
 
     def test_latest_quote_fields_are_selectable(self):
         from collect.methods import EastmoneyQuotes
-        fixture = json.loads((Path(__file__).parent / 'fixtures/collect-quotes-ab.json').read_bytes())
+        fixture = json.loads((Path(__file__).resolve().parents[1] / 'test/data/quotes.json').read_bytes())
         result = EastmoneyQuotes({}, lambda *a: fixture['response']).collect({**fixture['request'], 'fields': ['price', 'volume']})
         self.assertEqual(set(result['records'][0]), {'code', 'data_at', 'raw_page', 'price', 'volume'})
 
     def test_latest_quote_rejects_unsupported_parameters(self):
         from collect.methods import EastmoneyQuotes, CollectionError
-        fixture = json.loads((Path(__file__).parent / 'fixtures/collect-quotes-ab.json').read_bytes())
+        fixture = json.loads((Path(__file__).resolve().parents[1] / 'test/data/quotes.json').read_bytes())
         from unittest.mock import Mock
         transport = Mock(return_value=fixture['response'])
         provider = EastmoneyQuotes({}, transport)

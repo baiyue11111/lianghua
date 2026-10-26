@@ -1,0 +1,91 @@
+[
+  {
+    "final_cash": "973.27",
+    "final_equity": "108973.27",
+    "positions": {
+      "600003": "9000"
+    },
+    "pending_orders": 0,
+    "equity": [
+      {
+        "day": "2020-01-31",
+        "cash": "100000",
+        "market_value": "0",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "100000",
+        "realized_pnl": "0",
+        "unrealized_pnl": "0",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-03",
+        "cash": "973.27",
+        "market_value": "99000",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "99973.27",
+        "realized_pnl": "0",
+        "unrealized_pnl": "-26.73",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-04",
+        "cash": "973.27",
+        "market_value": "108000",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "108973.27",
+        "realized_pnl": "0",
+        "unrealized_pnl": "8973.27",
+        "net_cash_income": "0"
+      }
+    ],
+    "targets": [
+      {
+        "day": "2020-01-31",
+        "weights": {
+          "600003": 1.0
+        },
+        "reasons": {
+          "600003": "fast_mean_above_slow_mean"
+        }
+      },
+      {
+        "day": "2020-02-03",
+        "weights": null,
+        "reasons": null
+      },
+      {
+        "day": "2020-02-04",
+        "weights": null,
+        "reasons": null
+      }
+    ],
+    "trades": [
+      {
+        "symbol": "600003",
+        "side": "buy",
+        "trade_date": "2020-02-03",
+        "shares": "9000",
+        "price": "11",
+        "gross_amount": "99000",
+        "commission": "24.75",
+        "stamp_duty": "0",
+        "status": "filled",
+        "reason": null,
+        "transfer_fee": "1.98"
+      }
+    ],
+    "metrics": {
+      "initial_equity": 100000.0,
+      "final_equity": 108973.27,
+      "total_return": 0.08973270000000011,
+      "cagr": 2556.295761992057,
+      "annualized_volatility": 1.0135180408434443,
+      "sharpe": 11.158510985201609,
+      "max_drawdown": -0.00026729999999997034,
+      "observations": 3
+    }
+  }
+]

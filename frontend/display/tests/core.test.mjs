@@ -69,3 +69,31 @@ test('the core exposes execution availability and invalidates it on edit',async(
  await core.dispatch(action('invoke','check'));assert.equal(core.snapshot().targets.form.operations.save.available,true);
  await core.dispatch(action('edit',undefined,{field:'changed'}));assert.equal(core.snapshot().targets.form.operations.save.available,false);
 });
+
+test('response messages and values share one owned immutable payload',async()=>{
+ const payload={rows:[{equity:120}]};
+ const core=createDisplay({...options,backend:{send:async r=>[msg(r,payload)]}});
+ await core.dispatch(action('invoke','find'));
+ const slot=core.snapshot().targets.form;
+ assert.strictEqual(slot.messages[0].data,slot.values.find[0]);
+ assert.notStrictEqual(slot.messages[0].data,payload);
+ assert.throws(()=>{slot.values.find[0].rows[0].equity=0});
+ payload.rows[0].equity=0;
+ assert.equal(slot.messages[0].data.rows[0].equity,120);
+ core.dispose();
+});
+
+test('editing another target does not traverse the loaded archive again',async()=>{
+ const core=createDisplay({...options,backend:{send:async r=>[msg(r,{rows:[{equity:120}]})]}});
+ await core.dispatch(action('invoke','find'));
+ const archived=core.snapshot().targets.form;
+ const nodes=new Set([archived,archived.values,archived.values.find[0],archived.values.find[0].rows]);
+ const values=Object.values;
+ let visits=0;
+ Object.values=function(value){if(nodes.has(value))visits++;return values(value)};
+ try{
+  await core.dispatch({...action('edit',undefined,{query:'changed'}),target:'search'});
+ }finally{Object.values=values;core.dispose()}
+ assert.equal(visits,0);
+ assert.equal(archived.values.find[0].rows[0].equity,120);
+});

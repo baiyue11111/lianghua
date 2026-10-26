@@ -1,0 +1,71 @@
+{
+  "module": "plugins.strategies.momentum_risk",
+  "params": {
+    "positions": 100,
+    "momentum_window": 20,
+    "skip_window": 0,
+    "volatility_window": 60,
+    "target_volatility": 0.3,
+    "allocation": "inverse_vol",
+    "ranking": "reversal",
+    "trend_window": 60,
+    "rebalance_period": "weekly",
+    "breadth_min": 0.4,
+    "trim": 0.2
+  },
+  "dataset_id": "cn_a",
+  "market": {
+    "scope": "CN_A_SH_SZ"
+  },
+  "initial_cash": "1000000",
+  "intervals": [
+    {
+      "name": "2022-2026",
+      "start": "2022-01-01",
+      "end": "2026-10-13"
+    },
+    {
+      "name": "2018-2021",
+      "start": "2018-01-01",
+      "end": "2021-12-31"
+    },
+    {
+      "name": "2014-2017",
+      "start": "2014-01-01",
+      "end": "2017-12-31"
+    }
+  ],
+  "execution": {
+    "price": {
+      "model": "ratio",
+      "params": {
+        "rate": "0.001",
+        "tick": "0.01"
+      }
+    },
+    "quantity": {
+      "model": "capacity",
+      "params": {}
+    },
+    "fees": {
+      "model": "dated",
+      "params": {
+        "rounding": "none"
+      }
+    },
+    "tax": {
+      "model": "none",
+      "params": {}
+    },
+    "check": {
+      "model": "cn_a_share",
+      "params": {
+        "tick": "0.01",
+        "min_qty": 100,
+        "step": 100
+      }
+    }
+  },
+  "accounting": "research",
+  "benchmark_id": "hs300"
+}

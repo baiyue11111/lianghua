@@ -585,8 +585,15 @@ def _load_dataset(data, query):
            if name in manifest.get('fields',{})}
     missing=set(query.fields)-provided-set(extra)
     if missing: raise ValueError('unsupported_fields: '+', '.join(sorted(missing)))
+    daily_extra={name:spec for name,spec in extra.items()
+                 if isinstance(spec,dict) and set(spec)=={'column','unit'}}
+    facts_extra={name:spec for name,spec in extra.items()
+                 if isinstance(spec,dict) and set(spec)=={'source','file','code','effective','known','column','unit'}
+                 and spec.get('source')=='facts'}
+    if set(daily_extra)|set(facts_extra)!=set(extra):
+        raise ValueError('declared numeric field binding is invalid')
     for name,spec in extra.items():
-        if (set(spec)!={'column','unit'} or any(not isinstance(spec[key],str) or not spec[key].strip() for key in spec)):
+        if any(not isinstance(value,str) or not value.strip() for value in spec.values()):
             raise ValueError('declared numeric field column and unit required: '+name)
 
     refs=manifest['files']
@@ -602,6 +609,9 @@ def _load_dataset(data, query):
         if ref['file'] in bound_names:
             raise ValueError('duplicate historical evidence file')
         bound_names.add(ref['file'])
+    for name,spec in facts_extra.items():
+        if spec['file'] not in bound_names or not spec['file'].endswith('.parquet'):
+            raise ValueError(f'declared fact file must be a Parquet evidence reference: {name}')
     def evidence(name):
         path, _, _ = source_ref(name)
         if str(path) not in hashes:
@@ -701,26 +711,11 @@ def _load_dataset(data, query):
         market_files[str(path)]=digest
         return payload
     def list_files(directory, pattern):
-        shared=shared_ref(directory)
-        if shared is not None:
-            identity,relative=shared
-            prefix=relative.rstrip('/')+'/' if relative else ''
-            return tuple(data.path('sources',identity,ref.name)
-                         for ref in data.list('sources',identity)
-                         if ref.name.startswith(prefix)
-                         and ref.name.endswith(pattern.removeprefix('*')))
-        for identity, root in external_roots.items():
-            if Path(directory).is_relative_to(root):
-                prefix=Path(directory).relative_to(root).as_posix().rstrip('/')+'/'
-                return tuple(data.path('sources',identity,ref.name)
-                             for ref in data.list('sources',identity)
-                             if ref.name.startswith(prefix)
-                             and ref.name.endswith(pattern.removeprefix('*')))
-        prefix=Path(directory).relative_to(folder).as_posix().rstrip('/')+'/'
-        return tuple(data.path('sources',dataset_id,ref.name)
-                     for ref in data.list('sources',dataset_id)
-                     if ref.name.startswith(prefix)
-                     and ref.name.endswith(pattern.removeprefix('*')))
+        # The published manifest owns the snapshot; hash only the selected inputs.
+        root=Path(directory)
+        return tuple(path for name in bound_names
+                     if (path:=source_ref(name)[0]).is_relative_to(root)
+                     and path.match(pattern))
     selected_symbols=(declared if requested_ids is None and declared else
                       None if requested_ids is None else
                       tuple(symbol.split('.')[-1] for symbol in requested_ids))
@@ -750,7 +745,7 @@ def _load_dataset(data, query):
     # Each requested code/year cache is explicit evidence, including successful empty results.
     coverage_template=inputs['distributions']['template']
     source_events={}; query_keys=set(); observations=[]; facts={}
-    selected_codes=tuple(panel.symbols)
+    selected_codes=tuple(panel.symbols) if query.accounting == 'account' else ()
     for code in selected_codes:
       for year in range(read_start.year, actual_end.year + 1):
         name=coverage_template.format(symbol=normalize_security_id(code),year=year)
@@ -773,7 +768,12 @@ def _load_dataset(data, query):
                 observations.append((source,distribution_id,event))
                 source_events[(name,row)]=(event,hashes[str(path)])
                 cash_only=(event.stock_dividend_per_share == 0 and event.reserve_to_stock_per_share == 0)
-                if cash_only:
+                if query.tax == 'none':
+                    # Research holds a valued share claim until its sourced tradable date.
+                    credit = None if cash_only else event.stock_market_date.isoformat()
+                    facts[(code,distribution_id)]=((credit,None,None),
+                        [(hashes[str(path)],hashes[str(path)])])
+                elif cash_only:
                     facts[(code,distribution_id)]=((None,Decimal('1'),Decimal('0')),
                         [(hashes[str(path)],hashes[str(path)])])
                 else:
@@ -791,13 +791,14 @@ def _load_dataset(data, query):
                                 raise ValueError('noncash corporate action credit date is invalid')
                             if not isinstance(credit_source,str) or not credit_source.strip():
                                 raise ValueError('noncash corporate action requires a credit source file')
-                            terms=(item.get('credit_date'),Decimal(item['stock_nominal_per_share']),
+                            terms=(credit_date,Decimal(item['stock_nominal_per_share']),
                                    Decimal(item['reserve_taxable_per_share']))
-                            facts[(code,distribution_id)]=(terms,[(hashes[str(path)],hashes[str(evidence(item['tax_source_file']))])])
+                            tax_source=hashes[str(evidence(item['tax_source_file']))]
+                            facts[(code,distribution_id)]=(terms,[(hashes[str(path)],tax_source)])
                             market_evidence(credit_source)
                             break
                     if (code,distribution_id) not in facts:
-                        raise ValueError('noncash corporate action requires sourced credit and tax facts')
+                        raise ValueError(f'{name}, record {row}: noncash corporate action requires sourced credit and tax facts')
     policy_file=evidence(policy_name)
     policy=json.loads(read(policy_name))
     if policy['schema']!=1 or policy['investor']!='domestic_individual_unrestricted_a_share':
@@ -809,7 +810,7 @@ def _load_dataset(data, query):
     policy_hash=hashes[str(policy_file)]
     fees=FeePolicy.from_mapping(policy['fees'],policy_hash)
     taxes=TaxPolicy.from_mapping(policy['tax'],policy_hash)
-    if start<taxes.effective: raise ValueError('requested start precedes supported tax effective date')
+    if query.tax == 'fifo' and start<taxes.effective: raise ValueError('requested start precedes supported tax effective date')
     matched={}
     day_inputs={day:[] for day in calendar[:-1]}
     for action in reconcile_corporate_actions(observations,{code:code for code in selected_codes}):
@@ -820,78 +821,148 @@ def _load_dataset(data, query):
         event=replace(action.event,code=output_code)
         source_hash=canonical_hash({'observations':[source for source,_ in action.observations],'sources':sources})
         tax_hash=canonical_hash({'sources':sources,'policy':policy_hash})
-        TaxLedger(taxes).register(action.distribution_id,event,nominal,reserve,tax_hash,
+        TaxLedger(taxes, enabled=query.tax == 'fifo').register(action.distribution_id,event,nominal,reserve,tax_hash,
             credit_date=None if credit is None else date.fromisoformat(credit))
         day_inputs[event.registration_date].append(RegistrationAction(action.distribution_id,event,source_hash,
-            None if credit is None else date.fromisoformat(credit),nominal,reserve,tax_hash))
+            None if credit is None else date.fromisoformat(credit),nominal,reserve,tax_hash if query.tax == 'fifo' else None))
     field_data={}
     if extra:
         import pyarrow as pa
         import pyarrow.parquet as pq
-        refs=tuple(ref for ref in refs_under(bars_dir) if ref.name.endswith('.parquet'))
-        files=tuple(source_ref(ref_name(bars_dir,ref.name))[0] for ref in refs)
-        selected_paths=set(_parquet_paths_for_dates(files,panel.calendar[0],panel.calendar[-1]))
-        columns=['code','date',*sorted({spec['column'] for spec in extra.values()})]
-        paths=[]
-        for ref in refs:
-            file_name=ref_name(bars_dir, ref.name)
-            path,_,_=source_ref(file_name)
-            if path not in selected_paths:
-                continue
-            market_evidence(file_name)
-            parquet=pq.ParquetFile(path)
-            schema=parquet.schema_arrow
-            for name,spec in extra.items():
-                if spec['column'] not in schema.names:
-                    raise ValueError('declared field column missing: '+name)
-                kind=schema.field(spec['column']).type
-                if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
-                    raise ValueError('declared field column must be numeric: '+name)
-            paths.append(str(path))
-        code_filter=''
-        params=[paths]
-        if panel.symbols:
-            code_filter=' WHERE code IN (SELECT * FROM UNNEST(?))'
-            params.append(list(panel.symbols))
-        date_filter=' AND ' if code_filter else ' WHERE '
-        date_filter+='CAST(date AS DATE) BETWEEN ? AND ?'
-        params.extend((panel.calendar[0],panel.calendar[-1]))
-        connection=duckdb.connect()
-        try:
-            table=connection.execute(
-                'SELECT '+', '.join(columns)+' FROM read_parquet(?)'+code_filter+date_filter,
-                params).to_arrow_table()
-        finally:
-            connection.close()
-        codes={normalize_security_id(symbol):i for i,symbol in enumerate(panel.symbols)}
-        dates={day:j for j,day in enumerate(panel.calendar)}
         field_data={name:np.full(panel.raw_close.shape,np.nan) for name in extra}
-        seen=set()
-        for row in table.to_pylist():
-            code=normalize_security_id(str(row['code'])); raw_day=row['date']
-            day=raw_day if isinstance(raw_day,date) else date.fromisoformat(raw_day)
-            if code not in codes or day not in dates:
-                raise ValueError('numeric field row outside selected price scope')
-            identity=(code,day)
-            if identity in seen: raise ValueError('duplicate numeric field security/date')
-            seen.add(identity)
-            i,j=codes[code],dates[day]
-            for name,spec in extra.items():
-                value=row[spec['column']]
-                if value is None or not np.isfinite(float(value)): raise ValueError(f'numeric field missing/nonfinite: {name}, {code}, {day}')
-                field_data[name][i,j]=float(value)
-        for name,values in field_data.items():
-            selected=list(range(len(panel.symbols)))
-            if np.any(np.isfinite(panel.raw_close[selected])&~np.isfinite(values[selected])):
-                raise ValueError('numeric field lacks aligned observed price rows: '+name)
+        if daily_extra:
+            refs=tuple(ref for ref in refs_under(bars_dir) if ref.name.endswith('.parquet'))
+            files=tuple(source_ref(ref_name(bars_dir,ref.name))[0] for ref in refs)
+            selected_paths=set(_parquet_paths_for_dates(files,panel.calendar[0],panel.calendar[-1]))
+            columns=['code','date',*sorted({spec['column'] for spec in daily_extra.values()})]
+            paths=[]
+            for ref in refs:
+                file_name=ref_name(bars_dir, ref.name)
+                path,_,_=source_ref(file_name)
+                if path not in selected_paths:
+                    continue
+                market_evidence(file_name)
+                schema=pq.ParquetFile(path).schema_arrow
+                for name,spec in daily_extra.items():
+                    if spec['column'] not in schema.names:
+                        raise ValueError('declared field column missing: '+name)
+                    kind=schema.field(spec['column']).type
+                    if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
+                        raise ValueError('declared field column must be numeric: '+name)
+                paths.append(str(path))
+            if not paths:
+                raise ValueError('declared daily field has no Parquet source: '+', '.join(daily_extra))
+            code_filter=' WHERE code IN (SELECT * FROM UNNEST(?))' if panel.symbols else ''
+            params=[paths]
+            if panel.symbols: params.append(list(panel.symbols))
+            date_filter=' AND ' if code_filter else ' WHERE '
+            date_filter+='CAST(date AS DATE) BETWEEN ? AND ?'
+            params.extend((panel.calendar[0],panel.calendar[-1]))
+            connection=duckdb.connect()
+            try:
+                table=connection.execute('SELECT '+', '.join(columns)+' FROM read_parquet(?)'+code_filter+date_filter,params).to_arrow_table()
+            finally:
+                connection.close()
+            codes={normalize_security_id(symbol):i for i,symbol in enumerate(panel.symbols)}
+            dates={day:j for j,day in enumerate(panel.calendar)}
+            seen=set()
+            for row in table.to_pylist():
+                code=normalize_security_id(str(row['code'])); raw_day=row['date']
+                day=raw_day if isinstance(raw_day,date) else date.fromisoformat(raw_day)
+                if code not in codes or day not in dates: raise ValueError('numeric field row outside selected price scope')
+                identity=(code,day)
+                if identity in seen: raise ValueError('duplicate numeric field security/date')
+                seen.add(identity); i,j=codes[code],dates[day]
+                for name,spec in daily_extra.items():
+                    value=row[spec['column']]
+                    if value is None or not np.isfinite(float(value)): raise ValueError(f'numeric field missing/nonfinite: {name}, {code}, {day}')
+                    field_data[name][i,j]=float(value)
+            for name in daily_extra:
+                if np.any(np.isfinite(panel.raw_close)&~np.isfinite(field_data[name])):
+                    raise ValueError('numeric field lacks aligned observed price rows: '+name)
+        if facts_extra:
+            from plugins.data import Adapter
+            grouped={}
+            for name,spec in facts_extra.items(): grouped.setdefault(spec['file'],[]).append(name)
+            fact_rows={name:[] for name in facts_extra}
+            codes={normalize_security_id(symbol):i for i,symbol in enumerate(panel.symbols)}
+            ids=list(codes)
+            aliases=ids+[code.split('.')[-1] for code in ids]
+            for file_name,names in grouped.items():
+                path,_,_=source_ref(file_name); market_evidence(file_name)
+                schema=pq.ParquetFile(path).schema_arrow
+                columns=set()
+                for name in names:
+                    spec=facts_extra[name]
+                    columns.update((spec['code'],spec['effective'],spec['known'],spec['column']))
+                    for key in ('code','effective','known','column'):
+                        if spec[key] not in schema.names: raise ValueError(f'declared fact column missing: {name}, {key}')
+                    kind=schema.field(spec['column']).type
+                    if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
+                        raise ValueError('declared fact column must be numeric: '+name)
+                selected=['"'+column.replace('"','""')+'"' for column in sorted(columns)]
+                code_columns=sorted({facts_extra[name]['code'] for name in names})
+                predicate=' OR '.join('"'+column.replace('"','""')+'" IN (SELECT * FROM UNNEST(?))'
+                                      for column in code_columns)
+                connection=duckdb.connect()
+                try:
+                    table=connection.execute('SELECT '+', '.join(selected)+' FROM read_parquet(?) WHERE '+predicate,
+                        [[str(path)], *[aliases for _ in code_columns]]).to_arrow_table()
+                finally:
+                    connection.close()
+                for row in table.to_pylist():
+                    for name in names:
+                        raw_code=row[facts_extra[name]['code']]
+                        if raw_code is None: continue
+                        code=normalize_security_id(str(raw_code))
+                        if code not in codes: continue
+                        value=row[facts_extra[name]['column']]
+                        if value is not None and not np.isfinite(float(value)):
+                            raise ValueError(f'numeric fact is nonfinite: {name}, {code}')
+                        fact_rows[name].append(dict(row, **{facts_extra[name]['code']:code}))
+            lookup=Adapter.facts({name:{**spec,'type':'number'} for name,spec in facts_extra.items()},fact_rows)
+            for column,day in enumerate(panel.calendar):
+                cutoff=datetime.combine(day,time(15),tzinfo=ZoneInfo('Asia/Shanghai'))
+                for symbol,row in codes.items():
+                    for name in facts_extra:
+                        value=lookup(name,symbol,day,cutoff)
+                        if value is not None:
+                            try: number=float(value)
+                            except (TypeError,ValueError,OverflowError) as error:
+                                raise ValueError(f'numeric fact is invalid: {name}, {symbol}, {day}') from error
+                            if not np.isfinite(number): raise ValueError(f'numeric fact is nonfinite: {name}, {symbol}, {day}')
+                            field_data[name][row,column]=number
     if query.symbols is not None:
         rows={normalize_security_id(symbol):index for index,symbol in enumerate(panel.symbols)}
-        order=tuple(rows[identity] for identity in requested_ids)
+        absent=[identity for identity in requested_ids if identity not in rows]
+        if absent and query.accounting != 'research':
+            raise ValueError('securities without observations in requested interval: '+', '.join(absent))
+        quality={'missing_prices':[],'outside_period':[],'renamed_aliases':[]}
+        changes=json.loads(read(changes_name))['events'] if absent else []
+        for identity in absent:
+            name=securities['template'].format(symbol=identity)
+            market_evidence(name)
+            records,_=validate_facts(json.loads(read(name)),kind='security',code=identity,start=None,end=None,year=None)
+            stock=records[0]
+            if stock['listing_date']>actual_end.isoformat() or stock['delisting_date'] and stock['delisting_date']<read_start.isoformat():
+                category='outside_period'
+            elif any(c['old_code']==identity.split('.')[-1] and c['factor_basis_continuity_verified']
+                     and normalize_security_id(c['new_code']) in rows for c in changes):
+                category='renamed_aliases'
+            else:
+                category='missing_prices'
+            quality[category].append(query.symbols[requested_ids.index(identity)])
+        scope['data_quality']=quality
+        order=tuple(rows.get(identity) for identity in requested_ids)
         output_symbols=tuple(query.symbols)
         output_by_id=dict(zip(requested_ids,output_symbols))
-        reorder=lambda values: values[list(order),:]
+        def reorder(values):
+            output=np.full((len(order),values.shape[1]),False if values.dtype==bool else np.nan,dtype=values.dtype)
+            for index,old in enumerate(order):
+                if old is not None:output[index]=values[old]
+            return output
         panel=replace(panel,symbols=output_symbols,
-            names=tuple(panel.names[index] for index in order),
+            names=tuple(panel.names[index] if index is not None else symbol for symbol,index in zip(output_symbols,order)),
             raw_open=reorder(panel.raw_open),raw_high=reorder(panel.raw_high),
             raw_low=reorder(panel.raw_low),raw_close=reorder(panel.raw_close),
             volume=reorder(panel.volume),amount=reorder(panel.amount),
@@ -925,8 +996,8 @@ def _load_dataset(data, query):
                 raise ValueError(f'source evidence became available after query cutoff: {name}')
         if not any(factor_dir in name for name in names_by_path.values()):
             raise ValueError('point-in-time query requires factor availability evidence')
-    data_hash=canonical_hash({'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],
-        'inputs':inputs,'price_basis':'backward-factor-signal-index','fields':manifest.get('fields',{})})
+    data_hash=canonical_hash({'accounting':query.accounting,'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],
+        'tax':query.tax,'inputs':inputs,'price_basis':'backward-factor-signal-index','fields':manifest.get('fields',{})})
     return (panel, calendar, {day: tuple(actions) for day, actions in day_inputs.items()},
             hashes, data_hash, {'policy': policy, 'source_hash': policy_hash},
             canonical_hash({'files': account_files, 'facts': [
@@ -1124,6 +1195,8 @@ def _prepare_dataset(data, query):
             if panel.traded_bar[row, column]:
                 own_history[symbol].append(history_bar)
             fields[symbol] = selected
+            if query.accounting == 'research' and not panel.traded_bar[row,column]:
+                continue
             if any(values[name] is None for name in EXECUTION_FIELDS):
                 continue
             bars[symbol] = Bar(symbol, day, *(values[name] for name in EXECUTION_FIELDS))
@@ -1139,7 +1212,10 @@ def _prepare_dataset(data, query):
                 closing_volume20[symbol] = Decimal(str(volume_liquidity[row, column]))
         frame = MarketFrame(
             at, "CN_EQUITY", fields,
-            {"next_session": run_calendar[column + 1].isoformat()},
+            {"next_session": run_calendar[column + 1].isoformat(),
+             **({'back_factors':{s:str(panel.back_factor[r,column]) for r,s in enumerate(panel.symbols)
+                                if np.isfinite(panel.back_factor[r,column])}}
+                if query.accounting == 'research' else {})},
             {symbol: tuple(session_history[symbol]) for symbol in panel.symbols},
         )
         prepared.append(HistoryDay(
@@ -1155,6 +1231,13 @@ def _prepare_dataset(data, query):
         prepared, plugin_provenance = _apply_signal_plugins(prepared, plugins, query.start, query.end)
     provenance = {
         "source_hashes": hashes, "data_hash": data_hash,
+        "accounting":query.accounting,
+        "data_quality":scope.get('data_quality',{}),
+        "position_unit":"adjusted_units" if query.accounting == 'research' else "shares",
+        "tax": query.tax, "return_basis": "pretax_adjusted_research_after_costs" if query.accounting == 'research' else
+            "pretax_after_costs" if query.tax == "none" else "after_personal_dividend_tax",
+        "share_accounting": "embedded_in_adjusted_returns" if query.accounting == 'research' else
+            "receivable_until_listing" if query.tax == "none" else "sourced_credit",
         "account_hash": account_hash, "state_start": calendar[0].isoformat(),
         "as_of": None if query.as_of is None else query.as_of.isoformat(),
         "query_semantics": "point_in_time" if query.as_of is not None else "snapshot_replay",

@@ -1,0 +1,107 @@
+[
+  {
+    "final_cash": "51498.90824",
+    "final_equity": "104298.90824",
+    "positions": {
+      "600000": "2200",
+      "600001": "2200"
+    },
+    "pending_orders": 0,
+    "equity": [
+      {
+        "day": "2020-01-31",
+        "cash": "100000",
+        "market_value": "0",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "100000",
+        "realized_pnl": "0",
+        "unrealized_pnl": "0",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-03",
+        "cash": "51498.90824",
+        "market_value": "48400",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "99898.90824",
+        "realized_pnl": "0",
+        "unrealized_pnl": "-101.09176",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-04",
+        "cash": "51498.90824",
+        "market_value": "52800",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "104298.90824",
+        "realized_pnl": "0",
+        "unrealized_pnl": "4298.90824",
+        "net_cash_income": "0"
+      }
+    ],
+    "targets": [
+      {
+        "day": "2020-01-31",
+        "weights": {
+          "600000": 0.25,
+          "600001": 0.25
+        },
+        "reasons": {
+          "600000": "low_amount_then_lowest_return",
+          "600001": "low_amount_then_lowest_return"
+        }
+      },
+      {
+        "day": "2020-02-03",
+        "weights": null,
+        "reasons": null
+      },
+      {
+        "day": "2020-02-04",
+        "weights": null,
+        "reasons": null
+      }
+    ],
+    "trades": [
+      {
+        "symbol": "600001",
+        "side": "buy",
+        "trade_date": "2020-02-03",
+        "shares": "2200",
+        "price": "11.02",
+        "gross_amount": "24244",
+        "commission": "6.061",
+        "stamp_duty": "0",
+        "status": "filled",
+        "reason": null,
+        "transfer_fee": "0.48488"
+      },
+      {
+        "symbol": "600000",
+        "side": "buy",
+        "trade_date": "2020-02-03",
+        "shares": "2200",
+        "price": "11.02",
+        "gross_amount": "24244",
+        "commission": "6.061",
+        "stamp_duty": "0",
+        "status": "filled",
+        "reason": null,
+        "transfer_fee": "0.48488"
+      }
+    ],
+    "metrics": {
+      "annualized_volatility": 0.5057460931876526,
+      "cagr": 45.684295196663435,
+      "final_equity": 104298.90824,
+      "initial_equity": 100000.0,
+      "max_drawdown": -0.0010109175999999387,
+      "observations": 3,
+      "sharpe": 10.72125846162705,
+      "total_return": 0.0429890824000001
+    }
+  }
+]

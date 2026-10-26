@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
 from bisect import bisect_right
@@ -21,12 +22,15 @@ _MARKET_OPS = {"eq", "ne", "gt", "gte", "lt", "lte", "in", "between"}
 
 
 def _known_at(value):
-    if not isinstance(value, str):
+    if isinstance(value, datetime):
+        result = value
+    elif isinstance(value, str):
+        try:
+            result = datetime.fromisoformat(value)
+        except ValueError as error:
+            raise ValueError("market known_at must include date and time") from error
+    else:
         raise ValueError("market known_at must be an explicit timestamp")
-    try:
-        result = datetime.fromisoformat(value)
-    except ValueError as error:
-        raise ValueError("market known_at must include date and time") from error
     if result.tzinfo is None or result.utcoffset() is None:
         raise ValueError("market known_at must include a timezone")
     return result
@@ -35,6 +39,10 @@ def _known_at(value):
 def _effective(value):
     if isinstance(value, date) and not isinstance(value, datetime):
         return value
+    if isinstance(value, datetime):
+        if value.tzinfo is not None and value.utcoffset() is None:
+            raise ValueError("market effective date is invalid")
+        return value.date()
     if isinstance(value, str):
         try:
             if len(value) == 10:
@@ -46,6 +54,51 @@ def _effective(value):
         except ValueError:
             pass
     raise ValueError("market effective date is invalid")
+
+
+def _fact_lookup(fields, fact_rows):
+    index = {}
+    dates = {}
+    seen = set()
+    for field, spec in fields.items():
+        if spec.get("source") != "facts":
+            continue
+        for row in fact_rows.get(field, ()):
+            if not isinstance(row, Mapping):
+                raise ValueError("market fact row is invalid")
+            try:
+                code = row[spec["code"]]
+                if not isinstance(code, str) or not code:
+                    raise ValueError("market fact code is invalid")
+                effective = _effective(row[spec["effective"]])
+                known = _known_at(row[spec["known"]])
+                value = row[spec["column"]]
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(f"market fact columns are invalid: {field}") from error
+            key = (field, code)
+            records = index.setdefault(key, [])
+            identity = (effective, known)
+            full_identity = (field, code, effective, known)
+            if full_identity in seen:
+                raise ValueError(f"duplicate market fact identity: {field}, {code}")
+            seen.add(full_identity)
+            records.append((effective, known, value))
+    for key, records in index.items():
+        records.sort(key=lambda item: (item[0], item[1]))
+        dates[key] = tuple(item[0] for item in records)
+
+    def lookup(field, code, day, cutoff):
+        key = (field, code)
+        records = index.get(key, ())
+        position = bisect_right(dates.get(key, ()), day) - 1
+        while position >= 0:
+            effective, known, value = records[position]
+            if known <= cutoff:
+                return value
+            position -= 1
+        return None
+
+    return lookup
 
 
 def _market_value(value, kind):
@@ -147,19 +200,7 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
     for key, records in daily_index.items():
         records.sort(key=lambda item: item[0])
         daily_dates[key] = tuple(item[0] for item in records)
-    fact_index = {}
-    for field_name, spec in fields.items():
-        if spec.get("source") != "facts":
-            continue
-        for row in fact_rows.get(field_name, ()):
-            code = row.get(spec.get("code"))
-            fact_index.setdefault((field_name, code), []).append(
-                (_effective(row.get(spec.get("effective"))),
-                 _known_at(row.get(spec.get("known"))), row.get(spec.get("column"))))
-    fact_effective = {}
-    for key, records in fact_index.items():
-        records.sort(key=lambda item: (item[0], item[1]))
-        fact_effective[key] = tuple(item[0] for item in records)
+    fact_value_index = Adapter.facts(fields, fact_rows)
     conditions = selection.get("filters", ())
     for condition in conditions:
         spec = fields.get(condition["field"])
@@ -218,16 +259,7 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
                     return value
                 position -= 1
             return None
-        key = (field, code)
-        records = fact_index.get(key, ())
-        position = bisect_right(fact_effective.get(key, ()), day) - 1
-        best = None
-        while position >= 0:
-            item = records[position]
-            if item[1] <= cutoff and (best is None or item[:2] > best[:2]):
-                best = item
-            position -= 1
-        return None if best is None else best[2]
+        return fact_value_index(field, code, day, cutoff)
 
     def for_time(day, cutoff):
         candidates = set(codes if codes is not None else symbols)
@@ -563,6 +595,10 @@ class Adapter:
         return _resolve_eligible(market, registry, days, symbols, daily_values,
                                  membership_rows, fact_rows)
 
+    @staticmethod
+    def facts(fields, fact_rows):
+        return _fact_lookup(fields, fact_rows)
+
     @classmethod
     def market(cls, data, query, dataset):
         return _prepare_market(data, query, dataset)
@@ -807,13 +843,19 @@ class Settlement:
                 for key, item in value.items()} if isinstance(value, Mapping) else value
 
     @classmethod
-    def resolve(cls, *, limits=None, execution=None):
+    def resolve(cls, *, limits=None, execution=None, accounting='account'):
         from core.calculation import AllocationLimits
         from protocol import _limits, validate_execution
 
+        if accounting not in {'account','research'}:
+            raise ValueError('unsupported accounting model')
         if execution is None:
             execution = cls._copy(cls.DEFAULT_EXECUTION)
+            if accounting == 'research':
+                execution['tax']={'model':'none','params':{}}
         execution = validate_execution(execution)
+        if accounting == 'research' and execution['tax']['model'] != 'none':
+            raise ValueError('research accounting requires tax model none')
         step = execution["check"]["params"]["step"]
         if limits is None:
             limits = AllocationLimits(lot_size=step)
@@ -839,17 +881,19 @@ class Settlement:
                             "stock_weight": limits.stock_weight,
                             "adv_fraction": limits.adv_fraction},
                 "execution": execution,
+                **({'accounting':'research'} if overrides.get('accounting') == 'research' else {}),
             },
         }
 
-    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, execution=None):
+    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, execution=None, accounting='account'):
         from core.calculation import (AccountExecutionSession, AccountLedger,
                                       AccountDistributionLedger, AllocationLimits, TradeRules)
 
-        limits, execution = self.resolve(limits=limits, execution=execution)
+        limits, execution = self.resolve(limits=limits, execution=execution,accounting=accounting)
 
         self.limits = limits
         self.trade_rules = TradeRules(execution, fees, tax_policy)
+        self._research = ResearchBook(initial_cash,self.trade_rules,limits) if accounting == 'research' else None
         self.account = AccountLedger(initial_cash)
         self.execution = AccountExecutionSession(self.account, self.trade_rules)
         self.distributions = AccountDistributionLedger(self.account)
@@ -870,10 +914,14 @@ class Settlement:
         self._sealed = False
 
     @staticmethod
-    def validate_dataset(dataset, request, *, limits=None, execution=None):
+    def validate_dataset(dataset, request, *, limits=None, execution=None, accounting='account'):
         from core.calculation import TradeRules
 
-        limits, execution = Settlement.resolve(limits=limits, execution=execution)
+        limits, execution = Settlement.resolve(limits=limits, execution=execution,accounting=accounting)
+        if dataset.provenance.get('accounting','account') != accounting:
+            raise ValueError('dataset accounting model does not match settlement')
+        if dataset.provenance.get("tax", "fifo") != execution["tax"]["model"]:
+            raise ValueError("dataset tax model does not match settlement")
         market = dataset.scope.get("market")
         if isinstance(market, Mapping) and market.get("execution") != execution["check"]["model"]:
             raise ValueError("market execution readiness does not match settlement")
@@ -882,7 +930,7 @@ class Settlement:
 
     @property
     def cash(self):
-        return self.account.cash
+        return self.account.cash if self._research is None else self._research.cash
 
     @property
     def lots(self):
@@ -946,6 +994,8 @@ class Settlement:
         return RegistrationRecord(action, claim, tuple(deliveries))
 
     def _apply(self, record, following, trade_start=None):
+        if self._research is not None:
+            return self._research.apply(record,following,trade_start)
         from dataclasses import replace
         from decimal import Decimal
         from protocol import AccountSnapshot
@@ -1001,7 +1051,7 @@ class Settlement:
                 action.event,
                 action.stock_nominal,
                 action.reserve_taxable,
-                action.tax_source_sha256,
+                action.tax_source_sha256 if self.trade_rules.tax_config['model'] == 'fifo' else action.source_sha256,
                 credit_date=action.share_credit_date,
             )
         actual = {}
@@ -1035,6 +1085,8 @@ class Settlement:
             raise
 
     def _plan(self, target, strategy_id):
+        if self._research is not None:
+            return self._research.plan(target,strategy_id)
         from protocol import TargetSet
         from dataclasses import replace
 
@@ -1068,6 +1120,8 @@ class Settlement:
         return plan
 
     def result(self):
+        if self._research is not None:
+            return self._research.result()
         return HistoryResult(
             tuple(self.frames),
             tuple(self.targets),
@@ -1086,3 +1140,113 @@ class Settlement:
             tuple(self.taxes.pending.values()),
             self.taxes.lots,
         )
+
+
+@dataclass(frozen=True)
+class ResearchPosition:
+    symbol: str
+    shares: Decimal
+
+
+class ResearchBook:
+    """Adjusted investment units, next-open raw execution and costs; no dividend ledger."""
+
+    def __init__(self,cash,rules,limits):
+        self.cash=self.initial=cash
+        self.rules,self.limits=rules,limits
+        self.units,self.basis,self.marks,self.raw,self.factors,self.liquidity={},{},{},{},{},{}
+        self.target=self.current=None
+        self.following=None
+        self.realized=Decimal(0)
+        self.frames,self.targets,self.allocations,self.orders,self.fills,self.points,self.holdings=[],[],[],[],[],[],[]
+
+    def apply(self,record,following,trade_start=None):
+        from dataclasses import replace
+        from core.calculation import AccountPoint
+        from protocol import AccountSnapshot,Fill,Side
+        if self.current is not None or following<=record.trade_date or self.following is not None and record.trade_date!=self.following:
+            raise ValueError('research sessions require one chronological apply/plan pair')
+        if record.registrations:
+            raise ValueError('research data must not include account distributions')
+        factors={s:Decimal(v) for s,v in record.frame.context['back_factors'].items()}
+        if any(not v.is_finite() or v<=0 for v in factors.values()):
+            raise ValueError('research adjustment factors must be finite and positive')
+        self.factors.update(factors)
+        self.liquidity.update(record.opening_amount20)
+        self.raw.update(record.opening_marks)
+        self.marks.update({s:p*factors[s] for s,p in record.opening_marks.items()})
+        if self.target is not None:
+            equity=self.cash+sum((u*self.marks[s] for s,u in self.units.items()),Decimal(0))
+            shares={s:(u*self.factors[s]).quantize(Decimal('1e-12')) for s,u in self.units.items()}
+            positions={s:int(q) for s,q in shares.items()}
+            plan=self.rules.allocate(self.target,next_session=record.trade_date,equity=equity,
+                holdings=positions,raw_closes=self.raw,amount20=self.liquidity,limits=self.limits)
+            self.allocations.append(plan)
+            for order in plan.orders:
+                self.orders.append(order)
+                symbol=order.symbol;bar=record.bars.get(symbol)
+                if bar is None or record.opening_eligible is not None and symbol not in record.opening_eligible:
+                    self.fills.append(Fill(order.order_id,symbol,order.side,record.trade_date,0,0,0,0,0,'rejected','no_tradable_bar'))
+                    continue
+                reference=float(self.marks[symbol]/factors[symbol])
+                price=self.rules.price(order,bar,order.requested_shares,reference,volume20=record.opening_volume20.get(symbol))
+                quantity=self.rules.quantity(order,bar,price=price,cash=self.cash,positions=positions,
+                    sellable=positions,reserve=Decimal(0),previous_close=reference,volume20=record.opening_volume20.get(symbol))
+                quantity=min(quantity,int(bar.volume))
+                price=self.rules.price(order,bar,quantity,reference,volume20=record.opening_volume20.get(symbol))
+                reason=self.rules.check(order,bar,reference,price=price,quantity=quantity,positions=positions,sellable=positions)
+                if reason is None and not Decimal(str(bar.low))<=price<=Decimal(str(bar.high)):
+                    reason='outside_bar_range'
+                if reason:
+                    self.fills.append(Fill(order.order_id,symbol,order.side,record.trade_date,0,float(price),0,0,0,'rejected',reason))
+                    continue
+                gross=price*quantity
+                fees=self.rules.fees(gross,order.side,record.trade_date,symbol=symbol,shares=quantity)
+                cost=fees.commission+fees.stamp_duty+fees.transfer_fee
+                units=Decimal(quantity)/factors[symbol]
+                old=self.units.get(symbol,Decimal(0))
+                if order.side is Side.BUY:
+                    self.cash-=gross+cost
+                    self.units[symbol]=old+units
+                    self.basis[symbol]=self.basis.get(symbol,Decimal(0))+gross+cost
+                else:
+                    units=old*(Decimal(quantity)/shares[symbol])
+                    basis=self.basis[symbol]*(units/old)
+                    self.realized+=gross-cost-basis
+                    self.cash+=gross-cost
+                    self.units[symbol]=old-units
+                    self.basis[symbol]-=basis
+                if self.cash<0 or self.units[symbol]<0:
+                    raise ValueError('research execution exceeds cash or investment units')
+                if self.units[symbol]==0:
+                    del self.units[symbol];del self.basis[symbol]
+                self.fills.append(Fill(order.order_id,symbol,order.side,record.trade_date,quantity,float(price),float(gross),
+                    float(fees.commission),float(fees.stamp_duty),'filled',transfer_fee=float(fees.transfer_fee)))
+            self.target=None
+        self.raw.update(record.closing_marks)
+        self.marks.update({s:p*factors[s] for s,p in record.closing_marks.items()})
+        value=sum((u*self.marks[s] for s,u in self.units.items()),Decimal(0))
+        point=AccountPoint(record.trade_date,self.cash,value,Decimal(0),Decimal(0),self.cash+value,
+            self.realized,value-sum(self.basis.values(),Decimal(0)),Decimal(0))
+        active=trade_start is None or record.trade_date>=trade_start
+        frame=replace(record.frame,context={**record.frame.context,'trading':active,'next_session':following.isoformat()})
+        self.current=(frame,active);self.following=following
+        self.frames.append(replace(frame,fields={},history={},context={k:v for k,v in frame.context.items() if k!='back_factors'}))
+        self.points.append(point)
+        self.holdings.append((record.trade_date,tuple(ResearchPosition(s,u)
+            for s,u in self.units.items() if u>0)))
+        return frame,AccountSnapshot(frame.at,self.cash,point.equity,self.units,self.units)
+
+    def plan(self,target,strategy_id):
+        from protocol import TargetSet
+        if self.current is None:
+            raise ValueError('research apply is required before plan')
+        frame,active=self.current
+        if target is not None and (not isinstance(target,TargetSet) or target.source_id!=strategy_id or target.as_of!=frame.at):
+            raise ValueError('strategy target identity/time do not match decision')
+        self.target=target if active else None
+        self.targets.append(target);self.current=None
+
+    def result(self):
+        return HistoryResult(tuple(self.frames),tuple(self.targets),tuple(self.allocations),tuple(self.orders),tuple(self.fills),(),(),(),
+            tuple(self.points),tuple(self.holdings),(),(),(),(),(),())

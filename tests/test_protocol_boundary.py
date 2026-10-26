@@ -174,7 +174,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "backtest.strategies", "backtest.prepare", "backtest.run",
-            "cli.backtest", "collection.describe", "collection.inspect", "collection.run", "cli.ingest", "research.runs", "research.run", "research.benchmarks",
+            "cli.backtest", "collection.doctor", "collection.describe", "collection.inspect", "collection.run", "cli.ingest", "research.runs", "research.run", "research.benchmarks",
             "research.benchmark", "data.research_inputs", "collection.sources", "collection.sync",
             "collection.schedule", "collection.job", "collection.snapshot",
             "collection.evidence",
@@ -210,7 +210,8 @@ class ProtocolBoundaryTests(unittest.TestCase):
     def test_cli_backtest_uses_the_same_backtest_module_without_request_wrapper(self):
         from backend import CommandPort
 
-        backtests = Port({"run_id": "shared"})
+        backtests = Port({"run_id": "shared", "trades_total": 1,
+                          "trades": [{"symbol": "600009"}], "trace": {"frames": []}})
         with TemporaryDirectory() as root:
             path = Path(root) / "run.json"
             request = {
@@ -230,7 +231,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(result["run_id"], "shared")
         self.assertEqual(result["intervals"], [{
             "index": 1, "name": None, "run_id": "shared-interval-0001",
-            "result": {"run_id": "shared"},
+            "result": {"run_id": "shared", "trades_total": 1},
         }])
         self.assertEqual(backtests.calls, [("backtest.run", {
             "run_id": "shared-interval-0001",
