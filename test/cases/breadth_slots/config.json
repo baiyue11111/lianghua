@@ -1,0 +1,66 @@
+{
+  "run_id": "case-breadth",
+  "module": "plugins.strategies.breadth_low_amount_reversal",
+  "params": {
+    "positions": 4,
+    "amount_quantile": 0.1,
+    "amount_floor": 50000000.0,
+    "entry_breadth": 0.6,
+    "exit_breadth": 0.45,
+    "trend_window": 120,
+    "return_window": 20,
+    "amount_window": 20,
+    "breadth_window": 5,
+    "entry_cadence": "month_end",
+    "sort_by": "return",
+    "sort_desc": false
+  },
+  "dataset_id": "fixture",
+  "market": {
+    "scope": "CN_A"
+  },
+  "initial_cash": "100000",
+  "accounting": "account",
+  "limits": {
+    "stock_weight": "1",
+    "adv_fraction": "0.01"
+  },
+  "execution": {
+    "price": {
+      "model": "ratio",
+      "params": {
+        "rate": "0.001",
+        "tick": "0.01"
+      }
+    },
+    "quantity": {
+      "model": "capacity",
+      "params": {}
+    },
+    "fees": {
+      "model": "dated",
+      "params": {
+        "rounding": "none"
+      }
+    },
+    "tax": {
+      "model": "fifo",
+      "params": {}
+    },
+    "check": {
+      "model": "cn_a_share",
+      "params": {
+        "tick": "0.01",
+        "min_qty": 100,
+        "step": 100
+      }
+    }
+  },
+  "intervals": [
+    {
+      "name": "case-breadth",
+      "start": "2020-01-31",
+      "end": "2020-02-04"
+    }
+  ]
+}

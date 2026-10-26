@@ -15,6 +15,43 @@ def hold_source_lock(root, ready, release):
 
 
 class DataStoreTest(unittest.TestCase):
+    def test_folder_query_keeps_names_and_hashes_without_reading_siblings(self):
+        from market import DataBus
+        from storage import DataStore
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = DataStore(Path(directory))
+            bus = DataBus(store)
+            for kind in ("state", "sources", "runs"):
+                expected = store.write(kind, "fixture", "jobs/nested/one.json", b"{}")
+                store.write(kind, "fixture", "raw/large.bin", b"unrelated")
+                with patch.object(store, "_ref", wraps=store._ref) as read:
+                    self.assertEqual(bus.list(kind, "fixture", "jobs"), (expected,))
+                    self.assertEqual(read.call_count, 1)
+                    self.assertEqual(read.call_args.args[2], "jobs/nested/one.json")
+                self.assertEqual(bus.list(kind, "fixture", "missing"), ())
+
+    def test_folder_query_rejects_escape_and_missing_identity(self):
+        from market import DataBus
+        from protocol import DataError
+        from storage import DataStore
+
+        with tempfile.TemporaryDirectory() as directory:
+            project = Path(directory)
+            store = DataStore(project)
+            store.write("state", "collect", "jobs/one.json", b"{}")
+            outside = project / "outside"
+            outside.mkdir()
+            store.path("state", "collect", "link").symlink_to(outside, target_is_directory=True)
+            for identity, folder in ((None, "jobs"), ("collect", "../outside"),
+                                     ("collect", str(outside)), ("collect", "link")):
+                with self.subTest(identity=identity, folder=folder):
+                    with self.assertRaises(ValueError):
+                        store.list("state", identity, folder)
+                    with self.assertRaises(DataError):
+                        DataBus(store).list("state", identity, folder)
+
     def test_one_root_reads_writes_and_lists_every_format(self):
         from storage import DataStore
 

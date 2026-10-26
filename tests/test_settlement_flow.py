@@ -18,8 +18,81 @@ from tests.settlement_fixture import SettlementFixture
 
 
 class SettlementFlowTests(unittest.TestCase):
+    def test_research_partial_sale_then_exit_does_not_create_rounding_positions(self):
+        from tests.fee_fixture import execution,fees
+        for factor in ('5.5813831068165','3.1','7','1.00137'):
+            with self.subTest(factor=factor):
+                config=execution();config['tax']['model']='none';config['price']['params']['rate']='0'
+                settlement=Settlement(D('100000'),fees(),tax_policy(),execution=config,accounting='research')
+                case=SettlementFixture()
+                for index,record in enumerate(case.inputs(exit_market=False)):
+                    frame=replace(record.frame,context={**record.frame.context,'back_factors':{'000001':factor}})
+                    bars={'000001':replace(record.bars['000001'],open=10,high=11,low=9,close=10)}
+                    record=replace(record,frame=frame,bars=bars,opening_marks={'000001':D(10)},
+                                   closing_marks={'000001':D(10)},registrations=())
+                    frame,_=settlement.apply(record,case.calendar[index+1])
+                    weights=({'000001':.02},{'000001':.015},{},None)[index]
+                    settlement.plan(None if weights is None else TargetSet('test',frame.at,weights),'test')
+                result=settlement.result()
+                self.assertEqual([fill.shares for fill in result.fills],[200,100,100])
+                self.assertEqual(result.holdings[-1][1],())
+                self.assertEqual(result.equity[-1].cash,D('99983'))
+
+    def test_research_uses_adjusted_units_and_raw_execution_without_distribution(self):
+        from tests.fee_fixture import execution,fees
+        config=execution();config['tax']={'model':'none','params':{}}
+        config['price']['params']['rate']='0'
+        settlement=Settlement(D('100000'),fees(),tax_policy(),execution=config,accounting='research')
+        records=list(SettlementFixture().inputs(exit_market=False))
+        points=[]
+        for index,record in enumerate(records):
+            factor=D(1) if index<2 else D(2)
+            bars={'000001':replace(record.bars['000001'],open=float(10/factor),
+                high=float(11/factor),low=float(9/factor),close=float(10/factor))}
+            frame=replace(record.frame,fields={'000001':{'close':float(10/factor),'signal_close':10.}},
+                          context={**record.frame.context,'back_factors':{'000001':str(factor)}})
+            record=replace(record,frame=frame,bars=bars,opening_marks={'000001':D(10)/factor},
+                closing_marks={'000001':D(10)/factor},registrations=())
+            frame,account=settlement.apply(record,SettlementFixture.calendar[index+1])
+            self.assertTrue(frame.fields)
+            points.append(account.equity)
+            settlement.plan(TargetSet('test',frame.at,{'000001':.2}) if index==0 else None,'test')
+        result=settlement.result()
+        self.assertEqual(points[1],points[2])
+        self.assertEqual(points[2],points[3])
+        self.assertLess(points[1],D('100000'))
+        self.assertEqual(len(result.fills),1)
+        self.assertEqual(result.fills[0].price,10)
+        self.assertEqual(result.distribution_postings,())
+        self.assertEqual(result.tax_payments,())
+        self.assertTrue(all(not frame.fields and not frame.history for frame in result.frames))
+
     def setUp(self):
         self.case = SettlementFixture()
+
+    def test_pretax_listing_credit_preserves_equity_before_tradability(self):
+        from tests.fee_fixture import execution, fees
+        from plugins.strategies.breadth_low_amount_reversal import Params, Strategy
+        results=[]
+        event=normalize_dividend_records([dict(code='000001',registration_date='2020-02-03',
+            operation_date='2020-02-04',payment_date='2020-02-05',stock_market_date='2020-02-05',
+            cash_per_share='.3',stock_dividend_per_share='.1',reserve_to_stock_per_share=0)])[0]
+        for credit in (date(2020,2,4),date(2020,2,5)):
+            config=execution();config['tax']={'model':'none','params':{}}
+            settlement=Settlement(D('100000'),fees(),tax_policy(),limits=AllocationLimits(),execution=config)
+            strategy=Strategy(Params(breadth_window=1))
+            records=list(self.case.inputs(exit_market=False))
+            records[1]=replace(records[1],registrations=(RegistrationAction('plan',event,'a'*64,
+                credit,None,None,None),))
+            for index,record in enumerate(records):
+                frame,account=settlement.apply(record,self.case.calendar[index+1])
+                settlement.plan(strategy.generate(frame,account),strategy.strategy_id)
+            results.append(settlement.result())
+        self.assertEqual([p.equity for p in results[0].equity],[p.equity for p in results[1].equity])
+        self.assertEqual(results[0].fills,results[1].fills)
+        self.assertEqual(results[0].holdings[-1],results[1].holdings[-1])
+        self.assertEqual(results[1].equity[2].receivables,D('1560'))
+        self.assertEqual(results[1].equity[3].receivables,D(0))
 
     def test_next_open_and_trace_are_stable(self):
         first = self.case.run_settlement(self.case.inputs())

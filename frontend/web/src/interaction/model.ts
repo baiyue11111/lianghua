@@ -1,4 +1,4 @@
-import {createContext,useCallback,useContext,useEffect,useSyncExternalStore} from 'react';
+import {createContext,useCallback,useContext,useEffect,useState,useSyncExternalStore} from 'react';
 import type {Dispatch,SetStateAction} from 'react';
 import type {FrontendPort,JsonValue,Slot,State} from '@display/core';
 import {emptySlot} from '@display/core';
@@ -9,24 +9,28 @@ import {action} from './action';
 const empty=emptySlot();
 export function useSlot(target:string):Slot {
  const port=useDisplay();
- const state=useSyncExternalStore(port.subscribe,port.snapshot,port.snapshot) as State;
- return state.targets[target]??empty;
+ const read=useCallback(()=>(port.snapshot() as State).targets[target]??empty,[port,target]);
+ return useSyncExternalStore(port.subscribe,read,read);
 }
 export function useValue<T>(target:string,key:string,initial:T|(()=>T)):[T,Dispatch<SetStateAction<T>>]{
- const port=useDisplay(),slot=useSlot(target);
- const value=key in slot.values?slot.values[key] as unknown as T:typeof initial==='function'?(initial as ()=>T)():initial;
+ const port=useDisplay();
+ const [fallback]=useState(initial);
+ const read=useCallback(()=>{
+  const values=port.snapshot().targets?.[target]?.values;
+  return values&&key in values?values[key] as unknown as T:fallback;
+ },[port,target,key,fallback]);
+ const value=useSyncExternalStore(port.subscribe,read,read);
  useEffect(()=>{
   if(!(key in (port.snapshot().targets?.[target]?.values??{}))){
-   const value=typeof initial==='function'?(initial as ()=>T)():initial;
-   void port.dispatch(action('edit',target,{[key]:value}));
+   void port.dispatch(action('edit',target,{[key]:fallback}));
   }
- },[port,target,key,initial]);
+ },[port,target,key,fallback]);
  const set=useCallback((next:SetStateAction<T>)=>{
   const saved=port.snapshot().targets?.[target]?.values?.[key];
-  const before=saved===undefined?(typeof initial==='function'?(initial as ()=>T)():initial):saved as unknown as T;
+  const before=saved===undefined?fallback:saved as unknown as T;
   const result=typeof next==='function'?(next as (v:T)=>T)(before):next;
   void port.dispatch(action('edit',target,{[key]:result}));
- },[port,target,key,initial]);
+ },[port,target,key,fallback]);
  return [value,set];
 }
 export function useOperation<T>(target:string,operation:string,data:unknown={},enabled=true,automatic=true){

@@ -1,0 +1,102 @@
+[
+  {
+    "final_cash": "108836.11",
+    "final_equity": "108836.11",
+    "positions": {},
+    "pending_orders": 0,
+    "equity": [
+      {
+        "day": "2020-01-31",
+        "cash": "100000",
+        "market_value": "0",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "100000",
+        "realized_pnl": "0",
+        "unrealized_pnl": "0",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-03",
+        "cash": "973.27",
+        "market_value": "72000",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "72973.27",
+        "realized_pnl": "0",
+        "unrealized_pnl": "-27026.73",
+        "net_cash_income": "0"
+      },
+      {
+        "day": "2020-02-04",
+        "cash": "108836.11",
+        "market_value": "0",
+        "receivables": "0",
+        "liabilities": "0",
+        "equity": "108836.11",
+        "realized_pnl": "8836.11",
+        "unrealized_pnl": "0",
+        "net_cash_income": "0"
+      }
+    ],
+    "targets": [
+      {
+        "day": "2020-01-31",
+        "weights": {
+          "600003": 1.0
+        },
+        "reasons": {
+          "600003": "fast_mean_above_slow_mean"
+        }
+      },
+      {
+        "day": "2020-02-03",
+        "weights": {},
+        "reasons": {}
+      },
+      {
+        "day": "2020-02-04",
+        "weights": null,
+        "reasons": null
+      }
+    ],
+    "trades": [
+      {
+        "symbol": "600003",
+        "side": "buy",
+        "trade_date": "2020-02-03",
+        "shares": "9000",
+        "price": "11",
+        "gross_amount": "99000",
+        "commission": "24.75",
+        "stamp_duty": "0",
+        "status": "filled",
+        "reason": null,
+        "transfer_fee": "1.98"
+      },
+      {
+        "symbol": "600003",
+        "side": "sell",
+        "trade_date": "2020-02-04",
+        "shares": "9000",
+        "price": "12",
+        "gross_amount": "108000",
+        "commission": "27",
+        "stamp_duty": "108",
+        "status": "filled",
+        "reason": null,
+        "transfer_fee": "2.16"
+      }
+    ],
+    "metrics": {
+      "initial_equity": 100000.0,
+      "final_equity": 108836.11,
+      "total_return": 0.08836109999999997,
+      "cagr": 2278.4788078358147,
+      "annualized_volatility": 8.550274938769755,
+      "sharpe": 3.259455251481986,
+      "max_drawdown": -0.2702673,
+      "observations": 3
+    }
+  }
+]

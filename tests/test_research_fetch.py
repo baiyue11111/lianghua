@@ -73,6 +73,110 @@ class ResearchFetchTests(TestCase):
         self.assertIsNone(base["records"][0]["reserve_to_stock_per_share"])
         self.assertNotEqual(fact["source_hash"],base["source_hash"])
 
+    def test_dividend_events_follow_final_implemented_history(self):
+        from copy import deepcopy
+        base = self.dividend_base()
+        old = deepcopy(base['records'][0])
+        old.update(registration_date='2014-05-01', operation_date='2014-05-02', payment_date='2014-05-03')
+        base['records'].insert(0, old)
+        result = fetch.DividendHistory.normalize(base, self.dividend_html())
+        self.assertEqual(len(result['records']), 1)
+        self.assertEqual(result['records'][0]['operation_date'], '2014-06-02')
+        self.assertEqual(len(base['records']), 2)
+        extra = self.dividend_html().replace('</table>',
+            '<tr><td>0</td><td>0</td><td>1</td><td>实施</td><td>2014-07-02</td><td>2014-07-01</td><td>--</td></tr></table>')
+        with self.assertRaises(ValueError):
+            fetch.DividendHistory.normalize(base, extra)
+
+    def test_dividend_history_excludes_events_after_requested_end(self):
+        base = self.dividend_base()
+        extra = self.dividend_html().replace('</table>',
+            '<tr><td>0</td><td>0</td><td>1</td><td>实施</td><td>2014-07-02</td><td>2014-07-01</td><td>--</td></tr></table>')
+        result = fetch.DividendHistory.normalize(base, extra, end='2014-06-30')
+        self.assertEqual(len(result['records']), 1)
+        with self.assertRaises(ValueError):
+            fetch.DividendHistory.normalize(base, extra, end='2014-07-03')
+
+    def test_dividend_detail_supplies_a_missing_implemented_event(self):
+        html = ('<table><thead><tr><th colspan="8">分红方案(每10股)</th></tr>'
+                '<tr><th>公告日期</th><th>送股(股)</th><th>转增(股)</th><th>派息(税前)(元)</th>'
+                '<th>进度</th><th>除权除息日</th><th>股权登记日</th><th>红股上市日</th></tr></thead>'
+                '<tr><td>2014-06-01</td><td>0</td><td>0</td><td>2</td><td>实施</td>'
+                '<td>2014-06-12</td><td>2014-06-11</td><td>--</td></tr></table>')
+        detail = ('<title>600000 分红明细</title><table>'
+                  '<tr><td>登记日</td><td>2014-06-11</td></tr><tr><td>除息日</td><td>2014-06-12</td></tr>'
+                  '<tr><td>红利/配股起始日（送、转股到账日）</td><td>2014-06-16</td></tr>'
+                  '<tr><td>上市日</td><td>--</td></tr></table>')
+        base = self.dividend_base()
+        base['records'] = []
+        result = fetch.DividendHistory.normalize(base, html, load=lambda url: detail)
+        self.assertEqual(result['records'][0]['cash_per_share'], .2)
+        self.assertEqual(result['records'][0]['payment_date'], '2014-06-16')
+        with self.assertRaises(ValueError):
+            fetch.DividendHistory.normalize(base, html, load=lambda url: detail.replace('2014-06-11','2014-06-10'))
+
+    def test_dividend_duplicate_rows_merge_only_consistent_fields(self):
+        from copy import deepcopy
+        base = self.dividend_base()
+        duplicate = deepcopy(base['records'][0])
+        duplicate['cash_per_share'] = None
+        base['records'].append(duplicate)
+        result = fetch.DividendHistory.normalize(base, self.dividend_html())
+        self.assertEqual(len(result['records']), 1)
+        self.assertEqual(result['records'][0]['payment_date'], '2014-06-03')
+        base['records'][1]['payment_date'] = '2014-06-04'
+        with self.assertRaises(DataError):
+            fetch.DividendHistory.normalize(base, self.dividend_html())
+
+    def test_dividend_empty_optional_text_is_missing_not_a_conflict(self):
+        from copy import deepcopy
+        base = self.dividend_base()
+        base['records'][0]['cash_after_tax_text'] = ''
+        duplicate = deepcopy(base['records'][0])
+        duplicate['cash_after_tax_text'] = '0.45或0.5'
+        base['records'].append(duplicate)
+        result = fetch.DividendHistory.normalize(base, self.dividend_html())
+        self.assertEqual(len(result['records']), 1)
+        self.assertEqual(result['records'][0]['cash_after_tax_text'], '0.45或0.5')
+        self.assertEqual(base['records'][0]['cash_after_tax_text'], '')
+
+    def test_dividend_tax_descriptions_are_evidence_not_gross_terms(self):
+        from copy import deepcopy
+        base = self.dividend_base()
+        base['records'][0]['cash_after_tax_text'] = '0.45或0.5'
+        row = deepcopy(base['records'][0])
+        row['cash_after_tax_text'] = '0.4或0.5'
+        base['records'].append(row)
+        result = fetch.DividendHistory.normalize(base, self.dividend_html())
+        self.assertEqual(len(result['records']), 1)
+        self.assertEqual(result['records'][0]['cash_after_tax_text'], '0.45或0.5 | 0.4或0.5')
+        row['cash_per_share'] = .6
+        with self.assertRaises(DataError):
+            fetch.DividendHistory.normalize(base, self.dividend_html())
+
+    def test_dividend_proposal_does_not_become_paid_income(self):
+        html = self.dividend_html().replace('colspan=7', 'colspan=8').replace(
+            '<th>送股(股)</th>', '<th>公告日期</th><th>送股(股)</th>').replace(
+            '<tr><td>0</td>', '<tr><td>2014-03-01</td><td>0</td>').replace(
+            '实施', '预案').replace('2014-06-01', '--').replace('2014-06-02', '--')
+        base = self.dividend_base()
+        self.assertEqual(fetch.DividendHistory.normalize(base, html)['records'], [])
+        with self.assertRaises(ValueError):
+            fetch.DividendHistory.normalize(base, html.replace('2014-03-01', '2014-03-02'))
+
+    def test_dividend_duplicate_rates_require_the_public_market_rate(self):
+        from copy import deepcopy
+        base = self.dividend_base()
+        duplicate = deepcopy(base['records'][0])
+        duplicate['cash_per_share'] = .725
+        base['records'].append(duplicate)
+        result = fetch.DividendHistory.normalize(base, self.dividend_html())
+        self.assertEqual(len(result['records']), 1)
+        self.assertEqual(result['records'][0]['cash_per_share'], .725)
+        base['records'][1]['payment_date'] = '2014-06-04'
+        with self.assertRaises(DataError):
+            fetch.DividendHistory.normalize(base, self.dividend_html())
+
     def test_dividend_adapter_rejects_missing_quantities_and_ambiguous_dates(self):
         for html in (self.dividend_html(reserve="--"), self.dividend_html(day="2014-06-03"),
                      self.dividend_html(duplicate=True), self.dividend_html().replace("每10股","每股")):

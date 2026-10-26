@@ -36,6 +36,49 @@ def rules(price, quantity):
 
 
 class TradeRulesTests(unittest.TestCase):
+    def test_market_fees_use_the_same_security_identity_as_standard_data(self):
+        value=rules({'model':'ratio','params':{'rate':'0','tick':'.01'}},
+                    {'model':'capacity','params':{}})
+        value.fee_policy=FeePolicy.from_mapping({
+            'commission_rate':'.00025','minimum_commission':'5','rounding':'none',
+            'stamp_rates':[{'effective':'2012-01-01','rate':'.001'}],
+            'transfer_rates':[
+                {'effective':'2012-01-01','rate':'.0003','basis':'shares','market':'sh'},
+                {'effective':'2012-01-01','rate':'.0000255','basis':'amount','market':'sz'},
+                {'effective':'2015-08-01','rate':'.00002'},
+            ]},'a'*64)
+        for code,expected in (('600000',D('.03')),('000006',D('.0255'))):
+            from protocol import normalize_security_id
+            with self.subTest(code=code):
+                bare=value.fees(D(1000),Side.BUY,date(2014,1,3),symbol=code,shares=100)
+                full=value.fees(D(1000),Side.BUY,date(2014,1,3),
+                                symbol=normalize_security_id(code),shares=100)
+                self.assertEqual(bare,full)
+                self.assertEqual(bare.transfer_fee,expected)
+                self.assertEqual(value.fees(D(1000),Side.BUY,date(2016,1,4),
+                                           symbol=code,shares=100).transfer_fee,D('.02'))
+        with self.assertRaises(ValueError):
+            value.fees(D(1000),Side.BUY,date(2014,1,3),symbol='unknown',shares=100)
+
+    def test_pretax_keeps_share_credits_without_tax_rights(self):
+        from tests.fee_fixture import execution
+        from types import SimpleNamespace
+        config = execution()
+        config['tax']['model'] = 'none'
+        value = TradeRules(config, fee_policy(), tax_policy())
+        ledger = value._tax_ledger
+        ledger.lots = (calculation.TaxHolding('buy', 'X', date(2020, 1, 1), 100, ()),)
+        event = SimpleNamespace(code='X', registration_date=date(2020, 1, 2),
+            executable=True, operation_date=date(2020, 1, 3), payment_date=date(2020, 1, 6),
+            stock_market_date=date(2020, 1, 7), stock_dividend_per_share=.1,
+            reserve_to_stock_per_share=0, cash_per_share=.2)
+        ledger.register('distribution', event, None, None, 'c' * 64, credit_date=date(2020, 1, 6))
+        ledger.advance(date(2020, 1, 6))
+        self.assertEqual(sum(lot.shares for lot in ledger.lots), 110)
+        self.assertFalse(any(lot.rights for lot in ledger.lots))
+        self.assertEqual(value.tax(date(2020, 1, 6), phase='liability'), D(0))
+        self.assertEqual(ledger.pending, {})
+
     def test_old_execution_models_are_removed(self):
         self.assertFalse(hasattr(calculation, 'ExecutionEngine'))
         self.assertFalse(hasattr(calculation, 'PositionBook'))

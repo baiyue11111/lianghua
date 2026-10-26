@@ -15,6 +15,47 @@ MODULE = "plugins.strategies.moving_average_cross"
 
 
 class StrategyPortTests(unittest.TestCase):
+    def test_catalog_can_be_sent_as_ui_message(self):
+        from importlib import import_module
+        import json
+
+        ui = import_module("frontend.ui-protocol")
+        message = ui.UiMessage(
+            "catalog", "collection", "lianghua:strategies",
+            "urn:lianghua:ui:output:backtest.strategies:v1",
+            {"items": catalog()},
+        )
+        data = message.to_dict()["data"]
+        self.assertEqual(data, json.loads(json.dumps(data, allow_nan=False)))
+        item = next(item for item in data["items"] if item["module"] == MODULE)
+        parameter = next(item for item in item["parameters"] if item["key"] == "rebalance")
+        self.assertEqual(parameter["options"], ["daily", "monthly"])
+
+    def test_unpriced_holding_does_not_block_other_symbols(self):
+        strategy=load_strategy(MODULE,{'fast_window':2,'slow_window':3})
+        frame=self.frame({'halted':[None,None,None],'ready':[1,2,3]})
+        account=AccountSnapshot(frame.at,Decimal('1000'),Decimal('2000'),{'halted':Decimal('100')})
+        target=strategy.generate(frame,account)
+        self.assertEqual(dict(target.weights),{'ready':1.})
+
+    def test_equal_weights_never_exceed_declared_exposure_after_decimal_conversion(self):
+        from core.calculation import Calculation
+        from decimal import Decimal
+        for count in range(1,2049):
+            for gross in (1.,.95):
+                weights=Calculation.equal_weights(tuple(map(str,range(count))),count,gross)
+                self.assertEqual(len(set(weights.values())),1)
+                total=sum((Decimal(str(x)) for x in weights.values()),Decimal(0))
+                self.assertLessEqual(total,Decimal(str(gross)))
+                self.assertLess(Decimal(str(gross))-total,Decimal('1e-14'))
+
+    def test_new_listing_waits_without_blocking_ready_symbols(self):
+        strategy = load_strategy(MODULE, {"fast_window": 2, "slow_window": 3})
+        target = self.generate(strategy, {"old": [1, 2, 3], "new": [None, None, 3]})
+        self.assertEqual(dict(target.weights), {"old": 1.0})
+        target = self.generate(strategy, {"old": [2, 3, 4], "new": [3, 4, 5]})
+        self.assertEqual(dict(target.weights), {"new": .5, "old": .5})
+
     def frame(self, prices, *, trading=True):
         start = datetime(2023, 1, 1, 15, tzinfo=ZoneInfo("Asia/Shanghai"))
         history = {

@@ -6,6 +6,72 @@ from plugins.data import Scaler
 
 
 class ScalerTests(unittest.TestCase):
+    def test_fact_lookup_selects_latest_known_period_without_row_order_ties(self):
+        from datetime import date, datetime
+        from plugins.data import Adapter
+        fields = {
+            "roe": {"source": "facts", "code": "code", "effective": "report_date",
+                    "known": "published_at", "column": "roe", "type": "number"},
+            "label": {"source": "facts", "code": "code", "effective": "report_date",
+                      "known": "published_at", "column": "label", "type": "string"},
+        }
+        rows = {
+            "roe": [
+                {"code": "A", "report_date": date(2019, 9, 30),
+                 "published_at": "2020-01-30T16:00:00+08:00", "roe": .1},
+                {"code": "A", "report_date": date(2019, 12, 31),
+                 "published_at": "2020-01-31T16:00:00+08:00", "roe": .2},
+                {"code": "A", "report_date": date(2019, 9, 30),
+                 "published_at": "2020-02-04T16:00:00+08:00", "roe": .9},
+            ],
+            "label": [{"code": "A", "report_date": date(2019, 9, 30),
+                       "published_at": "2020-01-30T16:00:00+08:00", "label": True}],
+        }
+        lookup = Adapter.facts(fields, rows)
+        self.assertIsNone(lookup("roe", "A", date(2020, 1, 30),
+                                 datetime.fromisoformat("2020-01-30T15:00:00+08:00")))
+        self.assertEqual(lookup("roe", "A", date(2020, 1, 31),
+                                datetime.fromisoformat("2020-01-31T15:00:00+08:00")), .1)
+        self.assertEqual(lookup("roe", "A", date(2020, 2, 3),
+                                datetime.fromisoformat("2020-02-03T15:00:00+08:00")), .2)
+        self.assertEqual(lookup("roe", "A", date(2020, 2, 4),
+                                datetime.fromisoformat("2020-02-04T15:00:00+08:00")), .2)
+        self.assertEqual(lookup("roe", "A", date(2020, 2, 5),
+                                datetime.fromisoformat("2020-02-05T15:00:00+08:00")), .2)
+        self.assertIs(lookup("label", "A", date(2020, 2, 3),
+                             datetime.fromisoformat("2020-02-03T15:00:00+08:00")), True)
+
+    def test_fact_lookup_rejects_conflicting_identity_and_naive_publication(self):
+        from plugins.data import Adapter
+        fields = {"roe": {"source": "facts", "code": "code", "effective": "period",
+                           "known": "known", "column": "value", "type": "number"}}
+        row = {"code": "A", "period": "2020-01-01", "known": "2020-01-02T12:00:00+00:00", "value": .1}
+        for rows in ([row, dict(row)], [dict(row, known="2020-01-02T12:00:00")]):
+            with self.subTest(rows=rows), self.assertRaises(ValueError):
+                Adapter.facts(fields, {"roe": rows})
+
+    def test_fact_lookup_keeps_an_explicit_missing_revision_and_no_record(self):
+        from datetime import date, datetime
+        from plugins.data import Adapter
+        fields = {"roe": {"source": "facts", "code": "code", "effective": "period",
+                           "known": "known", "column": "value", "type": "number"}}
+        rows = [{"code": "A", "period": "2020-01-01", "known": "2020-01-02T12:00:00+00:00", "value": .1},
+                {"code": "A", "period": "2020-01-01", "known": "2020-01-03T12:00:00+00:00", "value": None}]
+        lookup = Adapter.facts(fields, {"roe": rows})
+        before = datetime.fromisoformat("2020-01-03T11:59:00+00:00")
+        after = datetime.fromisoformat("2020-01-03T12:00:00+00:00")
+        self.assertEqual(lookup("roe", "A", date(2020, 1, 3), before), .1)
+        self.assertIsNone(lookup("roe", "A", date(2020, 1, 3), after))
+        self.assertIsNone(lookup("roe", "B", date(2020, 1, 3), after))
+
+    def test_fact_lookup_rejects_absent_value_column(self):
+        from plugins.data import Adapter
+        fields = {"roe": {"source": "facts", "code": "code", "effective": "period",
+                           "known": "known", "column": "value", "type": "number"}}
+        row = {"code": "A", "period": "2020-01-01", "known": "2020-01-02T12:00:00+00:00"}
+        with self.assertRaisesRegex(ValueError, "columns are invalid"):
+            Adapter.facts(fields, {"roe": [row]})
+
     def test_standard_matches_independent_training_reference(self):
         train = np.array([[1.0, 10.0], [3.0, 14.0], [5.0, 18.0]])
         scaler = Scaler("standard").fit(train)

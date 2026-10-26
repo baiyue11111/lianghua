@@ -80,6 +80,7 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("backtest.run", "write", "backtest", "backtest-result", "resource", "backtests"),
     OperationSpec("cli.backtest", "write", "cli-backtest", "cli-backtest", "operation", "commands"),
     OperationSpec("collection.describe", "read", "collection-describe", "collection-describe", "document", "sources"),
+    OperationSpec("collection.doctor", "write", "collection-doctor", "collection-doctor", "document", "sources"),
     OperationSpec("collection.inspect", "read", "collection-inspect", "collection-inspect", "document", "sources"),
     OperationSpec("collection.run", "write", "collection-run", "collection-run", "operation", "sources"),
     OperationSpec("cli.ingest", "write", "cli-ingest", "cli-ingest", "operation", "commands"),
@@ -292,6 +293,8 @@ class CollectionPort:
             if result['status'] != 'succeeded':
                 raise ValueError(result.get('error') or 'collection failed')
             return result
+        if operation == 'collection.doctor':
+            return self.collect.methods.doctor(self.collect.sources.get(value['source_id']), value)
         if operation == 'collection.inspect':
             source = self.collect.sources.get(value['source_id'])
             return self.collect.methods.inspect(source, value)
@@ -558,7 +561,8 @@ class CommandPort:
                     raise failure from error
                 value = result.data if isinstance(result, PortResult) else result
                 completed.append({"index": index, "name": name, "run_id": run_id,
-                                  "result": value})
+                                  "result": {key:item for key,item in value.items()
+                                             if key not in {'trace','trades'}}})
             value = {"run_id": batch_id, "intervals": completed}
             return PortResult(
                 "resource", "lianghua:cli-backtest",
@@ -747,6 +751,9 @@ def _query(request: BacktestRequest, requirements) -> DataQuery:
         fields=fields, history=history, price_basis=request.price_basis,
         as_of=request.as_of, universe="dataset", frequency=requirements.frequency,
         market=request.market,
+        tax=(request.settlement_parameters or {}).get("execution", {}).get("tax", {}).get("model",
+            "none" if request.settlement_parameters.get('accounting') == 'research' else "fifo"),
+        accounting=request.settlement_parameters.get('accounting','account'),
     )
 
 

@@ -43,8 +43,11 @@ function assertJson(value:unknown):void {
   if(typeof value==='object'&&Object.getPrototypeOf(value)===Object.prototype){Object.values(value as object).forEach(assertJson);return;}
   throw Error('非 JSON 数据');
 }
+const frozen=new WeakSet<object>();
 function freeze<T>(value:T):T {
-  if(value&&typeof value==='object'){Object.values(value).forEach(freeze);Object.freeze(value);}
+  if(value&&typeof value==='object'&&!frozen.has(value)){
+    Object.values(value).forEach(freeze);Object.freeze(value);frozen.add(value);
+  }
   return value;
 }
 export function emptySlot():Slot {return {revision:0,values:{},selection:null,query:{},messages:[],problems:[],operations:{}};}
@@ -108,9 +111,11 @@ export function createDisplay(options:Options) {
   }
   function publish(target:string,messages:UiMessage[],spec?:Operation){
     messages.forEach(message=>accept(message,spec));
-    const problems=messages.filter(m=>m.kind==='problem').map(m=>m.data as unknown as UiProblem);
-    put(target,{...slot(target),messages:structuredClone(messages),problems,values:spec&&!problems.length?{...slot(target).values,[spec.operation]:messages.filter(m=>m.kind!=="problem").map(m=>m.data)}:slot(target).values});
-    messages.forEach(message=>options.handlers?.[message.type]?.(message));
+    const received=structuredClone(messages);
+    const problems=received.filter(m=>m.kind==='problem').map(m=>m.data as unknown as UiProblem);
+    put(target,{...slot(target),messages:received,problems,values:spec&&!problems.length?{...slot(target).values,[spec.operation]:received.filter(m=>m.kind!=="problem").map(m=>m.data)}:slot(target).values});
+    received.forEach(message=>options.handlers?.[message.type]?.(message));
+    return received;
   }
   async function dispatch(action:UiAction):Promise<State>{
     if(closed)throw Error('session closed');
@@ -157,13 +162,13 @@ export function createDisplay(options:Options) {
         if(replies.length!==1)throw Error('需要一个响应');
         return replies[0].data;
       };
-      const messages=spec.execute?[makeMessage(await spec.execute(data,{call,signal:controller.signal,progress:value=>{
+      let messages=spec.execute?[makeMessage(await spec.execute(data,{call,signal:controller.signal,progress:value=>{
         if(current()){publish(target,[makeMessage(value)],spec);options.progress?.(state);}
       }}))]:await options.backend.send(request);
       if(!current())return state;
       if(!Array.isArray(messages))throw Error('响应必须是消息列表');
       if(messages.some(message=>message.correlation_id!==request.request_id))throw Error('响应标识与请求不匹配');
-      publish(target,messages,spec);
+      messages=publish(target,messages,spec);
       if(spec.changes&&!slot(target).problems.length){
         for(const [name,values] of Object.entries(spec.changes(state,target,request,messages))){assertJson(values);put(name,{...slot(name),values:{...slot(name).values,...values}});}
       }

@@ -172,14 +172,17 @@ class DataStore:
             temporary.unlink(missing_ok=True)
         return self._ref(kind, identity, name, target)
 
-    def list(self, kind: str, identity: str | None = None) -> tuple[DataRef, ...]:
+    def list(self, kind: str, identity: str | None = None, folder: str = "") -> tuple[DataRef, ...]:
         anchor = self.path(kind, "_", "_").parents[1]
         if identity is not None:
             anchor = self.path(kind, identity, '_').parent
-        if not anchor.exists():
+        if folder and identity is None:
+            raise ValueError("folder requires an identity")
+        scan = self.path(kind, identity, folder) if folder else anchor
+        if not scan.exists():
             return ()
         refs = []
-        for path in sorted(item for item in anchor.rglob("*") if item.is_file()):
+        for path in sorted(item for item in scan.rglob("*") if item.is_file()):
             relative = path.relative_to(anchor)
             if identity is None and len(relative.parts) < 2:
                 continue

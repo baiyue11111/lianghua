@@ -1,0 +1,1782 @@
+{
+  "data/source/fixture/account_policy.json": {
+    "schema": 1,
+    "investor": "domestic_individual_unrestricted_a_share",
+    "sources": [
+      {
+        "file": "policy_source.json",
+        "sha256": "fb50391d67785e8b7c391991adc82cb8dec3710f13d5813b3458f4039a2796ca"
+      }
+    ],
+    "fees": {
+      "commission_rate": ".00025",
+      "minimum_commission": "5",
+      "rounding": "none",
+      "stamp_rates": [
+        {
+          "effective": "2015-09-09",
+          "rate": ".001"
+        },
+        {
+          "effective": "2023-08-28",
+          "rate": ".0005"
+        }
+      ],
+      "transfer_rates": [
+        {
+          "effective": "2015-09-09",
+          "rate": ".00002"
+        }
+      ]
+    },
+    "tax": {
+      "effective": "2015-09-09",
+      "policy": "财税2015-101",
+      "payment_timing": "later_of_disposal_and_income",
+      "liability": "current_holding_period",
+      "rounding": "none"
+    }
+  },
+  "data/source/fixture/basic/stock_basic_sh.600000.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600000",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600001.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600001",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600002.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600002",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600003.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600003",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600004.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600004",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600005.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600005",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600006.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600006",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600007.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600007",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600008.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600008",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600009.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600009",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600010.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600010",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600011.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600011",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600012.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600012",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600013.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600013",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600014.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600014",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600015.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600015",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600016.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600016",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600017.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600017",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600018.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600018",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/basic/stock_basic_sh.600019.json": {
+    "schema": 1,
+    "kind": "security",
+    "code": "sh.600019",
+    "start": null,
+    "end": null,
+    "year": null,
+    "source_hash": "27cdbc218dba0f3ca8f48e49d10155d057a71d0822dc922a6a07104fa204836f",
+    "records": [
+      {
+        "listing_date": "2019-07-01",
+        "delisting_date": null,
+        "type": "1",
+        "status": "1"
+      }
+    ]
+  },
+  "data/source/fixture/calendar.json": {
+    "sessions": [
+      "2019-07-01",
+      "2019-07-02",
+      "2019-07-03",
+      "2019-07-04",
+      "2019-07-05",
+      "2019-07-08",
+      "2019-07-09",
+      "2019-07-10",
+      "2019-07-11",
+      "2019-07-12",
+      "2019-07-15",
+      "2019-07-16",
+      "2019-07-17",
+      "2019-07-18",
+      "2019-07-19",
+      "2019-07-22",
+      "2019-07-23",
+      "2019-07-24",
+      "2019-07-25",
+      "2019-07-26",
+      "2019-07-29",
+      "2019-07-30",
+      "2019-07-31",
+      "2019-08-01",
+      "2019-08-02",
+      "2019-08-05",
+      "2019-08-06",
+      "2019-08-07",
+      "2019-08-08",
+      "2019-08-09",
+      "2019-08-12",
+      "2019-08-13",
+      "2019-08-14",
+      "2019-08-15",
+      "2019-08-16",
+      "2019-08-19",
+      "2019-08-20",
+      "2019-08-21",
+      "2019-08-22",
+      "2019-08-23",
+      "2019-08-26",
+      "2019-08-27",
+      "2019-08-28",
+      "2019-08-29",
+      "2019-08-30",
+      "2019-09-02",
+      "2019-09-03",
+      "2019-09-04",
+      "2019-09-05",
+      "2019-09-06",
+      "2019-09-09",
+      "2019-09-10",
+      "2019-09-11",
+      "2019-09-12",
+      "2019-09-13",
+      "2019-09-16",
+      "2019-09-17",
+      "2019-09-18",
+      "2019-09-19",
+      "2019-09-20",
+      "2019-09-23",
+      "2019-09-24",
+      "2019-09-25",
+      "2019-09-26",
+      "2019-09-27",
+      "2019-09-30",
+      "2019-10-01",
+      "2019-10-02",
+      "2019-10-03",
+      "2019-10-04",
+      "2019-10-07",
+      "2019-10-08",
+      "2019-10-09",
+      "2019-10-10",
+      "2019-10-11",
+      "2019-10-14",
+      "2019-10-15",
+      "2019-10-16",
+      "2019-10-17",
+      "2019-10-18",
+      "2019-10-21",
+      "2019-10-22",
+      "2019-10-23",
+      "2019-10-24",
+      "2019-10-25",
+      "2019-10-28",
+      "2019-10-29",
+      "2019-10-30",
+      "2019-10-31",
+      "2019-11-01",
+      "2019-11-04",
+      "2019-11-05",
+      "2019-11-06",
+      "2019-11-07",
+      "2019-11-08",
+      "2019-11-11",
+      "2019-11-12",
+      "2019-11-13",
+      "2019-11-14",
+      "2019-11-15",
+      "2019-11-18",
+      "2019-11-19",
+      "2019-11-20",
+      "2019-11-21",
+      "2019-11-22",
+      "2019-11-25",
+      "2019-11-26",
+      "2019-11-27",
+      "2019-11-28",
+      "2019-11-29",
+      "2019-12-02",
+      "2019-12-03",
+      "2019-12-04",
+      "2019-12-05",
+      "2019-12-06",
+      "2019-12-09",
+      "2019-12-10",
+      "2019-12-11",
+      "2019-12-12",
+      "2019-12-13",
+      "2019-12-16",
+      "2019-12-17",
+      "2019-12-18",
+      "2019-12-19",
+      "2019-12-20",
+      "2019-12-23",
+      "2019-12-24",
+      "2019-12-25",
+      "2019-12-26",
+      "2019-12-27",
+      "2019-12-30",
+      "2019-12-31",
+      "2020-01-01",
+      "2020-01-02",
+      "2020-01-03",
+      "2020-01-06",
+      "2020-01-07",
+      "2020-01-08",
+      "2020-01-09",
+      "2020-01-10",
+      "2020-01-13",
+      "2020-01-14",
+      "2020-01-15",
+      "2020-01-16",
+      "2020-01-17",
+      "2020-01-20",
+      "2020-01-21",
+      "2020-01-22",
+      "2020-01-23",
+      "2020-01-24",
+      "2020-01-27",
+      "2020-01-28",
+      "2020-01-29",
+      "2020-01-30",
+      "2020-01-31",
+      "2020-02-03",
+      "2020-02-04",
+      "2020-02-05"
+    ],
+    "coverage": [
+      {
+        "start": "2019-07-01",
+        "end": "2020-02-05"
+      }
+    ]
+  },
+  "data/source/fixture/code_changes.json": {
+    "schema": 1,
+    "scope": "engineering_fixture",
+    "events": []
+  },
+  "data/source/fixture/corp/dividend_sh.600000_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600000",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600000_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600000",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600001_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600001",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600001_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600001",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600002_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600002",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600002_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600002",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600003_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600003",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600003_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600003",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600004_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600004",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600004_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600004",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600005_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600005",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600005_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600005",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600006_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600006",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600006_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600006",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600007_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600007",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600007_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600007",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600008_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600008",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600008_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600008",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600009_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600009",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600009_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600009",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600010_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600010",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600010_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600010",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600011_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600011",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600011_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600011",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600012_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600012",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600012_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600012",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600013_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600013",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600013_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600013",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600014_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600014",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600014_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600014",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600015_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600015",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600015_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600015",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600016_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600016",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600016_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600016",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600017_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600017",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600017_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600017",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600018_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600018",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600018_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600018",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600019_2019.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600019",
+    "start": null,
+    "end": null,
+    "year": "2019",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/corp/dividend_sh.600019_2020.json": {
+    "schema": 1,
+    "kind": "dividend",
+    "code": "sh.600019",
+    "start": null,
+    "end": null,
+    "year": "2020",
+    "source_hash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+    "records": []
+  },
+  "data/source/fixture/factors/adjust_sh.600000_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600000",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600001_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600001",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600002_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600002",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600003_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600003",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600004_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600004",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600005_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600005",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600006_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600006",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600007_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600007",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600008_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600008",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600009_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600009",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600010_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600010",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600011_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600011",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600012_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600012",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600013_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600013",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600014_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600014",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600015_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600015",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600016_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600016",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600017_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600017",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600018_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600018",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/factors/adjust_sh.600019_1990-01-01_2020-02-05.json": {
+    "schema": 1,
+    "kind": "adjust",
+    "code": "sh.600019",
+    "start": "1990-01-01",
+    "end": "2020-02-05",
+    "year": null,
+    "source_hash": "a43adcec30a160038a4a2bc67be3588b9c5c4aee7225dcba4d727e8272c39968",
+    "records": [
+      {
+        "date": "1990-01-01",
+        "forward": 1,
+        "backward": 1
+      }
+    ]
+  },
+  "data/source/fixture/manifest.json": {
+    "schema": 2,
+    "files": [
+      {
+        "file": "daily/bars.parquet",
+        "sha256": "504176af397609b2484a6708a8e605c9f32b1fc73d11003da81659dccba332e9",
+        "role": "market"
+      },
+      {
+        "file": "calendar.json",
+        "sha256": "0f944c14f765d76be3b5f3d78b60aaf6669ec6d1ab7e0173e05602d04f9d75d7",
+        "role": "market"
+      },
+      {
+        "file": "code_changes.json",
+        "sha256": "bfe9edd29cabe16897bc5b20da56c1a56f5d26095142745d78cf56d113aabba1",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600000_1990-01-01_2020-02-05.json",
+        "sha256": "d104b697ef3611f22abf3b1239b41bf0eefae443c9f0b3518d50bde84589505e",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600000.json",
+        "sha256": "a8f1a5ec6808716dff496186ec5f9b4d3c3cadee68d344513821e55f7513f3d2",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600000_2019.json",
+        "sha256": "07ae68df78acd9138fca9e205dd7adbb0892cc35f1cb883584fd07f953ff5e03",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600000_2020.json",
+        "sha256": "0b16cfada248d6247bc249db236d515f142e9d9c89950b68468c7fb8be7748dc",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600001_1990-01-01_2020-02-05.json",
+        "sha256": "fe34e706eb94ba2ff3505b185812f520f784f3f0cbb92119554ce07b27ce7b48",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600001.json",
+        "sha256": "40397f86aa5afed8a6be3b870d98e2e8a67e4f19c63ad7dab29ab2958603fc77",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600001_2019.json",
+        "sha256": "10522399c96a7f2f94f61a416e0023de180e850eb119722a5d2381d604dcb62a",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600001_2020.json",
+        "sha256": "9b66c75b5ef23561e5118ddac0b22032989016e20a6efc977f977ff03743849e",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600002_1990-01-01_2020-02-05.json",
+        "sha256": "d1417236252e5b8e0559a46845eae434b9ce33ba9f100690e5a1e83153a821e5",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600002.json",
+        "sha256": "4201529b6dca9bbde3fb31309babb2ea6c9ca33e311bd9dd44e20dda4280a5af",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600002_2019.json",
+        "sha256": "a1a923e2436a463c8bc3f0b3e2756537d5b4118c02e6a538bbb1c66bb0523980",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600002_2020.json",
+        "sha256": "9cb27e9c8d00b1919379ca890d4942325734f73164b199457ce5568d02af1855",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600003_1990-01-01_2020-02-05.json",
+        "sha256": "843f20bade0df0f3a6225c52b4d019a77bc9cc9fbf1045d6fb53f09f41ba1fb8",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600003.json",
+        "sha256": "6bf84abf604892abbf9da7fc9cce1461310520db70a4a9df753966bd2256e694",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600003_2019.json",
+        "sha256": "0965d6fbcd5d01afcbe38770a7b145a8a1de25087f685fe7b60309338355b64c",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600003_2020.json",
+        "sha256": "cb5d08938ca5a3ecca0e0e5dc0f9dde7746fdb54204e8c530cf3371107464e3c",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600004_1990-01-01_2020-02-05.json",
+        "sha256": "94c7f57065421ebfad920ee254062c8b9f5d0dffbffc9194b2b48b7c2720f45a",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600004.json",
+        "sha256": "5fc8b9a35ab6915c015ca83452116beb8f52b3b924251a0b751e61b7ee71f876",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600004_2019.json",
+        "sha256": "bc9f90b6eda45e814618f9a8a2161a9d692f139bf0fa6014c231348b39c3dc0e",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600004_2020.json",
+        "sha256": "0c62f0ce091b38407405ee214109783b150b61b0e546d7685267c2f92ccf0bf1",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600005_1990-01-01_2020-02-05.json",
+        "sha256": "5dc0ac3f8f37043e764c70975f49d0f9c4393f2583811863e93f763d843f6bc4",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600005.json",
+        "sha256": "28cd48a8b80fc80452f0983aa86f5641665b1b5cf7b51b42a34bbbdd2ffca57b",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600005_2019.json",
+        "sha256": "151a356223d502b2cdebf7d21b7d8ad7d9f7a4c852ca4cef892dff1530f5eec0",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600005_2020.json",
+        "sha256": "e04067c2bbf42e5b5131b1abed24366ba6a3f576fe8609d670e354101fbcc895",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600006_1990-01-01_2020-02-05.json",
+        "sha256": "358b05094a0661dce4d7ddbfaa1b49e9511735cd4d316f0d6a7ac35dfa551e2e",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600006.json",
+        "sha256": "7f34a07ebb1b36efdec4b26c8030fcbf14b62b53824a16ecd67170ef0bf0e582",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600006_2019.json",
+        "sha256": "e4b14830fec008de20eb96ec45c8e6d1341a7a57c0c8c5d17df7ec4e5224a8b3",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600006_2020.json",
+        "sha256": "c394791f090413aed53692eb797225ac211b4e99a0d77cf9ba2acfdecd46c792",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600007_1990-01-01_2020-02-05.json",
+        "sha256": "54fe78da9b49ad4ab57d03dc88bfe5c80a23debaac1358b117f3fe0dd440813c",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600007.json",
+        "sha256": "f8643c9d9b21a3013528124428f5e3ae19ec49829ad22b22e18b02e72011e5c6",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600007_2019.json",
+        "sha256": "9d4752f1a56073180008a7f8132676dc2317a110e980a87d5fd6d8c1ae7bd120",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600007_2020.json",
+        "sha256": "eb1c7b121875c4e744b2c5ccaf27a16842112c5f868076d380817459061016bb",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600008_1990-01-01_2020-02-05.json",
+        "sha256": "53aa747addc58f12fdc6f2212212098f07f3c33ac47d1b00e9b3a871a22ee2eb",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600008.json",
+        "sha256": "d7bae3c94a5ff41f3ead36879748c9c955f7570a1271fdbbb4bc35dd4c69eda1",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600008_2019.json",
+        "sha256": "3e0e20236a96fdcbb4a8f8a05413bdbd00c6c65cb215fab0270f5ccc6d47749d",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600008_2020.json",
+        "sha256": "200641109b2e6adcca221a6dbaa1ab30d2892687276b57fc1d7b34fb89068840",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600009_1990-01-01_2020-02-05.json",
+        "sha256": "9f504d0d281dcfb211bb5f6a50039526c3bd071f6b4998d96e9a8867e42fb93d",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600009.json",
+        "sha256": "613bbedc5fc611ec17af6680b00d7d211c60b6654f9c114072ea9fe21510edb5",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600009_2019.json",
+        "sha256": "9041f0b315c6f1e477423d1369137453da222d658f2793a59193252f231150b8",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600009_2020.json",
+        "sha256": "e8e1771f1b0d67850aab81f071fb4939b14add2fdd53e0d9dcc36ea4e6560db6",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600010_1990-01-01_2020-02-05.json",
+        "sha256": "9bf79d2be93287f1f8c4698f67f0caa5c09c2d42a501d10191925ba6382ed921",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600010.json",
+        "sha256": "e0ffedd0c0bcffe5de7495e3f0bcc6c94b02ba1dc9bfb1338100523fae97af1f",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600010_2019.json",
+        "sha256": "01de00d462e1e96b64864221115242729768d1bdaa737f1bc4f1e78cc1f6454a",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600010_2020.json",
+        "sha256": "bdb92fb7f3ee3096d235f6282be670dc9321538c596f47ca3708782727e21038",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600011_1990-01-01_2020-02-05.json",
+        "sha256": "44fb1576abd697a697c2d9857599c38e45c924365a183c2aa8261be3f9d8ec25",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600011.json",
+        "sha256": "c2826a8a227214d267a3ed96236d0dd640f5d645e8bd3304cd073f073f025c01",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600011_2019.json",
+        "sha256": "928df9d549c59523960f195876aeda17ad481a9f2b754c15b86938a0084485b0",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600011_2020.json",
+        "sha256": "c3f4a1e7bd3cf9a5f63a9a7f333d539f240fa404e84b8600899bc1ed5a151929",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600012_1990-01-01_2020-02-05.json",
+        "sha256": "95ef14bbcdd7ed7a51f879ca68784299ac4c81ac845914d35d118eae5ee35e49",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600012.json",
+        "sha256": "04ebfd2f25b8a513248f42d783c55ab137d2f80cc54b1cac7fce5a373dc6a137",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600012_2019.json",
+        "sha256": "c2f0d138d5885619e35a2d652d3fecefa8b32e5faf9859d5f49946a32ce3aed7",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600012_2020.json",
+        "sha256": "6e4656dc0050deba7bb34455800962126578b2ff1b4b41a4388a7942f2520852",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600013_1990-01-01_2020-02-05.json",
+        "sha256": "6e4f3acb5aa074d9069a22458f92638c7172e1a990d335444bf721bb365c9a38",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600013.json",
+        "sha256": "8f170cb3349618591b5548ba6b086890abfbdadecf733a33c18bd2eb9a1d11b3",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600013_2019.json",
+        "sha256": "847b4612ab809c34c69576fccf6eef4fd7804930a91ddd7b3263e839d3467ce0",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600013_2020.json",
+        "sha256": "d1a1df6ae8d66699678816a7b05c720c5a73c145e954cf6694f74baf51b92321",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600014_1990-01-01_2020-02-05.json",
+        "sha256": "1859ba362c5ba8b93830883ec71ad9eb6dfc9a3ea6f6813f1670548085144a50",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600014.json",
+        "sha256": "776b1efdc99c02b37fc91f97a7b20d1d0a5b4fe91325de068c4bd803ab1622e3",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600014_2019.json",
+        "sha256": "d321b02ab78262407e0f8b72bfb4b06ad122b15f513a7d0259ccb5ea3f4621b5",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600014_2020.json",
+        "sha256": "885d3f5285f03d2489b8086f0f053aa6fb011ccd3bc2e01a155da735f02adb7c",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600015_1990-01-01_2020-02-05.json",
+        "sha256": "f81c0663d3c5f606678fd74b60e21051df1f2ca50d438a0408bdc8cbafd8964a",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600015.json",
+        "sha256": "aca5a79e85cdcb98ab27fb79b3876462cecb4b5e8d09eb5aa8741ace2d1c1e76",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600015_2019.json",
+        "sha256": "3b125064584e5468cb8ce18f97b827298fd7372d3a90df569a961c61cc502030",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600015_2020.json",
+        "sha256": "d16f0d35b74d28a334e269f5de221e1dac83e301c5e51b7f25bdd6b819416208",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600016_1990-01-01_2020-02-05.json",
+        "sha256": "c4a38dd4fd089ce5a591e406fc02d68d466da20f7c6da41e601cfa0f843e068e",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600016.json",
+        "sha256": "5074d1a80b972fc3dcc07ef3ca5952ac71ff8f70ddb0ff2f382c0fb4b84d5073",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600016_2019.json",
+        "sha256": "f006c307f326bab00b376b4579c5ba9ae097ddb3501a4f2b411b67286e31d7bf",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600016_2020.json",
+        "sha256": "1c6899432f08e450ff35a9e20c8c521792916180f75a0cfce8172e70288e2bf2",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600017_1990-01-01_2020-02-05.json",
+        "sha256": "cbae21c64f353ccfea62f503833778af6625f21bbe2245545955f61dd869e444",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600017.json",
+        "sha256": "b6a737a4b3cfa0613941b88e0484fb23d7c037812fcd09883b1ead63c1b2be9e",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600017_2019.json",
+        "sha256": "dfc191c901bdf8df16b1a1cfa74448c17eb0f8202e92772e292a9a815c11f079",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600017_2020.json",
+        "sha256": "4b67f416be8e245f9d33d16fe34bddae2f5359aa031a08aa1bbd6c4ddbfb5630",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600018_1990-01-01_2020-02-05.json",
+        "sha256": "22c4714f0072b99aae7beebccc1afb735dcc6168c02abfb77d82d471225346cc",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600018.json",
+        "sha256": "a26b51b89973cbef8fff4b398a289e246d3a5560ef06cd1cb8c9e8c2c42c60d5",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600018_2019.json",
+        "sha256": "0cb8f1a8caddeeda471aba07677d710fb234b7d9339efaa3414ad05c60e9941f",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600018_2020.json",
+        "sha256": "e73d6c84a8476ea0a5af0185b3aa19d4f9b1be60e149b411abf17e12549a303b",
+        "role": "market"
+      },
+      {
+        "file": "factors/adjust_sh.600019_1990-01-01_2020-02-05.json",
+        "sha256": "45f5a51d0ad7aef064929b1ebcb14639984f36b6160871d0a41749553c5306dd",
+        "role": "market"
+      },
+      {
+        "file": "basic/stock_basic_sh.600019.json",
+        "sha256": "9117ef6c7da4c826ff7285dd99fb168aa8b096005bd23808cc83a7a25388656a",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600019_2019.json",
+        "sha256": "0715b984b4e52fe78a2695bb123ea29eb7f23ff620a6e3fae11c2bff9d6a9131",
+        "role": "market"
+      },
+      {
+        "file": "corp/dividend_sh.600019_2020.json",
+        "sha256": "fd7e5f9320322b96aebc1c756be53d38770b51cd587837a4cd21e0b3fa2aa64f",
+        "role": "market"
+      },
+      {
+        "file": "policy_source.json",
+        "sha256": "fb50391d67785e8b7c391991adc82cb8dec3710f13d5813b3458f4039a2796ca",
+        "role": "account"
+      },
+      {
+        "file": "account_policy.json",
+        "sha256": "6a5e93411e4af7467d134b4baa98e38e1dc77ec9ac31d491b26714a681f36343",
+        "role": "account"
+      }
+    ],
+    "fields": {},
+    "calendar": "calendar.json",
+    "scope": {
+      "symbols": [
+        "600000",
+        "600001",
+        "600002",
+        "600003",
+        "600004",
+        "600005",
+        "600006",
+        "600007",
+        "600008",
+        "600009",
+        "600010",
+        "600011",
+        "600012",
+        "600013",
+        "600014",
+        "600015",
+        "600016",
+        "600017",
+        "600018",
+        "600019"
+      ],
+      "universe": "CN_A_SHARE"
+    },
+    "inputs": {
+      "calendar": "calendar.json",
+      "bars": "daily",
+      "code_changes": "code_changes.json",
+      "adjustments": {
+        "template": "factors/adjust_{symbol}_{start}_{end}.json",
+        "start": "1990-01-01",
+        "end": "2020-02-05"
+      },
+      "distributions": {
+        "template": "corp/dividend_{symbol}_{year}.json"
+      },
+      "securities": {
+        "template": "basic/stock_basic_{symbol}.json"
+      },
+      "account_policy": "account_policy.json",
+      "action_facts": []
+    }
+  },
+  "data/source/fixture/policy_source.json": {
+    "type": "engineering_fee_and_tax_policy"
+  },
+  "data/source/registry/sources.json": {
+    "sources": [],
+    "datasets": [
+      {
+        "id": "fixture",
+        "name": "固定测试行情"
+      }
+    ],
+    "benchmarks": [],
+    "markets": [
+      {
+        "scope": "CN_A",
+        "dataset_id": "fixture",
+        "currency": "CNY",
+        "calendar": "calendar.json",
+        "timezone": "Asia/Shanghai",
+        "session_open": "09:30",
+        "session_close": "15:00",
+        "execution": "cn_a_share",
+        "code_normalizer": "normalize_security_id",
+        "fields": {
+          "close": {
+            "source": "daily",
+            "column": "close",
+            "type": "number"
+          }
+        },
+        "code_pattern": "(?:sh\\.(?:60|68)\\d{4}|sz\\.(?:00|30)\\d{4})"
+      }
+    ]
+  }
+}

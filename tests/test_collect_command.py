@@ -67,6 +67,21 @@ class CollectionCommandTests(unittest.TestCase):
             raise ValueError(slot.problems[0].title)
         return slot.messages[0].data
 
+    def test_doctor_uses_method_port_without_daily_collection(self):
+        with patch.object(self.collect.methods, 'doctor', return_value={'status': 'complete'}) as doctor:
+            result = self.invoke('TEST:doctor')
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(doctor.call_args.args[1]['codes'], ['X', 'Y'])
+        self.assertEqual(self.calls, [])
+
+    def test_doctor_plans_the_whole_universe_before_repair(self):
+        self.bus.update_registry(lambda r: {**r,'markets':[{**r['markets'][0],
+            'collect':{**r['markets'][0]['collect'],'batch_size':1}}]})
+        with patch.object(self.collect.methods,'doctor',return_value={'status':'complete'}) as doctor:
+            self.invoke('TEST:doctor')
+        self.assertEqual(doctor.call_count,1)
+        self.assertEqual(doctor.call_args.args[1]['codes'],['X','Y'])
+
     def test_year_range_is_resolved_only_in_the_interaction_core(self):
         result=self.invoke('测试市场:[2003,2012]')
         self.assertEqual(result['status'],'succeeded')
@@ -120,6 +135,20 @@ class CollectionCommandTests(unittest.TestCase):
             __import__('zoneinfo').ZoneInfo('Asia/Shanghai')).date().isoformat())
         self.assertTrue(self.calls[-1]['force'])
 
+    def test_explicit_refresh_reaches_existing_collection_port(self):
+        args=cli.build_parser().parse_args(['--collect','TEST:[2014,2015]','--refresh'])
+        self.assertTrue(cli.to_action(args).data['refresh'])
+        self.invoke('TEST:[2014,2015]',refresh=True)
+        self.assertTrue(self.calls[-1]['force'])
+        self.assertTrue(self.calls[-1]['refresh'])
+
+    def test_doctor_refresh_reaches_fact_port_without_daily_force(self):
+        with patch.object(self.collect.methods,'doctor',return_value={'status':'complete'}) as doctor:
+            self.invoke('TEST:doctor',refresh=True)
+        request=doctor.call_args.args[1]
+        self.assertTrue(request['refresh'])
+        self.assertNotIn('force',request)
+
     def test_empty_latest_invalid_market_and_bad_parameters_never_fetch(self):
         for selector, values in [('TEST:latest',{}),('OTHER:latest',{}),('TEST:other',{}),
             ('TEST:range',{}),('TEST:latest',{'start':'2026-10-01'}),
@@ -169,7 +198,7 @@ class CollectionCommandTests(unittest.TestCase):
             def logout(self): pass
             def query_history_k_data_plus(self, code, fields, **kwargs):
                 return SimpleNamespace(error_code='0', fields=fields.split(','), next=lambda: False)
-        def calendar(provider, start, end):
+        def calendar(provider, start, end, *, call=None):
             observed.append(end)
             return [today, today+timedelta(days=1)], {}
         import sys
@@ -189,19 +218,23 @@ class CollectionCommandTests(unittest.TestCase):
     def test_catalogue_is_an_existing_method_packet_not_private_storage(self):
         from collect import methods
         from types import SimpleNamespace
-        fields = ['code','code_name','ipoDate','outDate','type','status']
-        rows = [['sh.600036','Example','2002-04-09','','1','1']]
-        response = SimpleNamespace(error_code='0', error_msg='', fields=fields,
-                                   next=iter([True,False]).__next__, get_row_data=lambda: rows[0])
-        provider = SimpleNamespace(login=lambda:SimpleNamespace(error_code='0'),
-                                   logout=lambda:None, query_stock_basic=lambda **kwargs:response)
-        import sys
+        response = SimpleNamespace(raise_for_status=lambda:None, json=lambda:{
+            'result':[{'A_STOCK_CODE':'600036','COMPANY_ABBR':'Example',
+                       'LIST_DATE':'20020409','DELIST_DATE':'-'}], 'pageHelp':{'total':1}})
+        retired = SimpleNamespace(raise_for_status=lambda:None, json=lambda:{
+            'result':[{'A_STOCK_CODE':'600005','COMPANY_ABBR':'Retired',
+                       'LIST_DATE':'19990803','DELIST_DATE':'20170214'}], 'pageHelp':{'total':1}})
         self.assertIn('catalogue', methods.DEFAULT_METHODS)
-        with patch.dict(sys.modules, {'baostock':provider}), patch.object(methods.BseCatalogue, 'collect', return_value={'records':[], 'raw':[]}) as bse:
-            packet = methods.DEFAULT_METHODS['catalogue']({}).collect({'exchanges':['sh','sz']})
+        with patch('requests.get', side_effect=[response,retired]), patch.object(methods.BseCatalogue, 'collect') as bse:
+            packet = methods.DEFAULT_METHODS['catalogue']({}).collect({'exchanges':['sh']})
         bse.assert_not_called()
-        self.assertEqual(packet['records'][0]['code'], 'sh.600036')
-        self.assertEqual(len(packet['raw']), 1)
+        self.assertEqual([r['code'] for r in packet['records']], ['sh.600036','sh.600005'])
+        self.assertEqual(len(packet['raw']), 2)
+        self.assertEqual(packet['records'][1]['outDate'], '2017-02-14')
+        response.json = lambda:{'result':[], 'pageHelp':{'total':2}}
+        with patch('requests.get', return_value=response), self.assertRaises(methods.CollectionError):
+            methods.Catalogue({}).collect({'exchanges':['sh']})
+
 
 
 class CollectCliTests(unittest.TestCase):
@@ -462,3 +495,149 @@ class BridgeBatchTests(unittest.TestCase):
             state=ui.exchange(ui.UiAction('batch','invoke','cli',{'selector':'TEST:[2003,2012]'},'cli.collect'),on_state=lambda s:None)
         self.assertEqual(len(seen),1)
         self.assertEqual(state.targets['cli'].operations['cli.collect'].status,'succeeded')
+
+class OfficialCatalogueTests(unittest.TestCase):
+    def test_official_dates_and_retired_status_are_preserved(self):
+        from collect.methods import Catalogue
+        rows = [{'A_STOCK_CODE':'600005','COMPANY_ABBR':'武钢股份',
+                 'LIST_DATE':'19990803','DELIST_DATE':'20170214'}]
+        records = Catalogue.normalize('sh', False, rows, 2)
+        self.assertEqual(records, [{'code':'sh.600005','code_name':'武钢股份',
+            'ipoDate':'1999-08-03','outDate':'2017-02-14','type':'1','status':'0','raw_page':2}])
+        with self.assertRaises(ValueError):
+            Catalogue.normalize('sh', False, rows * 2, 0)
+        with self.assertRaises(ValueError):
+            Catalogue.normalize('sh', False, [{**rows[0], 'DELIST_DATE':'-'}], 0)
+
+    def test_catalogue_publication_preserves_historical_codes(self):
+        with tempfile.TemporaryDirectory() as folder:
+            bus = DataBus(DataStore(Path(folder)))
+            methods = Methods(bus)
+            source = {'id':'catalogue','method':'catalogue'}
+            methods.publish(source, {'records':[{'code':'sz.000043','ipoDate':'1994-09-28'}], 'raw':[], 'scope':{'exchanges':['sz']}})
+            methods.publish(source, {'records':[{'code':'sz.001914','ipoDate':'1994-09-28'}], 'raw':[], 'scope':{'exchanges':['sz']}})
+            rows = json.loads(bus.read('sources','catalogue','records.json'))['records']
+            self.assertEqual([row['code'] for row in rows], ['sz.000043','sz.001914'])
+
+    def test_shenzhen_listed_fields_use_real_ipo(self):
+        from collect.methods import Catalogue
+        rows = [{'A股代码':'000001','A股简称':'平安银行','A股上市日期':'1991-04-03'}]
+        record = Catalogue.normalize('sz', True, rows, 0)[0]
+        self.assertEqual(record['ipoDate'], '1991-04-03')
+        self.assertEqual(record['outDate'], '')
+        self.assertEqual(record['status'], '1')
+
+class CollectionEvidenceTests(unittest.TestCase):
+    def test_evidence_reads_json_events_and_preserves_other_source_documents(self):
+        from collect.methods import _sha256
+        with tempfile.TemporaryDirectory() as folder:
+            bus = DataBus(DataStore(Path(folder)))
+            methods = Methods(bus)
+            record = {'code':'sh.600000'}
+            bus.write('state','collect','announcement.pdf.txt',b'original extracted document')
+            event = {'snapshot_id':'version','raw':[{'provider':'official'}],
+                     'incoming':[{'record_hash':_sha256(record),'raw_page':0}]}
+            bus.write('state','collect','event.json',json.dumps(event).encode())
+            self.assertEqual(methods.evidence('version'), event)
+            self.assertEqual(methods.record_evidence(record), event['raw'])
+            self.assertEqual(bus.read('state','collect','announcement.pdf.txt'),b'original extracted document')
+            bus.write('state','collect','broken.json',b'broken')
+            with self.assertRaises(json.JSONDecodeError):
+                methods.evidence('unknown')
+
+    def test_immutable_snapshot_evidence_is_read_once_but_a_miss_is_not_cached(self):
+        with tempfile.TemporaryDirectory() as folder:
+            bus = DataBus(DataStore(Path(folder)))
+            methods = Methods(bus)
+            self.assertEqual(methods.evidence('version'), {})
+            event = {'snapshot_id':'version','raw':[{'provider':'official'}]}
+            bus.write('state','collect','event.json',json.dumps(event).encode())
+            with patch.object(bus, 'list', wraps=bus.list) as read:
+                self.assertEqual(methods.evidence('version'), event)
+                self.assertEqual(methods.evidence('version'), event)
+                self.assertEqual(read.call_count, 1)
+
+    def test_publishing_known_snapshot_never_scans_the_audit_directory(self):
+        with tempfile.TemporaryDirectory() as folder:
+            bus=DataBus(DataStore(Path(folder)))
+            methods=Methods(bus)
+            source={'id':'example','method':'fixture','params':{'key_fields':['code']}}
+            packet={'records':[{'code':'sh.600000','raw_page':0}],
+                    'raw':[{'source':'official'}],'scope':{}}
+            with patch.object(bus,'list',side_effect=AssertionError('audit scan is forbidden')):
+                methods.publish(source,packet)
+                page=methods.records(source)
+            self.assertEqual(page['scope'],{})
+            self.assertIsNotNone(page['collected_at'])
+            self.assertEqual(page['records'],[{'code':'sh.600000'}])
+
+class SinaDailyTests(unittest.TestCase):
+    def request(self):
+        return {'codes':['sz.000456'],'start':'2024-09-03','end':'2024-09-04',
+                'fields':['open','high','low','close','volume','amount'],'adjustment':'3'}
+
+    def rows(self):
+        return [{'date':'2024-09-02T00:00:00.000Z','open':9.,'high':11.,'low':8.,'close':10.,'volume':1000,'amount':10000},
+                {'date':'2024-09-03T00:00:00.000Z','open':10.,'high':12.,'low':9.,'close':11.,'volume':2000,'amount':21000,
+                 'postVol':20,'postAmt':220},
+                {'date':'2024-09-04T00:00:00.000Z','open':11.,'high':13.,'low':10.,'close':12.,'volume':3000,'amount':35000}]
+
+    def test_raw_daily_preserves_units_and_selects_only_requested_days(self):
+        from collect.methods import SinaDaily
+        rows=SinaDaily.normalize('sz.000456',self.rows(),self.request())
+        self.assertEqual([r['date'] for r in rows],['2024-09-03','2024-09-04'])
+        self.assertEqual(rows[0]['volume'],2000)
+        self.assertEqual(rows[0]['amount'],21000)
+        self.assertNotIn('postVol',rows[0])
+        self.assertNotIn('tradestatus',rows[0])
+        self.assertEqual(rows[0]['code'],'sz.000456')
+
+    def test_invalid_dates_prices_turnover_and_empty_ranges_are_rejected(self):
+        from collect.methods import SinaDaily
+        cases=[self.rows()[::-1],self.rows()+[self.rows()[-1]],[],
+               [self.rows()[0]], [{**self.rows()[1],'volume':0}],
+               [{**self.rows()[1],'amount':float('nan')}],
+               [{**self.rows()[1],'close':13}],
+               [{**self.rows()[1],'date':'2024-09-33T00:00:00.000Z'}]]
+        for rows in cases:
+            with self.subTest(rows=rows),self.assertRaises(ValueError):
+                SinaDaily.normalize('sz.000456',rows,self.request())
+
+    def test_js_identity_and_request_capability_are_checked_before_decoding_or_fetching(self):
+        from collect.methods import SinaDaily
+        with self.assertRaises(ValueError):SinaDaily.decode('sz.000456','var KLC_K2_sz000457="value";')
+        for request in ({**self.request(),'adjustment':'2'}, {**self.request(),'fields':['isST']},
+                        {**self.request(),'frequency':'w'}):
+            with self.subTest(request=request),patch.object(SinaDaily,'get',side_effect=AssertionError('no request')):
+                with self.assertRaises(ValueError):SinaDaily({}).collect(request)
+
+    def test_registered_daily_method_uses_sina_and_existing_calendar_port(self):
+        from collect.methods import DEFAULT_METHODS,SinaDaily
+        self.assertIs(DEFAULT_METHODS['sina_daily'],SinaDaily)
+        with tempfile.TemporaryDirectory() as folder:
+            bus=DataBus(DataStore(Path(folder)))
+            calendar={'sessions':['2024-09-03','2024-09-04','2024-09-05'],
+                      'coverage':[{'start':'2024-09-03','end':'2024-09-05'}]}
+            bus.write('sources','fixture','calendar.json',json.dumps(calendar).encode())
+            source={'id':'daily','method':'sina_daily','data_type':'daily','dataset_id':'fixture','calendar':'calendar.json'}
+            packet={'records':[{'code':'sz.000456','date':'2024-09-03','open':10,'high':12,'low':9,'close':11,'volume':2000,'amount':21000}],
+                    'raw':[{'provider':'sina'}],'scope':{}}
+            with patch.object(SinaDaily,'collect',return_value=packet):
+                result=Methods(bus).fetch(source,self.request())
+            self.assertEqual(result['calendar'],calendar)
+
+    def test_trade_status_is_derived_only_from_observed_positive_turnover(self):
+        from collect.methods import SinaDaily
+        request={**self.request(),'fields':self.request()['fields']+['tradestatus']}
+        result=SinaDaily.normalize('sz.000456',self.rows(),request)
+        self.assertEqual([r['tradestatus'] for r in result],[1.,1.])
+        for prices in ({},{'open':0,'high':0,'low':0}):
+            rows=[self.rows()[1],{**self.rows()[2],**prices,'volume':0,'amount':0}]
+            result=SinaDaily.normalize('sz.000456',rows,request)
+            self.assertEqual([r['date'] for r in result],['2024-09-03'])
+            self.assertEqual(result[0]['tradestatus'],1)
+        with self.assertRaises(ValueError):
+            SinaDaily.normalize('sz.000456',[{**self.rows()[1],'volume':0,'amount':0}],request)
+        for values in ({'volume':0},{'amount':0},{'volume':-1,'amount':-1}):
+            with self.subTest(values=values),self.assertRaises(ValueError):
+                SinaDaily.normalize('sz.000456',[{**self.rows()[1],**values}],request)

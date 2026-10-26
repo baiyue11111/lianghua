@@ -117,41 +117,6 @@ class DataPluginSettlementTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             Adapter.adjust((frame,), basis="split-adjusted", as_of=date(2020, 1, 2), factors=factor)
 
-    def test_frozen_history_ab_matches_metrics_equity_and_trace_hashes(self):
-        import json
-        import tempfile
-        from dataclasses import asdict
-        from pathlib import Path
-        from strategy import canonical_hash, load_strategy
-        from tests.history_fixture import make_snapshot
-        from market import DataBus
-        from backend import KernelBacktestPort
-        from storage import DataStore
-        from plugins.data import Settlement
-        frozen = json.loads(Path("tests/fixtures/kernel-history-ab.json").read_text())
-        request = {"module": "plugins.strategies.breadth_low_amount_reversal", "params": {"positions": 4},
-                   "initial_cash": "100000", "dataset_id": "fixture", "start": "2020-01-31", "end": "2020-02-04"}
-        strategy = load_strategy(request["module"], request["params"])
-        request = {**request, "params": asdict(strategy.params)}
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            make_snapshot(root)
-            result = KernelBacktestPort(DataBus(DataStore(root)), Settlement).handle(
-                "backtest.run", {**request, "run_id": "frozen-ab"}).data
-        hashes = {key: canonical_hash(result["trace"][key]) for key in frozen["trace_hashes"]}
-        self.assertEqual(result["equity"], frozen["equity"])
-        self.assertEqual(result["metrics"], frozen["metrics"])
-        window = {"allocations", "equity", "frames", "holdings", "targets", "tax_liabilities"}
-        days = [item["day"] for item in result["trace"]["equity"]]
-        indices = [index for index, day in enumerate(days) if day >= frozen["trace_window_start"]]
-        self.assertEqual([days[index] for index in indices], [item["at"] for item in frozen["equity"]])
-        for key in window:
-            self.assertEqual(len(result["trace"][key]), len(days), key)
-            self.assertEqual(canonical_hash([result["trace"][key][index] for index in indices]),
-                             frozen["trace_window_hashes"][key], key)
-        for key in set(hashes) - window:
-            self.assertEqual(hashes[key], frozen["trace_hashes"][key], key)
-
     def test_validate_checks_default_fields_and_exact_symbol_order(self):
         at = datetime(2020, 1, 2, tzinfo=UTC)
         invalid = MarketFrame(at, "CN_EQUITY", {"A": {"close": "bad"}})

@@ -40,6 +40,181 @@ def payload(**changes):
 
 
 class HistoricalDataTests(unittest.TestCase):
+    def test_numeric_facts_are_point_in_time_and_projected_from_declared_parquet(self):
+        import hashlib
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=('600003', '600004'))
+            folder = root / 'data/source/fixture'
+            path = folder / 'fundamentals.parquet'
+            pq.write_table(pa.Table.from_pylist([
+                {'code': '600003', 'report_date': date(2019, 9, 30), 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .1, 'book': 1.},
+                {'code': '600004', 'report_date': date(2019, 9, 30), 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .3, 'book': 3.},
+                {'code': '600003', 'report_date': date(2019, 12, 31), 'published_at': '2020-01-31T16:00:00+08:00', 'roe': .2, 'book': 2.},
+                {'code': '600004', 'report_date': date(2019, 12, 31), 'published_at': '2020-01-31T16:00:00+08:00', 'roe': .4, 'book': 4.},
+                {'code': '600003', 'report_date': date(2019, 9, 30), 'published_at': '2020-02-04T16:00:00+08:00', 'roe': .9, 'book': 9.},
+            ]), path)
+            manifest = folder / 'manifest.json'
+            value = json.loads(manifest.read_text())
+            value['files'].append({'file': 'fundamentals.parquet', 'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'role': 'market'})
+            binding = {'source': 'facts', 'file': 'fundamentals.parquet', 'code': 'code',
+                       'effective': 'report_date', 'known': 'published_at', 'unit': 'ratio'}
+            value['fields'] = {'roe': {**binding, 'column': 'roe'}, 'book': {**binding, 'column': 'book'}}
+            manifest.write_text(json.dumps(value))
+            fields = (*FIELDS, 'roe', 'book')
+            import duckdb
+            from unittest.mock import patch
+            reads = []
+            real_connect = duckdb.connect
+            class Connection:
+                def __init__(self): self.inner = real_connect()
+                def execute(self, sql, params=None):
+                    if 'read_parquet' in sql and 'fundamentals.parquet' in str(params): reads.append(sql)
+                    return self.inner.execute(sql, params)
+                def close(self): self.inner.close()
+            with patch('market.reader.duckdb.connect', side_effect=Connection):
+                dataset = DataBus(DataStore(root)).query(DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
+                    fields, 3, 'adjusted', symbols=('600004', '600003')))
+            by_day = {record.trade_date: record for record in dataset.records}
+            self.assertIsNone(by_day[date(2020, 1, 30)].frame.fields['600003']['roe'])
+            self.assertEqual(by_day[date(2020, 1, 31)].frame.fields['600003']['roe'], .1)
+            self.assertEqual(by_day[date(2020, 1, 31)].frame.fields['600004']['roe'], .3)
+            self.assertEqual(by_day[date(2020, 2, 3)].frame.fields['600003']['roe'], .2)
+            self.assertEqual(by_day[date(2020, 2, 4)].frame.fields['600003']['roe'], .2)
+            self.assertEqual(tuple(by_day[date(2020, 2, 3)].frame.fields), ('600004', '600003'))
+            self.assertEqual(by_day[date(2020, 2, 3)].frame.history['600003'][-1].fields['roe'], .2)
+            self.assertEqual(len(reads), 1)
+            self.assertTrue(any(key.endswith('/fundamentals.parquet')
+                                for key in dataset.provenance['source_hashes']))
+
+    def test_numeric_facts_use_each_field_code_binding(self):
+        import hashlib
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=('600003', '600004'))
+            folder = root / 'data/source/fixture'
+            path = folder / 'fundamentals.parquet'
+            pq.write_table(pa.Table.from_pylist([
+                {'roe_code': '600003', 'book_code': '600004', 'report_date': date(2019, 12, 31),
+                 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .1, 'book': 4.},
+                {'roe_code': '600004', 'book_code': '600003', 'report_date': date(2019, 12, 31),
+                 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .3, 'book': 3.},
+            ]), path)
+            manifest = folder / 'manifest.json'
+            value = json.loads(manifest.read_text())
+            value['files'].append({'file': 'fundamentals.parquet',
+                'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'role': 'market'})
+            common = {'source': 'facts', 'file': 'fundamentals.parquet',
+                      'effective': 'report_date', 'known': 'published_at', 'unit': 'ratio'}
+            value['fields'] = {
+                'roe': {**common, 'code': 'roe_code', 'column': 'roe'},
+                'book': {**common, 'code': 'book_code', 'column': 'book'},
+            }
+            manifest.write_text(json.dumps(value))
+            fields = (*FIELDS, 'roe', 'book')
+            dataset = DataBus(DataStore(root)).query(DataQuery('fixture', date(2020, 1, 31),
+                date(2020, 2, 4), fields, 3, 'adjusted', symbols=('600003', '600004')))
+            by_symbol = dataset.records[-1].frame.fields
+            self.assertEqual(by_symbol['600003']['roe'], .1)
+            self.assertEqual(by_symbol['600004']['roe'], .3)
+            self.assertEqual(by_symbol['600003']['book'], 3.)
+            self.assertEqual(by_symbol['600004']['book'], 4.)
+
+    def test_research_keeps_unobserved_codes_visible_in_data_quality(self):
+        import hashlib
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        with TemporaryDirectory() as temp:
+            root=Path(temp);make_snapshot(root,symbols=('600003','600004'))
+            path=root/'data/source/fixture/daily/bars.parquet'
+            rows=pq.read_table(path).to_pylist()
+            pq.write_table(pa.Table.from_pylist([r for r in rows if r['code']=='600003']),path)
+            manifest=root/'data/source/fixture/manifest.json';value=json.loads(manifest.read_text())
+            for ref in value['files']:
+                if ref['file']=='daily/bars.parquet':ref['sha256']=hashlib.sha256(path.read_bytes()).hexdigest()
+            manifest.write_text(json.dumps(value))
+            request=DataQuery('fixture',date(2020,1,31),date(2020,2,4),FIELDS,3,'adjusted',
+                symbols=('600003','600004'),tax='none',accounting='research')
+            result=DataBus(DataStore(root)).query(request)
+            self.assertEqual(result.scope['symbols'],('600003','600004'))
+            self.assertEqual(result.provenance['data_quality']['missing_prices'],['600004'])
+            self.assertIsNone(result.records[-1].frame.fields['600004']['close'])
+
+    def test_research_does_not_require_distribution_settlement_files(self):
+        with TemporaryDirectory() as temp:
+            root=Path(temp)
+            make_snapshot(root,symbols=('600003',))
+            for path in (root/'data/source/fixture/corp').glob('dividend_*.json'):
+                path.unlink()
+            manifest=root/'data/source/fixture/manifest.json'
+            value=json.loads(manifest.read_text())
+            value['files']=[ref for ref in value['files'] if not ref['file'].startswith('corp/dividend_')]
+            manifest.write_text(json.dumps(value))
+            request=DataQuery('fixture',date(2020,1,31),date(2020,2,4),FIELDS,3,'adjusted',
+                symbols=('600003',),tax='none',accounting='research')
+            dataset=DataBus(DataStore(root)).query(request)
+            self.assertFalse(any(r.registrations for r in dataset.records))
+            self.assertEqual(dataset.provenance['accounting'],'research')
+            self.assertEqual(dataset.provenance['position_unit'],'adjusted_units')
+            self.assertTrue(dataset.records[-1].frame.context['back_factors'])
+
+    def test_price_query_uses_manifest_without_scanning_source_store(self):
+        from unittest.mock import patch
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=('600003',))
+            expected = query(root, history=3)
+            with patch.object(DataStore, 'list', side_effect=AssertionError('unnecessary source scan')):
+                actual = query(root, history=3)
+            self.assertEqual(actual, expected)
+
+    def test_pretax_carries_share_claim_until_sourced_listing(self):
+        from strategy import canonical_hash
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=("600003",))
+            path = root / "data/source/fixture/corp/dividend_sh.600003_2020.json"
+            value = json.loads(path.read_text())
+            value['records'] = [dict(announce_date='2020-01-20', registration_date='2020-01-30',
+                operation_date='2020-01-31', payment_date='2020-02-03', stock_market_date='2020-02-04',
+                cash_per_share=0, stock_dividend_per_share=.1, reserve_to_stock_per_share=0,
+                cash_after_tax_text=None)]
+            value['source_hash'] = canonical_hash(value['records'])
+            path.write_text(json.dumps(value))
+            with self.assertRaisesRegex(DataError, 'sourced credit and tax'):
+                query(root, history=3)
+            request = DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
+                FIELDS, 3, 'adjusted', symbols=('600003',), tax='none')
+            dataset = DataBus(DataStore(root)).query(request)
+            actions = [action for record in dataset.records for action in record.registrations]
+            self.assertEqual(actions[0].share_credit_date, date(2020, 2, 4))
+            self.assertIsNone(actions[0].stock_nominal)
+            self.assertIsNone(actions[0].tax_source_sha256)
+            self.assertEqual(dataset.provenance['return_basis'], 'pretax_after_costs')
+            value['records'][0]['payment_date'] = None
+            value['source_hash'] = canonical_hash(value['records'])
+            path.write_text(json.dumps(value))
+            without_payment = DataBus(DataStore(root)).query(request)
+            action = next(a for r in without_payment.records for a in r.registrations)
+            self.assertEqual(action.share_credit_date, date(2020, 2, 4))
+            value['records'][0]['payment_date'] = '2020-02-03'
+            value['records'][0]['cash_per_share'] = .2
+            value['source_hash'] = canonical_hash(value['records'])
+            path.write_text(json.dumps(value))
+            mixed = DataBus(DataStore(root)).query(request)
+            action = next(a for r in mixed.records for a in r.registrations)
+            self.assertEqual(action.share_credit_date, date(2020, 2, 4))
+            self.assertEqual(action.event.payment_date, date(2020, 2, 3))
+            value['records'][0]['stock_market_date'] = None
+            value['source_hash'] = canonical_hash(value['records'])
+            path.write_text(json.dumps(value))
+            with self.assertRaisesRegex(DataError, 'settlement evidence incomplete'):
+                DataBus(DataStore(root)).query(request)
+
     def test_index_reads_standard_records_after_each_publication(self):
         from plugins.data import Adapter
         class Source:
@@ -590,6 +765,13 @@ class HistoricalDataTests(unittest.TestCase):
             self.assertEqual(suspended.bars["600003"].amount, 0.0)
             self.assertEqual(resumed.opening_amount20["600003"], Decimal(str(sum(r.bars["600003"].amount for r in previous[-20:]) / 20)))
             self.assertEqual(resumed.opening_volume20["600003"], Decimal(str(sum(r.bars["600003"].volume for r in previous[-20:]) / 20)))
+            request=DataQuery('fixture',date(2020,1,31),date(2020,2,4),FIELDS,3,'adjusted',
+                              symbols=('600003',),tax='none',accounting='research')
+            research=DataBus(DataStore(root)).query(request)
+            closed=next(r for r in research.records if r.trade_date==date(2020,1,31))
+            self.assertNotIn('600003',closed.bars)
+            self.assertNotIn('600003',closed.opening_marks)
+            self.assertNotIn('600003',closed.closing_marks)
 
     def test_history_context_exposes_only_liquidity_input_basis(self):
         with TemporaryDirectory() as temp:

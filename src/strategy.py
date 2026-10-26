@@ -11,7 +11,7 @@ from pathlib import Path
 import pkgutil
 from typing import get_type_hints
 
-from protocol import DataRequest
+from protocol import DataRequest, _json_value
 
 PACKAGE = 'plugins.strategies'
 
@@ -78,7 +78,7 @@ def catalog() -> list[dict]:
         parameters=[{'key':item.name,'type':kinds[types[item.name]],'default':getattr(strategy.params,item.name),**dict(item.metadata)} for item in fields(module.Params)]
         items.append({'module':module.__name__,'strategy_id':strategy.strategy_id,'name':module.NAME,
                       'description':module.__doc__,'parameters':parameters,'defaults':asdict(strategy.params)})
-    return items
+    return _json_value(items)
 
 
 def code_hash() -> str:

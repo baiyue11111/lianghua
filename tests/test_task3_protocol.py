@@ -692,54 +692,6 @@ class Task3ProtocolTests(unittest.TestCase):
         port = KernelBacktestPort(object(), Replacement)
         self.assertIs(port._kernel._settlement_type, Replacement)
 
-    def test_kernel_query_settlement_matches_frozen_accounting(self):
-        import json
-        from dataclasses import asdict
-        from decimal import Decimal
-        from plugins.data import Settlement
-        from protocol import _json_value
-        from market import DataBus
-        from backend import _query
-        from storage import DataStore
-        from strategy import canonical_hash, load_strategy
-        from protocol import BacktestRequest
-        from core.kernel import Kernel
-        from tests.history_fixture import make_snapshot
-
-        frozen = json.loads(Path("tests/fixtures/kernel-history-ab.json").read_text())
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            config = make_snapshot(root)
-            bus = DataBus(DataStore(root))
-            kernel = Kernel(bus, load_strategy, _query, Settlement)
-            strategy = load_strategy("plugins.strategies.breadth_low_amount_reversal", {"positions": 4})
-            request = BacktestRequest(
-                "frozen", "plugins.strategies.breadth_low_amount_reversal", asdict(strategy.params), "fixture",
-                datetime(2020, 1, 31, tzinfo=timezone.utc),
-                datetime(2020, 2, 4, 23, 59, 59, tzinfo=timezone.utc), Decimal("100000"),
-                settlement_parameters={
-                    "limits": __import__("core.calculation", fromlist=["AllocationLimits"]).AllocationLimits(),
-                    "execution": execution(),
-                },
-            )
-            response = kernel.run(request)
-            result = response.account_result
-            self.assertEqual(response.final_equity, Decimal(str(frozen["equity"][-1]["equity"])))
-            self.assertEqual([{"at": p.day.isoformat(), "equity": float(p.equity)}
-                              for p in result.equity if p.day >= date(2020, 1, 31)], frozen["equity"])
-            hashes = {key: canonical_hash(_json_value(getattr(result, key))) for key in frozen["trace_hashes"]}
-            window = {"allocations", "equity", "frames", "holdings", "targets", "tax_liabilities"}
-            days = [point.day.isoformat() for point in result.equity]
-            indices = [index for index, day in enumerate(days) if day >= frozen["trace_window_start"]]
-            self.assertEqual([days[index] for index in indices], [item["at"] for item in frozen["equity"]])
-            for key in window:
-                trace = _json_value(getattr(result, key))
-                self.assertEqual(len(trace), len(days), key)
-                self.assertEqual(canonical_hash([trace[index] for index in indices]),
-                                 frozen["trace_window_hashes"][key], key)
-            for key in set(hashes) - window:
-                self.assertEqual(hashes[key], frozen["trace_hashes"][key], key)
-
     def test_protocol_saves_complete_kernel_trace_through_data_bus(self):
         import json
         from pathlib import Path

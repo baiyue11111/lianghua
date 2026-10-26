@@ -33,7 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
     ingest.add_argument("--max-symbols", type=int)
     ingest.add_argument("--price-part", type=int, action="append", help="process only this 0-based zip price part; repeatable")
     parser.add_argument("--backtest", type=Path, help="直接读取一个 backtest JSON 配置")
-    parser.add_argument("--collect", metavar="MARKET:COMMAND", help="收集：沪深:[2003,2012]、latest、range、auto、check、status；auto 前台运行，Ctrl+C 停止")
+    parser.add_argument("--collect", metavar="MARKET:COMMAND", help="收集：沪深:[2003,2012]、latest、range、auto、check、doctor、status；auto 前台运行，Ctrl+C 停止")
+    parser.add_argument("--refresh", action="store_true", help="重新获取并替换指定区间的已有记录")
     for name in ("data", "codes", "fields", "start", "end", "interval"):
         parser.add_argument("--" + name, help={
             "data": "注册的数据类型，多个用逗号分隔；all 表示全部",
@@ -49,6 +50,8 @@ def to_action(args: argparse.Namespace):
     if args.collect is not None:
         values = {name: value for name in ("data", "codes", "fields", "start", "end", "interval")
                   if (value := getattr(args, name, None)) is not None}
+        if args.refresh:
+            values['refresh'] = True
         values['selector'] = args.collect
         operation = 'cli.collect'
     elif args.backtest is not None:
