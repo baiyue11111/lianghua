@@ -60,18 +60,36 @@ CLI 返回指标、净值、参数和运行 ID；完整成交与执行轨迹按 
 
 ## 基本面计算
 
-`manifest.fields` 可把一个请求字段绑定到事实文件：
+数值财务数据使用 `fundamentals` 来源；原 `financials` 仍是公告文件目录。登记该来源后，通过现有 CLI 采集：
+
+```sh
+lianghua --collect '沪深:[2026-03-01,2026-03-31]' --data fundamentals --codes sz.000001,sh.600000
+lianghua --collect '沪深:latest' --data fundamentals --codes sz.000001,sh.600000
+```
+
+这里的区间筛选上游的**更新日期**，不是财报所属季度。省略 `--codes` 时使用登记市场的证券目录。适配器批量请求代码，只获取必要列；一次保存完整指标快照。营收、利润和现金流沿用报告口径，不自动转为 TTM 或年化数据。百分数除以 100，金额保留人民币单位，空值和负值如实保留。
+
+| 字段 | 含义 | 标准单位 |
+| --- | --- | --- |
+| `roe`、`debt_ratio` | 加权净资产收益率、资产负债率 | 比例，10% 存为 0.1 |
+| `gross_margin`、`net_margin` | 毛利率、净利率 | 比例 |
+| `revenue_growth`、`profit_growth` | 营收同比、归母净利润同比 | 比例 |
+| `revenue`、`net_profit` | 营业总收入、归母净利润 | 元 |
+| `eps`、`book_value`、`cash_per_share` | 基本每股收益、每股净资产、每股经营现金流 | 元/股 |
+
+`--fields` 只接受上述字段；采集仍保存完整报告快照，避免将不同版本的字段混在一起。策略通过 `requirements` 选择真正需要读取的字段。`latest` 从所选证券中最早的采集水位续取；新证券须先运行指定区间的采集。本源不把存在少量财报记录视为全历史覆盖，因此不提供 `check` 的完整覆盖结论。
+
+下面仅展示 `manifest.fields` 绑定片段；完整 manifest 的 `files` 每项是含 `file` 和 `sha256` 的对象，摘要必须对应实际文件：
 
 ```json
 {
-  "files": ["financials.parquet"],
   "fields": {
     "roe": {
       "source": "facts",
-      "file": "financials.parquet",
+      "file": "source/fundamentals/records.parquet",
       "code": "code",
       "effective": "report_date",
-      "known": "announced_at",
+      "known": "available_at",
       "column": "roe",
       "unit": "ratio"
     }
@@ -96,7 +114,9 @@ def generate(self, frame, account):
 
 计算只对 `frame.at` 的证券横截面做 population z-score。权重由调用方明确给出，可正可负，不会自动归一化。某只证券任一因子为 `None` 时，`score` 为 `None`，证券仍保留；常量因子记为 0。结果只含标准化因子和 `score`，`history` 为空，不回算过去时点。
 
-事实字段的 `known` 必须来自真实、带时区的公告时刻。财报所属季度不能代替公告时刻。盘后公告从下一交易日起可用；已知修订不会改写过去时点。当前生产的两张事实表没有 `known` 字段，因此这个模块能力不代表现有生产数据已能运行基本面回测。该计算也不承诺收益。
+事实字段的 `known` 绑定可用时间，不能使用财报所属季度代替。具有精确公告时刻的源保留时区；东方财富本接口只有日期，保留 `report_date`、`notice_date`、`update_date` 和 `precision=date`，将较晚公告/更新日期的次日零点（上海时区）记为 `available_at`。这是保守可用边界，不是精确发布时间；DataBus 只在该边界后读取数值。
+
+已采到的不同版本分别保留；同一证券、报告期和可用时间下数值冲突会报错，`--refresh` 也不能覆盖。上游当前接口不提供完整的历史修订档案，不能据此恢复未采到的旧版本，也不能宣称已覆盖全市场历史 PIT 数据。原有两张缺少可知时间的季度表保持独立。基本面计算不承诺收益。
 
 ## 说明
 

@@ -1493,7 +1493,7 @@ class Methods:
 
     def publish(self, source: Mapping, packet: Mapping):
         result = self._deliver(source, packet, dry_run=False)
-        if not packet['records']:
+        if not packet['records'] and source.get("data_type") != "facts":
             return result
         try:
             version = self.records(source, 0, 0)['snapshot_id'] if source.get('method') == 'daily' or source.get('data_type') == 'daily' else result.sha256
@@ -1520,6 +1520,14 @@ class Methods:
                 validate_record(row)
         if source.get('method') == 'daily' or source.get("data_type") == "daily":
             return self._publish_daily(source["storage_id"], source["dataset_id"], packet, dry_run=dry_run)
+        if source.get("data_type") == "facts":
+            if (not isinstance(getattr(handler, "value_columns", None), Mapping)
+                    or not getattr(handler, "text_columns", None)
+                    or len(getattr(handler, "dates", ())) != 2
+                    or not getattr(handler, "keys", None)
+                    or not callable(getattr(handler, "validate_record", None))):
+                raise DataError("unsupported_facts_source", "facts provider must declare a numeric schema")
+            return self._publish_facts(source, packet, handler, dry_run=dry_run)
         handler = self.handlers.get(source.get('method'), DEFAULT_METHODS.get(source.get("method")))
         declared = source.get('params', {}).get('key_fields', getattr(handler, 'keys', None))
         if (not isinstance(declared, (list, tuple)) or not declared
@@ -1556,6 +1564,118 @@ class Methods:
             if dry_run:
                 return stats
             return self.data.write("sources", source["id"], "records.json", content)
+
+    def _publish_facts(self, source, packet, handler, *, dry_run):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+
+        source_id, storage_id, dataset = source["id"], source["storage_id"], source["dataset_id"]
+        file_name = f"source/{storage_id}/records.parquet"
+        texts, numeric = tuple(handler.text_columns), tuple(handler.value_columns)
+        if (len(set(texts + numeric)) != len(texts + numeric)
+                or not {'code', 'date', *handler.keys, *handler.dates} <= set(texts)):
+            raise DataError('invalid_schema', 'facts identity and time columns must be declared')
+        schema = pa.schema([(name, pa.string()) for name in texts] +
+                           [(name, pa.float64()) for name in numeric])
+        incoming = []
+        seen = set()
+        for row in packet["records"]:
+            value = {name: deepcopy(item) for name, item in row.items() if name != "raw_page"}
+            identity = tuple(value[name] for name in handler.keys)
+            if identity in seen:
+                raise DataError("data_conflict", f"duplicate financial version: {identity!r}")
+            seen.add(identity)
+            incoming.append(value)
+        with self.data.transaction("sources"):
+            try:
+                old_records_content = self.data.read("sources", source_id, "records.json")
+                old = json.loads(old_records_content)["records"]
+            except DataError as error:
+                if error.code != "missing":
+                    raise
+                old_records_content, old = None, []
+            if not incoming:
+                content = json.dumps({"records": old}, ensure_ascii=False, sort_keys=True,
+                                     separators=(",", ":"), allow_nan=False).encode()
+                if dry_run:
+                    return {"records": len(old), "incoming": 0}
+                try:
+                    current = self.data.read("sources", source_id, "records.json")
+                except DataError as error:
+                    if error.code != "missing":
+                        raise
+                    current = None
+                if current != content:
+                    self.data.write("sources", source_id, "records.json", content)
+                refs = self.data.list("sources", source_id)
+                return next((ref for ref in refs if ref.name == "records.json"), None)
+            current = {}
+            for row in old:
+                handler.validate_record(row)
+                identity = tuple(row[name] for name in handler.keys)
+                if identity in current:
+                    raise DataError("data_conflict", f"duplicate stored financial version: {identity!r}")
+                current[identity] = {name: deepcopy(item) for name, item in row.items()
+                                     if name != "raw_page"}
+            for row in incoming:
+                identity = tuple(row[name] for name in handler.keys)
+                if identity in current and current[identity] != row:
+                    raise DataError("data_conflict", f"financial version is immutable: {identity!r}")
+                current.setdefault(identity, row)
+            records = [current[key] for key in sorted(current)]
+            records_content = json.dumps({"records": records}, ensure_ascii=False, sort_keys=True,
+                                         separators=(",", ":"), allow_nan=False).encode()
+            table = pa.Table.from_pylist(records, schema=schema)
+            parquet_buffer = pa.BufferOutputStream()
+            pq.write_table(table, parquet_buffer, compression="zstd")
+            parquet_content = parquet_buffer.getvalue().to_pybytes()
+            manifest = json.loads(self.data.read("sources", dataset, "manifest.json"))
+            fields = manifest.get("fields")
+            files = manifest.get("files")
+            if not isinstance(fields, dict) or not isinstance(files, list):
+                raise DataError("invalid_manifest", "facts dataset requires fields and files")
+            bindings = {}
+            for name, (_, unit, _) in handler.value_columns.items():
+                bindings[name] = {"source": "facts", "file": file_name, "code": "code",
+                                  "effective": handler.dates[0], "known": handler.dates[1],
+                                  "column": name, "unit": unit}
+            for name, binding in bindings.items():
+                if name in fields and fields[name] != binding:
+                    raise DataError("field_conflict", f"numeric field binding already exists: {name}")
+            updated = deepcopy(manifest)
+            updated["fields"] = {**fields, **bindings}
+            digest = hashlib.sha256(parquet_content).hexdigest()
+            refs = [row for row in files if row.get("file") == file_name]
+            if len(refs) > 1:
+                raise DataError("invalid_manifest", "duplicate facts Parquet reference")
+            if refs and refs[0].get("role") != "market":
+                raise DataError("invalid_manifest", "facts evidence role conflicts with dataset")
+            try:
+                old_parquet_content = self.data.read('sources', storage_id, 'records.parquet')
+            except DataError as error:
+                if error.code != 'missing':
+                    raise
+                old_parquet_content = None
+            if (bool(old) != bool(refs) or bool(refs) != (old_parquet_content is not None)
+                    or refs and hashlib.sha256(old_parquet_content).hexdigest() != refs[0]['sha256']):
+                raise DataError('data_conflict', 'stored facts do not match their manifest evidence')
+            if old and pq.read_table(pa.BufferReader(old_parquet_content)).to_pylist() != old:
+                raise DataError('data_conflict', 'stored facts JSON and Parquet versions differ')
+            updated["files"] = ([{**row, "sha256": digest} if row.get("file") == file_name else row
+                                 for row in files] if refs else
+                                [*files, {"file": file_name, "sha256": digest, "role": "market"}])
+            manifest_content = _canonical(updated)
+            if dry_run:
+                return {"records": len(records), "incoming": len(incoming)}
+
+            if old_records_content != records_content:
+                self.data.write("sources", source_id, "records.json", records_content)
+            if old_parquet_content != parquet_content:
+                self.data.write("sources", storage_id, "records.parquet", parquet_content)
+            if manifest_content != _canonical(manifest):
+                self.data.write("sources", dataset, "manifest.json", manifest_content)
+            refs = self.data.list("sources", source_id)
+            return next((ref for ref in refs if ref.name == "records.json"), None)
 
     @staticmethod
     def _merge_record(old, new, identity, *, refresh=False):
@@ -2011,6 +2131,18 @@ class Methods:
 
     def last_date(self, source: Mapping, codes) -> str | None:
         """Read the watermark for these securities, never an unrelated index."""
+        if source.get('data_type') == 'facts':
+            try:
+                rows = json.loads(self.data.read('sources', source['id'], 'records.json'))['records']
+            except DataError as error:
+                if error.code != 'missing':
+                    raise
+                return None
+            dates = {}
+            for row in rows:
+                code = row['code']
+                dates[code] = max(dates.get(code, row['date']), row['date'])
+            return min(dates[code] for code in codes) if codes and all(code in dates for code in codes) else None
         if source.get('method') == 'daily':
             import duckdb
             from copy import deepcopy
@@ -2132,6 +2264,194 @@ class EastmoneyQuotes:
             return {"records": records, "raw": raw,
                     "data_as_of": max(row["data_at"] for row in records),
                     "scope": {"codes": codes, "frequency": "provider quote snapshot"}}
+        except Exception as error:
+            raise CollectionError(str(error), raw) from error
+
+
+class EastmoneyFundamentals:
+    """A fixed numeric snapshot of Eastmoney financial report versions."""
+
+    endpoint = "https://datacenter-web.eastmoney.com/api/data/v1/get"
+    text_columns = ("code", "date", "precision", "report_date", "notice_date", "update_date", "available_at")
+    dates = ("report_date", "available_at")
+    value_columns = {
+        "roe": ("ROEJQ", "ratio", True),
+        "debt_ratio": ("ZCFZL", "ratio", True),
+        "revenue": ("TOTALOPERATEREVE", "cny", False),
+        "net_profit": ("PARENTNETPROFIT", "cny", False),
+        "eps": ("EPSJB", "cny_per_share", False),
+        "book_value": ("BPS", "cny_per_share", False),
+        "gross_margin": ("XSMLL", "ratio", True),
+        "net_margin": ("XSJLL", "ratio", True),
+        "revenue_growth": ("TOTALOPERATEREVETZ", "ratio", True),
+        "profit_growth": ("PARENTNETPROFITTZ", "ratio", True),
+        "cash_per_share": ("MGJYXJJE", "cny_per_share", False),
+    }
+    identity_columns = ("SECUCODE", "SECURITY_CODE", "REPORT_DATE", "NOTICE_DATE", "UPDATE_DATE")
+    columns = (*identity_columns, "CURRENCY", *(item[0] for item in value_columns.values()))
+    keys = ("code", "report_date", "available_at")
+    page_size = 500
+
+    def __init__(self, config, transport=None):
+        self.config = config
+        if transport is None:
+            import requests
+            transport = requests.Session().get
+        self.transport = transport
+
+    @staticmethod
+    def _day(value, name):
+        if not isinstance(value, str) or not value:
+            raise ValueError(f"financial {name} is required")
+        try:
+            if "T" in value or " " in value:
+                stamp = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                if stamp.timetz().replace(tzinfo=None) != datetime.min.time():
+                    raise ValueError("non-midnight time has no date precision")
+                parsed = stamp.date()
+            else:
+                parsed = date.fromisoformat(value)
+        except ValueError as error:
+            raise ValueError(f"financial {name} is invalid") from error
+        return parsed.isoformat()
+
+    @staticmethod
+    def _code(value):
+        if not isinstance(value, str) or not re.fullmatch(r"\d{6}\.(?:SZ|SH)", value):
+            raise ValueError("financial security identity is invalid")
+        return normalize_security_id(value.split(".")[1].lower() + "." + value.split(".")[0])
+
+    @staticmethod
+    def _number(value, name):
+        if value is None:
+            return None
+        if type(value) not in (int, float) or not math.isfinite(value):
+            raise ValueError(f"financial {name} is not a finite number")
+        return value
+
+    @classmethod
+    def validate_record(cls, row):
+        if not isinstance(row, Mapping):
+            raise ValueError("financial record must be an object")
+        required = {"code", "date", "report_date", "notice_date", "update_date", "available_at",
+                    "precision",
+                    *cls.value_columns}
+        if set(row) - (required | {"raw_page"}) or required - set(row):
+            raise ValueError("financial record fields are incomplete")
+        if (not isinstance(row["code"], str)
+                or not re.fullmatch(r"(?:sh|sz)\.\d{6}", row["code"])
+                or normalize_security_id(row["code"]) != row["code"]):
+            raise ValueError("financial record code is not canonical")
+        if row["precision"] != "date":
+            raise ValueError("financial date precision must be date")
+        report, notice, update = (cls._day(row[name], name) for name in
+                                  ("report_date", "notice_date", "update_date"))
+        if not report <= notice <= update or row["date"] != update:
+            raise ValueError("financial record dates are inconsistent")
+        available = (date.fromisoformat(max(notice, update)) + timedelta(days=1)).isoformat()
+        if row["available_at"] != available + "T00:00:00+08:00":
+            raise ValueError("financial availability boundary is inconsistent")
+        for name, (_, _, ratio) in cls.value_columns.items():
+            value = row[name]
+            if value is not None and (type(value) not in (int, float) or not math.isfinite(value)):
+                raise ValueError(f"financial {name} is not finite")
+        return True
+
+    def collect(self, request):
+        raw = []
+        try:
+            start, end = date.fromisoformat(request["start"]), date.fromisoformat(request["end"])
+            if start.isoformat() != request["start"] or end.isoformat() != request["end"] or start > end:
+                raise ValueError("financial update date range is invalid")
+            codes = request["codes"]
+            if (not isinstance(codes, list) or not codes or len(codes) != len(set(codes))
+                    or any(not isinstance(code, str) or not re.fullmatch(r"(?:sh|sz)\.\d{6}", code)
+                           for code in codes)):
+                raise ValueError("financial codes must be unique canonical market codes")
+            requested = {normalize_security_id(code): code for code in codes}
+            fields = request.get("fields")
+            if fields is not None and (not isinstance(fields, list) or not fields
+                    or len(fields) != len(set(fields)) or set(fields) - set(self.value_columns)):
+                raise ValueError("unsupported financial fields")
+            east_codes = [code.split(".")[1] + "." + code.split(".")[0].upper()
+                          for code in codes]
+            params = {
+                "reportName": "RPT_F10_FINANCE_MAINFINADATA",
+                "columns": ",".join(self.columns),
+                "filter": f'(SECUCODE in ({",".join(json.dumps(code) for code in east_codes)}))'
+                          f"(UPDATE_DATE>='{start.isoformat()}')(UPDATE_DATE<='{end.isoformat()}')",
+                "pageNumber": 1, "pageSize": self.page_size,
+                "sortColumns": "UPDATE_DATE,REPORT_DATE,SECUCODE", "sortTypes": "1,1,1",
+                "source": "HSF10", "client": "PC",
+            }
+            rows, expected_pages, expected_count = [], None, None
+            page = 1
+            while True:
+                params["pageNumber"] = page
+                response = self.transport(self.endpoint, params=params, timeout=DEFAULT_TIMEOUT)
+                response.raise_for_status()
+                payload = response.json()
+                raw.append({"url": self.endpoint, "params": dict(params), "response": payload})
+                if (page == 1 and isinstance(payload, dict) and payload.get("success") is False
+                        and payload.get("code") == 9201 and payload.get("result") is None):
+                    expected_pages, expected_count = 0, 0
+                    break
+                if (not isinstance(payload, dict) or payload.get("success") is not True
+                        or payload.get("code") != 0 or not isinstance(payload.get("result"), dict)):
+                    raise ValueError("Eastmoney financial response is malformed")
+                result = payload["result"]
+                pages, count, data = result.get("pages"), result.get("count"), result.get("data")
+                if (type(pages) is not int or pages < 0 or type(count) is not int or count < 0
+                        or not isinstance(data, list)):
+                    raise ValueError("Eastmoney financial paging metadata is invalid")
+                if expected_pages is None:
+                    expected_pages, expected_count = pages, count
+                    if pages != math.ceil(count / self.page_size):
+                        raise ValueError("Eastmoney financial page count disagrees with total")
+                elif pages != expected_pages or count != expected_count:
+                    raise ValueError("Eastmoney financial paging metadata changed")
+                if len(data) > self.page_size or (page < pages and len(data) != self.page_size):
+                    raise ValueError("Eastmoney financial page is incomplete")
+                rows.extend(data)
+                if page == max(1, pages):
+                    break
+                page += 1
+            if len(rows) != expected_count:
+                raise ValueError("Eastmoney financial result count differs from total")
+            records, seen = [], set()
+            for index, row in enumerate(rows):
+                if not isinstance(row, dict) or set(self.columns) - set(row):
+                    raise ValueError("Eastmoney financial row is missing projected columns")
+                code = self._code(row["SECUCODE"])
+                if code not in requested or row["SECURITY_CODE"] != code.split(".")[1]:
+                    raise ValueError("Eastmoney financial row identity differs from request")
+                report = self._day(row["REPORT_DATE"], "report date")
+                notice = self._day(row["NOTICE_DATE"], "notice date")
+                update = self._day(row["UPDATE_DATE"], "update date")
+                if not report <= notice <= update or not start.isoformat() <= update <= end.isoformat():
+                    raise ValueError("Eastmoney financial row dates are inconsistent")
+                if row["CURRENCY"] != "CNY":
+                    raise ValueError("Eastmoney financial currency is not CNY")
+                available = (date.fromisoformat(max(notice, update)) + timedelta(days=1)).isoformat()
+                record = {"code": code, "date": update, "precision": "date", "report_date": report,
+                          "notice_date": notice, "update_date": update,
+                          "available_at": available + "T00:00:00+08:00", "raw_page": index // self.page_size}
+                for name, (column, _, ratio) in self.value_columns.items():
+                    value = self._number(row[column], name)
+                    record[name] = value / 100 if value is not None and ratio else value
+                identity = (record["code"], record["report_date"], record["available_at"])
+                if identity in seen:
+                    raise ValueError("duplicate Eastmoney financial version")
+                seen.add(identity)
+                records.append(record)
+            records.sort(key=lambda row: (row["update_date"], row["report_date"], row["code"]))
+            return {"records": records, "raw": raw,
+                    "data_as_of": max((row["available_at"] for row in records), default=None),
+                    "scope": {"codes": list(codes), "update_date": {"start": start.isoformat(),
+                               "end": end.isoformat()}, "fields": list(self.value_columns),
+                               "availability": "conservative next-day boundary",
+                               "observed_records": len(records),
+                               "flow_basis": "reported cumulative amounts; no annualization or TTM"}}
         except Exception as error:
             raise CollectionError(str(error), raw) from error
 
@@ -3065,6 +3385,7 @@ DEFAULT_METHODS = {
     "catalogue": Catalogue,
     "news": News,
     "quotes": EastmoneyQuotes,
+    "eastmoney_fundamentals": EastmoneyFundamentals,
     "daily": BaostockDaily,
     "sina_daily": SinaDaily,
     "announcements": CninfoAnnouncements,
