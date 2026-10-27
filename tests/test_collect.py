@@ -1565,3 +1565,361 @@ class CollectionTests(unittest.TestCase):
         with patch.dict('sys.modules', {'baostock': provider}):
             result = collect_daily({'codes': ['sz.301001'], 'start': '2026-10-01', 'end': '2026-10-02', 'fields': Rows.fields})
         self.assertEqual(result['records'], [])
+
+    def test_eastmoney_fundamentals_fetches_one_fixed_numeric_snapshot(self):
+        from collect.methods import EastmoneyFundamentals
+
+        columns = {
+            'ROEJQ': 10.08, 'ZCFZL': 91.4, 'TOTALOPERATEREVE': 1000,
+            'PARENTNETPROFIT': -5, 'EPSJB': 1.2, 'BPS': 9,
+            'XSMLL': None, 'XSJLL': 4, 'TOTALOPERATEREVETZ': -2,
+            'PARENTNETPROFITTZ': None, 'MGJYXJJE': -0.3,
+        }
+        def row(code, report, notice, update, values=None):
+            values = values or columns
+            return {'SECUCODE': code, 'SECURITY_CODE': code[:6],
+                    'REPORT_DATE': report + ' 00:00:00',
+                    'NOTICE_DATE': notice + ' 00:00:00',
+                    'UPDATE_DATE': update + ' 00:00:00', 'CURRENCY': 'CNY', **values}
+        pages = [{'success': True, 'code': 0, 'result': {'pages': 1, 'count': 2,
+                  'data': [row('000001.SZ', '2025-12-31', '2026-03-03', '2026-03-04'),
+                           row('600000.SH', '2025-12-31', '2026-03-09', '2026-03-10')]}}]
+        calls = []
+        class Response:
+            status_code = 200
+            def __init__(self, payload): self.payload = payload
+            def raise_for_status(self): pass
+            def json(self): return self.payload
+        def transport(url, *, params, timeout):
+            calls.append((url, params, timeout))
+            return Response(pages.pop(0))
+
+        packet = EastmoneyFundamentals({}, transport=transport).collect({
+            'codes': ['sz.000001', 'sh.600000'],
+            'start': '2026-03-01', 'end': '2026-03-31',
+            'fields': ['roe', 'revenue'],
+        })
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][1]['pageSize'], 500)
+        self.assertEqual(calls[0][1]['filter'],
+                         '(SECUCODE in ("000001.SZ","600000.SH"))'
+                         "(UPDATE_DATE>='2026-03-01')(UPDATE_DATE<='2026-03-31')")
+        self.assertEqual([item['code'] for item in packet['records']],
+                         ['sz.000001', 'sh.600000'])
+        first = packet['records'][0]
+        self.assertEqual(first['report_date'], '2025-12-31')
+        self.assertEqual(first['notice_date'], '2026-03-03')
+        self.assertEqual(first['update_date'], '2026-03-04')
+        self.assertEqual(first['date'], '2026-03-04')
+        self.assertEqual(first['precision'], 'date')
+        self.assertEqual(first['available_at'], '2026-03-05T00:00:00+08:00')
+        self.assertEqual(first['roe'], 0.1008)
+        self.assertEqual(first['debt_ratio'], 0.914)
+        self.assertEqual(first['net_profit'], -5)
+        self.assertIsNone(first['gross_margin'])
+        self.assertIn('no annualization or TTM', packet['scope']['flow_basis'])
+        self.assertEqual(set(first) - {'raw_page'}, {
+            'code', 'date', 'precision', 'report_date', 'notice_date', 'update_date', 'available_at',
+            'roe', 'debt_ratio', 'revenue', 'net_profit', 'eps', 'book_value',
+            'gross_margin', 'net_margin', 'revenue_growth', 'profit_growth', 'cash_per_share',
+        })
+
+    def test_eastmoney_fundamentals_rejects_unverifiable_rows_and_paging(self):
+        from collect.methods import EastmoneyFundamentals
+
+        values = {'ROEJQ': 10, 'ZCFZL': 50, 'TOTALOPERATEREVE': 100,
+                  'PARENTNETPROFIT': -1, 'EPSJB': 1, 'BPS': 2,
+                  'XSMLL': None, 'XSJLL': 5, 'TOTALOPERATEREVETZ': 2,
+                  'PARENTNETPROFITTZ': 3, 'MGJYXJJE': 4}
+        base = {'SECUCODE': '000001.SZ', 'SECURITY_CODE': '000001', 'CURRENCY': 'CNY',
+                'REPORT_DATE': '2025-12-31 00:00:00',
+                'NOTICE_DATE': '2026-03-02 00:00:00',
+                'UPDATE_DATE': '2026-03-03 00:00:00', **values}
+
+        def collect(row, *, pages=1, count=1, result_pages=None):
+            payload = {'success': True, 'code': 0, 'result': {
+                'pages': pages if result_pages is None else result_pages,
+                'count': count, 'data': [row]}}
+            class Response:
+                status_code = 200
+                def raise_for_status(self): pass
+                def json(self): return payload
+            return EastmoneyFundamentals({}, transport=lambda *a, **k: Response()).collect({
+                'codes': ['sz.000001'], 'start': '2026-03-01', 'end': '2026-03-31'})
+
+        for changed in (
+            {**base, 'SECUCODE': '600000.SH'},
+            {**base, 'NOTICE_DATE': None},
+            {**base, 'UPDATE_DATE': '2026-03-01 00:00:00'},
+            {**base, 'ROEJQ': float('inf')},
+            {**base, 'SECURITY_CODE': '600000'},
+        ):
+            with self.subTest(changed=changed), self.assertRaises(Exception):
+                collect(changed)
+        with self.assertRaises(Exception):
+            collect(base, count=2)
+        with self.assertRaises(Exception):
+            collect(base, pages=2)
+        with self.assertRaises(Exception):
+            collect({**base, 'CURRENCY': 'USD'})
+        with self.assertRaises(Exception):
+            collect(base, count=2, result_pages=1)
+
+    def test_facts_publication_is_immutable_and_keeps_versions(self):
+        from collect.methods import Methods
+        from datetime import date, timedelta
+
+        def record(update, revenue=100, gross=None):
+            return {
+                'code': 'sz.000001', 'date': update, 'report_date': '2025-12-31',
+                'precision': 'date',
+                'notice_date': '2026-03-02', 'update_date': update,
+                'available_at': (date.fromisoformat(max(update, '2026-03-02'))
+                                 + timedelta(days=1)).isoformat() + 'T00:00:00+08:00',
+                'roe': 0.1, 'debt_ratio': 0.5, 'revenue': revenue, 'net_profit': -1,
+                'eps': 1.0, 'book_value': 2.0, 'gross_margin': gross, 'net_margin': 0.05,
+                'revenue_growth': 0.02, 'profit_growth': None, 'cash_per_share': -0.3,
+            }
+
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root)))
+            bus.write('sources', 'cn_a', 'manifest.json',
+                      json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
+            methods = Methods(bus)
+            source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals',
+                      'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'cn_a',
+                      'params': {'key_fields': ['code', 'report_date', 'available_at']}}
+            packet = {'records': [record('2026-03-03', gross=None)], 'raw': [{'page': 1}],
+                      'scope': {'codes': ['sz.000001']}, 'request': {'refresh': True}}
+
+            prepared = methods.prepare(source, packet)
+            self.assertEqual(prepared['incoming'], 1)
+            self.assertIsNone(methods.records(source))
+            self.assertEqual(bus.list('sources', 'fundamentals'), ())
+
+            ref = methods.publish(source, packet)
+            self.assertEqual(ref.name, 'records.json')
+            published = methods.records(source)
+            self.assertEqual(published['records_count'], 1)
+            self.assertIsNone(published['records'][0]['gross_margin'])
+            manifest = json.loads(bus.read('sources', 'cn_a', 'manifest.json'))
+            self.assertEqual(manifest['fields']['roe']['unit'], 'ratio')
+            self.assertEqual(manifest['fields']['revenue']['unit'], 'cny')
+            self.assertEqual(manifest['fields']['revenue']['file'],
+                             'source/fundamentals/records.parquet')
+            self.assertNotIn('source_availability', manifest)
+            self.assertEqual({ref.name for ref in bus.list('sources', 'fundamentals')},
+                             {'records.json', 'records.parquet'})
+
+            saved_records = bus.read('sources', 'fundamentals', 'records.json')
+            saved_manifest = bus.read('sources', 'cn_a', 'manifest.json')
+            for changed in (record('2026-03-03', gross=0.2),
+                            record('2026-03-03', revenue=200)):
+                with self.assertRaises(DataError):
+                    methods.publish(source, {**packet, 'records': [changed]})
+            self.assertEqual(bus.read('sources', 'fundamentals', 'records.json'), saved_records)
+            self.assertEqual(bus.read('sources', 'cn_a', 'manifest.json'), saved_manifest)
+
+            next_version = record('2026-03-10', revenue=120, gross=0.25)
+            methods.publish(source, {**packet, 'records': [next_version]})
+            history = methods.records(source)
+            self.assertEqual(history['records_count'], 2)
+            self.assertEqual([row['revenue'] for row in history['records']], [100, 120])
+
+    def test_eastmoney_fundamentals_accepts_only_the_observed_empty_window_code(self):
+        from collect.methods import EastmoneyFundamentals, Methods
+
+        class Response:
+            def raise_for_status(self): pass
+            def json(self):
+                return {'version': None, 'result': None, 'success': False,
+                        'message': '返回数据为空', 'code': 9201}
+
+        source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals',
+                  'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'cn_a',
+                  'params': {'key_fields': ['code', 'report_date', 'available_at']}}
+        packet = EastmoneyFundamentals({}, transport=lambda *args, **kwargs: Response()).collect({
+            'codes': ['sz.000001'], 'start': '2026-03-01', 'end': '2026-03-02'})
+        self.assertEqual(packet['records'], [])
+        self.assertEqual(packet['scope']['observed_records'], 0)
+        self.assertEqual(len(packet['raw']), 1)
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root)))
+            methods = Methods(bus)
+            methods.publish(source, packet)
+            self.assertEqual(methods.records(source)['records_count'], 0)
+            self.assertEqual({ref.name for ref in bus.list('sources', 'fundamentals')},
+                             {'records.json'})
+
+    def test_financial_versions_reach_databus_without_rewriting_history(self):
+        from collect.methods import EastmoneyFundamentals
+        from core.calculation import Calculation
+        from tests.history_fixture import make_snapshot
+        from tests.test_history_data import query, FIELDS
+        from datetime import date, timedelta
+
+        def record(code, update, roe):
+            return {**dict.fromkeys(EastmoneyFundamentals.value_columns, None),
+                    'code': code, 'date': update, 'precision': 'date',
+                    'report_date': '2019-09-30', 'notice_date': '2020-01-30',
+                    'update_date': update,
+                    'available_at': (date.fromisoformat(update) + timedelta(days=1)).isoformat() + 'T00:00:00+08:00',
+                    'roe': roe}
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp); make_snapshot(root, symbols=('600003', '600004'))
+            bus = DataBus(DataStore(root)); methods = Methods(bus)
+            source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals',
+                      'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'fixture'}
+            args = dict(symbols=('600003', '600004'), history=3,
+                        start=date(2020, 1, 30), end=date(2020, 2, 4))
+            price_before = query(root, **args)
+            packet = {'records': [record('sh.600003', '2020-01-30', .1),
+                                  record('sh.600004', '2020-01-30', .3)],
+                      'raw': [], 'scope': {}}
+            methods.publish(source, packet)
+            with patch.object(bus, 'write', wraps=bus.write) as writes:
+                methods.publish(source, packet)
+                self.assertFalse(any(call.args[0] == 'sources' for call in writes.call_args_list))
+            before = query(root, fields=(*FIELDS, 'roe'), **args)
+            methods.publish(source, {**packet, 'records': [record('sh.600003', '2020-02-03', .5)]})
+            after = query(root, fields=(*FIELDS, 'roe'), **args)
+            frames = {row.trade_date: row.frame for row in after.records}
+            self.assertIsNone(frames[date(2020, 1, 30)].fields['600003']['roe'])
+            self.assertEqual(frames[date(2020, 1, 31)].fields['600003']['roe'], .1)
+            self.assertEqual(frames[date(2020, 2, 3)].fields['600003']['roe'], .1)
+            self.assertEqual(frames[date(2020, 2, 4)].fields['600003']['roe'], .5)
+            self.assertEqual([r.frame for r in before.records if r.trade_date < date(2020, 2, 4)],
+                             [r.frame for r in after.records if r.trade_date < date(2020, 2, 4)])
+            last = frames[date(2020, 2, 4)]
+            old = next(row for row in last.history['600003'] if row.at.date() == date(2020, 1, 31))
+            self.assertEqual(old.fields['roe'], .1)
+            model = Calculation.fundamentals(last, {'roe': 1.0})
+            self.assertAlmostEqual(model.fields['600003']['score'], 1.)
+            self.assertAlmostEqual(model.fields['600004']['score'], -1.)
+            self.assertEqual([row.frame for row in price_before.records],
+                             [row.frame for row in query(root, **args).records])
+
+    def test_financial_pages_fail_closed_and_keep_source_evidence(self):
+        from copy import deepcopy
+        from collect.methods import EastmoneyFundamentals, CollectionError
+        from unittest.mock import Mock
+
+        row = {column: 1.0 for column in EastmoneyFundamentals.columns}
+        row.update(SECUCODE='600003.SH', SECURITY_CODE='600003', CURRENCY='CNY',
+                   REPORT_DATE='2025-12-31', NOTICE_DATE='2026-03-01', UPDATE_DATE='2026-03-02')
+        second = {**row, 'SECUCODE': '600004.SH', 'SECURITY_CODE': '600004'}
+        def page(rows, count=2):
+            return {'success': True, 'code': 0, 'result': {'pages': 2, 'count': count, 'data': rows}}
+        def adapter(payloads):
+            get = Mock(side_effect=[SimpleNamespace(raise_for_status=lambda: None,
+                                    json=lambda payload=payload: payload) for payload in payloads])
+            obj = EastmoneyFundamentals({}, transport=get); obj.page_size = 1
+            return obj, get
+        request = {'codes': ['sh.600003', 'sh.600004'], 'start': '2026-03-01', 'end': '2026-03-31'}
+        good, get = adapter([page([row]), page([second])])
+        packet = good.collect(request)
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual([item['raw_page'] for item in packet['records']], [0, 1])
+        for payloads in ([page([row]), page([second], 3)], [page([row]), page([row])],
+                         [page([row]), {'success': False, 'code': 9201, 'result': None}],
+                         [{'success': False, 'code': 9202, 'result': None}]):
+            bad, _ = adapter(payloads)
+            with self.assertRaises(CollectionError) as caught:
+                bad.collect(request)
+            self.assertTrue(caught.exception.evidence)
+        for changed in ({'codes': ['bj.830001']}, {'fields': ['unknown']},
+                        {'codes': ['zz.600003']}):
+            bad, get = adapter([])
+            with self.assertRaises(CollectionError):
+                bad.collect({**request, **changed})
+            get.assert_not_called()
+        with tempfile.TemporaryDirectory() as temp:
+            bus = DataBus(DataStore(Path(temp))); methods = Methods(bus)
+            source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals',
+                      'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'fixture'}
+            original = {'schema': 2, 'files': [], 'fields': {'roe': {'source': 'another-source'}}}
+            bus.write('sources', 'fixture', 'manifest.json', json.dumps(original).encode())
+            with patch.object(bus, 'write', wraps=bus.write) as writes, self.assertRaises(DataError):
+                methods.publish(source, packet)
+            writes.assert_not_called()
+            self.assertEqual(json.loads(bus.read('sources', 'fixture', 'manifest.json')), original)
+
+    def test_financial_latest_starts_at_the_oldest_security_watermark(self):
+        from collect.methods import Methods
+        source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals', 'data_type': 'facts'}
+        with tempfile.TemporaryDirectory() as temp:
+            bus = DataBus(DataStore(Path(temp))); methods = Methods(bus)
+            bus.write('sources', source['id'], 'records.json', json.dumps({'records': [
+                {'code': 'sh.600003', 'date': '2026-03-21'},
+                {'code': 'sh.600004', 'date': '2026-03-31'},
+            ]}).encode())
+            self.assertEqual(methods.last_date(source, ['sh.600003', 'sh.600004']), '2026-03-21')
+            self.assertIsNone(methods.last_date(source, ['sh.600003', 'sh.600005']))
+
+    def test_facts_schema_is_declared_and_corruption_is_not_repaired_silently(self):
+        import hashlib
+        import pyarrow.parquet as pq
+        handler = SimpleNamespace(
+            text_columns=('code', 'date', 'period', 'visible_at'),
+            value_columns={'value': ('VALUE', 'ratio', False)},
+            dates=('period', 'visible_at'), keys=('code', 'period', 'visible_at'),
+            validate_record=lambda row: None)
+        source = {'id': 'numeric', 'method': 'custom_numeric', 'data_type': 'facts',
+                  'storage_id': 'numeric', 'dataset_id': 'fixture'}
+        packet = {'records': [{'code': 'sh.600003', 'date': '2020-01-30',
+                              'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
+                              'value': .25}], 'raw': [], 'scope': {}}
+        with tempfile.TemporaryDirectory() as temp:
+            bus = DataBus(DataStore(Path(temp))); methods = Methods(bus, handlers={'custom_numeric': handler})
+            bus.write('sources', 'fixture', 'manifest.json', json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
+            methods.publish(source, packet)
+            manifest = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
+            binding = manifest['fields']['value']
+            self.assertEqual((binding['effective'], binding['known']), ('period', 'visible_at'))
+            rows = pq.read_table(bus.path('sources', 'numeric', 'records.parquet')).to_pylist()
+            self.assertEqual(rows, packet['records'])
+            newer = {**packet['records'][0], 'date': '2020-02-02',
+                     'visible_at': '2020-02-03T00:00:00+08:00', 'value': .5}
+            second = {**packet, 'records': [newer]}
+            methods.publish(source, second)
+            original_records = bus.read('sources', 'numeric', 'records.json')
+            manifest = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
+            bus.write('sources', 'numeric', 'records.json', json.dumps({'records': [newer]}).encode())
+            with patch.object(bus, 'write', wraps=bus.write) as writes, self.assertRaises(DataError):
+                methods.publish(source, second)
+            writes.assert_not_called()
+            bus.write('sources', 'numeric', 'records.json', original_records)
+            bus.write('sources', 'numeric', 'records.parquet', b'corrupted')
+            with patch.object(bus, 'write', wraps=bus.write) as writes, self.assertRaises(DataError):
+                methods.publish(source, packet)
+            writes.assert_not_called()
+            self.assertEqual(bus.read('sources', 'numeric', 'records.parquet'), b'corrupted')
+            self.assertEqual(json.loads(bus.read('sources', 'fixture', 'manifest.json')), manifest)
+
+    def test_facts_partial_write_blocks_mixed_snapshot_reads(self):
+        handler = SimpleNamespace(
+            text_columns=('code', 'date', 'period', 'visible_at'),
+            value_columns={'value': ('VALUE', 'ratio', False)},
+            dates=('period', 'visible_at'), keys=('code', 'period', 'visible_at'),
+            validate_record=lambda row: None)
+        source = {'id': 'numeric', 'method': 'custom_numeric', 'data_type': 'facts',
+                  'storage_id': 'numeric', 'dataset_id': 'fixture'}
+        packet = {'records': [{'code': 'sh.600003', 'date': '2020-01-30',
+                              'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
+                              'value': .25}], 'raw': [], 'scope': {}}
+        with tempfile.TemporaryDirectory() as temp:
+            store = DataStore(Path(temp)); bus = DataBus(store)
+            methods = Methods(bus, handlers={'custom_numeric': handler})
+            bus.write('sources', 'fixture', 'manifest.json', json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
+            write = store.write
+            def fail(kind, identity, name, value):
+                if name == 'records.parquet':
+                    raise OSError('simulated disk error')
+                return write(kind, identity, name, value)
+            with patch.object(store, 'write', side_effect=fail), self.assertRaises(DataError):
+                methods.publish(source, packet)
+            self.assertTrue(store.publish_states())
+            with self.assertRaises(DataError):
+                bus.read('sources', 'numeric', 'records.json')
+            with self.assertRaises(DataError):
+                bus.read('sources', 'fixture', 'manifest.json')
