@@ -149,8 +149,38 @@ class Benchmarks:
         spec = self.specs[identity]
         dataset_id = spec.get("dataset_id")
         if isinstance(dataset_id, str) and dataset_id:
+            from bisect import bisect_right
+            from datetime import datetime, time
+            from zoneinfo import ZoneInfo
             requested_code = normalize_security_id(spec["code"])
             first, last = date.fromisoformat(str(start)), date.fromisoformat(str(end))
+            if spec.get('alignment') not in (None, 'previous_close'):
+                raise ValueError('unsupported benchmark date alignment')
+            aligned = spec.get('alignment') == 'previous_close'
+            observed = None
+            if aligned:
+                manifest = self.store.manifest(dataset_id)
+                calendar = json.loads(self.store.read('sources', dataset_id, manifest['calendar']))
+                sessions = [date.fromisoformat(day) for day in calendar['sessions']]
+                source_zone, target_zone = ZoneInfo(spec['timezone']), ZoneInfo(spec['comparison_timezone'])
+                source_close, target_close = time.fromisoformat(spec['session_close']), time.fromisoformat(spec['comparison_close'])
+                requested = tuple(dates) if dates is not None else tuple(
+                    day.isoformat() for day in sessions if first <= day <= last)
+                if not requested or tuple(sorted(set(requested))) != requested:
+                    raise ValueError('benchmark comparison dates must be ordered and unique')
+                if date.fromisoformat(requested[0]) < first or date.fromisoformat(requested[-1]) > last:
+                    raise ValueError('benchmark dates exceed requested interval')
+                stamps = [datetime.combine(day, source_close, source_zone) for day in sessions]
+                observed = []
+                for value in requested:
+                    day = date.fromisoformat(value)
+                    if not any(span['start'] <= value <= span['end'] for span in calendar['coverage']):
+                        raise ValueError('benchmark calendar does not cover comparison date')
+                    position = bisect_right(stamps, datetime.combine(day, target_close, target_zone)) - 1
+                    if position < 0:
+                        raise ValueError('benchmark has no completed close before comparison time')
+                    observed.append(sessions[position].isoformat())
+                first, last = date.fromisoformat(observed[0]), date.fromisoformat(observed[-1])
             result = self.store.query(DataQuery(
                 dataset_id, first, last, ("close",), 1, "raw",
                 symbols=(requested_code,), universe="dataset", purpose="compare"))
@@ -165,9 +195,32 @@ class Benchmarks:
                 points.append({"at": record.trade_date.isoformat(), "close": value})
             if not points:
                 raise ValueError("基准标准行情在请求区间没有数据")
-            if dates is not None and tuple(item["at"] for item in points) != tuple(dates):
+            if aligned:
+                by_day = {point['at']: point['close'] for point in points}
+                if any(day not in by_day for day in observed):
+                    raise ValueError('benchmark observed close is missing')
+                points = [{'at': target, 'close': by_day[day], 'observed_at': day}
+                          for target, day in zip(requested, observed)]
+            elif dates is not None and tuple(item["at"] for item in points) != tuple(dates):
                 raise ValueError("基准日期不全或顺序不一致")
-            return {**spec, "snapshot_id": result.provenance.get("data_hash"),
+            digest = result.provenance.get('data_hash')
+            hashes = {identity: digest}
+            if spec.get('fx_id'):
+                fx_id = spec['fx_id']
+                if fx_id == identity or self.specs[fx_id].get('fx_id'):
+                    raise ValueError('benchmark FX must be a direct rate series')
+                rate_spec = self.specs[fx_id]
+                if (rate_spec.get('base_currency') != spec.get('quote_currency')
+                        or rate_spec.get('currency') != spec.get('currency')):
+                    raise ValueError('benchmark FX currency direction differs')
+                fx = self.series(fx_id, start, end, dates=tuple(point['at'] for point in points))
+                points = [{**point, 'close': point['close'] * rate['close'],
+                           'fx_observed_at': rate.get('observed_at', rate['at'])}
+                          for point, rate in zip(points, fx['points'])]
+                hashes.update(fx['source_hashes'])
+                from hashlib import sha256
+                digest = sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+            return {**spec, "snapshot_id": digest, 'source_hashes': hashes,
                     "collected_at": None, "start": start, "end": end,
                     "points": points}
         raise ValueError('基准必须登记标准dataset_id')
@@ -289,10 +342,7 @@ class CollectionPort:
         if operation == 'collection.describe':
             return self.collect.sources.describe()
         if operation == 'collection.run':
-            result = self.collect.run(value)
-            if result['status'] != 'succeeded':
-                raise ValueError(result.get('error') or 'collection failed')
-            return result
+            return self.collect.run(value)
         if operation == 'collection.doctor':
             return self.collect.methods.doctor(self.collect.sources.get(value['source_id']), value)
         if operation == 'collection.inspect':
@@ -843,8 +893,8 @@ def _result_data(result: BacktestResponse, request: BacktestRequest | None = Non
         start, end = actual[0].isoformat(), actual[-1].isoformat()
         series = benchmarks.series(request.benchmark_id, start, end,
                                    dates=tuple(day.isoformat() for day in actual))
-        if series.get("return_type") != "price":
-            raise BacktestError("benchmark_invalid", "only price index benchmarks are supported")
+        if series.get("return_type") not in {"price", "total"}:
+            raise BacktestError("benchmark_invalid", "benchmark return type must be price or total")
         base = float(series["points"][0]["close"])
         values = []
         for point in series["points"]:
@@ -854,6 +904,7 @@ def _result_data(result: BacktestResponse, request: BacktestRequest | None = Non
             "id": series["id"], "snapshot_id": series["snapshot_id"],
             "data_hash": series["snapshot_id"], "start": start, "end": end,
             "return_type": series["return_type"], "points": values,
+            **{key: series[key] for key in ("currency", "quote_currency", "source_hashes", "alignment") if key in series},
         }
     if request is not None:
         if result.dataset is None:

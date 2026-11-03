@@ -432,7 +432,6 @@ class CollectionTests(unittest.TestCase):
                 {"frequency": "m", "price_basis": "raw"},
                 {"frequency": "daily", "price_basis": "adjusted"},
                 {"frequency": "daily", "adjustment": "2"},
-                {"frequency": "daily", "fields": ["status"]},
             ):
                 with self.subTest(request=request), self.assertRaises(DataError) as caught:
                     Methods(bus).publish({'id': 'fixture', 'data_type': 'daily',
@@ -700,7 +699,7 @@ class CollectionTests(unittest.TestCase):
             packet = methods.fetch(source, {'date': '2026-10-14'})
             published = methods.publish(source, packet)
             logged = methods.log({'source_id': 'fixture', 'event': 'published'})
-            self.assertEqual(published.kind, 'sources')
+            self.assertEqual(published['ref'].kind, 'sources')
             self.assertEqual(logged.kind, 'state')
             view = methods.records(source)
             self.assertEqual(view['records'][0]['close'], 10.0)
@@ -725,7 +724,7 @@ class CollectionTests(unittest.TestCase):
                                   {'date': '2026-10-14'})
             self.assertEqual(packet['source_id'], 'announcements')
             published = methods.publish(source, packet)
-            self.assertEqual(published.kind, 'sources')
+            self.assertEqual(published['ref'].kind, 'sources')
             self.assertTrue(methods.records(source)['snapshot_id'])
 
     def test_collect_manual_run_uses_registered_source_and_one_methods_path(self):
@@ -884,12 +883,13 @@ class CollectionTests(unittest.TestCase):
                 "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
             source = {"id": "daily", "method": "daily", "data_type": "daily",
                       "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
-            with self.assertRaises(DataError) as error:
-                methods.publish(source, methods.fetch(source, {"records": [{
-                    "code": "600000", "date": "2025-01-02", "open": 10.0,
-                    "high": 11.0, "low": 9.0, "close": 99.0,
-                    "volume": 1.0, "amount": 10.0}]}))
-            self.assertEqual(error.exception.code, "data_conflict")
+            result = methods.publish(source, methods.fetch(source, {"records": [{
+                "code": "600000", "date": "2025-01-02", "open": 10.0,
+                "high": 100.0, "low": 9.0, "close": 99.0,
+                "volume": 1.0, "amount": 10.0}]}))
+            self.assertEqual(result['records'], 0)
+            self.assertEqual([r['code'] for r in result['failures']], ['sh.600000'])
+            self.assertIn('daily field conflict', result['failures'][0]['error'])
             self.assertEqual(bus.read_ref(before), bus.read("sources", "cn_a", "daily/2025.parquet"))
             self.assertEqual(bus._store.publish_states(), ())
 
@@ -1603,7 +1603,7 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(calls[0][1]['pageSize'], 500)
         self.assertEqual(calls[0][1]['filter'],
                          '(SECUCODE in ("000001.SZ","600000.SH"))'
-                         "(UPDATE_DATE>='2026-03-01')(UPDATE_DATE<='2026-03-31')")
+                         "(UPDATE_DATE>='2026-03-01')(UPDATE_DATE<='2026-03-31')(CURRENCY=\"CNY\")")
         self.assertEqual([item['code'] for item in packet['records']],
                          ['sz.000001', 'sh.600000'])
         first = packet['records'][0]
@@ -1698,7 +1698,7 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(bus.list('sources', 'fundamentals'), ())
 
             ref = methods.publish(source, packet)
-            self.assertEqual(ref.name, 'records.json')
+            self.assertEqual(ref['ref'].name, 'records.json')
             published = methods.records(source)
             self.assertEqual(published['records_count'], 1)
             self.assertIsNone(published['records'][0]['gross_margin'])
@@ -1715,8 +1715,9 @@ class CollectionTests(unittest.TestCase):
             saved_manifest = bus.read('sources', 'cn_a', 'manifest.json')
             for changed in (record('2026-03-03', gross=0.2),
                             record('2026-03-03', revenue=200)):
-                with self.assertRaises(DataError):
-                    methods.publish(source, {**packet, 'records': [changed]})
+                result = methods.publish(source, {**packet, 'records': [changed]})
+                self.assertEqual(result['records'], 0)
+                self.assertEqual([item['code'] for item in result['failures']], ['sz.000001'])
             self.assertEqual(bus.read('sources', 'fundamentals', 'records.json'), saved_records)
             self.assertEqual(bus.read('sources', 'cn_a', 'manifest.json'), saved_manifest)
 
@@ -1746,6 +1747,11 @@ class CollectionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as root:
             bus = DataBus(DataStore(Path(root)))
             methods = Methods(bus)
+            with self.assertRaises(DataError):
+                methods.publish(source, packet)
+            self.assertEqual(bus.list('sources', 'fundamentals'), ())
+            bus.write('sources', 'cn_a', 'manifest.json',
+                      json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
             methods.publish(source, packet)
             self.assertEqual(methods.records(source)['records_count'], 0)
             self.assertEqual({ref.name for ref in bus.list('sources', 'fundamentals')},
@@ -1895,6 +1901,44 @@ class CollectionTests(unittest.TestCase):
             writes.assert_not_called()
             self.assertEqual(bus.read('sources', 'numeric', 'records.parquet'), b'corrupted')
             self.assertEqual(json.loads(bus.read('sources', 'fixture', 'manifest.json')), manifest)
+
+    def test_empty_facts_update_checks_stored_evidence_without_rewriting_it(self):
+        handler = SimpleNamespace(
+            text_columns=('code', 'date', 'period', 'visible_at'),
+            value_columns={'value': ('VALUE', 'ratio', False)},
+            dates=('period', 'visible_at'), keys=('code', 'period', 'visible_at'),
+            validate_record=lambda row: None)
+        source = {'id': 'numeric', 'method': 'custom_numeric', 'data_type': 'facts',
+                  'storage_id': 'numeric', 'dataset_id': 'fixture'}
+        packet = {'records': [{'code': 'sh.600003', 'date': '2020-01-30',
+                              'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
+                              'value': .25}], 'raw': [], 'scope': {}}
+        for damage in (None, 'parquet', 'json', 'manifest'):
+            for dry_run in (True, False):
+                with self.subTest(damage=damage, dry_run=dry_run), tempfile.TemporaryDirectory() as temp:
+                    bus = DataBus(DataStore(Path(temp)))
+                    methods = Methods(bus, handlers={'custom_numeric': handler})
+                    bus.write('sources', 'fixture', 'manifest.json',
+                              json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
+                    methods.publish(source, packet)
+                    if damage == 'parquet':
+                        bus.write('sources', 'numeric', 'records.parquet', b'corrupted')
+                    elif damage == 'json':
+                        bus.write('sources', 'numeric', 'records.json', b'{"records":[]}')
+                    elif damage == 'manifest':
+                        manifest = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
+                        manifest['files'] = []
+                        bus.write('sources', 'fixture', 'manifest.json', json.dumps(manifest).encode())
+                    before = {str(p): p.read_bytes() for p in (Path(temp)/'data'/'source').rglob('*') if p.is_file()}
+                    empty = {**packet, 'records': []}
+                    if damage:
+                        with self.assertRaises(DataError):
+                            methods._deliver(source, empty, dry_run=dry_run)
+                    else:
+                        methods._deliver(source, empty, dry_run=dry_run)
+                    after = {str(p): p.read_bytes() for p in (Path(temp)/'data'/'source').rglob('*') if p.is_file()}
+                    self.assertTrue(before)
+                    self.assertEqual(before, after)
 
     def test_facts_partial_write_blocks_mixed_snapshot_reads(self):
         handler = SimpleNamespace(

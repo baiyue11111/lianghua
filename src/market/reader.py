@@ -887,7 +887,7 @@ def _load_dataset(data, query):
             fact_rows={name:[] for name in facts_extra}
             codes={normalize_security_id(symbol):i for i,symbol in enumerate(panel.symbols)}
             ids=list(codes)
-            aliases=ids+[code.split('.')[-1] for code in ids]
+            aliases=list(dict.fromkeys([*ids,*[code.split('.')[-1] for code in ids]]))
             for file_name,names in grouped.items():
                 path,_,_=source_ref(file_name); market_evidence(file_name)
                 schema=pq.ParquetFile(path).schema_arrow
@@ -902,7 +902,8 @@ def _load_dataset(data, query):
                         raise ValueError('declared fact column must be numeric: '+name)
                 selected=['"'+column.replace('"','""')+'"' for column in sorted(columns)]
                 code_columns=sorted({facts_extra[name]['code'] for name in names})
-                predicate=' OR '.join('"'+column.replace('"','""')+'" IN (SELECT * FROM UNNEST(?))'
+                predicate=' OR '.join('lower(trim(CAST("'+column.replace('"','""')
+                                      +'" AS VARCHAR))) IN (SELECT * FROM UNNEST(?))'
                                       for column in code_columns)
                 connection=duckdb.connect()
                 try:
@@ -911,15 +912,29 @@ def _load_dataset(data, query):
                 finally:
                     connection.close()
                 for row in table.to_pylist():
+                    normalized_codes={column:normalize_security_id(str(row[column]))
+                                      for column in code_columns if row[column] is not None}
+                    if not any(code in codes for code in normalized_codes.values()): continue
+                    indexed_row={**row,**normalized_codes}
+                    normalized_values={}
                     for name in names:
-                        raw_code=row[facts_extra[name]['code']]
-                        if raw_code is None: continue
-                        code=normalize_security_id(str(raw_code))
+                        code=normalized_codes.get(facts_extra[name]['code'])
                         if code not in codes: continue
-                        value=row[facts_extra[name]['column']]
-                        if value is not None and not np.isfinite(float(value)):
+                        column_name=facts_extra[name]['column']
+                        value=row[column_name]
+                        if value is None:
+                            normalized_values[column_name]=None
+                            continue
+                        try: number=float(value)
+                        except (TypeError,ValueError,OverflowError) as error:
+                            raise ValueError(f'numeric fact is invalid: {name}, {code}') from error
+                        if not np.isfinite(number):
                             raise ValueError(f'numeric fact is nonfinite: {name}, {code}')
-                        fact_rows[name].append(dict(row, **{facts_extra[name]['code']:code}))
+                        normalized_values[column_name]=number
+                    indexed_row.update(normalized_values)
+                    for name in names:
+                        if normalized_codes.get(facts_extra[name]['code']) in codes:
+                            fact_rows[name].append(indexed_row)
             lookup=Adapter.facts({name:{**spec,'type':'number'} for name,spec in facts_extra.items()},fact_rows)
             for column,day in enumerate(panel.calendar):
                 cutoff=datetime.combine(day,time(15),tzinfo=ZoneInfo('Asia/Shanghai'))
@@ -927,11 +942,7 @@ def _load_dataset(data, query):
                     for name in facts_extra:
                         value=lookup(name,symbol,day,cutoff)
                         if value is not None:
-                            try: number=float(value)
-                            except (TypeError,ValueError,OverflowError) as error:
-                                raise ValueError(f'numeric fact is invalid: {name}, {symbol}, {day}') from error
-                            if not np.isfinite(number): raise ValueError(f'numeric fact is nonfinite: {name}, {symbol}, {day}')
-                            field_data[name][row,column]=number
+                            field_data[name][row,column]=value
     if query.symbols is not None:
         rows={normalize_security_id(symbol):index for index,symbol in enumerate(panel.symbols)}
         absent=[identity for identity in requested_ids if identity not in rows]

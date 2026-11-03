@@ -72,7 +72,6 @@ class CalculationTests(unittest.TestCase):
         })
         with self.assertRaisesRegex(ValueError, "score overflow.*security 'A'.*field 'x'"):
             Calculation.fundamentals(overflow, {"x": 1.7e308})
-
     def test_fundamentals_is_order_invariant_and_does_not_mutate_input_or_history(self):
         history = {"A": (HistoryBar(self.at, {"x": 99}),)}
         frame = MarketFrame(self.at, "CN_EQUITY", {"A": {"x": 1}, "B": {"x": 2}}, history=history)
@@ -216,6 +215,80 @@ class CalculationTests(unittest.TestCase):
         manifest = json.loads(data.writes[("runs", "run", "manifest.json")])
         self.assertEqual(manifest["effective_config"], value["effective_config"])
         self.assertEqual(manifest["config_hash"], value["config_hash"])
+
+
+class FundamentalRankTests(unittest.TestCase):
+    def setUp(self):
+        self.at = datetime(2024, 1, 2, tzinfo=timezone.utc)
+
+    def test_rank_uses_average_percentile_ranks_for_ties(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": 10}, "B": {"x": 20}, "C": {"x": 20}, "D": {"x": 40},
+        })
+        result = Calculation.fundamentals(frame, {"x": 1}, ranking="rank")
+        self.assertEqual(
+            [result.fields[symbol]["x"] for symbol in ("A", "B", "C", "D")],
+            [0.0, 0.5, 0.5, 1.0],
+        )
+
+    def test_rank_is_unchanged_when_tail_magnitude_changes_but_order_does_not(self):
+        first = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": 1}, "B": {"x": 2}, "C": {"x": 3}, "D": {"x": 4},
+        })
+        second = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": 1}, "B": {"x": 2}, "C": {"x": 3}, "D": {"x": 1e300},
+        })
+        original = Calculation.fundamentals(first, {"x": 1}, ranking="rank")
+        extreme = Calculation.fundamentals(second, {"x": 1}, ranking="rank")
+        self.assertEqual(dict(original.fields), dict(extreme.fields))
+
+    def test_rank_constant_and_single_value_are_midpoint(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"constant": 7, "single": None},
+            "B": {"constant": 7, "single": 9},
+        })
+        result = Calculation.fundamentals(frame, {"constant": 1, "single": 1}, ranking="rank")
+        self.assertEqual(result.fields["A"]["constant"], 0.5)
+        self.assertEqual(result.fields["B"]["constant"], 0.5)
+        self.assertEqual(result.fields["B"]["single"], 0.5)
+
+    def test_rank_score_sums_percentile_ranks_with_signed_weights(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": 10, "y": 3},
+            "B": {"x": 20, "y": 2},
+            "C": {"x": 30, "y": 1},
+        })
+        result = Calculation.fundamentals(frame, {"x": 2, "y": -1}, ranking="rank")
+        self.assertEqual([result.fields[s]["score"] for s in ("A", "B", "C")], [-1.0, 0.5, 2.0])
+
+    def test_rank_preserves_missing_values_empty_universe_and_input(self):
+        fields = {"A": {"x": 1, "y": 2}, "B": {"x": 3, "y": None}}
+        before = {symbol: dict(row) for symbol, row in fields.items()}
+        frame = MarketFrame(self.at, "CN_EQUITY", fields, {"tag": "same"})
+        result = Calculation.fundamentals(frame, {"x": 1, "y": 1}, ranking="rank")
+        self.assertEqual(result.fields["A"]["x"], 0.0)
+        self.assertEqual(result.fields["B"]["x"], 1.0)
+        self.assertIsNone(result.fields["B"]["y"])
+        self.assertIsNone(result.fields["B"]["score"])
+        self.assertEqual(fields, before)
+        self.assertEqual(dict(frame.context), {"tag": "same"})
+        empty = Calculation.fundamentals(
+            MarketFrame(self.at, "CN_EQUITY", {}), {"x": 1}, ranking="rank"
+        )
+        self.assertEqual(dict(empty.fields), {})
+
+    def test_unknown_ranking_is_rejected(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {"A": {"x": 1}})
+        with self.assertRaises(ValueError):
+            Calculation.fundamentals(frame, {"x": 1}, ranking="unknown")
+
+    def test_default_score_matches_explicit_score(self):
+        frame = MarketFrame(self.at, "CN_EQUITY", {
+            "A": {"x": 1, "y": 4}, "B": {"x": 3, "y": 2},
+        })
+        default = Calculation.fundamentals(frame, {"x": 2, "y": -1})
+        explicit = Calculation.fundamentals(frame, {"x": 2, "y": -1}, ranking="score")
+        self.assertEqual(dict(default.fields), dict(explicit.fields))
 
 
 if __name__ == "__main__":

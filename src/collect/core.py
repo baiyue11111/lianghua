@@ -4,6 +4,7 @@ import threading
 import time
 import uuid
 import json
+import re
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
@@ -36,69 +37,244 @@ class Collect:
             json.dumps(job, ensure_ascii=False, sort_keys=True,
                        separators=(",", ":"), allow_nan=False).encode(),
         )
+        self._jobs[job['job_id']] = job
 
     def run(self, request):
         if self._closed:
             raise RuntimeError("collection is closed")
+        if 'market' in request:
+            return self._market(request)
         source = self._source(request)
-        source_id = source["id"]
-        request = self.methods.prepare_request(source, request)
-        request["source_id"] = source_id
+        return self._run(source, self.methods.prepare_request(source, request))
+
+    @staticmethod
+    def _join(packets):
+        """Combine observed results; retain each record's original evidence page."""
+        result = {key: value for key, value in packets[0].items() if key != 'no_trade'}
+        result.update(records=[], raw=[])
+        requests = [packet['request'] for packet in packets]
+        request = dict(requests[0])
+        codes = [code for item in requests for code in item.get('codes', ())]
+        if codes:
+            request['codes'] = codes
+        for field, choose in (('start', min), ('end', max)):
+            values = [item[field] for item in requests if field in item]
+            if values:
+                request[field] = choose(values)
+        result['request'] = request
+        result['scope'] = dict(result['scope'])
+        for field in ('codes', 'start', 'end'):
+            if field in request:
+                result['scope'][field] = request[field]
+        for packet in packets:
+            offset = len(result['raw'])
+            result['raw'].extend(packet['raw'])
+            result['records'].extend({**row, **({'raw_page': row['raw_page'] + offset}
+                if row.get('raw_page') is not None else {})} for row in packet['records'])
+        calendars = [packet['calendar'] for packet in packets if 'calendar' in packet]
+        if calendars:
+            result['calendar'] = {
+                'sessions': sorted({day for value in calendars for day in value['sessions']}),
+                'coverage': [span for value in calendars for span in value['coverage']]}
+        observed = [packet['data_as_of'] for packet in packets if packet.get('data_as_of')]
+        if observed:
+            result['data_as_of'] = max(observed)
+        return result
+
+    def _run(self, source, request, *, starts=None, size=25):
+        source_id = source['id']
+        request = {**request, 'source_id': source_id}
+        if type(size) is not int or size < 1:
+            raise ValueError('collection batch size must be positive')
         with self._lock:
             if source_id in self._active:
                 raise RuntimeError("source collection already running")
             self._active.add(source_id)
-        job = {"job_id": uuid.uuid4().hex, "source_id": source_id,
-               "request": dict(request), "status": "running", "error": None,
-               "started_at": datetime.now().isoformat(), "finished_at": None,
-               "snapshot_id": None, "records": 0}
-        self._jobs[job["job_id"]] = job
+        job = {'job_id': uuid.uuid4().hex, 'source_id': source_id,
+               'request': dict(request), 'status': 'running', 'error': None,
+               'started_at': datetime.now().isoformat(), 'finished_at': None,
+               'snapshot_id': None, 'records': 0, 'failures': [], 'empty_codes': []}
+        self._jobs[job['job_id']] = job
         self._job_sources[job['job_id']] = deepcopy(source)
+        self._current_job_id = job['job_id']
         saved = False
         try:
             self._save(job)
             saved = True
-            coverage = self.methods.coverage(source, request)
-            if coverage is not None and coverage.get("complete") and not request.get("force"):
-                job.update(status="succeeded", records=0)
-            else:
-                if coverage is not None and not request.get("force"):
-                    request = self.methods.missing_request(request, coverage)
-                    job["request"] = dict(request)
-                packet = self.methods.fetch(source, request)
-                self.methods.validate(packet)
-                self._packets[job["job_id"]] = packet
-                self._current_job_id = job["job_id"]
-                if job["job_id"] in self._cancelled:
-                    raise RuntimeError("collection cancelled before publish")
-                self.methods.publish(source, packet)
-                view = self.methods.records(source, 0, 0)
-                if view is None:
-                    raise RuntimeError("published source has no current records")
-                job["snapshot_id"] = view["snapshot_id"]
-                job["records"] = view["records_count"]
-                job["status"] = "succeeded"
+            codes = request.get('codes') or [None]
+            for offset in range(0, len(codes), size):
+                packets = []
+                for code in codes[offset:offset + size]:
+                    if job['job_id'] in self._cancelled:
+                        raise RuntimeError('collection cancelled before publish')
+                    unit = {**request, **({'codes': [code]} if code is not None else {})}
+                    packet = None
+                    try:
+                        if starts is not None:
+                            if not starts.get(code):
+                                raise ValueError('collection start is unknown; provide a range or a registered listing date')
+                            unit['start'] = starts[code]
+                        packet = self.methods.fetch(source, unit)
+                        self.methods.validate(packet)
+                        packets.append(packet)
+                        if not packet['records'] and code is not None:
+                            job['empty_codes'].append(code)
+                    except Exception as error:
+                        job['failures'].append({'code': code, 'error': f'{type(error).__name__}: {error}'})
+                        evidence = packet['raw'] if packet is not None else getattr(error, 'evidence', ())
+                        if evidence:
+                            try:
+                                self.methods.log({'source_id': source_id, 'request': unit,
+                                                  'error': str(error), 'raw': evidence})
+                            except Exception as log_error:
+                                job['log_error'] = f'{type(log_error).__name__}: {log_error}'
+                if packets:
+                    packet = self._join(packets)
+                    if job['job_id'] in self._cancelled:
+                        raise RuntimeError('collection cancelled before publish')
+                    try:
+                        result = self.methods.publish(source, packet)
+                        job['records'] += result['records']
+                        job['failures'].extend(result['failures'])
+                        if result['ref'] is not None:
+                            job['snapshot_id'] = result['ref'].sha256
+                    except Exception as error:
+                        job['failures'].extend({'code': code, 'error': f'{type(error).__name__}: {error}'}
+                            for item in packets for code in item['request'].get('codes', [None]))
+                if saved:
+                    self._save(job)
+            if job['records']:
+                job['snapshot_id'] = self.methods.records(source, 0, 0)['snapshot_id']
+            job['status'] = 'failed' if job['failures'] else 'succeeded'
+            if job['failures']:
+                job['error'] = '; '.join(f"{item['code']}: {item['error']}" for item in job['failures'])
         except Exception as error:
-            job.update(status="failed", error=f"{type(error).__name__}: {error}")
+            job.update(status='failed', error=f'{type(error).__name__}: {error}')
         finally:
             try:
-                job["finished_at"] = datetime.now().isoformat()
+                job['finished_at'] = datetime.now().isoformat()
                 try:
-                    self.methods.log({"job_id": job["job_id"], "source_id": source_id,
-                                      "status": job["status"], "error": job["error"],
-                                      "records": job["records"]})
+                    self.methods.log({'job_id': job['job_id'], 'source_id': source_id,
+                                      'status': job['status'], 'error': job['error'],
+                                      'records': job['records'], 'failures': job['failures'],
+                                      'empty_codes': job['empty_codes']})
                 except Exception as error:
-                    job["log_error"] = f"{type(error).__name__}: {error}"
+                    job['log_error'] = f'{type(error).__name__}: {error}'
                 if saved:
                     try:
                         self._save(job)
                     except Exception as error:
-                        job["save_error"] = f"{type(error).__name__}: {error}"
+                        job['save_error'] = f'{type(error).__name__}: {error}'
             finally:
                 with self._lock:
                     self._active.discard(source_id)
-                    self._cancelled.discard(job["job_id"])
+                    self._cancelled.discard(job['job_id'])
         return dict(job)
+
+    def _market(self, value):
+        """Resolve registered market intentions inside the collection module."""
+        registry = self.sources.describe()
+        markets = [item for item in registry.get('markets', ())
+                   if value['market'] in (item['scope'], item.get('name'), *item.get('aliases', ()))]
+        if len(markets) != 1:
+            raise ValueError('market must be registered uniquely: ' + str(value['market']))
+        market = markets[0]
+        command = value.get('command')
+        if command not in {'range', 'latest', 'check', 'doctor', 'status'}:
+            raise ValueError('invalid collection command')
+        if command == 'status':
+            return {'market': market['scope'], 'sources': self.handle('collection.sources', {})}
+        today = datetime.now(ZoneInfo(market['timezone'])).date().isoformat()
+        if ('start' in value) != ('end' in value):
+            raise ValueError('start and end are required together')
+        if command == 'range' and 'start' not in value:
+            raise ValueError('range requires start and end')
+        if command == 'latest' and 'start' in value:
+            raise ValueError('latest determines dates from stored observations')
+        if 'start' in value:
+            if (date.fromisoformat(value['start']) > date.fromisoformat(value['end'])
+                    or value['end'] > today):
+                raise ValueError('dates must be ordered and not in the future')
+        spec = market['collect']
+        kinds = value.get('data') or spec.get('default', [])
+        if kinds == ['all']:
+            kinds = list(spec['data'])
+        if not kinds or any(kind not in spec['data'] for kind in kinds):
+            raise ValueError('collection data type is not registered')
+        selected = value.get('codes') or spec.get('codes')
+        jobs, plans, requests, catalogue = [], [], [], None
+        for kind in kinds:
+            binding = spec['data'][kind]
+            source = self.sources.get(binding['source'])
+            codes = binding.get('codes', selected)
+            starts = (self.methods.last_dates(source, codes)
+                      if command == 'latest' and codes is not None else None)
+            if 'codes' not in binding and (codes is None or command == 'latest'
+                    and 'securities' in spec and set(codes) - starts.keys()):
+                if catalogue is None:
+                    securities = spec['securities']
+                    directory = self.sources.get(securities['source'])
+                    if command != 'check':
+                        update = self.run({'source_id': directory['id'], 'refresh': True,
+                            **({'exchanges': securities['exchanges']} if 'exchanges' in securities else {})})
+                        jobs.append(update)
+                    catalogue, exchanges = {}, set()
+                    if command == 'check' or update['status'] == 'succeeded' or update['records']:
+                        rejected = {item['code'] for item in update['failures']} if command != 'check' else set()
+                        for row in self.methods.record_rows(directory):
+                            code = row[securities['code']]
+                            if (any(row.get(field) not in allowed for field, allowed in securities.get('filters', {}).items())
+                                    or market.get('code_pattern') and not re.fullmatch(market['code_pattern'], code)):
+                                continue
+                            exchanges.add(code.split('.')[0])
+                            opened, closed = row.get(securities.get('from')), row.get(securities.get('to'))
+                            if (code in rejected or opened and opened > value.get('end', today)
+                                    or closed and (closed < value['start'] if 'start' in value else command != 'doctor')):
+                                continue
+                            catalogue[code] = opened
+                        if set(securities.get('exchanges', ())) - exchanges:
+                            raise ValueError('security catalogue is missing a registered exchange')
+                if codes is None:
+                    codes = sorted(catalogue)
+            if not codes:
+                if any(job.get('status') == 'failed' for job in jobs):
+                    continue
+                raise ValueError('no securities in the requested interval')
+            request = {key: value[key] for key in ('start', 'end', 'fields', 'refresh') if key in value}
+            request.update(source_id=source['id'], codes=sorted(set(codes)))
+            if 'start' not in request and command != 'doctor':
+                starts = self.methods.last_dates(source, codes) if starts is None else starts
+                if catalogue is not None:
+                    starts.update({code: catalogue[code] for code in codes
+                                   if code not in starts and catalogue.get(code)})
+                request['end'] = today
+            if command == 'doctor':
+                jobs.append(self.methods.doctor(source, request))
+                continue
+            if command == 'check':
+                for code in codes:
+                    unit = {**request, 'codes': [code]}
+                    if starts is not None:
+                        if not starts.get(code):
+                            raise ValueError('collection start is unknown: ' + code)
+                        unit['start'] = starts[code]
+                    plans.append({'data': kind, 'request': unit,
+                                  'coverage': self.methods.inspect(source, unit)['coverage']})
+                continue
+            if starts is not None:
+                request['start'] = min(starts.values()) if starts else today
+            requests.append((source, self.methods.prepare_request(source, request), starts))
+        for source, request, starts in requests:
+            jobs.append(self._run(source, request, starts=starts, size=spec.get('batch_size', 25)))
+        if command == 'check':
+            return {'market': market['scope'], 'status': 'complete' if all(
+                plan['coverage']['complete'] for plan in plans) else 'incomplete', 'plans': plans}
+        failures = [item for job in jobs for item in job.get('failures', ())]
+        failures.extend({'code': None, 'error': job['error']} for job in jobs
+                        if job.get('status') == 'failed' and not job.get('failures'))
+        return {'market': market['scope'], 'status': 'failed' if failures else 'succeeded',
+                'jobs': jobs, 'failures': failures,
+                'error': '; '.join(f"{item['code']}: {item['error']}" for item in failures) or None}
 
     def _source(self, request):
         source_id = request.get("source_id")
@@ -187,18 +363,18 @@ class Collect:
             if dry_run:
                 job.update(status="validated", phase="validate", merge=stats)
             else:
-                self.methods.publish(source, packet)
-                job.update(status="succeeded", phase="publish", merge=stats)
-                view = self.methods.records(source, 0, 0)
-                if view is None:
-                    raise RuntimeError("published source has no current records")
-                job["snapshot_id"] = view["snapshot_id"]
-                job["records"] = view['records_count']
+                result = self.methods.publish(source, packet)
+                failures = result['failures']
+                job.update(status='failed' if failures else 'succeeded', phase='publish',
+                           merge=stats, records=result['records'], failures=failures,
+                           error='; '.join(f"{item['code']}: {item['error']}" for item in failures) or None)
+                if result['ref'] is not None:
+                    job['snapshot_id'] = self.methods.records(source, 0, 0)['snapshot_id']
                 self._packets.pop(job_id, None)
             job["finished_at"] = datetime.now().isoformat()
             self._save(job)
             self._merge_state.update(running=False, output=json.dumps(stats, ensure_ascii=False),
-                                     error=None, finished_at=job["finished_at"])
+                                     error=job.get('error'), finished_at=job["finished_at"])
         except Exception as error:
             message = f"{type(error).__name__}: {error}"
             job = self.status(job_id)
