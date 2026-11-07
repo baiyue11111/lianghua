@@ -1050,7 +1050,10 @@ def _prepare_raw_dataset(data, query):
         requested_ids = tuple(normalize_security_id(symbol) for symbol in symbols)
     # Read both the requested spelling and the declared spelling.  Providers
     # may write 600036 or sh.600036 for the same canonical identity.
-    read_symbols = tuple(sorted(set(declared) | set(requested_ids)))
+    selected_ids = set(requested_ids)
+    read_symbols = tuple(sorted(selected_ids | {
+        symbol for symbol in declared if normalize_security_id(symbol) in selected_ids
+    }))
     rows = {}
     source_hashes = {}
     for ref in manifest["files"]:

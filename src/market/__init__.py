@@ -668,13 +668,17 @@ class DataBus:
         self._validate_manifest(dataset, manifest)
         return manifest
 
-    def _manifest_file(self, dataset: str, name: str) -> bytes:
+    def _check_manifest_file(self, dataset: str, name: str) -> None:
+        """Check binding and readability without materializing file contents."""
         parts = Path(name).parts
         if parts and parts[0] == "source":
             if len(parts) < 3 or any(part in ("", ".", "..") for part in parts):
                 raise DataError("invalid_manifest", f"invalid shared source reference: {name}")
-            return self.read("sources", parts[1], Path(*parts[2:]).as_posix())
-        return self.read("sources", dataset, name)
+            path = self.path("sources", parts[1], Path(*parts[2:]).as_posix())
+        else:
+            path = self.path("sources", dataset, name)
+        with path.open('rb'):
+            pass
 
     def read_ref(self, ref: DataRef) -> bytes:
         """Read and verify one explicit source reference through the bus."""
@@ -788,8 +792,8 @@ class DataBus:
                 raise DataError("invalid_manifest", f"invalid dataset evidence reference: {name}")
             names.add(name)
             try:
-                value = self._manifest_file(dataset, name)
-            except DataError as error:
+                self._check_manifest_file(dataset, name)
+            except (DataError, OSError) as error:
                 raise DataError("invalid_manifest", f"unbound dataset evidence: {name}") from error
 
     def _call(self, operation, kind, *args):

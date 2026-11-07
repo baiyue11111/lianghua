@@ -357,10 +357,15 @@ class Calculation:
             raise ValueError("window must be >= 1")
         series = np.asarray(series, dtype=np.float64)
         out = np.full(series.shape, np.nan, dtype=np.float64)
-        for index in range(window - 1, series.shape[0]):
-            values = series[index - window + 1:index + 1]
-            if np.isfinite(values).all():
-                out[index] = values.mean()
+        if window > series.shape[0]:
+            return out
+        windows = np.lib.stride_tricks.sliding_window_view(series, window)
+        valid = np.lib.stride_tricks.sliding_window_view(
+            np.isfinite(series), window,
+        ).all(axis=-1)
+        with np.errstate(invalid="ignore", over="ignore"):
+            np.mean(windows, axis=-1, out=out[window - 1:])
+        out[window - 1:][~valid] = np.nan
         return out
 
     @staticmethod

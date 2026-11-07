@@ -157,6 +157,8 @@ class DataStore:
             folder = folder.parent
 
     def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef:
+        from protocol import DataRef
+
         if not isinstance(value, bytes):
             raise TypeError("data value must be bytes")
         target = self.path(kind, identity, name)
@@ -170,7 +172,11 @@ class DataStore:
             os.replace(temporary, target)
         finally:
             temporary.unlink(missing_ok=True)
-        return self._ref(kind, identity, name, target)
+        return DataRef(
+            kind=kind, identity=identity, name=name,
+            file=target.relative_to(self.project).as_posix(),
+            sha256=sha256(value).hexdigest(), size=len(value),
+        )
 
     def list(self, kind: str, identity: str | None = None, folder: str = "") -> tuple[DataRef, ...]:
         anchor = self.path(kind, "_", "_").parents[1]

@@ -40,6 +40,29 @@ def payload(**changes):
 
 
 class HistoricalDataTests(unittest.TestCase):
+    def test_raw_query_pushes_only_selected_symbols_to_parquet(self):
+        from unittest.mock import patch
+        import pyarrow.parquet as pq
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=('600003', '600004'))
+            with patch.object(pq, 'read_table', wraps=pq.read_table) as read:
+                dataset = DataBus(DataStore(root)).query(DataQuery(
+                    'fixture', date(2020, 1, 31), date(2020, 2, 4),
+                    ('open', 'high', 'low', 'close', 'volume', 'amount'),
+                    1, 'raw', symbols=('sh.600003',), universe='CN_A_SHARE',
+                ))
+            filters = [call.kwargs['filters'] for call in read.call_args_list
+                       if 'filters' in call.kwargs]
+            self.assertTrue(filters)
+            for conditions in filters:
+                codes = next(values for field, op, values in conditions
+                             if field == 'code' and op == 'in')
+                self.assertEqual(set(codes), {'600003', 'sh.600003'})
+            self.assertTrue(all(set(day.frame.fields) == {'sh.600003'}
+                                for day in dataset.records))
+
     def test_numeric_facts_are_point_in_time_and_projected_from_declared_parquet(self):
         import hashlib
         import pyarrow as pa
