@@ -43,6 +43,271 @@ class CollectionCommandTests(unittest.TestCase):
         self.collect = Collect(self.sources, Methods(self.bus, {'fixture': fetch}))
         self.addCleanup(self.collect.close)
 
+    def test_source_run_keeps_good_securities_when_another_fails(self):
+        def fetch(source, request):
+            self.calls.append(request)
+            if request['codes'] == ['Y']:
+                raise ValueError('connection closed')
+            return {'records': [{'code': code, 'date': request['end'], 'close': 10.}
+                                for code in request['codes']],
+                    'raw': [{'codes': request['codes']}], 'scope': {}}
+        self.collect.methods.handlers['fixture'] = fetch
+        with patch.object(self.collect.methods, 'coverage', side_effect=AssertionError('ordinary collection must not inspect coverage')):
+            result = self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y', 'Z'],
+                                       'start': '2026-10-01', 'end': '2026-10-14'})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['records'], 2)
+        self.assertEqual([item['code'] for item in result['failures']], ['Y'])
+        rows = self.collect.methods.records(self.sources.get('prices'))['records']
+        self.assertEqual([row['code'] for row in rows], ['X', 'Z'])
+
+    def test_market_request_plans_in_collector_without_interaction_core(self):
+        result = self.collect.run({'market': 'TEST', 'command': 'range',
+                                   'start': '2026-10-01', 'end': '2026-10-14'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['market'], 'TEST')
+        self.assertEqual([request['codes'] for request in self.calls], [['X'], ['Y']])
+
+    def test_binding_codes_need_no_stock_catalogue_or_market_codes(self):
+        self.bus.update_registry(lambda r: {**r, 'markets': [{'scope': 'OTHER',
+            'timezone': 'UTC', 'collect': {'default': ['series'],
+            'data': {'series': {'source': 'prices', 'codes': ['INDEX']}}}}]})
+        result = self.collect.run({'market': 'OTHER', 'command': 'range',
+                                   'start': '2026-10-01', 'end': '2026-10-14'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual([request['codes'] for request in self.calls], [['INDEX']])
+
+    def test_market_latest_uses_each_security_watermark(self):
+        self.collect.run({'source_id': 'prices', 'codes': ['X'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        self.collect.run({'source_id': 'prices', 'codes': ['Y'],
+                          'start': '2026-10-01', 'end': '2026-10-20'})
+        self.calls.clear()
+        result = self.collect.run({'market': 'TEST', 'command': 'latest'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual({request['codes'][0]: request['start'] for request in self.calls},
+                         {'X': '2026-10-14', 'Y': '2026-10-20'})
+
+    def test_market_latest_without_history_keeps_other_securities(self):
+        self.collect.run({'source_id': 'prices', 'codes': ['X'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        self.calls.clear()
+        result = self.collect.run({'market': 'TEST', 'command': 'latest'})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual([item['code'] for item in result['failures']], ['Y'])
+        self.assertEqual([request['codes'] for request in self.calls], [['X']])
+
+    def test_latest_collects_new_securities_from_catalogue_listing_dates(self):
+        self.sources.register({'id': 'catalogue', 'name': 'Catalogue',
+            'method': 'catalogue_fixture', 'data_type': 'catalogue',
+            'frequency': 'snapshot', 'defaults': {}, 'params': {'key_fields': ['code']}})
+        self.collect.methods.handlers['catalogue_fixture'] = lambda source, request: {
+            'records': [{'code': 'X', 'listed': '2020-01-02'},
+                        {'code': 'Y', 'listed': '2026-10-22'}], 'raw': [], 'scope': {}}
+        def register(registry):
+            registry['markets'][0]['collect'].pop('codes')
+            registry['markets'][0]['collect']['securities'] = {
+                'source': 'catalogue', 'code': 'code', 'from': 'listed', 'to': 'delisted'}
+            return registry
+        self.bus.update_registry(register)
+        self.collect.run({'source_id': 'prices', 'codes': ['X'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        self.calls.clear()
+        result = self.collect.run({'market': 'TEST', 'command': 'latest'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual({r['codes'][0]: r['start'] for r in self.calls},
+                         {'X': '2026-10-14', 'Y': '2026-10-22'})
+        self.calls.clear()
+        result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['Y']})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual([r['codes'] for r in self.calls], [['Y']])
+
+    def test_invalid_catalogue_security_does_not_block_other_prices(self):
+        from tests.history_fixture import make_snapshot
+        from collect.methods import Catalogue
+        prices = self.sources.get('prices')
+        make_snapshot(Path(self.temp.name), symbols=('600003',))
+        self.sources.register(prices)
+        self.sources.register({'id': 'catalogue', 'name': 'Catalogue', 'method': 'catalogue',
+                               'data_type': 'catalogue', 'frequency': 'snapshot', 'defaults': {}})
+        def register(registry):
+            registry['markets'][0]['collect'] = {'default': ['prices'],
+                'securities': {'source': 'catalogue', 'code': 'code', 'from': 'ipoDate',
+                               'to': 'outDate', 'exchanges': ['sh', 'sz']},
+                'data': {'prices': {'source': 'prices'}}}
+            return registry
+        self.bus.update_registry(register)
+        rows = [dict(code='sh.600003', ipoDate='2019-07-01', outDate='', type='1', status='1'),
+                dict(code='sz.000004', ipoDate='2020-02-30', outDate='', type='1', status='1')]
+        with patch.object(Catalogue, 'collect', return_value={'records': rows, 'raw': [], 'scope': {}}):
+            result = self.collect.run({'market': 'CN_A', 'command': 'range',
+                                       'start': '2020-02-03', 'end': '2020-02-04'})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual([r['codes'] for r in self.calls], [['sh.600003']])
+        self.assertEqual([r['code'] for r in result['failures']], ['sz.000004'])
+
+    def test_explicit_latest_with_history_does_not_require_catalogue(self):
+        self.sources.register({'id': 'catalogue', 'name': 'Catalogue',
+            'method': 'catalogue_fixture', 'frequency': 'snapshot', 'defaults': {}})
+        def fail(source, request):
+            raise ValueError('catalogue offline')
+        self.collect.methods.handlers['catalogue_fixture'] = fail
+        def register(registry):
+            registry['markets'][0]['collect']['securities'] = {
+                'source': 'catalogue', 'code': 'code', 'from': 'listed', 'to': 'delisted'}
+            return registry
+        self.bus.update_registry(register)
+        self.collect.run({'source_id': 'prices', 'codes': ['X'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        self.calls.clear()
+        result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['X']})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual([(r['codes'], r['start']) for r in self.calls], [(['X'], '2026-10-14')])
+
+    def test_catalogue_failure_keeps_updates_for_observed_securities(self):
+        self.sources.register({'id': 'catalogue', 'name': 'Catalogue',
+            'method': 'catalogue_fixture', 'frequency': 'snapshot', 'defaults': {},
+            'params': {'key_fields': ['code']}})
+        def fail(source, request):
+            raise ValueError('catalogue offline')
+        self.collect.methods.handlers['catalogue_fixture'] = fail
+        def register(registry):
+            registry['markets'][0]['collect']['securities'] = {
+                'source': 'catalogue', 'code': 'code', 'from': 'listed', 'to': 'delisted'}
+            return registry
+        self.bus.update_registry(register)
+        self.bus.write('sources', 'catalogue', 'records.json',
+                       b'{"records":[{"code":"Y","listed":"2020-01-02"}]}')
+        self.collect.run({'source_id': 'prices', 'codes': ['X'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        self.calls.clear()
+        result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['X', 'Y']})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual([(r['codes'], r['start']) for r in self.calls], [(['X'], '2026-10-14')])
+        self.assertIn('Y', [r['code'] for r in result['failures']])
+
+    def test_shared_storage_sources_keep_their_original_request_start(self):
+        from tests.history_fixture import make_snapshot
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        make_snapshot(Path(self.temp.name), symbols=('600003',))
+        for identity, field in [('prices', 'close'), ('ratios', 'peTTM')]:
+            self.sources.register({'id': identity, 'name': identity, 'method': 'fixture',
+                'data_type': 'daily', 'frequency': 'daily', 'defaults': {}, 'fields': [field],
+                'dataset_id': 'fixture', 'storage_id': 'fixture'})
+        def register(registry):
+            registry['markets'][0]['collect'] = {'default': ['prices', 'ratios'],
+                'codes': ['sh.600003'], 'data': {name: {'source': name} for name in ('prices', 'ratios')}}
+            return registry
+        self.bus.update_registry(register)
+        calls = []
+        def fetch(source, request):
+            calls.append((source['id'], request['start']))
+            return {'records': [{'code': 'sh.600003', 'date': day, source['fields'][0]: 12.}
+                for day in ('2020-02-05', '2020-02-06') if request['start'] <= day <= request['end']],
+                'raw': [], 'scope': {}, 'calendar': {'sessions': ['2020-02-05', '2020-02-06'],
+                    'coverage': [{'start': '2020-02-05', 'end': '2020-02-06'}]}}
+        self.collect.methods.handlers['fixture'] = fetch
+        result = self.collect.run({'market': 'CN_A', 'command': 'latest'})
+        self.assertEqual(result['status'], 'succeeded')
+        rows = pq.read_table(pa.BufferReader(self.bus.read('sources', 'fixture', 'daily/2020.parquet'))).to_pylist()
+        self.assertEqual({row['date']: row['peTTM'] for row in rows},
+                         {'2020-02-05': 12., '2020-02-06': 12.})
+        self.assertEqual(calls, [('prices', '2020-02-04'), ('ratios', '2020-02-04')])
+
+    def test_security_results_share_one_publication_with_correct_evidence_offsets(self):
+        def fetch(source, request):
+            return {'records': [{'code': request['codes'][0], 'date': request['end'],
+                                 'close': 10., 'raw_page': 0}],
+                    'raw': [{'code': request['codes'][0]}], 'scope': {}}
+        self.collect.methods.handlers['fixture'] = fetch
+        with patch.object(self.collect.methods, 'publish', wraps=self.collect.methods.publish) as publish:
+            result = self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y'],
+                                       'start': '2026-10-01', 'end': '2026-10-14'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(publish.call_count, 1)
+        event = self.collect.methods.evidence(result['snapshot_id'])
+        self.assertEqual([row['raw_page'] for row in event['incoming']], [0, 1])
+        self.assertEqual(event['raw'], [{'code': 'X'}, {'code': 'Y'}])
+
+    def test_source_lock_stays_held_across_publication_batches(self):
+        attempted = []
+        def fetch(source, request):
+            attempted.append(request['codes'][0])
+            with self.assertRaisesRegex(RuntimeError, 'already running'):
+                self.collect.run({'source_id': 'prices', 'codes': ['Z'],
+                                  'start': request['start'], 'end': request['end']})
+            return {'records': [{'code': request['codes'][0], 'date': request['end'], 'close': 10.}],
+                    'raw': [], 'scope': {}}
+        self.collect.methods.handlers['fixture'] = fetch
+        self.bus.update_registry(lambda r: {**r, 'markets': [{**r['markets'][0],
+            'collect': {**r['markets'][0]['collect'], 'batch_size': 1}}]})
+        result = self.collect.run({'market': 'TEST', 'command': 'range',
+                                   'start': '2026-10-01', 'end': '2026-10-14'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(attempted, ['X', 'Y'])
+
+    def test_partial_and_empty_results_are_received_not_full_table_counts(self):
+        self.collect.run({'source_id': 'prices', 'codes': ['OLD'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        def fetch(source, request):
+            return {'records': [] if request['codes'] == ['Y'] else [
+                {'code': request['codes'][0], 'date': request['end'], 'close': 10.}],
+                'raw': [{'code': request['codes'][0]}], 'scope': {}}
+        self.collect.methods.handlers['fixture'] = fetch
+        result = self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y'],
+                                   'start': '2026-10-01', 'end': '2026-10-14'})
+        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['records'], 1)
+        self.assertEqual(result['empty_codes'], ['Y'])
+        rows = self.collect.methods.records(self.sources.get('prices'))['records']
+        self.assertEqual([row['code'] for row in rows], ['OLD', 'X'])
+
+    def test_daily_stored_conflict_keeps_other_securities_in_one_write(self):
+        import pyarrow as pa
+        import pyarrow.parquet as pq
+        calendar = {'sessions': ['2026-10-01', '2026-10-02'],
+                    'coverage': [{'start': '2026-10-01', 'end': '2026-10-02'}]}
+        calendar_ref = self.bus.write('sources', 'fixture', 'calendar.json', json.dumps(calendar).encode())
+        output = pa.BufferOutputStream()
+        pq.write_table(pa.Table.from_pylist([{'code': 'sh.600000', 'date': '2026-10-01', 'close': 10.}]), output)
+        daily_ref = self.bus.write('sources', 'fixture', 'daily/2026.parquet', output.getvalue().to_pybytes())
+        manifest = {'schema': 2, 'fields': {}, 'calendar': 'calendar.json',
+                    'scope': {'symbols': ['sh.600000'], 'universe': 'market'},
+                    'files': [{'file': 'calendar.json', 'sha256': calendar_ref.sha256, 'role': 'market'},
+                              {'file': 'source/fixture/daily/2026.parquet', 'sha256': daily_ref.sha256, 'role': 'market'}]}
+        self.bus.write('sources', 'fixture', 'manifest.json', json.dumps(manifest).encode())
+        self.sources.register({'id': 'daily', 'name': 'Daily', 'method': 'daily_fixture',
+            'data_type': 'daily', 'frequency': 'daily', 'dataset_id': 'fixture',
+            'storage_id': 'fixture', 'calendar': 'calendar.json', 'fields': ['close'], 'defaults': {}})
+        self.collect.methods.handlers['daily_fixture'] = lambda source, request: {
+            'records': [{'code': request['codes'][0], 'date': request['end'], 'close': 11.}],
+            'raw': [{'code': request['codes'][0]}], 'scope': {}}
+        original = self.bus.write
+        writes = []
+        def write(kind, identity, name, payload):
+            if name == 'daily/2026.parquet': writes.append(name)
+            return original(kind, identity, name, payload)
+        with patch.object(self.bus, 'write', side_effect=write):
+            result = self.collect.run({'source_id': 'daily', 'codes': ['sh.600000', 'sh.600001', 'sh.600002'],
+                                       'start': '2026-10-01', 'end': '2026-10-01'})
+        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['records'], 2)
+        self.assertEqual([item['code'] for item in result['failures']], ['sh.600000'])
+        self.assertEqual(writes, ['daily/2026.parquet'])
+        rows = pq.read_table(pa.BufferReader(self.bus.read('sources', 'fixture', 'daily/2026.parquet'))).to_pylist()
+        self.assertEqual({row['code']: row['close'] for row in rows},
+                         {'sh.600000': 10., 'sh.600001': 11., 'sh.600002': 11.})
+        self.collect._fetch_only({'source_id': 'daily', 'codes': ['sh.600000'],
+                                  'start': '2026-10-01', 'end': '2026-10-01'})
+        self.collect._fetch_thread.join(2)
+        job_id = self.collect._current_job_id
+        self.assertEqual(self.collect.status(job_id)['status'], 'fetched')
+        self.collect._merge_task(job_id, False)
+        self.assertEqual(self.collect.status(job_id)['status'], 'failed')
+        self.assertEqual(self.collect.status(job_id)['records'], 0)
+        self.assertEqual(self.collect.status(job_id)['failures'][0]['code'], 'sh.600000')
+
     def invoke(self, selector, **values):
         from backend import CollectionPort
         class Port:
@@ -88,7 +353,7 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(self.calls[0]['start'],'2003-01-01')
         self.assertEqual(self.calls[0]['end'],'2012-12-31')
 
-    def test_market_range_batches_inside_the_interaction_core(self):
+    def test_market_range_batches_inside_collection(self):
         def change(registry):
             registry['markets'][0]['collect']['batch_size']=1
             return registry
@@ -106,7 +371,7 @@ class CollectionCommandTests(unittest.TestCase):
     def test_range_resolves_market_and_uses_full_registered_codes(self):
         result = self.invoke('测试市场:range', start='2026-10-01', end='2026-10-14')
         self.assertEqual(result['status'], 'succeeded')
-        self.assertEqual(self.calls[0]['codes'], ['X', 'Y'])
+        self.assertEqual([request['codes'] for request in self.calls], [['X'], ['Y']])
         self.assertEqual(self.calls[0]['start'], '2026-10-01')
 
     def test_catalogue_uses_the_shared_market_code_rule(self):
@@ -133,13 +398,14 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(self.calls[-1]['start'], '2026-10-14')
         self.assertEqual(self.calls[-1]['end'], datetime.now().astimezone(
             __import__('zoneinfo').ZoneInfo('Asia/Shanghai')).date().isoformat())
-        self.assertTrue(self.calls[-1]['force'])
+        self.assertNotIn('force', self.calls[-1])
+        self.assertNotIn('refresh', self.calls[-1])
 
     def test_explicit_refresh_reaches_existing_collection_port(self):
         args=cli.build_parser().parse_args(['--collect','TEST:[2014,2015]','--refresh'])
         self.assertTrue(cli.to_action(args).data['refresh'])
         self.invoke('TEST:[2014,2015]',refresh=True)
-        self.assertTrue(self.calls[-1]['force'])
+        self.assertNotIn('force', self.calls[-1])
         self.assertTrue(self.calls[-1]['refresh'])
 
     def test_doctor_refresh_reaches_fact_port_without_daily_force(self):
@@ -184,7 +450,7 @@ class CollectionCommandTests(unittest.TestCase):
         action=ui.UiAction('auto','invoke','cli',{'selector':'TEST:auto','interval':'1s'},'cli.collect')
         with patch('backend.build_backend',return_value=backend):
             with self.assertRaises(KeyboardInterrupt):ui.exchange(action,on_state=progress)
-        self.assertEqual(len(self.calls),2)
+        self.assertEqual(len(self.calls),4)
         self.assertEqual(len(states),2)
 
     def test_today_request_queries_calendar_beyond_end(self):
@@ -592,16 +858,17 @@ class SinaDailyTests(unittest.TestCase):
         self.assertNotIn('tradestatus',rows[0])
         self.assertEqual(rows[0]['code'],'sz.000456')
 
-    def test_invalid_dates_prices_turnover_and_empty_ranges_are_rejected(self):
+    def test_invalid_dates_prices_and_turnover_are_rejected_but_empty_ranges_are_valid(self):
         from collect.methods import SinaDaily
-        cases=[self.rows()[::-1],self.rows()+[self.rows()[-1]],[],
-               [self.rows()[0]], [{**self.rows()[1],'volume':0}],
+        cases=[self.rows()[::-1],self.rows()+[self.rows()[-1]], [{**self.rows()[1],'volume':0}],
                [{**self.rows()[1],'amount':float('nan')}],
                [{**self.rows()[1],'close':13}],
                [{**self.rows()[1],'date':'2024-09-33T00:00:00.000Z'}]]
         for rows in cases:
             with self.subTest(rows=rows),self.assertRaises(ValueError):
                 SinaDaily.normalize('sz.000456',rows,self.request())
+        for rows in ([], [self.rows()[0]]):
+            self.assertEqual(SinaDaily.normalize('sz.000456',rows,self.request()), [])
 
     def test_js_identity_and_request_capability_are_checked_before_decoding_or_fetching(self):
         from collect.methods import SinaDaily
@@ -626,18 +893,16 @@ class SinaDailyTests(unittest.TestCase):
                 result=Methods(bus).fetch(source,self.request())
             self.assertEqual(result['calendar'],calendar)
 
-    def test_trade_status_is_derived_only_from_observed_positive_turnover(self):
+    def test_trade_status_is_not_invented_and_observed_zero_turnover_is_preserved(self):
         from collect.methods import SinaDaily
         request={**self.request(),'fields':self.request()['fields']+['tradestatus']}
         result=SinaDaily.normalize('sz.000456',self.rows(),request)
-        self.assertEqual([r['tradestatus'] for r in result],[1.,1.])
-        for prices in ({},{'open':0,'high':0,'low':0}):
-            rows=[self.rows()[1],{**self.rows()[2],**prices,'volume':0,'amount':0}]
-            result=SinaDaily.normalize('sz.000456',rows,request)
-            self.assertEqual([r['date'] for r in result],['2024-09-03'])
-            self.assertEqual(result[0]['tradestatus'],1)
-        with self.assertRaises(ValueError):
-            SinaDaily.normalize('sz.000456',[{**self.rows()[1],'volume':0,'amount':0}],request)
+        self.assertTrue(all('tradestatus' not in row for row in result))
+        rows=[self.rows()[1],{**self.rows()[2],'volume':0,'amount':0}]
+        result=SinaDaily.normalize('sz.000456',rows,request)
+        self.assertEqual([row['date'] for row in result], ['2024-09-03','2024-09-04'])
+        self.assertEqual((result[1]['volume'],result[1]['amount']), (0,0))
+        self.assertNotIn('tradestatus', result[1])
         for values in ({'volume':0},{'amount':0},{'volume':-1,'amount':-1}):
             with self.subTest(values=values),self.assertRaises(ValueError):
                 SinaDaily.normalize('sz.000456',[{**self.rows()[1],**values}],request)

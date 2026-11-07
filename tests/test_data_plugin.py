@@ -25,7 +25,7 @@ class ScalerTests(unittest.TestCase):
                  "published_at": "2020-02-04T16:00:00+08:00", "roe": .9},
             ],
             "label": [{"code": "A", "report_date": date(2019, 9, 30),
-                       "published_at": "2020-01-30T16:00:00+08:00", "label": True}],
+                       "published_at": datetime.fromisoformat("2020-01-30T16:00:00+08:00"), "label": True}],
         }
         lookup = Adapter.facts(fields, rows)
         self.assertIsNone(lookup("roe", "A", date(2020, 1, 30),

@@ -31,7 +31,7 @@ const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Opera
  'collection.describe':{input:object()},
  'collection.inspect':{input:object({source_id:text,codes:{type:'array',items:text},start:text,end:text,fields:{type:'array',items:text}},['source_id'])},
  'collection.doctor':{input:object({source_id:text,codes:{type:'array',items:text,minItems:1},start:text,end:text,refresh:boolean},['source_id','codes']),mode:'write'},
- 'collection.run':{input:{type:'object',required:['source_id'],properties:{source_id:text},additionalProperties:true},mode:'write'},
+ 'collection.run':{input:{oneOf:[object({market:text,command:{enum:['range','latest','check','doctor','status']},data:{type:'array',items:text},codes:{type:'array',items:text},fields:{type:'array',items:text},start:text,end:text,refresh:boolean},['market','command']),{type:'object',required:['source_id'],properties:{source_id:text},not:{required:['market']},additionalProperties:true}]},mode:'write'},
  'cli.collect':{input:object({selector:text,data:text,codes:text,fields:text,start:text,end:text,interval:text,refresh:boolean},['selector']),mode:'write'},
 };
 export const inputSchema=(operation:string)=>`urn:lianghua:ui:input:${operation}:v1`;

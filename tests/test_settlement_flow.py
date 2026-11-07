@@ -18,6 +18,238 @@ from tests.settlement_fixture import SettlementFixture
 
 
 class SettlementFlowTests(unittest.TestCase):
+    def test_research_rejects_slipped_fill_over_adv_limit(self):
+        from core.calculation import AllocationLimits
+        from tests.fee_fixture import execution, fees
+
+        config = execution()
+        config['tax'] = {'model': 'none', 'params': {}}
+        book = Settlement(D('2000'), fees(), tax_policy(),
+                          limits=AllocationLimits(adv_fraction=D('.01')),
+                          execution=config, accounting='research')
+        source = SettlementFixture().inputs(exit_market=False)
+        records = []
+        for record in source[:2]:
+            symbol = '000001'
+            bar = replace(record.bars[symbol], high=10.02, low=9.99, volume=1000000)
+            frame = replace(record.frame, context={**record.frame.context,
+                'back_factors': {symbol: '1'}})
+            records.append(replace(record, frame=frame, bars={symbol: bar},
+                previous_closes={symbol: 10}, opening_marks={symbol: D(10)},
+                closing_marks={symbol: D(10)}, opening_amount20={symbol: D(100000)},
+                closing_amount20={symbol: D(100000)},
+                opening_volume20={symbol: D(1000000)},
+                opening_eligible=None, registrations=()))
+
+        frame, _ = book.apply(records[0], self.case.calendar[1])
+        book.plan(TargetSet('test', frame.at, {'000001': .5}), 'test')
+        before = book.result().equity[-1].equity
+        book.apply(records[1], self.case.calendar[2])
+
+        fill = book.result().fills[-1]
+        self.assertEqual((fill.status, fill.reason), ('rejected', 'order_above_adv_limit'))
+        self.assertEqual(fill.shares, 0)
+        self.assertEqual(book._research.cash, D(2000))
+        self.assertEqual(book._research.units, {})
+        self.assertEqual(book._research.pending_symbols, {'000001'})
+        self.assertEqual(book.result().equity[-1].equity, before)
+
+    def test_research_adv_boundary_excludes_fees(self):
+        from core.calculation import AllocationLimits
+        from tests.fee_fixture import execution, fees
+
+        config = execution()
+        config['tax'] = {'model': 'none', 'params': {}}
+        config['price']['params']['rate'] = '0'
+        book = Settlement(D('2000'), fees(), tax_policy(),
+                          limits=AllocationLimits(adv_fraction=D('.01')),
+                          execution=config, accounting='research')
+        source = SettlementFixture().inputs(exit_market=False)
+        records = []
+        for record in source[:2]:
+            symbol = '000001'
+            bar = replace(record.bars[symbol], high=10.02, low=9.99, volume=1000000)
+            frame = replace(record.frame, context={**record.frame.context,
+                'back_factors': {symbol: '1'}})
+            records.append(replace(record, frame=frame, bars={symbol: bar},
+                previous_closes={symbol: 10}, opening_marks={symbol: D(10)},
+                closing_marks={symbol: D(10)}, opening_amount20={symbol: D(100000)},
+                closing_amount20={symbol: D(100000)},
+                opening_volume20={symbol: D(1000000)},
+                opening_eligible=None, registrations=()))
+
+        frame, _ = book.apply(records[0], self.case.calendar[1])
+        book.plan(TargetSet('test', frame.at, {'000001': .5}), 'test')
+        book.apply(records[1], self.case.calendar[2])
+
+        fill = book.result().fills[-1]
+        self.assertEqual((fill.status, fill.gross_amount), ('filled', 1000.0))
+        self.assertGreater(fill.commission, 0)
+        self.assertEqual(book._research.pending_symbols, set())
+
+    def _research_pending_case(self, *, b_first='missing', factors=(1, 1, 1),
+                               adjusted_prices=(10, 10, 12), limits=None):
+        from tests.fee_fixture import execution, fees
+        config = execution()
+        config['tax'] = {'model': 'none', 'params': {}}
+        config['price']['params']['rate'] = '0'
+        book = Settlement(D('100000'), fees(), tax_policy(), limits=limits, execution=config,
+                          accounting='research')
+        records = []
+        for index, record in enumerate(self.case.inputs(exit_market=False)[:3]):
+            factor = factors[index]
+            raw = adjusted_prices[index] / factor
+            bars = {'000001': replace(record.bars['000001'], open=raw, high=raw + 1,
+                                      low=raw - 1, close=raw)}
+            if b_first == 'partial' and index in (1, 2):
+                bars['000002'] = replace(record.bars['000002'],
+                                         volume=100 if index == 1 else 6000000)
+            frame = replace(record.frame, context={**record.frame.context,
+                'back_factors': {'000001': str(factor), '000002': '1'}})
+            record = replace(record, frame=frame, bars=bars,
+                previous_closes={'000001': raw, '000002': 10},
+                opening_marks={'000001': D(str(raw)), '000002': D(10)},
+                closing_marks={'000001': D(str(raw)), '000002': D(10)},
+                opening_amount20={'000001': D(60000000), '000002': D(60000000)},
+                closing_amount20={'000001': D(60000000), '000002': D(60000000)},
+                opening_volume20={'000001': D(6000000), '000002': D(6000000)},
+                opening_eligible=None, registrations=())
+            records.append(record)
+        return book, tuple(records)
+
+    def test_research_risk_snapshot_includes_completed_nonpending_holding(self):
+        book, records = self._research_pending_case(
+            limits=AllocationLimits(stock_weight=D('.21')))
+        frame, _ = book.apply(records[0], self.case.calendar[1])
+        book.plan(TargetSet('pending', frame.at,
+                            {'000001': .2, '000002': .2}), 'pending')
+        frame, _ = book.apply(records[1], self.case.calendar[2])
+        first_day = [fill for fill in book.result().fills
+                     if fill.trade_date == self.case.calendar[1]]
+        self.assertEqual([(fill.symbol, fill.status) for fill in first_day], [
+            ('000001', 'filled'), ('000002', 'rejected')])
+        self.assertLess(book._research.cash, D(80000))
+        book.plan(None, 'pending')
+
+        source = self.case.inputs(exit_market=False)[2]
+        records = list(records)
+        records[2] = replace(records[2], bars={**records[2].bars,
+                                                '000002': source.bars['000002']})
+        book.apply(records[2], self.case.calendar[3])
+
+        retry = [fill for fill in book.result().fills
+                 if fill.trade_date == self.case.calendar[2]]
+        self.assertEqual([(fill.symbol, fill.status, fill.reason) for fill in retry], [
+            ('000002', 'filled', None)])
+        self.assertIn('000001', book._research.units)
+        self.assertIn('000002', book._research.units)
+
+    def _start_research_pending(self, *, b_first='missing', factors=(1, 1, 1),
+                                adjusted_prices=(10, 10, 12), replacement=None):
+        book, records = self._research_pending_case(
+            b_first=b_first, factors=factors, adjusted_prices=adjusted_prices)
+        frame, _ = book.apply(records[0], self.case.calendar[1])
+        book.plan(TargetSet('pending', frame.at, {'000001': .2, '000002': .2}), 'pending')
+        frame, _ = book.apply(records[1], self.case.calendar[2])
+        if replacement is None:
+            book.plan(None, 'pending')
+        else:
+            book.plan(TargetSet('replacement', frame.at, replacement), 'replacement')
+        return book, records
+
+    def test_research_retry_does_not_rebalance_completed_symbol(self):
+        book, records = self._start_research_pending()
+        first = [fill for fill in book.result().fills if fill.trade_date == self.case.calendar[1]]
+        self.assertEqual([(f.symbol, f.side, f.status) for f in first], [
+            ('000001', Side.BUY, 'filled'), ('000002', Side.BUY, 'rejected')])
+        shares_before = book._research.units['000001']
+
+        book.apply(records[2], self.case.calendar[3])
+        result = book.result()
+        self.assertEqual([order.symbol for order in result.allocations[-1].orders], ['000002'])
+        self.assertEqual(book._research.units['000001'], shares_before)
+        self.assertEqual([(f.symbol, f.reason) for f in result.fills
+                          if f.trade_date == self.case.calendar[2]],
+                         [('000002', 'no_tradable_bar')])
+
+    def test_research_partial_fill_retries_only_that_symbol(self):
+        book, records = self._start_research_pending(b_first='partial')
+        first = [fill for fill in book.result().fills if fill.trade_date == self.case.calendar[1]]
+        self.assertEqual([(f.symbol, f.status, f.shares) for f in first], [
+            ('000001', 'filled', 2000), ('000002', 'filled', 100)])
+
+        book.apply(records[2], self.case.calendar[3])
+        result = book.result()
+        self.assertEqual([order.symbol for order in result.allocations[-1].orders], ['000002'])
+        self.assertTrue(any(f.symbol == '000002' and f.status == 'filled'
+                            for f in result.fills if f.trade_date == self.case.calendar[2]))
+
+    def test_research_explicit_target_replaces_pending_symbols(self):
+        book, records = self._start_research_pending(replacement={'000001': .25})
+        book.apply(records[2], self.case.calendar[3])
+        result = book.result()
+        self.assertEqual([order.symbol for order in result.allocations[-1].orders], ['000001'])
+        self.assertNotIn('000002', [order.symbol for order in result.allocations[-1].orders])
+
+    def test_research_factor_change_preserves_value_without_completed_symbol_trade(self):
+        book, records = self._start_research_pending(
+            factors=(1, 1, 2), adjusted_prices=(10, 10, 10))
+        equity_before = book.result().equity[-1].equity
+        adjusted_units_before = book._research.units['000001']
+
+        book.apply(records[2], self.case.calendar[3])
+        result = book.result()
+        self.assertEqual([order.symbol for order in result.allocations[-1].orders], ['000002'])
+        self.assertEqual(book._research.units['000001'], adjusted_units_before)
+        raw_shares_after = int(book._research.units['000001'] * book._research.factors['000001'])
+        self.assertEqual(raw_shares_after, 4000)
+        self.assertEqual(result.equity[-1].equity, equity_before)
+
+    def test_research_retries_unfinished_target_and_new_target_replaces_it(self):
+        from tests.fee_fixture import execution, fees
+        for partial, cancel in ((False,False),(True,False),(False,True)):
+            with self.subTest(partial=partial,cancel=cancel):
+                config=execution(); config['tax']['model']='none'
+                book=Settlement(D('100000'),fees(),tax_policy(),execution=config,accounting='research')
+                case=SettlementFixture()
+                for index,record in enumerate(case.inputs(exit_market=False)):
+                    bar=replace(record.bars['000001'],volume=100 if partial and index==1 else 6000000)
+                    record=replace(record,
+                        frame=replace(record.frame,context={**record.frame.context,'back_factors':{'000001':'1'}}),
+                        bars={'000001':bar},opening_marks={'000001':D(10)},closing_marks={'000001':D(10)},
+                        opening_eligible=() if not partial and index==1 else ('000001',),registrations=())
+                    frame,_=book.apply(record,case.calendar[index+1])
+                    weights={'000001':.2} if index==0 else {} if cancel and index==1 else None
+                    book.plan(None if weights is None else TargetSet('test',frame.at,weights),'test')
+                result=book.result()
+                later=[fill for fill in result.fills if fill.trade_date>case.calendar[1] and fill.status=='filled']
+                if cancel:
+                    self.assertEqual(later,[])
+                    self.assertEqual(result.holdings[-1][1],())
+                else:
+                    self.assertTrue(later)
+                    self.assertEqual(later[0].trade_date,case.calendar[2])
+                    self.assertGreater(result.holdings[-1][1][0].shares,D(100))
+
+    def test_research_retries_exit_after_trading_resumes(self):
+        from tests.fee_fixture import execution, fees
+        config=execution(); config['tax']['model']='none'
+        book=Settlement(D('100000'),fees(),tax_policy(),execution=config,accounting='research')
+        case=SettlementFixture()
+        for index,record in enumerate(case.inputs(exit_market=False)):
+            record=replace(record,
+                frame=replace(record.frame,context={**record.frame.context,'back_factors':{'000001':'1'}}),
+                bars={'000001':record.bars['000001']},opening_marks={'000001':D(10)},
+                closing_marks={'000001':D(10)},opening_eligible=() if index==2 else ('000001',),registrations=())
+            frame,_=book.apply(record,case.calendar[index+1])
+            weights={'000001':.2} if index==0 else {} if index==1 else None
+            book.plan(None if weights is None else TargetSet('test',frame.at,weights),'test')
+        result=book.result()
+        self.assertEqual([fill.status for fill in result.fills],['filled','rejected','filled'])
+        self.assertEqual(result.fills[-1].side,Side.SELL)
+        self.assertEqual(result.fills[-1].trade_date,case.calendar[3])
+        self.assertEqual(result.holdings[-1][1],())
+
     def test_research_partial_sale_then_exit_does_not_create_rounding_positions(self):
         from tests.fee_fixture import execution,fees
         for factor in ('5.5813831068165','3.1','7','1.00137'):
