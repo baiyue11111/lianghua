@@ -39,17 +39,21 @@ def _candidate_parameters(candidate: Mapping[str, object]) -> dict[str, object]:
 
 class Calculation:
     @staticmethod
-    def fundamentals(frame: MarketFrame, weights: Mapping[str, int | float]) -> MarketFrame:
+    def fundamentals(frame: MarketFrame, weights: Mapping[str, int | float], *,
+                    ranking: str = "score") -> MarketFrame:
         """Score a current cross-section with explicit signed factor weights.
 
-        Each factor is population z-scored across securities with a known value.
-        The returned fields contain only normalized factors and score; history is
-        empty, and this method does not recalculate past cross-sections.
+        Score ranking uses population z-scores. Rank ranking uses average
+        percentile ranks across securities with a known value. The returned
+        fields contain normalized factors and score; history is empty, and this
+        method does not recalculate past cross-sections.
         This is a transparent cross-sectional calculation, not a trained model,
         and does not establish point-in-time data provenance.
         """
         if not isinstance(frame, MarketFrame):
             raise TypeError("frame must be a MarketFrame")
+        if type(ranking) is not str or ranking not in ("score", "rank"):
+            raise ValueError("ranking must be 'score' or 'rank'")
         if not isinstance(weights, Mapping) or not weights:
             raise ValueError("weights must be a non-empty mapping")
         names = []
@@ -96,19 +100,30 @@ class Calculation:
             result = np.full(len(values), np.nan, dtype=np.float64)
             if present.any():
                 observed = np.asarray([value for value in values if value is not None], dtype=np.float64)
-                scale = float(np.max(np.abs(observed)))
-                if scale == 0:
-                    result[present] = 0.0
+                if ranking == "rank":
+                    _, inverse, counts = np.unique(
+                        observed, return_inverse=True, return_counts=True
+                    )
+                    middle = np.cumsum(counts) - counts + (counts + 1) / 2
+                    if len(observed) > 1:
+                        percentiles = (middle[inverse] - 1) / (len(observed) - 1)
+                    else:
+                        percentiles = np.full(1, 0.5, dtype=np.float64)
+                    result[present] = percentiles
                 else:
-                    scaled = observed / scale
-                    mean = float(np.mean(scaled))
-                    deviation = float(np.std(scaled, ddof=0))
-                    if not isfinite(mean) or not isfinite(deviation):
-                        raise ValueError(f"normalization overflow for field {name!r}")
-                    if deviation == 0:
+                    scale = float(np.max(np.abs(observed)))
+                    if scale == 0:
                         result[present] = 0.0
                     else:
-                        result[present] = (scaled - mean) / deviation
+                        scaled = observed / scale
+                        mean = float(np.mean(scaled))
+                        deviation = float(np.std(scaled, ddof=0))
+                        if not isfinite(mean) or not isfinite(deviation):
+                            raise ValueError(f"normalization overflow for field {name!r}")
+                        if deviation == 0:
+                            result[present] = 0.0
+                        else:
+                            result[present] = (scaled - mean) / deviation
             columns.append(values)
             normalized.append(result)
 

@@ -77,7 +77,6 @@ def _fact_lookup(fields, fact_rows):
                 raise ValueError(f"market fact columns are invalid: {field}") from error
             key = (field, code)
             records = index.setdefault(key, [])
-            identity = (effective, known)
             full_identity = (field, code, effective, known)
             if full_identity in seen:
                 raise ValueError(f"duplicate market fact identity: {field}, {code}")
@@ -1156,13 +1155,14 @@ class ResearchBook:
         self.rules,self.limits=rules,limits
         self.units,self.basis,self.marks,self.raw,self.factors,self.liquidity={},{},{},{},{},{}
         self.target=self.current=None
+        self.pending_symbols=set()
         self.following=None
         self.realized=Decimal(0)
         self.frames,self.targets,self.allocations,self.orders,self.fills,self.points,self.holdings=[],[],[],[],[],[],[]
 
     def apply(self,record,following,trade_start=None):
         from dataclasses import replace
-        from core.calculation import AccountPoint
+        from core.calculation import AccountPoint,OpeningRiskSnapshot
         from protocol import AccountSnapshot,Fill,Side
         if self.current is not None or following<=record.trade_date or self.following is not None and record.trade_date!=self.following:
             raise ValueError('research sessions require one chronological apply/plan pair')
@@ -1178,14 +1178,20 @@ class ResearchBook:
         if self.target is not None:
             equity=self.cash+sum((u*self.marks[s] for s,u in self.units.items()),Decimal(0))
             shares={s:(u*self.factors[s]).quantize(Decimal('1e-12')) for s,u in self.units.items()}
-            positions={s:int(q) for s,q in shares.items()}
-            plan=self.rules.allocate(self.target,next_session=record.trade_date,equity=equity,
+            positions={s:int(q) for s,q in shares.items() if s in self.pending_symbols}
+            risk_positions=dict(shares)
+            target=replace(self.target,
+                weights={s:w for s,w in self.target.weights.items() if s in self.pending_symbols},
+                reasons={s:r for s,r in self.target.reasons.items() if s in self.pending_symbols})
+            plan=self.rules.allocate(target,next_session=record.trade_date,equity=equity,
                 holdings=positions,raw_closes=self.raw,amount20=self.liquidity,limits=self.limits)
             self.allocations.append(plan)
+            unfinished=set()
             for order in plan.orders:
                 self.orders.append(order)
                 symbol=order.symbol;bar=record.bars.get(symbol)
                 if bar is None or record.opening_eligible is not None and symbol not in record.opening_eligible:
+                    unfinished.add(symbol)
                     self.fills.append(Fill(order.order_id,symbol,order.side,record.trade_date,0,0,0,0,0,'rejected','no_tradable_bar'))
                     continue
                 reference=float(self.marks[symbol]/factors[symbol])
@@ -1197,11 +1203,25 @@ class ResearchBook:
                 reason=self.rules.check(order,bar,reference,price=price,quantity=quantity,positions=positions,sellable=positions)
                 if reason is None and not Decimal(str(bar.low))<=price<=Decimal(str(bar.high)):
                     reason='outside_bar_range'
+                if reason is None:
+                    gross=price*quantity
+                    fees=self.rules.fees(gross,order.side,record.trade_date,symbol=symbol,shares=quantity)
+                    snapshot=OpeningRiskSnapshot(record.liquidity_as_of,
+                        {s:self.marks[s]/self.factors[s] for s in set(risk_positions)|{symbol}},
+                        self.liquidity,Decimal(0),Decimal(0),self.limits)
+                    equity=self.rules.check(phase='opening_equity',cash=self.cash,
+                        holdings=risk_positions,snapshot=snapshot)
+                    preview=Fill(order.order_id,symbol,order.side,record.trade_date,quantity,float(price),
+                        float(gross),float(fees.commission),float(fees.stamp_duty),'filled',
+                        transfer_fee=float(fees.transfer_fee))
+                    reason=self.rules.check(phase='opening_rejection',order=order,fill=preview,
+                        equity=equity,holdings=risk_positions,snapshot=snapshot)
                 if reason:
+                    unfinished.add(symbol)
                     self.fills.append(Fill(order.order_id,symbol,order.side,record.trade_date,0,float(price),0,0,0,'rejected',reason))
                     continue
-                gross=price*quantity
-                fees=self.rules.fees(gross,order.side,record.trade_date,symbol=symbol,shares=quantity)
+                if quantity < order.requested_shares:
+                    unfinished.add(symbol)
                 cost=fees.commission+fees.stamp_duty+fees.transfer_fee
                 units=Decimal(quantity)/factors[symbol]
                 old=self.units.get(symbol,Decimal(0))
@@ -1220,9 +1240,14 @@ class ResearchBook:
                     raise ValueError('research execution exceeds cash or investment units')
                 if self.units[symbol]==0:
                     del self.units[symbol];del self.basis[symbol]
+                risk_positions[symbol]=risk_positions.get(symbol,0)+(quantity if order.side is Side.BUY else -quantity)
+                if risk_positions[symbol]==0:
+                    del risk_positions[symbol]
                 self.fills.append(Fill(order.order_id,symbol,order.side,record.trade_date,quantity,float(price),float(gross),
                     float(fees.commission),float(fees.stamp_duty),'filled',transfer_fee=float(fees.transfer_fee)))
-            self.target=None
+            self.pending_symbols=unfinished
+            if not self.pending_symbols:
+                self.target=None
         self.raw.update(record.closing_marks)
         self.marks.update({s:p*factors[s] for s,p in record.closing_marks.items()})
         value=sum((u*self.marks[s] for s,u in self.units.items()),Decimal(0))
@@ -1244,7 +1269,12 @@ class ResearchBook:
         frame,active=self.current
         if target is not None and (not isinstance(target,TargetSet) or target.source_id!=strategy_id or target.as_of!=frame.at):
             raise ValueError('strategy target identity/time do not match decision')
-        self.target=target if active else None
+        if not active:
+            self.target=None
+            self.pending_symbols=set()
+        elif target is not None:
+            self.target=target
+            self.pending_symbols=set(target.weights) | set(self.units)
         self.targets.append(target);self.current=None
 
     def result(self):

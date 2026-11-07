@@ -86,6 +86,11 @@ def _bs_code(code: str) -> str:
     raise UnsupportedMarketError(f"unsupported market code: {code}")
 
 
+def _location(dataset, name):
+    parts = name.split('/')
+    return (parts[1], '/'.join(parts[2:])) if parts[0] == 'source' else (dataset, name)
+
+
 def _canonical(value) -> bytes:
     return json.dumps(value, ensure_ascii=False, sort_keys=True,
                       separators=(",", ":")).encode("utf-8")
@@ -1133,6 +1138,13 @@ class Methods:
                     "sessions": sorted({day for item in sources for day in item["sessions"]}),
                     "coverage": _calendar_coverage([span for item in sources for span in item["coverage"]]),
                 }
+        validate_record = getattr(handler, 'validate_record', None)
+        if validate_record is not None:
+            try:
+                for row in result['records']:
+                    validate_record(row)
+            except (DataError, TypeError, ValueError) as error:
+                raise CollectionError(str(error), result['raw']) from error
         return result
 
     def doctor(self, source, request):
@@ -1154,8 +1166,7 @@ class Methods:
                 raise ValueError('doctor requires registered stock codes')
             changes_name = manifest['inputs'].get('code_changes')
             if changes_name:
-                parts = changes_name.split('/')
-                change_identity, change_file = (parts[1],'/'.join(parts[2:])) if parts[0] == 'source' else (dataset,changes_name)
+                change_identity, change_file = _location(dataset, changes_name)
                 changes = json.loads(self.data.read('sources',change_identity,change_file))
                 rows, archived = [], set()
                 ids = {m.get('collect',{}).get('securities',{}).get('source') for m in markets} - {None}
@@ -1171,35 +1182,9 @@ class Methods:
                     archived.update(row['code'] for row in values if _sha256(row) not in incoming)
                 raw, found = Catalogue.code_changes(changes,rows,archived & {normalize_security_id(code) for code in request['codes']},request['start'],request['end'])
             pending = self.plan_facts(dataset, manifest, request, changes=found['events'] if changes_name else [])
-            groups, catalogues, windows = {}, {}, []
+            groups = {}
             for name, task in pending:
-                groups.setdefault(task.code, []).append((name, task))
-                if task.kind != 'adjust':
-                    continue
-                path = manifest['inputs']['securities']['template'].format(symbol=task.code).split('/')
-                identity, filename = (path[1], '/'.join(path[2:])) if path[0] == 'source' else (dataset, '/'.join(path))
-                try:
-                    security = json.loads(self.data.read('sources', identity, filename))
-                    _validate_cache(Request('security',task.code,None,None,None), security)
-                except DataError as error:
-                    if error.code != 'missing':
-                        raise
-                    security = None
-                except (ValueError, KeyError, TypeError, CacheIntegrityError):
-                    security = None
-                if security is None:
-                    ids = {m['collect']['securities']['source'] for m in markets if re.fullmatch(m['code_pattern'],task.code)}
-                    for source_id in ids - catalogues.keys():
-                        catalogues[source_id] = json.loads(self.data.read('sources',source_id,'records.json'))['records']
-                    rows = [row for source_id in ids for row in catalogues[source_id] if row['code'] == task.code]
-                    if len(rows) != 1:
-                        raise ValueError('one registered security catalogue record is required: '+task.code)
-                    security = Catalogue.security(task.code, rows[0])
-                row = security['records'][0]
-                if row['listing_date'] > task.end or (row['delisting_date'] and row['delisting_date'] < task.start):
-                    windows.append(f"{task.code} {row['listing_date']}..{row['delisting_date']} vs {task.start}..{task.end}")
-            if windows:
-                raise ValueError("security window outside adjustment range: " + "; ".join(windows))
+                groups.setdefault((task.code, task.kind), []).append((name, task))
             if changes_name and found != changes:
                 evidence = _canonical(raw)
                 self.data.write('state','collect',hashlib.sha256(evidence).hexdigest()+'.json',evidence)
@@ -1211,7 +1196,7 @@ class Methods:
                 self.data.write('sources',dataset,'manifest.json',_canonical(manifest))
         errors = []
         original_end = manifest['inputs']['adjustments']['end']
-        for code, tasks in groups.items():
+        for (code, kind), tasks in groups.items():
             try:
                 with self.data.transaction('sources'):
                     current = json.loads(self.data.read('sources', dataset, 'manifest.json'))
@@ -1227,10 +1212,7 @@ class Methods:
             updated = json.loads(self.data.read('sources', dataset, 'manifest.json'))
             changes_name = updated['inputs'].get('code_changes')
             if changes_name:
-                def location(name):
-                    parts = name.split('/')
-                    return (parts[1],'/'.join(parts[2:])) if parts[0] == 'source' else (dataset,name)
-                changes = json.loads(self.data.read('sources',*location(changes_name)))
+                changes = json.loads(self.data.read('sources',*_location(dataset, changes_name)))
                 facts = {}
                 selected = {normalize_security_id(code) for code in request['codes']}
                 end = max(original_end,request['end'])
@@ -1241,11 +1223,11 @@ class Methods:
                     for code in codes:
                         name = updated['inputs']['adjustments']['template'].format(symbol=code,
                             start=updated['inputs']['adjustments']['start'],end=end)
-                        facts[code] = json.loads(self.data.read('sources',*location(name)))
+                        facts[code] = json.loads(self.data.read('sources',*_location(dataset, name)))
                 verified = SinaFactors.verify_renames(changes,facts)
                 if verified != changes:
                     content = _canonical(verified)
-                    self.data.write('sources',*location(changes_name),content)
+                    self.data.write('sources',*_location(dataset, changes_name),content)
                     for row in updated['files']:
                         if row['file'] == changes_name:
                             row['sha256'] = hashlib.sha256(content).hexdigest()
@@ -1276,22 +1258,20 @@ class Methods:
         calendar = json.loads(self.data.read('sources', dataset, manifest['calendar']))
         first = min([request['start'], *(span['start'] for span in calendar['coverage'])])
         pending = []
-        def location(name):
-            parts = name.split('/')
-            return (parts[1], '/'.join(parts[2:])) if parts[0] == 'source' else (dataset, name)
         if changes is None:
-            changes = json.loads(self.data.read('sources', *location(inputs['code_changes'])))['events'] if inputs.get('code_changes') else []
+            changes = json.loads(self.data.read('sources', *_location(dataset, inputs['code_changes'])))['events'] if inputs.get('code_changes') else []
         for code in codes:
             closed = None
-            tasks = [(inputs['adjustments']['template'], Request('adjust', code, start, end, None))]
+            tasks = ([(inputs['securities']['template'], Request('security', code, None, None, None))]
+                     if code in selected else [])
+            tasks.append((inputs['adjustments']['template'], Request('adjust', code, start, end, None)))
             if code in selected:
-                tasks += [(inputs['securities']['template'], Request('security', code, None, None, None)),
-                          *((inputs['distributions']['template'], Request('dividend', code, None, None, str(year)))
-                            for year in range(int(first[:4]), int(end[:4]) + 1))]
+                tasks.extend((inputs['distributions']['template'], Request('dividend', code, None, None, str(year)))
+                             for year in range(int(first[:4]), int(end[:4]) + 1))
             for template, task in tasks:
                 name = template.format(symbol=code, start=start, end=end, year=task.year)
                 try:
-                    fact = json.loads(self.data.read('sources', *location(name)))
+                    fact = json.loads(self.data.read('sources', *_location(dataset, name)))
                     _validate_cache(task, fact)
                 except DataError as error:
                     if error.code != 'missing':
@@ -1335,15 +1315,11 @@ class Methods:
         if check:
             return not pending
         registry = json.loads(self.data.read('sources', 'registry', 'sources.json'))
-        def location(name):
-            parts = name.split('/')
-            return (parts[1], '/'.join(parts[2:])) if parts[0] == 'source' else (dataset, name)
-        changes = json.loads(self.data.read('sources', *location(inputs['code_changes'])))['events'] if inputs.get('code_changes') else []
+        changes = json.loads(self.data.read('sources', *_location(dataset, inputs['code_changes'])))['events'] if inputs.get('code_changes') else []
         outputs, securities, dividends = [], {}, {}
         for name, task in pending:
-            if task.code not in securities:
-                security_task = Request('security', task.code, None, None, None)
-                if any(item.kind == 'security' and item.code == task.code for _, item in pending):
+            try:
+                if task.kind == 'security':
                     sources = {m['collect']['securities']['source'] for m in registry['markets']
                                if m.get('dataset_id') == dataset and m.get('code_pattern')
                                and re.fullmatch(m['code_pattern'], task.code)}
@@ -1351,17 +1327,14 @@ class Methods:
                         self.data.read('sources', source, 'records.json'))['records'] if row['code'] == task.code]
                     if len(rows) != 1:
                         raise ValueError('one registered security catalogue record is required: ' + task.code)
-                    securities[task.code] = (rows[0], Catalogue.security(task.code, rows[0]))
-                else:
-                    security = json.loads(self.data.read('sources', *location(
-                        inputs['securities']['template'].format(symbol=task.code))))
-                    _validate_cache(security_task, security)
-                    securities[task.code] = (security, security)
-            try:
-                raw, security = securities[task.code]
-                if task.kind == 'security':
-                    fact = security
+                    raw = rows[0]
+                    fact = securities[task.code] = Catalogue.security(task.code, raw)
                 elif task.kind == 'adjust':
+                    if task.code not in securities:
+                        securities[task.code] = json.loads(self.data.read('sources', *_location(dataset,
+                            inputs['securities']['template'].format(symbol=task.code))))
+                    security = securities[task.code]
+                    _validate_cache(Request('security', task.code, None, None, None), security)
                     raw, fact = SinaFactors.collect(task, security, get=self._http.get, changes=changes)
                 else:
                     if task.code not in dividends:
@@ -1375,22 +1348,30 @@ class Methods:
             except Exception as error:
                 raise CollectionError(f'{task.code} {task.kind}: {error}') from error
             outputs.append((name, raw, _canonical(fact), task))
+        updated = self.save_facts(dataset, manifest, outputs, end=end)
+        updated['inputs']['adjustments']['end'] = end
+        return updated
+
+    def save_facts(self, dataset, manifest, outputs, *, end=None):
+        """One publisher for normalized security, adjustment and dividend facts."""
         updated = deepcopy(manifest)
         files = {row['file']: row for row in updated['files']}
         saved = set()
         for name, raw, content, task in outputs:
-            if id(raw) not in saved:
-                evidence = _canonical(raw)
-                self.data.write('state', 'collect', hashlib.sha256(evidence).hexdigest() + '.json', evidence)
-                saved.add(id(raw))
-            self.data.write('sources', *location(name), content)
+            identity, filename = _location(dataset, name)
+            if (not self.data.path('sources', identity, filename).exists()
+                    or self.data.read('sources', identity, filename) != content):
+                if id(raw) not in saved:
+                    evidence = _canonical(raw)
+                    self.data.write('state', 'collect', hashlib.sha256(evidence).hexdigest() + '.json', evidence)
+                    saved.add(id(raw))
+                self.data.write('sources', identity, filename, content)
             if task.kind == 'dividend':
                 self.data.write('state','collect','coverage/'+task.key+'.json',
                                 _canonical({'end':end,'sha256':hashlib.sha256(content).hexdigest()}))
             if name in files:
                 files[name] = {**files[name], 'sha256': hashlib.sha256(content).hexdigest()}
         updated['files'] = list(files.values())
-        updated['inputs']['adjustments']['end'] = end
         return updated
 
     def coverage(self, source: Mapping, request: Mapping):
@@ -1411,6 +1392,19 @@ class Methods:
             if error.code == "missing":
                 return None
             raise
+
+    def no_trade(self, manifest):
+        """Read hash-bound observations of whole-session suspensions, never bars."""
+        records = []
+        for ref in manifest.get('files', ()):
+            parts = Path(ref['file']).parts
+            if len(parts) != 3 or parts[0] != 'source' or parts[-1] != 'no_trade.json':
+                continue
+            payload = self.data.read('sources', parts[1], parts[2])
+            if hashlib.sha256(payload).hexdigest() != ref['sha256']:
+                raise DataError('invalid_evidence', 'no-trade evidence hash mismatch')
+            records.extend(json.loads(payload)['records'])
+        return records
 
     def daily_coverage(self, dataset: str, symbols: tuple[str, ...],
                        start: date, end: date, fields: tuple[str, ...]) -> Mapping[str, object]:
@@ -1463,6 +1457,8 @@ class Methods:
                     key = (normalize_security_id(str(row.get("code"))), str(row.get("date")))
                     if key in wanted and all(row.get(field) is not None for field in fields):
                         found.add(key)
+            for span in self.no_trade(manifest):
+                found.update(key for key in wanted if key[0] == span['code'] and span['start'] <= key[1] <= span['end'])
             missing = {
                 symbol: [day.isoformat() for day in wanted_days
                          if (normalize_security_id(symbol), day.isoformat()) not in found]
@@ -1493,20 +1489,23 @@ class Methods:
 
     def publish(self, source: Mapping, packet: Mapping):
         result = self._deliver(source, packet, dry_run=False)
-        if not packet['records'] and source.get("data_type") != "facts":
-            return result
+        daily = source.get('method') == 'daily' or source.get('data_type') == 'daily'
+        rejected = {item['code'] for item in result['failures']}
+        rows = [row for row in packet['records'] if not rejected
+                or (normalize_security_id(row['code']) if daily else row.get('code')) not in rejected]
         try:
-            version = self.records(source, 0, 0)['snapshot_id'] if source.get('method') == 'daily' or source.get('data_type') == 'daily' else result.sha256
+            ref = result['ref']
+            version = None if ref is None else (self.records(source, 0, 0)['snapshot_id'] if daily else ref.sha256)
             event = {'source_id': source['id'], 'snapshot_id': version,
                       'raw': packet['raw'], 'request': packet.get('request', {}),
-                      'scope': packet.get('scope', {}),
-                      'incoming': [{'record_hash': _sha256({key: value for key, value in row.items()
-                                                          if key != 'raw_page'}),
-                                    'raw_page': row.get('raw_page')}
-                                   for row in packet['records']],
+                      'scope': packet.get('scope', {}), 'failures': result['failures'],
+                      'incoming': [{'record_hash': _sha256({key: value for key, value in row.items() if key != 'raw_page'}),
+                                    'raw_page': row.get('raw_page')} for row in rows],
                       'collected_at': datetime.now(timezone.utc).isoformat()}
             self.log(event)
-            self._evidence[version] = event
+            if version is not None:
+                self._evidence.clear()
+                self._evidence[version] = event
         except Exception as error:
             warnings.warn(f'published source evidence log failed: {error}', RuntimeWarning)
         return result
@@ -1528,7 +1527,6 @@ class Methods:
                     or not callable(getattr(handler, "validate_record", None))):
                 raise DataError("unsupported_facts_source", "facts provider must declare a numeric schema")
             return self._publish_facts(source, packet, handler, dry_run=dry_run)
-        handler = self.handlers.get(source.get('method'), DEFAULT_METHODS.get(source.get("method")))
         declared = source.get('params', {}).get('key_fields', getattr(handler, 'keys', None))
         if (not isinstance(declared, (list, tuple)) or not declared
                 or any(not isinstance(name, str) or not name for name in declared)
@@ -1536,34 +1534,93 @@ class Methods:
             raise DataError('identity_policy', 'source must declare business key_fields')
         keys = tuple(declared)
         incoming = packet["records"]
-        if keys and any(not isinstance(row, Mapping) or any(row.get(key) is None for key in keys)
+        if any(not isinstance(row, Mapping) or any(row.get(key) is None for key in keys)
                         for row in incoming):
             raise DataError("invalid_packet", "record identity fields are required")
-        def key(row):
-            return tuple(_canonical(row[name]) for name in keys)
         with self.data.transaction("sources"):
             try:
-                old = json.loads(self.data.read("sources", source["id"], "records.json"))["records"]
+                old_content = self.data.read("sources", source["id"], "records.json")
+                old = json.loads(old_content)["records"]
             except DataError as error:
                 if error.code != "missing":
                     raise
-                old = []
-            merged = {}
-            for index, row in enumerate([*old, *incoming]):
-                value = {name: deepcopy(item) for name, item in row.items() if name != "raw_page"}
-                identity = key(value)
-                if identity in merged:
-                    merged[identity] = self._merge_record(merged[identity], value, identity,
-                        refresh=index >= len(old) and packet.get('request', {}).get('refresh') is True)
-                else:
-                    merged[identity] = value
-            records = [merged[identity] for identity in sorted(merged)]
+                old_content, old = None, []
+            records, failures = self.merge_records(old, incoming, keys,
+                refresh=packet.get('request', {}).get('refresh') is True)
+            convert = getattr(handler, 'security', None)
+            if callable(convert) and self.data.path('sources', 'registry', 'sources.json').exists():
+                registry = json.loads(self.data.read('sources', 'registry', 'sources.json'))
+                for market in registry.get('markets', ()):
+                    binding = market.get('collect', {}).get('securities', {})
+                    if binding.get('source') != source['id']:
+                        continue
+                    dataset = market['dataset_id']
+                    manifest = json.loads(self.data.read('sources', dataset, 'manifest.json'))
+                    outputs = []
+                    for row in records:
+                        code = row['code']
+                        if (not re.fullmatch(market['code_pattern'], code)
+                                or any(row.get(field) not in allowed
+                                       for field, allowed in binding.get('filters', {}).items())):
+                            continue
+                        try:
+                            fact = _canonical(convert(code, row))
+                        except (ValueError, TypeError, KeyError) as error:
+                            failures.append({'code': code, 'error': str(error)})
+                            continue
+                        name = manifest['inputs']['securities']['template'].format(symbol=code)
+                        outputs.append((name, row, fact, Request('security', code, None, None, None)))
+                    if not dry_run:
+                        updated = self.save_facts(dataset, manifest, outputs)
+                        if updated != manifest:
+                            self.data.write('sources', dataset, 'manifest.json', _canonical(updated))
             content = json.dumps({"records": records}, ensure_ascii=False, sort_keys=True,
                                  separators=(",", ":"), allow_nan=False).encode()
             stats = {"records": len(records), "incoming": len(incoming)}
             if dry_run:
                 return stats
-            return self.data.write("sources", source["id"], "records.json", content)
+            ref = (self.data.write("sources", source["id"], "records.json", content)
+                   if content != old_content else next(ref for ref in self.data.list('sources', source['id'])
+                                                      if ref.name == 'records.json'))
+            rejected = {item['code'] for item in failures}
+            return {'ref': ref, 'records': sum(row.get('code') not in rejected for row in incoming),
+                    'failures': failures}
+
+    @classmethod
+    def merge_records(cls, old, incoming, keys, *, refresh=False, immutable=False):
+        """Reject a conflicting code while retaining all other observed records."""
+        def clean(row):
+            return {name: deepcopy(value) for name, value in row.items() if name != 'raw_page'}
+        def key(row):
+            return tuple(_canonical(row[name]) for name in keys)
+        stored = {}
+        for row in old:
+            identity = key(row)
+            if identity in stored:
+                raise DataError('data_conflict', 'duplicate stored identity: ' + repr(identity))
+            stored[identity] = clean(row)
+        current, failures = dict(stored), {}
+        for row in incoming:
+            value, identity = clean(row), key(row)
+            code = value.get('code')
+            if code in failures:
+                continue
+            try:
+                if identity not in current:
+                    current[identity] = value
+                elif immutable:
+                    if current[identity] != value:
+                        raise DataError('data_conflict', 'record version is immutable: ' + repr(identity))
+                else:
+                    current[identity] = cls._merge_record(current[identity], value, identity, refresh=refresh)
+            except DataError as error:
+                if not isinstance(code, str) or not code:
+                    raise
+                failures[code] = str(error)
+        current = {identity: row for identity, row in current.items() if row.get('code') not in failures}
+        current.update((identity, row) for identity, row in stored.items() if row.get('code') in failures)
+        return ([current[identity] for identity in sorted(current)],
+                [{'code': code, 'error': error} for code, error in sorted(failures.items())])
 
     def _publish_facts(self, source, packet, handler, *, dry_run):
         import pyarrow as pa
@@ -1577,15 +1634,8 @@ class Methods:
             raise DataError('invalid_schema', 'facts identity and time columns must be declared')
         schema = pa.schema([(name, pa.string()) for name in texts] +
                            [(name, pa.float64()) for name in numeric])
-        incoming = []
-        seen = set()
-        for row in packet["records"]:
-            value = {name: deepcopy(item) for name, item in row.items() if name != "raw_page"}
-            identity = tuple(value[name] for name in handler.keys)
-            if identity in seen:
-                raise DataError("data_conflict", f"duplicate financial version: {identity!r}")
-            seen.add(identity)
-            incoming.append(value)
+        incoming = [{name: deepcopy(item) for name, item in row.items() if name != 'raw_page'}
+                    for row in packet['records']]
         with self.data.transaction("sources"):
             try:
                 old_records_content = self.data.read("sources", source_id, "records.json")
@@ -1594,41 +1644,13 @@ class Methods:
                 if error.code != "missing":
                     raise
                 old_records_content, old = None, []
-            if not incoming:
-                content = json.dumps({"records": old}, ensure_ascii=False, sort_keys=True,
-                                     separators=(",", ":"), allow_nan=False).encode()
-                if dry_run:
-                    return {"records": len(old), "incoming": 0}
-                try:
-                    current = self.data.read("sources", source_id, "records.json")
-                except DataError as error:
-                    if error.code != "missing":
-                        raise
-                    current = None
-                if current != content:
-                    self.data.write("sources", source_id, "records.json", content)
-                refs = self.data.list("sources", source_id)
-                return next((ref for ref in refs if ref.name == "records.json"), None)
-            current = {}
             for row in old:
                 handler.validate_record(row)
-                identity = tuple(row[name] for name in handler.keys)
-                if identity in current:
-                    raise DataError("data_conflict", f"duplicate stored financial version: {identity!r}")
-                current[identity] = {name: deepcopy(item) for name, item in row.items()
-                                     if name != "raw_page"}
-            for row in incoming:
-                identity = tuple(row[name] for name in handler.keys)
-                if identity in current and current[identity] != row:
-                    raise DataError("data_conflict", f"financial version is immutable: {identity!r}")
-                current.setdefault(identity, row)
-            records = [current[key] for key in sorted(current)]
+            records, failures = self.merge_records(old, incoming, handler.keys, immutable=True)
+            rejected = {item['code'] for item in failures}
+            accepted = sum(row['code'] not in rejected for row in incoming)
             records_content = json.dumps({"records": records}, ensure_ascii=False, sort_keys=True,
                                          separators=(",", ":"), allow_nan=False).encode()
-            table = pa.Table.from_pylist(records, schema=schema)
-            parquet_buffer = pa.BufferOutputStream()
-            pq.write_table(table, parquet_buffer, compression="zstd")
-            parquet_content = parquet_buffer.getvalue().to_pybytes()
             manifest = json.loads(self.data.read("sources", dataset, "manifest.json"))
             fields = manifest.get("fields")
             files = manifest.get("files")
@@ -1644,7 +1666,6 @@ class Methods:
                     raise DataError("field_conflict", f"numeric field binding already exists: {name}")
             updated = deepcopy(manifest)
             updated["fields"] = {**fields, **bindings}
-            digest = hashlib.sha256(parquet_content).hexdigest()
             refs = [row for row in files if row.get("file") == file_name]
             if len(refs) > 1:
                 raise DataError("invalid_manifest", "duplicate facts Parquet reference")
@@ -1661,6 +1682,20 @@ class Methods:
                 raise DataError('data_conflict', 'stored facts do not match their manifest evidence')
             if old and pq.read_table(pa.BufferReader(old_parquet_content)).to_pylist() != old:
                 raise DataError('data_conflict', 'stored facts JSON and Parquet versions differ')
+            if not accepted:
+                if dry_run:
+                    return {"records": len(old), "incoming": 0}
+                if old_records_content is None:
+                    ref = self.data.write("sources", source_id, "records.json", records_content)
+                else:
+                    refs = self.data.list("sources", source_id)
+                    ref = next((ref for ref in refs if ref.name == "records.json"), None)
+                return {'ref': ref, 'records': 0, 'failures': failures}
+            table = pa.Table.from_pylist(records, schema=schema)
+            parquet_buffer = pa.BufferOutputStream()
+            pq.write_table(table, parquet_buffer, compression="zstd")
+            parquet_content = parquet_buffer.getvalue().to_pybytes()
+            digest = hashlib.sha256(parquet_content).hexdigest()
             updated["files"] = ([{**row, "sha256": digest} if row.get("file") == file_name else row
                                  for row in files] if refs else
                                 [*files, {"file": file_name, "sha256": digest, "role": "market"}])
@@ -1675,7 +1710,8 @@ class Methods:
             if manifest_content != _canonical(manifest):
                 self.data.write("sources", dataset, "manifest.json", manifest_content)
             refs = self.data.list("sources", source_id)
-            return next((ref for ref in refs if ref.name == "records.json"), None)
+            return {'ref': next((ref for ref in refs if ref.name == "records.json"), None),
+                    'records': accepted, 'failures': failures}
 
     @staticmethod
     def _merge_record(old, new, identity, *, refresh=False):
@@ -1765,57 +1801,93 @@ class Methods:
     def _sql_name(name):
         return '"' + name.replace('"', '""') + '"'
 
-    def _publish_daily(self, storage_id: str, dataset_id: str, packet: Mapping[str, object], *, dry_run: bool = False) -> DataRef | dict:
+    @staticmethod
+    def daily_rows(packet):
+        """Validate supplied cells only. Absence is not a market observation."""
+        request = packet.get('request', {})
+        codes = {normalize_security_id(code) for code in request.get('codes', ())}
+        fields = {'open', 'high', 'low', 'close', 'volume', 'amount'}
+        merged = {}
+        for row in packet['records']:
+            try:
+                code = normalize_security_id(row['code'])
+                day = date.fromisoformat(row['date']).isoformat()
+                if codes and code not in codes:
+                    raise ValueError('daily response security mismatch')
+                if request.get('start') and not request['start'] <= day <= request['end']:
+                    raise ValueError('daily response date outside requested range')
+                value = {key: item for key, item in row.items() if key != 'raw_page' and item is not None}
+                value['date'] = day
+                key = (code, day)
+                if key in merged:
+                    value = Methods._merge_daily_row(merged[key], value, key)
+                for name in fields & value.keys():
+                    number = value[name]
+                    if (type(number) not in (int, float) or not isfinite(number) or number < 0
+                            or name in {'open', 'high', 'low', 'close'} and number == 0):
+                        raise ValueError('daily field is invalid: ' + name)
+                low, high = value.get('low'), value.get('high')
+                if low is not None and high is not None and low > high:
+                    raise ValueError('daily OHLC values conflict')
+                for name in ('open', 'close'):
+                    if name in value and (low is not None and value[name] < low or high is not None and value[name] > high):
+                        raise ValueError('daily OHLC values conflict')
+                if 'volume' in value and 'amount' in value and (value['volume'] == 0) != (value['amount'] == 0):
+                    raise ValueError('daily turnover fields conflict')
+                if set(value) <= {'code', 'date'}:
+                    continue
+                merged[key] = value
+            except (KeyError, TypeError, ValueError) as error:
+                raise DataError('invalid_packet', str(error)) from error
+        return merged
+
+    def _publish_daily(self, storage_id: str, dataset_id: str, packet: Mapping[str, object], *, dry_run: bool = False) -> dict:
         """Merge a typed daily packet into existing year-partitioned Parquet files."""
         if (not isinstance(storage_id, str) or Path(storage_id).name != storage_id
                 or not isinstance(dataset_id, str) or Path(dataset_id).name != dataset_id):
             raise DataError("invalid_identity", "invalid daily source or dataset identity")
         self._validate_canonical_daily(packet)
-        rows = packet.get("records") if isinstance(packet, Mapping) else None
-        calendar = packet.get("calendar") if isinstance(packet, Mapping) else None
-        if not isinstance(rows, list) or not rows or not isinstance(calendar, Mapping):
-            raise DataError("invalid_packet", "daily rows and calendar are required")
-        try:
-            calendar = _calendar_payload(calendar)
-        except (TypeError, ValueError) as error:
-            raise DataError("invalid_packet", str(error)) from error
-        if not calendar["sessions"]:
-            raise DataError("invalid_packet", "daily calendar has no sessions")
-        from datetime import date as _date
+        incoming = self.daily_rows(packet)
+        if not incoming:
+            return {'incoming': 0, 'records': 0, 'years': []} if dry_run else {'ref': None, 'records': 0, 'failures': []}
+        calendar = packet.get('calendar')
+        if not isinstance(calendar, Mapping):
+            raise DataError('invalid_packet', 'daily calendar is required')
+        calendar = _calendar_payload(calendar)
         request = packet.get('request', {})
-        refreshed = {normalize_security_id(code) for code in request['codes']} if request.get('refresh') is True else set()
-        incoming, years = {}, set()
-        for row in rows:
-            if not isinstance(row, Mapping):
-                raise DataError("invalid_packet", "daily rows must be objects")
-            required = {"code", "date", "open", "high", "low", "close", "volume", "amount"}
-            if not required <= set(row):
-                raise DataError("invalid_packet", "daily row fields are incomplete")
-            try:
-                day = _date.fromisoformat(str(row["date"]))
-                _date.fromisoformat(str(row.get("available_at", row["date"]))[:10])
-            except (TypeError, ValueError) as error:
-                raise DataError("invalid_packet", "daily dates are invalid") from error
-            for field in ("open", "high", "low", "close", "volume", "amount"):
-                value = row[field]
-                if (isinstance(value, bool) or not isinstance(value, (int, float))
-                        or not isfinite(value) or value < 0
-                        or (field in {"open", "high", "low", "close"} and value <= 0)):
-                    raise DataError("invalid_packet", f"daily field is invalid: {field}")
-            identity = normalize_security_id(str(row["code"]))
-            key = (identity, day.isoformat())
-            value = {name: item for name, item in row.items() if name != "raw_page"}
-            incoming[key] = self._merge_daily_row(incoming[key], value, key) if key in incoming else value
-            years.add(str(day.year))
+        years = {day[:4] for _, day in incoming}
         import pyarrow as pa
         import pyarrow.parquet as pq
         with self.data.transaction('sources'):
             manifest = self.data.manifest(dataset_id)
-            if refreshed:
-                years.update(ref['file'].rsplit('/', 1)[-1][:-8] for ref in manifest['files']
-                             if ref['file'].startswith(f'source/{storage_id}/daily/')
-                             and ref['file'].endswith('.parquet')
-                             and request['start'][:4] <= ref['file'].rsplit('/', 1)[-1][:-8] <= request['end'][:4])
+            tables, failures = {}, {}
+            aliases = sorted({alias for code, _ in incoming for alias in (code, code.split('.')[-1])})
+            supplied = {name for row in incoming.values() for name in row} | {'open','high','low','close','volume','amount'}
+            for year in sorted(years):
+                try:
+                    payload = self.data.read('sources', storage_id, f'daily/{year}.parquet')
+                except DataError as error:
+                    if error.code != 'missing':
+                        raise
+                    tables[year] = None
+                    continue
+                tables[year] = payload
+                columns = [name for name in pq.ParquetFile(pa.BufferReader(payload)).schema_arrow.names if name in supplied]
+                rows = pq.read_table(pa.BufferReader(payload), columns=columns,
+                                     filters=[('code', 'in', aliases)]).to_pylist()
+                for row in rows:
+                    key = (normalize_security_id(str(row['code'])), str(row['date']))
+                    if key in incoming:
+                        try:
+                            value = self._merge_daily_row(row, incoming[key], key, refresh=request.get('refresh') is True)
+                            self.daily_rows({'records': [value], 'request': request})
+                        except DataError as error:
+                            failures[key[0]] = {'code': key[0], 'error': str(error)}
+            incoming = {key: row for key, row in incoming.items() if key[0] not in failures}
+            if not incoming:
+                return ({'incoming': 0, 'records': 0, 'years': [], 'failures': list(failures.values())} if dry_run
+                        else {'ref': None, 'records': 0, 'failures': list(failures.values())})
+            years = {day[:4] for _, day in incoming}
             current_calendar = json.loads(self.data.read( "sources", dataset_id, manifest["calendar"]))
             current_calendar = _calendar_payload(current_calendar)
             known_sessions = set(current_calendar["sessions"])
@@ -1825,21 +1897,13 @@ class Methods:
             counts, payloads = {}, {}
             for year in sorted(years):
                 name = f"daily/{year}.parquet"
-                old_rows, old_schema = [], None
-                try:
-                    old_bytes = self.data.read( "sources", storage_id, name)
-                except DataError as error:
-                    if error.code != "missing":
-                        raise
-                else:
-                    old_table = pq.read_table(pa.BufferReader(old_bytes))
-                    old_rows, old_schema = old_table.to_pylist(), old_table.schema
+                old_payload = tables.pop(year)
+                old_table = pq.read_table(pa.BufferReader(old_payload)) if old_payload is not None else None
+                old_rows = old_table.to_pylist() if old_table is not None else []
+                old_schema = old_table.schema if old_table is not None else None
                 merged = {}
                 for old in old_rows:
                     key = (normalize_security_id(str(old["code"])), str(old["date"]))
-                    if (key[0] in refreshed and request['start'] <= key[1] <= request['end']
-                            and key not in incoming):
-                        continue
                     merged[key] = self._merge_daily_row(merged[key], old, key) if key in merged else dict(old)
                 for key, row in incoming.items():
                     if key[1][:4] == year:
@@ -1854,7 +1918,7 @@ class Methods:
                             fields.append(field)
                 arrays, schema_fields = [], []
                 for field in fields:
-                    if old_schema is not None and field in old_schema.names:
+                    if old_schema is not None and field in old_schema.names and not pa.types.is_null(old_schema.field(field).type):
                         arrow_type = old_schema.field(field).type
                         arrays.append(pa.array([row.get(field) for row in values], type=arrow_type))
                         schema_fields.append(pa.field(field, arrow_type))
@@ -1906,7 +1970,8 @@ class Methods:
             self.data.write("sources", dataset_id, calendar_name, calendar_payload)
             for name, payload in payloads.items():
                 self.data.write("sources", storage_id, name, payload)
-            return self.data.write("sources", dataset_id, "manifest.json", manifest_payload)
+            ref = self.data.write("sources", dataset_id, "manifest.json", manifest_payload)
+            return {'ref': ref, 'records': len(incoming), 'failures': list(failures.values())}
 
     @staticmethod
     def _merge_daily_row(old, new, key, *, refresh=False):
@@ -1952,12 +2017,6 @@ class Methods:
         adjustment = packet.get("adjustment", request.get("adjustment"))
         if adjustment not in (None, "3", 3, "不复权", "unadjusted"):
             raise DataError("canonical_daily", "adjusted frequency cannot enter the raw daily source")
-        fields = packet.get("fields", request.get("fields"))
-        if fields is not None:
-            names = set(fields) if isinstance(fields, (list, tuple, set)) else set()
-            required = {"open", "high", "low", "close", "volume", "amount"}
-            if not required <= names:
-                raise DataError("canonical_daily", "daily source packets require OHLCVA fields")
 
 
     def daily_collection_view(self, source: Mapping, dataset_id: str) -> Mapping[str, object]:
@@ -1994,7 +2053,8 @@ class Methods:
                           if isinstance(ref, Mapping) and "daily/" in str(ref.get("file", ""))]
             generation = {"source_id": source_id, "dataset": dataset_id,
                           "scope": scope, "calendar": [day.isoformat() for day in sessions],
-                          "files": sorted((ref["file"], ref["sha256"]) for ref in daily_refs)}
+                          "files": sorted((ref["file"], ref["sha256"]) for ref in manifest.get('files', ())
+                                          if ref in daily_refs or ref['file'].endswith('/no_trade.json'))}
             snapshot_id = hashlib.sha256(json.dumps(generation, ensure_ascii=False,
                                              sort_keys=True, separators=(",", ":")).encode()).hexdigest()
             files = []
@@ -2071,7 +2131,6 @@ class Methods:
                     [paths, start.isoformat(), end.isoformat()]).fetch_arrow_table().to_pylist()
             finally:
                 connection.close()
-        required = {"open", "high", "low", "close", "volume", "amount"}
         records = []
         for row in rows:
             value = {}
@@ -2079,10 +2138,6 @@ class Methods:
                 if isinstance(item, float) and not math.isfinite(item):
                     item = None
                 value[key] = item.isoformat() if isinstance(item, date) else item
-            for key in required:
-                item = value.get(key)
-                if item is None or (isinstance(item, float) and not math.isfinite(item)):
-                    raise DataError("invalid_dataset", f"required daily field is not finite: {key}")
             records.append(value)
         return {"snapshot_id": snapshot_id, "source_id": source_id,
                 "collected_at": None,
@@ -2100,6 +2155,9 @@ class Methods:
             raise ValueError("data packet must contain records and raw lists")
         if not isinstance(packet.get("scope"), Mapping):
             raise ValueError("data packet scope is required")
+        if packet.get('data_type') == 'daily':
+            Methods._validate_canonical_daily(packet)
+            Methods.daily_rows(packet)
 
     def log(self, event: Mapping):
         if not isinstance(event, Mapping):
@@ -2129,38 +2187,37 @@ class Methods:
         return json.loads(json.dumps(result, allow_nan=False))
 
 
-    def last_date(self, source: Mapping, codes) -> str | None:
-        """Read the watermark for these securities, never an unrelated index."""
-        if source.get('data_type') == 'facts':
-            try:
-                rows = json.loads(self.data.read('sources', source['id'], 'records.json'))['records']
-            except DataError as error:
-                if error.code != 'missing':
-                    raise
-                return None
-            dates = {}
-            for row in rows:
-                code = row['code']
-                dates[code] = max(dates.get(code, row['date']), row['date'])
-            return min(dates[code] for code in codes) if codes and all(code in dates for code in codes) else None
-        if source.get('method') == 'daily':
-            import duckdb
-            from copy import deepcopy
+    def last_dates(self, source: Mapping, codes) -> dict:
+        """Return observed watermarks, independently for each requested security."""
+        if source.get('method') == 'daily' or source.get('data_type') == 'daily':
             descriptor = deepcopy(dict(source))
-            descriptor['defaults'] = {k: v for k, v in source.get('defaults', {}).items() if k != 'codes'}
+            descriptor['defaults'] = {key: value for key, value in source.get('defaults', {}).items() if key != 'codes'}
             with self.data.transaction('sources'):
                 _, _, _, _, files, _, _ = self._daily_view_context(descriptor, source['dataset_id'])
                 paths = [str(self.data.path('sources', identity, name)) for identity, name in files]
-                aliases = sorted({v for code in codes for v in
+                if not paths:
+                    return {}
+                aliases = sorted({value for code in codes for value in
                                   (code, normalize_security_id(code), normalize_security_id(code).split('.')[-1])})
                 with duckdb.connect() as connection:
-                    row = connection.execute(
-                        'SELECT max(date) FROM read_parquet(?, union_by_name=true) WHERE code IN (SELECT unnest(?))',
-                        [paths, aliases]).fetchone()
-                return str(row[0]) if row and row[0] is not None else None
-        dates = [row['date'] for row in self.record_rows(source)
-                 if row.get('code') in codes and row.get('date')]
-        return max(dates) if dates else None
+                    rows = connection.execute(
+                        'SELECT code, max(date) FROM read_parquet(?, union_by_name=true) '
+                        'WHERE code IN (SELECT unnest(?)) GROUP BY code', [paths, aliases]).fetchall()
+            dates = {}
+            for code, day in rows:
+                key = normalize_security_id(str(code))
+                dates[key] = max(dates.get(key, str(day)), str(day))
+            return {code: dates[normalize_security_id(code)] for code in codes if normalize_security_id(code) in dates}
+        dates = {}
+        for row in self.record_rows(source):
+            code, day = row.get('code'), row.get('date')
+            if code in codes and day:
+                dates[code] = max(dates.get(code, day), day)
+        return dates
+
+    def last_date(self, source: Mapping, codes) -> str | None:
+        dates = self.last_dates(source, codes)
+        return min(dates.values()) if dates and all(code in dates for code in codes) else None
 
 
     def calendar_coverage(self, source, start, end):
@@ -2379,7 +2436,7 @@ class EastmoneyFundamentals:
                 "reportName": "RPT_F10_FINANCE_MAINFINADATA",
                 "columns": ",".join(self.columns),
                 "filter": f'(SECUCODE in ({",".join(json.dumps(code) for code in east_codes)}))'
-                          f"(UPDATE_DATE>='{start.isoformat()}')(UPDATE_DATE<='{end.isoformat()}')",
+                          f"(UPDATE_DATE>='{start.isoformat()}')(UPDATE_DATE<='{end.isoformat()}')(CURRENCY=\"CNY\")",
                 "pageNumber": 1, "pageSize": self.page_size,
                 "sortColumns": "UPDATE_DATE,REPORT_DATE,SECUCODE", "sortTypes": "1,1,1",
                 "source": "HSF10", "client": "PC",
@@ -3060,6 +3117,64 @@ class EastmoneyFactors:
             raise CollectionError(str(error),raw) from error
 
 
+class FredSeries:
+    """FRED daily observations; gaps remain gaps, never synthetic trade bars."""
+
+    def __init__(self, config, transport=None):
+        self.transport = self.get if transport is None else transport
+
+    @staticmethod
+    def get(url):
+        import requests
+        response = requests.get(url, timeout=DEFAULT_TIMEOUT)
+        response.raise_for_status()
+        return response.text
+
+    def collect(self, request):
+        import csv
+        import io
+        codes = Methods._request_items(request['codes'], 'codes')
+        if request.get('fields', ['close']) != ['close']:
+            raise ValueError('FRED series only provides close')
+        start, end = date.fromisoformat(request['start']), date.fromisoformat(request['end'])
+        if start > end:
+            raise ValueError('series date range is reversed')
+        records, raw, sessions = [], [], set()
+        for code in codes:
+            code = normalize_security_id(code)
+            market, series = code.split('.')
+            if market != 'fred' or not re.fullmatch(r'[a-z][a-z0-9_]*', series):
+                raise ValueError('FRED series identity is invalid')
+            series = series.upper()
+            url = 'https://fred.stlouisfed.org/graph/fredgraph.csv?' + urlencode(
+                {'id': series, 'cosd': start.isoformat(), 'coed': end.isoformat()})
+            text = self.transport(url)
+            rows = csv.DictReader(io.StringIO(text))
+            if rows.fieldnames != ['observation_date', series]:
+                raise ValueError('FRED response series identity differs')
+            raw.append({'provider': 'FRED', 'request': {'url': url}, 'response': text})
+            previous = None
+            count = 0
+            for row in rows:
+                day = date.fromisoformat(row['observation_date'])
+                if not start <= day <= end or previous is not None and day <= previous:
+                    raise ValueError('FRED dates must be unique, ordered and inside request')
+                previous = day
+                if row[series] in ('', '.'):
+                    continue
+                value = float(row[series])
+                if not isfinite(value) or value <= 0:
+                    raise ValueError('FRED close must be finite and positive')
+                records.append({'code': code, 'date': day.isoformat(), 'close': value})
+                sessions.add(day.isoformat()); count += 1
+            if not count:
+                raise ValueError('FRED request has no observations: ' + series)
+        return {'records': records, 'raw': raw, 'fields': ['close'], 'frequency': 'daily',
+                'price_basis': 'raw', 'scope': {'codes': codes, 'start': str(start), 'end': str(end)},
+                'calendar': {'sessions': sorted(sessions),
+                             'coverage': [{'start': str(start), 'end': str(end)}]}}
+
+
 class SinaDaily:
     """Sina's original unadjusted daily bars, in shares and CNY."""
     fields = ('open','high','low','close','volume','amount')
@@ -3093,51 +3208,41 @@ class SinaDaily:
     def normalize(code, rows, request):
         code = normalize_security_id(code)
         start, end = date.fromisoformat(request['start']), date.fromisoformat(request['end'])
-        if start > end or not isinstance(rows,list):
+        if start > end or not isinstance(rows, list):
             raise ValueError('daily range or response is invalid')
+        fields = set(request.get('fields', SinaDaily.fields)) - {'date', 'code'}
         result, previous = [], None
         for row in rows:
             value = row['date']
             day = date.fromisoformat(value[:10])
-            if value not in (day.isoformat(), day.isoformat()+'T00:00:00.000Z') or (previous is not None and day <= previous):
+            if value not in (day.isoformat(), day.isoformat()+'T00:00:00.000Z') or previous is not None and day <= previous:
                 raise ValueError('daily dates must be unique and increasing')
             previous = day
-            if not start <= day <= end:
-                continue
-            values = {field:row[field] for field in SinaDaily.fields}
-            if (any(isinstance(v,bool) or not isinstance(v,(int,float)) or not math.isfinite(v) or v < 0 for v in values.values())
-                    or (values['volume'] == 0) != (values['amount'] == 0)):
-                raise ValueError(f'daily prices or turnover conflict: {code} {day} {values}')
-            if values['volume'] == 0:
-                continue
-            if (any(values[f] <= 0 for f in ('open','high','low','close'))
-                    or not values['low'] <= min(values['open'],values['close']) <= max(values['open'],values['close']) <= values['high']):
-                raise ValueError('daily OHLC values conflict')
-            if 'tradestatus' in request.get('fields', ()):
-                values['tradestatus'] = 1.
-            result.append({'code':code,'date':day.isoformat(),**values})
-        if not result:
-            raise ValueError('daily source has no observations in the requested range: '+code)
-        return result
+            if start <= day <= end:
+                result.append({'code': code, 'date': day.isoformat(),
+                               **{field: row[field] for field in fields if row.get(field) is not None}})
+        return list(Methods.daily_rows({'records': result, 'request': {**request, 'codes': [code]}}).values())
 
     def collect(self, request):
-        codes, frequency, adjustment, names = BaostockDaily._validate_request(request)
-        if frequency != 'd' or adjustment != '3' or set(names) - {'tradestatus'} != set(self.fields) | {'date','code'}:
-            raise ValueError('Sina daily supports only unadjusted daily OHLCV and amount')
+        codes = [normalize_security_id(code) for code in request['codes']]
+        fields = set(request.get('fields', self.fields)) - {'date', 'code'}
+        if (request.get('frequency', 'd') not in {'d', 'daily'} or request.get('adjustment', '3') != '3'
+                or not fields or not fields <= set(self.fields) | {'tradestatus'}):
+            raise ValueError('Sina daily supports only unadjusted daily fields')
         records, raw = [], []
         try:
             for code in codes:
-                url = 'https://finance.sina.com.cn/realstock/company/' + code.replace('.','') + '/hisdata_klc2/klc_kl.js'
+                url = 'https://finance.sina.com.cn/realstock/company/' + code.replace('.', '') + '/hisdata_klc2/klc_kl.js'
                 text = self.transport(url)
-                raw.append({'provider':'sina','url':url,'response':text,
-                            'price_basis':'raw','volume_unit':'share','amount_unit':'CNY'})
-                rows = self.normalize(code,self.decode(code,text),request)
-                records.extend({**row,'raw_page':len(raw)-1} for row in rows)
+                raw.append({'provider': 'sina', 'url': url, 'response': text,
+                            'price_basis': 'raw', 'volume_unit': 'share', 'amount_unit': 'CNY'})
+                rows = self.normalize(code, self.decode(code, text), request)
+                records.extend({**row, 'raw_page': len(raw)-1} for row in rows)
         except Exception as error:
-            raise CollectionError(str(error),raw) from error
-        return {'records':records,'raw':raw,'price_basis':'raw','frequency':'daily',
-                'scope':{'codes':codes,'start':request['start'],'end':request['end']},
-                'data_as_of':max(row['date'] for row in records)}
+            raise CollectionError(str(error), raw) from error
+        return {'records': records, 'raw': raw, 'price_basis': 'raw', 'frequency': 'daily',
+                'scope': {'codes': codes, 'start': request['start'], 'end': request['end']},
+                'data_as_of': max((row['date'] for row in records), default=None)}
 
 
 class EastmoneyDaily:
@@ -3388,6 +3493,7 @@ DEFAULT_METHODS = {
     "eastmoney_fundamentals": EastmoneyFundamentals,
     "daily": BaostockDaily,
     "sina_daily": SinaDaily,
+    "fred_series": FredSeries,
     "announcements": CninfoAnnouncements,
     "securities": Securities,
 }

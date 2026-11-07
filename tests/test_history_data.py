@@ -21,6 +21,22 @@ def query(root, *, fields=FIELDS, symbols=("600003",), history=20,
     )
 
 
+def add_fact_file(root, rows, bindings):
+    import hashlib
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+    folder = Path(root) / 'data/source/fixture'
+    path = folder / 'fundamentals.parquet'
+    pq.write_table(pa.Table.from_pylist(rows), path)
+    manifest_path = folder / 'manifest.json'
+    manifest = json.loads(manifest_path.read_text())
+    manifest['files'].append({'file': 'fundamentals.parquet',
+        'sha256': hashlib.sha256(path.read_bytes()).hexdigest(), 'role': 'market'})
+    manifest['fields'] = bindings
+    manifest_path.write_text(json.dumps(manifest))
+    return path
+
+
 def payload(**changes):
     value = {
         "run_id": "history-test", "module": "plugins.strategies.breadth_low_amount_reversal",
@@ -63,6 +79,32 @@ class HistoricalDataTests(unittest.TestCase):
             self.assertTrue(all(set(day.frame.fields) == {'sh.600003'}
                                 for day in dataset.records))
 
+    def test_fact_reader_rejects_invalid_requested_rows_and_ignores_unrequested_fields(self):
+        base = {'code': '600003', 'report_date': date(2019, 9, 30),
+                'published_at': '2020-01-30T16:00:00+08:00', 'roe': .1}
+        binding = {'source': 'facts', 'file': 'fundamentals.parquet', 'code': 'code',
+                   'effective': 'report_date', 'known': 'published_at', 'column': 'roe', 'unit': 'ratio'}
+        bad_rows = [
+            [{key: value for key, value in base.items() if key != 'published_at'}],
+            [dict(base, published_at=None)],
+            [dict(base, published_at='2020-01-30T16:00:00')],
+            [base, dict(base)],
+            [dict(base, roe=float('nan'))],
+            [dict(base, roe='bad')],
+        ]
+        for rows in bad_rows:
+            with self.subTest(rows=rows), TemporaryDirectory() as temp:
+                root = Path(temp); make_snapshot(root, symbols=('600003',))
+                add_fact_file(root, rows, {'roe': binding})
+                with self.assertRaises(DataError):
+                    query(root, fields=(*FIELDS, 'roe'), history=3)
+        with TemporaryDirectory() as temp:
+            root = Path(temp); make_snapshot(root, symbols=('600003',))
+            add_fact_file(root, [base], {'roe': binding,
+                'unused': {**binding, 'column': 'not_projected'}})
+            dataset = query(root, fields=(*FIELDS, 'roe'), history=3)
+            self.assertEqual(dataset.records[-1].frame.fields['600003']['roe'], .1)
+
     def test_numeric_facts_are_point_in_time_and_projected_from_declared_parquet(self):
         import hashlib
         import pyarrow as pa
@@ -73,7 +115,7 @@ class HistoricalDataTests(unittest.TestCase):
             folder = root / 'data/source/fixture'
             path = folder / 'fundamentals.parquet'
             pq.write_table(pa.Table.from_pylist([
-                {'code': '600003', 'report_date': date(2019, 9, 30), 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .1, 'book': 1.},
+                {'code': ' SH.600003 ', 'report_date': date(2019, 9, 30), 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .1, 'book': 1.},
                 {'code': '600004', 'report_date': date(2019, 9, 30), 'published_at': '2020-01-30T16:00:00+08:00', 'roe': .3, 'book': 3.},
                 {'code': '600003', 'report_date': date(2019, 12, 31), 'published_at': '2020-01-31T16:00:00+08:00', 'roe': .2, 'book': 2.},
                 {'code': '600004', 'report_date': date(2019, 12, 31), 'published_at': '2020-01-31T16:00:00+08:00', 'roe': .4, 'book': 4.},
