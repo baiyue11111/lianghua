@@ -679,7 +679,8 @@ def normalize_security_id(code: str) -> str:
 
     A market-qualified code is authoritative.  An unqualified six-digit stock
     code keeps the existing A-share inference, while indexes and other
-    instruments must carry their full market-qualified identity.
+    instruments must carry their full market-qualified identity. Qualified
+    instrument names may be alphanumeric (for example a provider series ID).
     """
     if not isinstance(code, str):
         raise ValueError("security code must be a string")
@@ -687,7 +688,7 @@ def normalize_security_id(code: str) -> str:
     if "." in value:
         market, number = value.split(".", 1)
         if (not re.fullmatch(r"[a-z][a-z0-9_-]{0,7}", market)
-                or not re.fullmatch(r"\d{6}", number)):
+                or not re.fullmatch(r"[a-z0-9][a-z0-9_-]{0,63}", number)):
             raise ValueError(f"invalid market-qualified security code: {code}")
         return f"{market}.{number}"
     if not re.fullmatch(r"\d{6}", value):

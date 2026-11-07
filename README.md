@@ -4,7 +4,7 @@
 
 ## 启动
 
-安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在项目根目录运行 `uv run lianghua-dev`，同时启动 Python 后端和 React。打开 `http://127.0.0.1:3000/`，按 Ctrl+C 一起关闭。端口 3000 和 8000 必须空闲。Web 目录的 `npm run dev` 只启动 React。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，再交给固定 Kernel 执行。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
+安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在 `frontend/display` 执行 `npm run build`，从当前源码生成 CLI。打包 Python 项目前也需先完成此构建。在项目根目录运行 `uv run lianghua-dev`，同时启动 Python 后端和 React。打开 `http://127.0.0.1:3000/`，按 Ctrl+C 一起关闭。端口 3000 和 8000 必须空闲。Web 目录的 `npm run dev` 只启动 React。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，再交给固定 Kernel 执行。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
 
 ## 命令行入口
 
@@ -50,7 +50,27 @@ lianghua --backtest config.json
 
 账户模式 `accounting=account` 保留分红与股份记账。`execution.tax.model=none` 不模拟个人红利税；送转在除权后计为应收股份，按新增股份上市日转为可交易持仓，现金按明确支付日入账。`fifo` 另需个人税务和实际到账证据。省略 accounting 时保持账户模式。双均线按每只证券自己的历史窗口决定是否可以计算信号，单只股票历史不足不会阻断其余证券。
 
-采集名称明确区分来源：`--data daily_baostock` 为 BaoStock 不复权日线与扩展字段，`--data daily_sina` 为新浪不复权日线。修复已存数据可用 `lianghua --collect '沪深:[2014,2017]' --data daily_sina --codes sz.000012 --refresh`，仅替换指定证券与区间的行情。`lianghua --collect '沪深:doctor' --codes sz.000012 --refresh` 则刷新证券事实。日线与事实独立收集，回测统一验证实际需要的数据。
+采集名称明确区分来源：`--data daily_baostock` 为 BaoStock 不复权日线与扩展字段，`--data daily_sina` 为新浪不复权日线。普通采集只保存来源实际返回的有效字段；缺字段、缺日期和空响应都不补默认值。单只证券失败不影响其他证券，结果分别列出 `records`、`empty_codes`、`failures`。任务成功表示请求处理成功，不表示全市场历史已完整覆盖。
+
+```sh
+lianghua --collect '沪深:latest' --data daily_sina --fields close,volume,amount
+lianghua --collect '沪深:[2026-09-11,2026-10-30]' --data daily_sina --codes sz.000012 --refresh
+```
+
+`latest` 按各证券实际已存日期分别续采；没有历史的证券需先指定区间。`--refresh` 只更新本次返回的非空字段，保留本次未返回的旧字段和旧日期。普通日线不请求停牌源；完整性另用 `check` 检查，回测仍检查本次策略与成交所需的数据。证券选择、增量日期和失败处理由采集模块负责，CLI 共享交互核心只提交意图和显示结果。
+
+纳斯达克综合指数使用已登记的 FRED 收盘序列，经同一 collect 入口发布到标准日线存储：
+
+```bash
+lianghua --collect '纳指:[2013-01-01,2026-10-29]'
+lianghua --collect '纳指:latest'
+# 可单独选择 price、total_return 或 fx
+lianghua --collect '纳指:[2013-01-01,2026-10-29]' --data total_return
+```
+
+注册表中的 `nasdaq_composite` 是美元价格指数；`nasdaq_composite_cny` 是人民币估值的价格指数；`nasdaq_composite_total_cny` 是人民币估值、包含分红再投资的总回报指数。回测 JSON 的 `benchmark_id` 可直接选择其中一个。FRED 适配器 `fred_series` 读取登记的 `fred.<series_id>`，只发布真实 close，不补造 OHLC、成交量或交易日。来源声明的字段决定发布校验；股票源仍须提供其登记的交易字段。
+
+跨市场基准按中国收盘时刻对齐最近已完成的美国观测日，结果同时记录 `observed_at`、`fx_observed_at` 和两个来源哈希。假期延续上一观测，缺少最初观测或超出登记覆盖范围时拒绝比较。汇率 DEXCHUS 单位为人民币/美元，用于历史估值；它是延迟公布的参考价，不是交易时可获得的报价。此基准比较一次性投入的历史收益，不代表 ETF/QDII 的费用、溢价或定投收益。数据请求成功不代表上游已提供请求终点的数值，须查看实际首末日期。
 
 BaoStock 日线适配器在同一进程内按请求间隔采集。来源配置的 `params` 可设置 `interval`（秒，默认 1）、`retry_delay`（首次重试等待秒数，默认 30）、`retries`（额外重试次数，默认 2，最多 5）。只有网络错误重试，后续等待时间翻倍；黑名单、权限和参数错误立即返回。该配置控制采集请求的速度，不创建后台定时任务。
 
