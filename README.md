@@ -4,7 +4,7 @@
 
 ## 启动
 
-安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在项目根目录运行 `uv run lianghua-dev`，同时启动 Python 后端和 React。打开 `http://127.0.0.1:3000/`，按 Ctrl+C 一起关闭。端口 3000 和 8000 必须空闲。Web 目录的 `npm run dev` 只启动 React。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，再交给固定 Kernel 执行。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
+安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在 `frontend/display` 执行 `npm run build`，从当前源码生成 CLI。打包 Python 项目前也需先完成此构建。在项目根目录运行 `uv run lianghua-dev`，同时启动 Python 后端和 React。打开 `http://127.0.0.1:3000/`，按 Ctrl+C 一起关闭。端口 3000 和 8000 必须空闲。Web 目录的 `npm run dev` 只启动 React。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，再交给固定 Kernel 执行。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
 
 ## 命令行入口
 

@@ -38,9 +38,9 @@ __pycache__/
 /docs/workbench-chinese.jpg
 /docs/workbench-verified.jpg
 
-# Local strategy exploration configurations
-/configs/strategy_long/
-/configs/strategy_search/
+# Local strategy plugins and exploration parameters
+/src/plugins/strategies/*.py
+/configs/
 
 # Generated backtest artifacts and exploration outputs (not tracked)
 /backtest-*.json
