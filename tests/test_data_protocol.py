@@ -9,6 +9,27 @@ from unittest.mock import patch
 
 
 class DataProtocolTests(unittest.TestCase):
+    def test_manifest_checks_references_without_loading_their_contents(self):
+        from market import DataBus
+        from storage import DataStore
+
+        with tempfile.TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            bus = DataBus(store)
+            ref = bus.write('sources', 'prices', 'daily/2020.parquet', b'price')
+            manifest = {'schema': 2, 'files': [
+                {'file': 'source/prices/daily/2020.parquet', 'sha256': ref.sha256}],
+                'fields': {}, 'scope': {'symbols': ['600001'], 'universe': 'fixed'}}
+            bus.write('sources', 'fixture', 'manifest.json', json.dumps(manifest).encode())
+            with patch.object(store, 'read', wraps=store.read) as reads:
+                self.assertEqual(bus.manifest('fixture'), manifest)
+            self.assertEqual([call.args for call in reads.call_args_list],
+                             [('sources', 'fixture', 'manifest.json')])
+            bus.delete('sources', 'prices', 'daily/2020.parquet')
+            from protocol import DataError
+            with self.assertRaisesRegex(DataError, 'unbound dataset evidence'):
+                bus.manifest('fixture')
+
     def test_delete_removes_empty_resource_directories_not_namespace(self):
         from market import build_data
         with tempfile.TemporaryDirectory() as root:

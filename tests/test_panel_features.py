@@ -92,6 +92,20 @@ class ValidMaskTests(unittest.TestCase):
 
 
 class TrailingMeanTests(unittest.TestCase):
+    def test_matches_each_window_exactly(self) -> None:
+        values = np.random.default_rng(42).normal(size=1500)
+        values[40:43] = [np.nan, np.inf, -np.inf]
+        for series in (values, values[::2], values[::-1], np.array([])):
+            for window in (1, 2, 20, 250, 2000):
+                expected = np.full(series.shape, np.nan)
+                for index in range(window - 1, len(series)):
+                    chunk = series[index - window + 1:index + 1]
+                    if np.isfinite(chunk).all():
+                        expected[index] = chunk.mean()
+                np.testing.assert_array_equal(
+                    Calculation.trailing_mean(series, window), expected,
+                )
+
     def test_window_and_warmup(self) -> None:
         s = np.array([1.0, 2.0, 3.0, 4.0])
         out = Calculation.trailing_mean(s, 2)

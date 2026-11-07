@@ -15,6 +15,24 @@ def hold_source_lock(root, ready, release):
 
 
 class DataStoreTest(unittest.TestCase):
+    def test_write_returns_the_same_reference_without_reading_the_file_back(self):
+        from storage import DataStore
+        from unittest.mock import patch
+
+        with tempfile.TemporaryDirectory() as directory:
+            store = DataStore(Path(directory))
+            value = b'price\x00\xff' * 1000
+            for kind in ('sources', 'runs', 'state'):
+                with patch.object(store, '_ref', wraps=store._ref) as scans:
+                    first = store.write(kind, 'one', 'record.bin', value)
+                    second = store.write(kind, 'one', 'record.bin', value)
+                self.assertEqual(first, second)
+                self.assertEqual(first.size, len(value))
+                self.assertEqual(first.sha256, hashlib.sha256(value).hexdigest())
+                self.assertEqual(store.read(kind, 'one', 'record.bin'), value)
+                self.assertEqual(store.list(kind, 'one'), (first,))
+                self.assertEqual(scans.call_count, 0)
+
     def test_folder_query_keeps_names_and_hashes_without_reading_siblings(self):
         from market import DataBus
         from storage import DataStore
