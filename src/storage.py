@@ -1,8 +1,30 @@
-"""Typed relational persistence in DuckLake; Parquet is owned by DuckLake."""
+"""Relational persistence: Parquet holds bulk data, DuckDB is the DBMS.
+
+Layout
+------
+``data/catalog.duckdb``
+    The database. It holds the logical table definitions, the file manifest and
+    every table that is small and mutable (state: registry, coverage, manifests,
+    run headers). Those are real DuckDB tables, so ``PRIMARY KEY`` clauses are
+    enforced by the engine instead of by this module.
+``data/parquet/<table>/part-<id>.parquet``
+    The body of a bulk table (bars, facts, run detail). Files are immutable:
+    a commit appends one file, and only a row removal replaces the set.
+``lake.main.<table>``
+    For a bulk table, a view rendered from the manifest's file list. Readers use
+    plain SQL; the view is re-rendered inside the same transaction that changes
+    the file list, so the manifest and the view cannot disagree.
+
+Writes to a bulk table are staged in a temporary table. ``_physical`` routes
+every read to the staged rows, so a transaction sees its own writes without any
+of them reaching disk; ``_flush`` copies the staged rows to one Parquet file and
+registers it just before COMMIT. A rolled back or crashed write leaves the
+Parquet files untouched, and ``_reconcile`` deletes files no manifest claims.
+"""
 from __future__ import annotations
 
 from contextlib import contextmanager
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from hashlib import sha256
 import json
@@ -10,11 +32,14 @@ import math
 import os
 from pathlib import Path
 import threading
+from uuid import uuid4
 import weakref
 
 import duckdb
 import pyarrow as pa
 from protocol import DataError, Filter, TableDef, TableQuery, TableResult, TableWrite, SQLQuery
+
+CHUNK = 1 << 20
 
 
 def canonical(value):
@@ -30,6 +55,25 @@ def canonical(value):
 
 def quote(name):
     return '"' + name.replace('"', '""') + '"'
+
+
+def literal(value):
+    return "'" + str(value).replace("'", "''") + "'"
+
+
+def record(table: TableDef):
+    """The canonical definition stored in ``_tables``."""
+    return canonical({'name': table.name, 'columns': list(table.columns.items()),
+                      'keys': table.keys, 'updates': table.updates,
+                      'audit': table.audit, 'storage': table.storage})
+
+
+def file_digest(path):
+    digest = sha256()
+    with Path(path).open('rb') as handle:
+        for block in iter(lambda: handle.read(CHUNK), b''):
+            digest.update(block)
+    return digest.hexdigest()
 
 
 class DataStore:
@@ -53,6 +97,8 @@ class DataStore:
             self.project = Path(project).resolve()
             self.root = self.project / 'data'
             self.root.mkdir(parents=True, exist_ok=True)
+            self.parquet = self.root / 'parquet'
+            self.parquet.mkdir(parents=True, exist_ok=True)
             self._lock = threading.RLock()
             self._local = threading.local()
             self._pid = os.getpid()
@@ -62,30 +108,28 @@ class DataStore:
             if directory:
                 config['extension_directory'] = str(directory)
             connection = duckdb.connect(':memory:', config=config)
+            catalog = literal(self.root / 'catalog.duckdb')
             try:
-                connection.execute('LOAD ducklake')
-            except duckdb.Error as error:
-                connection.close()
-                raise DataError('ducklake_unavailable', 'LOAD ducklake failed; install the official extension offline or set LIANGHUA_EXTENSION_DIRECTORY: ' + str(error)) from error
-            try:
-                connection.execute("SET ducklake_default_data_inlining_row_limit = 0")
-                catalog = str(self.root / 'catalog.ducklake').replace("'", "''")
-                parquet = str(self.root / 'parquet').replace("'", "''")
-                connection.execute(f"ATTACH 'ducklake:{catalog}' AS lake (DATA_PATH '{parquet}', DATA_INLINING_ROW_LIMIT 0)")
-                connection.execute('CREATE TABLE IF NOT EXISTS lake.main._tables (name VARCHAR, definition JSON)')
-                connection.execute("CALL lake.set_option('data_inlining_row_limit', 0)")
+                connection.execute(f'ATTACH {catalog} AS lake')
                 connection.execute('USE lake.main')
+                connection.execute('CREATE TABLE IF NOT EXISTS lake.main._tables '
+                                   '(name VARCHAR PRIMARY KEY, definition JSON)')
+                connection.execute('CREATE TABLE IF NOT EXISTS lake.main._files '
+                                   '(table_name VARCHAR, path VARCHAR, row_count BIGINT,'
+                                   ' size_bytes BIGINT, sha256 VARCHAR, created_at VARCHAR,'
+                                   ' PRIMARY KEY (table_name, path))')
             except duckdb.Error as error:
                 connection.close()
                 raise DataError('storage_busy' if 'lock' in str(error).lower() else 'storage_failed', str(error)) from error
             self._connection = connection
             self._ready = True
-
-    def _check(self):
-        if self._pid != os.getpid():
-            raise DataError('storage_busy', 'catalog connection belongs to another process; open a new writer')
-        if not self._ready:
-            raise DataError('storage_closed', 'data store is closed')
+            try:
+                self._reconcile()
+            except BaseException:
+                self._ready = False
+                connection.close()
+                self._owners.pop((self._pid, str(self.project)), None)
+                raise
 
     def close(self):
         with self._lock:
@@ -93,6 +137,223 @@ class DataStore:
             self._connection.close()
             self._ready = False
             self._owners.pop((self._pid, str(self.project)), None)
+
+    def _check(self):
+        if self._pid != os.getpid():
+            raise DataError('storage_busy', 'catalog connection belongs to another process; open a new writer')
+        if not self._ready:
+            raise DataError('storage_closed', 'data store is closed')
+
+    # -- definitions -------------------------------------------------------
+
+    @staticmethod
+    def _decode(text):
+        value = json.loads(text)
+        value.setdefault('storage', 'table')
+        return value
+
+    def _schema(self, name):
+        rows = self._connection.execute(
+            'SELECT definition FROM lake.main._tables WHERE name=?', [name]).fetchall()
+        if len(rows) != 1:
+            raise DataError('missing_table', 'table is not registered: ' + str(name))
+        return self._decode(rows[0][0])
+
+    def definition(self, name):
+        with self._lock:
+            self._check()
+            value = self._schema(name)
+            value['columns'] = dict(value['columns'])
+            return TableDef(**value)
+
+    def define(self, table: TableDef):
+        if not isinstance(table, TableDef):
+            raise TypeError('table definition required')
+        payload = record(table)
+        with self.transaction():
+            rows = self._connection.execute(
+                'SELECT definition FROM lake.main._tables WHERE name=?', [table.name]).fetchall()
+            if rows:
+                old, new = self._decode(rows[0][0]), json.loads(payload)
+                if old == new:
+                    return
+                count = len(old['columns'])
+                old_names = {n for n, _ in old['columns']}
+                if (new['storage'] != old['storage']
+                        or len(new['columns']) <= count or new['columns'][:count] != old['columns']
+                        or new['keys'] != old['keys'] or new['audit'] != old['audit']
+                        or [n for n in new['updates'] if n in old_names] != old['updates']):
+                    raise DataError('schema_conflict', 'table definition differs: ' + table.name)
+                for name, kind in new['columns'][count:]:
+                    self._add_column(table.name, old['storage'], name, kind)
+                self._connection.execute('UPDATE lake.main._tables SET definition=? WHERE name=?',
+                                         [payload, table.name])
+                if old['storage'] == 'parquet':
+                    self._render(table.name, dict(new['columns']))
+                return
+            columns = ', '.join(quote(n) + ' ' + t for n, t in table.columns.items())
+            if table.storage == 'parquet':
+                self._connection.execute(
+                    f'CREATE VIEW lake.main.{quote(table.name)} AS '
+                    + self._view(table.name, list(table.columns.items())))
+            else:
+                keys = ', '.join(map(quote, table.keys))
+                self._connection.execute(
+                    f'CREATE TABLE lake.main.{quote(table.name)} ({columns}, PRIMARY KEY ({keys}))')
+            self._connection.execute('INSERT INTO lake.main._tables VALUES (?, ?)',
+                                     [table.name, payload])
+
+    def _add_column(self, name, storage, column, kind):
+        if storage == 'parquet':
+            state = self._buffers().get(name)
+            if state is not None:
+                self._connection.execute(
+                    f'ALTER TABLE temp.main.{quote(state["table"])} ADD COLUMN {quote(column)} {kind}')
+            return
+        self._connection.execute(
+            f'ALTER TABLE lake.main.{quote(name)} ADD COLUMN {quote(column)} {kind}')
+
+    # -- parquet views -----------------------------------------------------
+
+    def _view(self, name, columns):
+        pairs = list(columns.items()) if hasattr(columns, 'items') else list(columns)
+        paths = [row[0] for row in self._connection.execute(
+            'SELECT path FROM lake.main._files WHERE table_name=? ORDER BY path', [name]).fetchall()]
+        if not paths:
+            empty = ', '.join(f'CAST(NULL AS {t}) AS {quote(c)}' for c, t in pairs)
+            return f'SELECT {empty} WHERE FALSE'
+        projection = ', '.join(f'CAST({quote(c)} AS {t}) AS {quote(c)}' for c, t in pairs)
+        return (f'SELECT {projection} FROM read_parquet([{", ".join(map(literal, paths))}],'
+                ' union_by_name=true)')
+
+    def _render(self, name, columns):
+        self._connection.execute(f'CREATE OR REPLACE VIEW lake.main.{quote(name)} AS '
+                                 + self._view(name, columns))
+
+    def _reconcile(self):
+        """Trust the manifest, not the directory: verify and repair at open."""
+        connection = self._connection
+        for name, text in connection.execute(
+                'SELECT name, definition FROM lake.main._tables').fetchall():
+            definition = self._decode(text)
+            if definition['storage'] != 'parquet':
+                continue
+            rows = connection.execute('SELECT path, row_count FROM lake.main._files '
+                                      'WHERE table_name=? ORDER BY path', [name]).fetchall()
+            for path, expected in rows:
+                if not Path(path).exists():
+                    raise DataError('data_corrupt', f'{name}: manifest file is missing: {path}')
+                actual = connection.execute('SELECT count(*) FROM read_parquet(?)',
+                                            [path]).fetchone()[0]
+                if actual != expected:
+                    raise DataError('data_corrupt',
+                                    f'{name}: {path} holds {actual} rows, manifest says {expected}')
+            claimed = {str(Path(path)) for path, _ in rows}
+            folder = self.parquet / name
+            if folder.exists():
+                for stray in folder.glob('*.parquet'):
+                    if str(stray) not in claimed:
+                        stray.unlink()
+            self._render(name, definition['columns'])
+            keys = ', '.join(map(quote, definition['keys']))
+            duplicate = connection.execute(
+                f'SELECT 1 FROM {self._physical(name)} GROUP BY {keys} HAVING count(*)>1 LIMIT 1').fetchone()
+            if duplicate:
+                raise DataError('data_corrupt', f'{name}: duplicate logical keys on disk')
+
+    # -- staged writes -----------------------------------------------------
+
+    def _buffers(self):
+        state = getattr(self._local, 'buffers', None)
+        if state is None:
+            state = self._local.buffers = {}
+        return state
+
+    def _stage(self, name):
+        state = self._buffers().get(name)
+        if state is not None:
+            return state
+        key = sha256(name.encode()).hexdigest()[:16]
+        table = '_staged_' + key
+        self._connection.execute(f'CREATE OR REPLACE TEMP TABLE temp.main.{quote(table)} AS '
+                                 f'SELECT * FROM lake.main.{quote(name)} WHERE FALSE')
+        state = self._buffers()[name] = {'key': key, 'table': table, 'view': None}
+        return state
+
+    def _replace(self, name):
+        """Turn the staged rows into the whole table (a removal needs it)."""
+        state = self._stage(name)
+        if name in self._local.full:
+            return state
+        physical = self._physical(name)
+        self._connection.execute(f'CREATE OR REPLACE TEMP TABLE temp.main.{quote(state["table"])} '
+                                 f'AS SELECT * FROM {physical}')
+        if state['view'] is not None:
+            self._connection.execute(f'DROP VIEW IF EXISTS temp.main.{quote(state["view"])}')
+            state['view'] = None
+        self._local.full.add(name)
+        return state
+
+    def _physical(self, name):
+        state = self._buffers().get(name)
+        if state is None:
+            return 'lake.main.' + quote(name)
+        if name in getattr(self._local, 'full', ()):
+            return 'temp.main.' + quote(state['table'])
+        if state['view'] is None:
+            view = '_pending_' + state['key']
+            self._connection.execute(
+                f'CREATE OR REPLACE TEMP VIEW temp.main.{quote(view)} AS '
+                f'SELECT * FROM lake.main.{quote(name)} UNION ALL BY NAME '
+                f'SELECT * FROM temp.main.{quote(state["table"])}')
+            state['view'] = view
+        return 'temp.main.' + quote(state['view'])
+
+    def _sink(self, name):
+        return 'temp.main.' + quote(self._stage(name)['table'])
+
+    def _reset(self, files=()):
+        connection = self._connection
+        for state in self._buffers().values():
+            if state['view'] is not None:
+                connection.execute(f'DROP VIEW IF EXISTS temp.main.{quote(state["view"])}')
+            connection.execute(f'DROP TABLE IF EXISTS temp.main.{quote(state["table"])}')
+        self._local.buffers = {}
+        self._local.full = set()
+        for path in files:
+            try:
+                Path(path).unlink()
+            except FileNotFoundError:
+                pass
+
+    def _flush(self):
+        """Copy staged rows into one immutable Parquet file per table."""
+        connection = self._connection
+        for name, state in list(self._buffers().items()):
+            definition = self._schema(name)
+            if definition['storage'] != 'parquet':
+                continue
+            source = f'temp.main.{quote(state["table"])}'
+            count = connection.execute(f'SELECT count(*) FROM {source}').fetchone()[0]
+            if not count and name not in getattr(self._local, 'full', ()):
+                continue
+            folder = self.parquet / name
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / ('part-' + uuid4().hex + '.parquet')
+            connection.execute(f'COPY (SELECT * FROM {source}) TO {literal(path)}'
+                               ' (FORMAT PARQUET, COMPRESSION ZSTD)')
+            self._local.written.append(path)
+            if name in getattr(self._local, 'full', ()):
+                stale = [row[0] for row in connection.execute(
+                    'SELECT path FROM lake.main._files WHERE table_name=?', [name]).fetchall()]
+                connection.execute('DELETE FROM lake.main._files WHERE table_name=?', [name])
+                self._local.removed.extend(Path(item) for item in stale)
+            connection.execute('INSERT INTO lake.main._files VALUES (?, ?, ?, ?, ?, ?)',
+                               [name, str(path), count, path.stat().st_size, file_digest(path),
+                                datetime.now(timezone.utc).isoformat()])
+            self._render(name, definition['columns'])
+
+    # -- transactions ------------------------------------------------------
 
     @contextmanager
     def transaction(self, *, readonly=False):
@@ -106,6 +367,10 @@ class DataStore:
                 self._connection.execute('BEGIN TRANSACTION READ ONLY' if readonly else 'BEGIN TRANSACTION')
                 self._local.readonly = readonly
                 self._local.failed = False
+                self._local.buffers = {}
+                self._local.full = set()
+                self._local.written = []
+                self._local.removed = []
             self._local.depth = depth + 1
             try:
                 yield self
@@ -114,54 +379,27 @@ class DataStore:
             except BaseException:
                 self._local.failed = True
                 if depth == 0:
-                    self._connection.execute('ROLLBACK')
+                    try:
+                        self._connection.execute('ROLLBACK')
+                    finally:
+                        self._reset(self._local.written)
                 raise
             else:
                 if depth == 0:
                     try:
+                        self._flush()
                         self._connection.execute('COMMIT')
                     except BaseException:
-                        self._connection.execute('ROLLBACK')
+                        try:
+                            self._connection.execute('ROLLBACK')
+                        finally:
+                            self._reset(self._local.written)
                         raise
+                    self._reset(self._local.removed)
             finally:
                 self._local.depth = depth
 
-    def define(self, table: TableDef):
-        if not isinstance(table, TableDef):
-            raise TypeError('table definition required')
-        definition = canonical({'name': table.name, 'columns': list(table.columns.items()),
-                                'keys': table.keys, 'updates': table.updates, 'audit': table.audit})
-        with self.transaction():
-            rows = self._connection.execute('SELECT definition FROM lake.main._tables WHERE name=?', [table.name]).fetchall()
-            if rows:
-                if len(rows) != 1:
-                    raise DataError('schema_conflict', 'table definition differs: ' + table.name)
-                old, new = json.loads(rows[0][0]), json.loads(definition)
-                if old == new:
-                    return
-                count = len(old['columns'])
-                old_names = {n for n, _ in old['columns']}
-                if (len(new['columns']) <= count or new['columns'][:count] != old['columns']
-                        or new['keys'] != old['keys'] or new['audit'] != old['audit']
-                        or [n for n in new['updates'] if n in old_names] != old['updates']):
-                    raise DataError('schema_conflict', 'table definition differs: ' + table.name)
-                for name, kind in new['columns'][count:]:
-                    self._connection.execute(f'ALTER TABLE lake.main.{quote(table.name)} ADD COLUMN {quote(name)} {kind}')
-                self._connection.execute('UPDATE lake.main._tables SET definition=? WHERE name=?', [definition, table.name])
-                return
-            columns = ', '.join(quote(n) + ' ' + t for n, t in table.columns.items())
-            self._connection.execute(f'CREATE TABLE lake.main.{quote(table.name)} ({columns})')
-            self._connection.execute('INSERT INTO lake.main._tables VALUES (?, ?)', [table.name, definition])
-
-    def definition(self, name):
-        with self._lock:
-            self._check()
-            rows = self._connection.execute('SELECT definition FROM lake.main._tables WHERE name=?', [name]).fetchall()
-            if len(rows) != 1:
-                raise DataError('missing_table', 'table is not registered: ' + str(name))
-            definition = json.loads(rows[0][0])
-            definition['columns'] = dict(definition['columns'])
-            return TableDef(**definition)
+    # -- rows --------------------------------------------------------------
 
     def _where(self, definition, filters):
         expressions, values = [], []
@@ -224,7 +462,7 @@ class DataStore:
             if not set((*columns, *order)) <= definition.columns.keys():
                 raise DataError('invalid_query', 'query columns are not registered')
             where, values = self._where(definition, query.filters)
-            sql = f'SELECT {", ".join(map(quote, columns))} FROM lake.main.{quote(query.table)}' + where
+            sql = f'SELECT {", ".join(map(quote, columns))} FROM {self._physical(query.table)}' + where
             sql += ' ORDER BY ' + ', '.join(map(quote, order))
             if query.limit is not None:
                 sql += ' LIMIT ?'
@@ -243,7 +481,7 @@ class DataStore:
             schema = canonical(list(definition.columns.items()))
             sql = ("SELECT sha256(? || '\n' || coalesce("
                    f"string_agg(to_json(struct_pack({fields})), '\n' ORDER BY {keys}), '')) "
-                   f'FROM (SELECT {columns} FROM lake.main.{quote(name)}) AS row')
+                   f'FROM (SELECT {columns} FROM {self._physical(name)}) AS row')
             return self._connection.execute(sql, [schema]).fetchone()[0]
 
     def write(self, value: TableWrite):
@@ -260,7 +498,13 @@ class DataStore:
                 raise DataError('invalid_record', 'records require all logical keys and only registered columns')
             columns = tuple(n for n in table.columns if n in provided)
             projection = ', '.join(map(quote, columns))
-            target_schema = self._connection.execute(f'SELECT {projection} FROM lake.main.{quote(table.name)} LIMIT 0').to_arrow_table().schema
+            stored = table.storage == 'parquet'
+            if stored and value.refresh and table.updates:
+                # An update has to rewrite rows that already live in Parquet.
+                self._replace(table.name)
+            source_relation = self._physical(table.name)
+            target = self._sink(table.name) if stored else source_relation
+            target_schema = self._connection.execute(f'SELECT {projection} FROM {source_relation} LIMIT 0').to_arrow_table().schema
             try:
                 source = batch.select(columns)
                 batch = source.cast(target_schema, safe=True)
@@ -286,25 +530,27 @@ class DataStore:
             connection = self._connection
             connection.register('_batch', batch)
             try:
-                connection.execute(f'CREATE TEMP TABLE incoming AS SELECT {projection} FROM lake.main.{quote(table.name)} LIMIT 0')
+                connection.execute(f'CREATE TEMP TABLE incoming AS SELECT {projection} FROM {source_relation} LIMIT 0')
                 connection.execute('INSERT INTO incoming BY NAME SELECT * FROM _batch')
                 keys = ','.join(map(quote, table.keys))
                 conflict = connection.execute(f'SELECT 1 FROM (SELECT DISTINCT * FROM incoming) GROUP BY {keys} HAVING count(*)>1 LIMIT 1').fetchone()
                 if conflict:
                     raise DataError('data_conflict', 'different values for one logical key in batch')
                 match = ' AND '.join('old.' + quote(k) + ' IS NOT DISTINCT FROM new.' + quote(k) for k in table.keys)
-                if connection.execute(f'SELECT 1 FROM {"lake.main." + quote(table.name)} old WHERE EXISTS (SELECT 1 FROM incoming new WHERE {match}) GROUP BY ' + ','.join('old.' + quote(k) for k in table.keys) + ' HAVING count(*)>1 LIMIT 1').fetchone():
+                if not stored and connection.execute(f'SELECT 1 FROM {source_relation} old WHERE EXISTS (SELECT 1 FROM incoming new WHERE {match}) GROUP BY ' + ','.join('old.' + quote(k) for k in table.keys) + ' HAVING count(*)>1 LIMIT 1').fetchone():
+                    # A native table has a primary key, so this only ever fires on
+                    # a store written by an older version. Bulk tables are checked
+                    # once at open by ``_reconcile`` instead of on every batch.
                     raise DataError('data_corrupt', 'target contains duplicate logical keys')
                 immutable = [n for n in columns if n not in table.keys and (n not in table.updates or not value.refresh)]
                 differing = ' OR '.join('old.' + quote(n) + ' IS DISTINCT FROM new.' + quote(n) for n in immutable)
-                target = 'lake.main.' + quote(table.name)
-                if differing and connection.execute(f'SELECT 1 FROM {target} old JOIN incoming new ON {match} WHERE {differing} LIMIT 1').fetchone():
+                if differing and connection.execute(f'SELECT 1 FROM {source_relation} old JOIN incoming new ON {match} WHERE {differing} LIMIT 1').fetchone():
                     raise DataError('data_conflict', 'stored logical key has conflicting immutable values')
                 updates = [n for n in table.updates if n in provided]
                 if value.refresh and updates:
                     assignments = ','.join(quote(n) + '=new.' + quote(n) for n in updates)
                     connection.execute(f'UPDATE {target} old SET {assignments} FROM (SELECT DISTINCT * FROM incoming) new WHERE {match}')
-                connection.execute(f'INSERT INTO {target} BY NAME SELECT DISTINCT new.* FROM incoming new WHERE NOT EXISTS (SELECT 1 FROM {target} old WHERE {match})')
+                connection.execute(f'INSERT INTO {target} BY NAME SELECT DISTINCT new.* FROM incoming new WHERE NOT EXISTS (SELECT 1 FROM {source_relation} old WHERE {match})')
                 connection.execute('DROP TABLE incoming')
             except duckdb.Error as error:
                 raise DataError('invalid_record', str(error)) from error
@@ -318,4 +564,8 @@ class DataStore:
         with self.transaction():
             table = self.definition(query.table)
             where, values = self._where(table, query.filters)
-            self._connection.execute('DELETE FROM lake.main.' + quote(table.name) + where, values)
+            if table.storage == 'parquet':
+                target = 'temp.main.' + quote(self._replace(query.table)['table'])
+            else:
+                target = 'lake.main.' + quote(table.name)
+            self._connection.execute('DELETE FROM ' + target + where, values)

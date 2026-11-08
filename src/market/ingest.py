@@ -71,7 +71,7 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
             table = pa.Table.from_batches([batch])
             if keys is None:
                 table = table.append_column('_row_id', pa.array(range(count, count + table.num_rows), type=pa.int64()))
-            data.put_rows(name, table, keys=keys or ('_row_id',))
+            data.put_rows(name, table, keys=keys or ('_row_id',), storage='parquet')
             count += table.num_rows
         if not count:
             raise DataError('missing', f'import table is empty: {identity}/{kind}')
@@ -279,12 +279,12 @@ def ingest_exploratory(*, price_workbook: Path, fundamental_workbook: Path,
                                   **{field: _as_float(row[index]) if index < len(row) else None
                                      for field, row in zip(PRICE_FIELDS, combined, strict=True)}})
                 if len(batch) >= 65536:
-                    data.put_rows(bars, batch, keys=('code', 'date'),
+                    data.put_rows(bars, batch, keys=('code', 'date'), storage='parquet',
                                   types={field: 'DOUBLE' for field in PRICE_FIELDS})
                     row_count += len(batch)
                     batch = []
             if batch:
-                data.put_rows(bars, batch, keys=('code', 'date'),
+                data.put_rows(bars, batch, keys=('code', 'date'), storage='parquet',
                               types={field: 'DOUBLE' for field in PRICE_FIELDS})
                 row_count += len(batch)
         if not symbols:
@@ -299,7 +299,7 @@ def ingest_exploratory(*, price_workbook: Path, fundamental_workbook: Path,
                               'industry': panel['industry'],
                               **{field: panel[field][index] for field in (*FUNDAMENTAL_SHEETS, *VALUATION_SHEETS)}})
         fact_table = table_name(dataset + '/fundamentals')
-        data.put_rows(fact_table, facts, keys=('code', 'quarter'),
+        data.put_rows(fact_table, facts, keys=('code', 'quarter'), storage='parquet',
                       types={field: 'DOUBLE' for field in (*FUNDAMENTAL_SHEETS, *VALUATION_SHEETS)})
         data.bind(dataset, 'bars', 'lake:' + bars)
         data.bind(dataset, 'fundamentals', 'lake:' + fact_table)

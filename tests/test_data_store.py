@@ -37,8 +37,38 @@ class DataStoreTest(unittest.TestCase):
         self.store = DataStore(Path(self.folder.name))
         self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
         self.assertEqual(self.store.scan(TableQuery('prices')).table.column_names, list(self.table.columns))
-        self.assertTrue(list((Path(self.folder.name) / 'data/parquet').rglob('*.parquet')))
+        # State stays in the database file; bulk data is Parquet and registered.
+        self.assertTrue((Path(self.folder.name) / 'data/catalog.duckdb').exists())
+        self.assertFalse(list((Path(self.folder.name) / 'data/parquet').rglob('*.parquet')))
         self.assertFalse(hasattr(self.store, 'path'))
+
+    def test_parquet_layer_appends_files_and_replaces_them_on_delete(self):
+        self.store.define(TableDef('bars', self.table.columns, self.table.keys,
+                                   self.table.updates, storage='parquet'))
+        self.store.write(TableWrite('bars', pa.Table.from_pylist([self.row])))
+        files = sorted((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet'))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.to_pylist(), [self.row])
+        other = {**self.row, 'day': date(2025, 1, 3)}
+        self.store.write(TableWrite('bars', pa.Table.from_pylist([other])))
+        self.assertEqual(len(list((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet'))), 2)
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.num_rows, 2)
+        self.store.delete(TableQuery('bars', (Filter('day', 'eq', self.row['day']),)))
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.to_pylist(), [other])
+        self.assertEqual(len(list((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet'))), 1)
+        self.store.close()
+        self.store = DataStore(Path(self.folder.name))
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.to_pylist(), [other])
+
+    def test_parquet_layer_publishes_only_committed_files(self):
+        self.store.define(TableDef('bars', self.table.columns, self.table.keys,
+                                   self.table.updates, storage='parquet'))
+        with self.assertRaises(ValueError):
+            with self.store.transaction():
+                self.store.write(TableWrite('bars', pa.Table.from_pylist([self.row])))
+                raise ValueError('stop')
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.num_rows, 0)
+        self.assertFalse(list((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet')))
 
     def test_idempotency_and_batch_conflict_are_atomic(self):
         self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row, self.row])))

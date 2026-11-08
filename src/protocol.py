@@ -50,12 +50,15 @@ class TableDef:
     keys: tuple[str, ...]
     updates: tuple[str, ...] = ()
     audit: bool = False
+    storage: str = 'table'
 
     def __post_init__(self):
         valid = lambda name: (isinstance(name, str) and bool(name.strip())
                               and not any(ord(char) < 32 for char in name))
         if not valid(self.name) or not self.columns or not all(valid(n) for n in self.columns):
             raise ValueError("invalid table or column name")
+        if self.storage not in ('table', 'parquet'):
+            raise ValueError("storage must be 'table' or 'parquet'")
         types = r"(?:VARCHAR|BOOLEAN|BIGINT|INTEGER|DOUBLE|FLOAT|DATE|TIMESTAMP|TIMESTAMPTZ|BLOB|JSON|DECIMAL\([1-9][0-9]?,[0-9]+\))"
         if not all(isinstance(t, str) and re.fullmatch(types, t) for t in self.columns.values()):
             raise ValueError("unsupported column type")

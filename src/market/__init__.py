@@ -93,7 +93,7 @@ class DataBus:
             raise DataError('missing', f'source is not registered: {identity}/{kind}')
         return rows[0]['reference']
 
-    def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False):
+    def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False, storage=None):
         """Write only provided fields; SQL owns casts, merge and atomicity."""
         keys = tuple(keys)
         updates = None if updates is None else tuple(updates)
@@ -104,6 +104,7 @@ class DataBus:
                 if error.code != 'missing_table':
                     raise
                 existing = None
+            layers = existing.storage if existing is not None else (storage or 'table')
             columns = dict(existing.columns) if existing is not None else {}
             declared = dict(types or {})
             known_types = {**columns, **declared}
@@ -156,7 +157,7 @@ class DataBus:
             for column, sql in declared.items():
                 columns.setdefault(column, sql)
             policy = existing.updates if updates is None and existing is not None else tuple(updates or ())
-            self.define(TableDef(name, columns, keys, policy))
+            self.define(TableDef(name, columns, keys, policy, storage=layers))
             result = None
             for group in groups:
                 result = self.write(TableWrite(name, group, refresh))
@@ -286,7 +287,8 @@ class DataBus:
                                                              [reference for reference, _ in chunk]),)))
                     rows, types = self._fact_rows(chunk, columns)
                     if rows:
-                        self.put_rows(name, rows, keys=('reference', 'position'), types=types)
+                        self.put_rows(name, rows, keys=('reference', 'position'), types=types,
+                                      storage='parquet')
         return tuple(reference for reference, _ in items)
 
     @staticmethod
