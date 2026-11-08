@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from copy import deepcopy
 from collections.abc import Mapping
 
 
 class Sources:
     """Register source descriptions without coupling them to fetch methods."""
-
-    identity = "registry"
-    filename = "sources.json"
 
     def __init__(self, data):
         self.data = data
@@ -20,14 +16,7 @@ class Sources:
         self._refresh()
 
     def _read_registry(self) -> dict:
-        from protocol import DataError
-
-        try:
-            value = json.loads(self.data.read("sources", self.identity, self.filename))
-        except DataError as error:
-            if error.code != "missing":
-                raise
-            return {"sources": [], "datasets": [], "benchmarks": []}
+        value = self.data.registry()
         if not isinstance(value, dict):
             raise ValueError("source registry must be an object")
         return value

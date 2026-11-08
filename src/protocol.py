@@ -44,13 +44,76 @@ def required_fields(fields) -> tuple[str, ...]:
 
 
 @dataclass(frozen=True)
-class DataRef:
-    kind: str
-    identity: str
+class TableDef:
     name: str
-    file: str
-    sha256: str
-    size: int
+    columns: Mapping[str, str]
+    keys: tuple[str, ...]
+    updates: tuple[str, ...] = ()
+    audit: bool = False
+
+    def __post_init__(self):
+        valid = lambda name: (isinstance(name, str) and bool(name.strip())
+                              and not any(ord(char) < 32 for char in name))
+        if not valid(self.name) or not self.columns or not all(valid(n) for n in self.columns):
+            raise ValueError("invalid table or column name")
+        types = r"(?:VARCHAR|BOOLEAN|BIGINT|INTEGER|DOUBLE|FLOAT|DATE|TIMESTAMP|TIMESTAMPTZ|BLOB|JSON|DECIMAL\([1-9][0-9]?,[0-9]+\))"
+        if not all(isinstance(t, str) and re.fullmatch(types, t) for t in self.columns.values()):
+            raise ValueError("unsupported column type")
+        if (not self.keys or len(set(self.keys)) != len(self.keys)
+                or not set(self.keys) <= self.columns.keys()
+                or not set(self.updates) <= self.columns.keys() - set(self.keys)):
+            raise ValueError("invalid logical key or update columns")
+        object.__setattr__(self, 'columns', MappingProxyType(dict(self.columns)))
+        object.__setattr__(self, 'keys', tuple(self.keys))
+        object.__setattr__(self, 'updates', tuple(self.updates))
+
+
+@dataclass(frozen=True)
+class Filter:
+    column: str
+    op: str
+    value: object
+
+    def __post_init__(self):
+        if self.op not in {'eq', 'ne', 'lt', 'le', 'gt', 'ge', 'in', 'is_null'}:
+            raise ValueError('unsupported filter')
+        if self.op == 'in' and not isinstance(self.value, (tuple, list)):
+            raise ValueError('in filter requires a sequence')
+
+
+@dataclass(frozen=True)
+class TableQuery:
+    table: str
+    filters: tuple[Filter, ...] = ()
+    columns: tuple[str, ...] = ()
+    order: tuple[str, ...] = ()
+    limit: int | None = None
+    offset: int = 0
+
+    def __post_init__(self):
+        if (type(self.offset) is not int or self.offset < 0 or self.limit is not None
+                and (type(self.limit) is not int or self.limit < 0)):
+            raise ValueError('invalid table page')
+
+
+@dataclass(frozen=True)
+class TableWrite:
+    name: str
+    table: object
+    refresh: bool = False
+
+
+@dataclass(frozen=True)
+class SQLQuery:
+    sql: str
+    values: tuple[object, ...] = ()
+
+
+@dataclass(frozen=True)
+class TableResult:
+    table: object
+    reference: str
+
 
 
 class DataError(ValueError):
@@ -391,19 +454,28 @@ class DataPort(TypingProtocol):
     """The single public data bus contract used by module consumers."""
 
     def query(self, query: DataQuery) -> Dataset: ...
-    def read_ref(self, ref: DataRef) -> bytes: ...
-    def read(self, kind: str, identity: str, name: str) -> bytes: ...
-    def write(self, kind: str, identity: str, name: str, value: bytes) -> DataRef: ...
-    def list(self, kind: str, identity: str | None = None, folder: str = "") -> tuple[DataRef, ...]: ...
-    def path(self, kind: str, identity: str, name: str) -> Path: ...
-    def delete(self, kind: str, identity: str, name: str) -> None: ...
+    def define(self, table: TableDef) -> None: ...
+    def scan(self, query: TableQuery | SQLQuery) -> TableResult: ...
+    def write(self, value: TableWrite) -> TableResult: ...
+    def delete(self, query: TableQuery) -> None: ...
+    def transaction(self, *, readonly: bool = False): ...
     def manifest(self, dataset: str) -> Mapping[str, object]: ...
-    def publish(self, dataset: str, manifest: Mapping[str, object]) -> DataRef: ...
-    def transaction(self, namespace: str): ...
-    def source_facts(self) -> Mapping[str, object]: ...
-    def profile_report(self) -> Mapping[str, object]: ...
-    def research_report(self) -> Mapping[str, object]: ...
-    def doctor_report(self) -> Mapping[str, object]: ...
+    def definition(self, name: str) -> TableDef: ...
+    def registry(self) -> Mapping[str, object]: ...
+    def update_registry(self, change) -> Mapping[str, object]: ...
+    def calendar(self, dataset: str) -> Mapping[str, object]: ...
+    def save_calendar(self, dataset: str, value) -> None: ...
+    def source(self, identity: str, kind: str = 'records') -> str: ...
+    def bind(self, identity: str, kind: str, reference: str) -> None: ...
+    def table(self, reference: str, **query): ...
+    def object(self, reference: str): ...
+    def evidence(self, reference: str) -> str: ...
+    def put_rows(self, name: str, rows, *, keys, updates=None, types=None, refresh=False): ...
+    def save_manifest(self, dataset: str, manifest) -> None: ...
+    def save_config(self, name: str, value) -> str: ...
+    def config(self, name: str): ...
+    def save_fact(self, payload) -> str: ...
+    def fact(self, reference: str): ...
 
 
 class BacktestError(ValueError):
@@ -1092,4 +1164,4 @@ def _object(data: Mapping[str, JsonValue], name: str) -> Mapping[str, object]:
     return value
 
 
-__all__ = ['AccountSnapshot', 'BacktestError', 'BacktestRequest', 'BacktestResponse', 'Bar', 'DataError', 'DataPort', 'DataQuery', 'DataRef', 'DataRequest', 'Dataset', 'EXECUTION_FIELDS', 'Fill', 'HistoryBar', 'HistoryDay', 'HistoryResult', 'JsonObject', 'JsonValue', 'LIQUIDITY_WINDOW', 'MarketFrame', 'Order', 'PROBLEM_SCHEMA', 'PROTOCOL_NAME', 'PROTOCOL_VERSION', 'PortKind', 'RegistrationAction', 'RegistrationRecord', 'Scalar', 'SearchResponse', 'SearchSpec', 'Side', 'TargetSet', 'Trial', 'build_effective_config', 'build_execution_hash', 'normalize_security_id', 'parse_backtest_request', 'required_fields', 'validate_execution', 'validate_facts']
+__all__ = ['AccountSnapshot', 'BacktestError', 'BacktestRequest', 'BacktestResponse', 'Bar', 'DataError', 'DataPort', 'DataQuery', 'TableDef', 'Filter', 'TableQuery', 'TableWrite', 'TableResult', 'DataRequest', 'Dataset', 'EXECUTION_FIELDS', 'Fill', 'HistoryBar', 'HistoryDay', 'HistoryResult', 'JsonObject', 'JsonValue', 'LIQUIDITY_WINDOW', 'MarketFrame', 'Order', 'PROBLEM_SCHEMA', 'PROTOCOL_NAME', 'PROTOCOL_VERSION', 'PortKind', 'RegistrationAction', 'RegistrationRecord', 'Scalar', 'SearchResponse', 'SearchSpec', 'Side', 'TargetSet', 'Trial', 'build_effective_config', 'build_execution_hash', 'normalize_security_id', 'parse_backtest_request', 'required_fields', 'validate_execution', 'validate_facts']

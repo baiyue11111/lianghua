@@ -287,6 +287,16 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
     return closing, opening
 
 
+def _market_table(data, binding, label):
+    from protocol import DataError
+
+    if (not isinstance(binding, Mapping) or not isinstance(binding.get("source"), str)
+            or not binding["source"].strip()):
+        raise DataError("market_data_invalid", f"market {label} source binding is invalid")
+    reference = data.source(binding["source"], "records")
+    return reference, data.table(reference)
+
+
 def _prepare_market(data, query, dataset):
     """Apply a registered market selector to daily strategy inputs."""
     import json
@@ -294,7 +304,7 @@ def _prepare_market(data, query, dataset):
     from hashlib import sha256
     from protocol import DataError, normalize_security_id
 
-    registry = json.loads(data.read("sources", "registry", "sources.json"))
+    registry = data.registry()
     entries = registry.get("markets")
     if not isinstance(entries, list):
         raise DataError("market_not_registered", "market registry is missing")
@@ -344,21 +354,12 @@ def _prepare_market(data, query, dataset):
         entry, sort_keys=True, separators=(",", ":")).encode()).hexdigest()}
 
     def read_rows(binding, label):
-        if binding is None:
-            return ()
-        if not isinstance(binding, Mapping) or not isinstance(binding.get("source"), str) \
-                or not isinstance(binding.get("file"), str):
-            raise DataError("market_data_invalid", f"market {label} source binding is invalid")
-        payload = data.read("sources", binding["source"], binding["file"])
-        source_hashes[binding["source"] + "/" + binding["file"]] = sha256(payload).hexdigest()
-        value = json.loads(payload)
-        rows = value.get("records") if isinstance(value, Mapping) else value
-        if not isinstance(rows, list) or any(not isinstance(row, Mapping) for row in rows):
-            raise DataError("market_data_invalid", f"market {label} rows are invalid")
-        return tuple(dict(row) for row in rows)
+        reference, table = _market_table(data, binding, label)
+        source_hashes[reference] = data.evidence(reference)
+        return tuple(table.to_pylist())
 
     member_binding = entry.get("members") if query.market.get("index") is not None else None
-    membership = read_rows(member_binding, "membership")
+    membership = () if member_binding is None else read_rows(member_binding, "membership")
     if membership and entry.get("code_normalizer"):
         for row in membership:
             if member_binding.get("code") not in row:
@@ -528,9 +529,8 @@ class Adapter:
 
     @classmethod
     def candidates(cls, data, market, dataset_id, start, end):
-        import json
         from protocol import normalize_security_id
-        registry = json.loads(data.read("sources", "registry", "sources.json"))
+        registry = data.registry()
         entries = registry.get("markets")
         matches = [item for item in entries or () if isinstance(item, Mapping)
                    and item.get("scope") == market["scope"]]
@@ -555,11 +555,9 @@ class Adapter:
             return tuple(code for code in symbols if re.fullmatch(pattern, normalize(code)))
         if not isinstance(binding, Mapping):
             raise ValueError("market membership data is missing")
-        payload = data.read("sources", binding["source"], binding["file"])
-        rows = json.loads(payload)
-        rows = rows.get("records") if isinstance(rows, Mapping) else rows
-        if not isinstance(rows, list):
-            raise ValueError("market membership rows are invalid")
+        _, table = _market_table(data, binding, "membership")
+        rows = table.to_pylist()
+        zone = ZoneInfo(entry["timezone"])
         code_key, index_key = binding.get("code"), binding.get("index")
         index_codes = []
         for row in rows:
@@ -573,7 +571,7 @@ class Adapter:
             try:
                 if _effective(row.get(binding.get("effective"))) > end:
                     continue
-                if _known_at(row.get(binding.get("known"))).date() > end:
+                if _known_at(row.get(binding.get("known"))).astimezone(zone).date() > end:
                     continue
             except (TypeError, ValueError):
                 raise ValueError("market membership effective/known dates are invalid")

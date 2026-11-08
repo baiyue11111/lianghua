@@ -1,12 +1,29 @@
 from protocol import normalize_security_id
 """Engineering inputs only. This never registers a production dataset."""
 from datetime import date, timedelta
+from contextlib import contextmanager, ExitStack
 from pathlib import Path
+from tempfile import TemporaryDirectory
 import hashlib
 import json
 import pyarrow as pa
 import pyarrow.parquet as pq
 from strategy import load_strategy, canonical_hash
+
+
+@contextmanager
+def fixture_data(root: Path, *, offline=False):
+    """Own a native test bus; offline=True explicitly prepares a fresh import."""
+    from market import build_data
+    from market.ingest import import_legacy
+
+    with ExitStack() as stack:
+        target = Path(stack.enter_context(TemporaryDirectory())) if offline else Path(root)
+        data = build_data(target)
+        stack.callback(data.close)
+        if offline:
+            import_legacy(data, Path(root), datasets=('fixture',))
+        yield data
 
 
 def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
@@ -78,6 +95,13 @@ def make_snapshot(root:Path, history_start=date(2019,7,1), *, symbols=None):
         'fields': {'close': {'source': 'daily', 'column': 'close', 'type': 'number'}},
         'code_pattern': r'(?:sh\.(?:60|68)\d{4}|sz\.(?:00|30)\d{4})',
     }]}))
+    from market import build_data
+    from market.ingest import import_legacy
+    data = build_data(root)
+    try:
+        import_legacy(data, root, datasets=('fixture',))
+    finally:
+        data.close()
     return {'dataset': 'fixture'}
 
 
