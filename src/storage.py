@@ -37,7 +37,8 @@ import weakref
 
 import duckdb
 import pyarrow as pa
-from protocol import DataError, Filter, TableDef, TableQuery, TableResult, TableWrite, SQLQuery
+from protocol import (DataError, Filter, TableDef, TableQuery, TableResult, TableSelect,
+                      TableWrite, SQLQuery)
 
 CHUNK = 1 << 20
 
@@ -484,54 +485,103 @@ class DataStore:
                    f'FROM (SELECT {columns} FROM {self._physical(name)}) AS row')
             return self._connection.execute(sql, [schema]).fetchone()[0]
 
+    def select_schema(self, select: TableSelect):
+        """Columns and Arrow types a stored ``SELECT`` returns, without running it."""
+        with self._lock:
+            self._check()
+            return self._probe(select)
+
+    def _probe(self, select):
+        try:
+            return self._connection.execute(
+                f'SELECT * FROM ({select.sql}) AS _probe LIMIT 0',
+                list(select.values)).to_arrow_table().schema
+        except duckdb.Error as error:
+            raise DataError('invalid_query', str(error)) from error
+
+    @staticmethod
+    def _lossy(source, declared):
+        """Only the silent-rounding direction is refused.
+
+        A float written into an exact column rounds without complaint, and rows
+        arriving as a query never pass through Python, so the value-by-value
+        check the Arrow path runs cannot run here.
+        """
+        if declared in ('DOUBLE', 'FLOAT'):
+            return False
+        if pa.types.is_floating(source):
+            return True
+        return pa.types.is_decimal(source) and not declared.startswith('DECIMAL')
+
     def write(self, value: TableWrite):
         if not isinstance(value, TableWrite):
             raise TypeError('TableWrite required')
         with self.transaction():
             table = self.definition(value.name)
-            if not isinstance(value.table, (pa.Table, pa.RecordBatch)):
-                raise TypeError('TableWrite requires an Arrow table or record batch')
-            batch = pa.Table.from_batches([value.table]) if isinstance(value.table, pa.RecordBatch) else value.table
-            provided = set(batch.column_names)
-            if (len(provided) != len(batch.column_names) or not provided <= table.columns.keys()
-                    or not set(table.keys) <= provided):
-                raise DataError('invalid_record', 'records require all logical keys and only registered columns')
-            columns = tuple(n for n in table.columns if n in provided)
-            projection = ', '.join(map(quote, columns))
+            select = value.source if isinstance(value.source, TableSelect) else None
+            if select is None and not isinstance(value.source, (pa.Table, pa.RecordBatch)):
+                raise TypeError('TableWrite requires an Arrow table, record batch or TableSelect')
             stored = table.storage == 'parquet'
             if stored and value.refresh and table.updates:
                 # An update has to rewrite rows that already live in Parquet.
                 self._replace(table.name)
             source_relation = self._physical(table.name)
             target = self._sink(table.name) if stored else source_relation
-            target_schema = self._connection.execute(f'SELECT {projection} FROM {source_relation} LIMIT 0').to_arrow_table().schema
-            try:
-                source = batch.select(columns)
-                batch = source.cast(target_schema, safe=True)
-                for name in columns:
-                    before, after = source[name], batch[name]
-                    numeric = lambda kind: (pa.types.is_integer(kind) or pa.types.is_floating(kind)
-                                            or pa.types.is_decimal(kind))
-                    if before.type == after.type or not (numeric(before.type) and numeric(after.type)):
-                        continue
-                    # Python numeric equality compares Decimal and float exactly; a
-                    # cast back to Decimal can round again and hide the first loss.
-                    for left, right in zip(before.to_pylist(), after.to_pylist()):
-                        if left == right or (isinstance(left, float) and isinstance(right, float)
-                                             and math.isnan(left) and math.isnan(right)):
-                            continue
-                        raise DataError('invalid_record', 'lossy numeric column cast: ' + name)
-            except (pa.ArrowInvalid, pa.ArrowNotImplementedError) as error:
-                raise DataError('invalid_record', 'lossy or invalid column cast: ' + str(error)) from error
-            if any(batch[k].null_count for k in table.keys):
-                raise DataError('invalid_record', 'logical keys cannot be null')
-            if not batch.num_rows:
-                return TableResult(batch, 'lake:' + value.name)
+            if select is not None:
+                batch, schema = None, self._probe(select)
+                provided = set(schema.names)
+            else:
+                batch = pa.Table.from_batches([value.source]) if isinstance(value.source, pa.RecordBatch) else value.source
+                schema = None
+                provided = set(batch.column_names)
+                if len(provided) != len(batch.column_names):
+                    raise DataError('invalid_record', 'records require all logical keys and only registered columns')
+            if not provided <= table.columns.keys() or not set(table.keys) <= provided:
+                raise DataError('invalid_record', 'records require all logical keys and only registered columns')
+            columns = tuple(n for n in table.columns if n in provided)
+            projection = ', '.join(map(quote, columns))
+            # A query brings its own rows, so a result can only report its shape.
+            emptied = batch if batch is not None else pa.Table.from_batches([], schema=schema)
             connection = self._connection
-            connection.register('_batch', batch)
+            if select is None:
+                target_schema = connection.execute(f'SELECT {projection} FROM {source_relation} LIMIT 0').to_arrow_table().schema
+                try:
+                    source = batch.select(columns)
+                    batch = source.cast(target_schema, safe=True)
+                    for name in columns:
+                        before, after = source[name], batch[name]
+                        numeric = lambda kind: (pa.types.is_integer(kind) or pa.types.is_floating(kind)
+                                                or pa.types.is_decimal(kind))
+                        if before.type == after.type or not (numeric(before.type) and numeric(after.type)):
+                            continue
+                        # Python numeric equality compares Decimal and float exactly; a
+                        # cast back to Decimal can round again and hide the first loss.
+                        for left, right in zip(before.to_pylist(), after.to_pylist()):
+                            if left == right or (isinstance(left, float) and isinstance(right, float)
+                                                 and math.isnan(left) and math.isnan(right)):
+                                continue
+                            raise DataError('invalid_record', 'lossy numeric column cast: ' + name)
+                except (pa.ArrowInvalid, pa.ArrowNotImplementedError) as error:
+                    raise DataError('invalid_record', 'lossy or invalid column cast: ' + str(error)) from error
+                if any(batch[k].null_count for k in table.keys):
+                    raise DataError('invalid_record', 'logical keys cannot be null')
+                if not batch.num_rows:
+                    return TableResult(batch, 'lake:' + value.name, 0)
+            else:
+                for name in columns:
+                    if self._lossy(schema.field(name).type, table.columns[name]):
+                        raise DataError('invalid_record', 'lossy numeric column cast: ' + name)
+            if select is None:
+                connection.register('_batch', batch)
             try:
                 connection.execute(f'CREATE TEMP TABLE incoming AS SELECT {projection} FROM {source_relation} LIMIT 0')
-                connection.execute('INSERT INTO incoming BY NAME SELECT * FROM _batch')
+                if select is None:
+                    connection.execute('INSERT INTO incoming BY NAME SELECT * FROM _batch')
+                else:
+                    connection.execute(f'INSERT INTO incoming BY NAME {select.sql}', list(select.values))
+                    null = ' OR '.join(quote(k) + ' IS NULL' for k in table.keys)
+                    if connection.execute(f'SELECT 1 FROM incoming WHERE {null} LIMIT 1').fetchone():
+                        raise DataError('invalid_record', 'logical keys cannot be null')
                 keys = ','.join(map(quote, table.keys))
                 conflict = connection.execute(f'SELECT 1 FROM (SELECT DISTINCT * FROM incoming) GROUP BY {keys} HAVING count(*)>1 LIMIT 1').fetchone()
                 if conflict:
@@ -546,6 +596,10 @@ class DataStore:
                 differing = ' OR '.join('old.' + quote(n) + ' IS DISTINCT FROM new.' + quote(n) for n in immutable)
                 if differing and connection.execute(f'SELECT 1 FROM {source_relation} old JOIN incoming new ON {match} WHERE {differing} LIMIT 1').fetchone():
                     raise DataError('data_conflict', 'stored logical key has conflicting immutable values')
+                rows = connection.execute('SELECT count(*) FROM incoming').fetchone()[0]
+                if not rows:
+                    connection.execute('DROP TABLE incoming')
+                    return TableResult(emptied, 'lake:' + value.name, 0)
                 updates = [n for n in table.updates if n in provided]
                 if value.refresh and updates:
                     assignments = ','.join(quote(n) + '=new.' + quote(n) for n in updates)
@@ -555,8 +609,9 @@ class DataStore:
             except duckdb.Error as error:
                 raise DataError('invalid_record', str(error)) from error
             finally:
-                connection.unregister('_batch')
-            return TableResult(batch, 'lake:' + value.name)
+                if select is None:
+                    connection.unregister('_batch')
+            return TableResult(emptied, 'lake:' + value.name, rows)
 
     def delete(self, query: TableQuery):
         if query.columns or query.order or query.limit is not None or query.offset:

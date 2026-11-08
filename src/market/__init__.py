@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 import pyarrow as pa
 from protocol import (DataError, DataQuery, Dataset, Filter, TableDef, TableQuery,
-                      TableWrite, validate_facts, _calendar_facts)
+                      TableSelect, TableWrite, validate_facts, _calendar_facts)
 
 
 def table_name(value):
@@ -94,7 +94,11 @@ class DataBus:
         return rows[0]['reference']
 
     def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False, storage=None):
-        """Write only provided fields; SQL owns casts, merge and atomicity."""
+        """Write only provided fields; SQL owns casts, merge and atomicity.
+
+        ``rows`` is a record sequence, an Arrow table, or a ``TableSelect``: a
+        query whose result the database hands straight to the merge.
+        """
         keys = tuple(keys)
         updates = None if updates is None else tuple(updates)
         with self.transaction():
@@ -108,7 +112,12 @@ class DataBus:
             columns = dict(existing.columns) if existing is not None else {}
             declared = dict(types or {})
             known_types = {**columns, **declared}
-            if isinstance(rows, (pa.Table, pa.RecordBatch)):
+            if isinstance(rows, TableSelect):
+                # The rows already live in the database, so the shape comes from
+                # the query and the rows never pass through this process.
+                table = pa.Table.from_batches([], schema=self._store.select_schema(rows))
+                groups = [rows]
+            elif isinstance(rows, (pa.Table, pa.RecordBatch)):
                 table = pa.Table.from_batches([rows]) if isinstance(rows, pa.RecordBatch) else rows
                 groups = [table]
             else:

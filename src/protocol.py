@@ -100,9 +100,21 @@ class TableQuery:
 
 
 @dataclass(frozen=True)
+class TableSelect:
+    """Rows that already live in the database: a SELECT the store runs itself."""
+    sql: str
+    values: tuple[object, ...] = ()
+
+    def __post_init__(self):
+        if not isinstance(self.sql, str) or not self.sql.strip():
+            raise ValueError('table select requires a query')
+        object.__setattr__(self, 'values', tuple(self.values))
+
+
+@dataclass(frozen=True)
 class TableWrite:
     name: str
-    table: object
+    source: object
     refresh: bool = False
 
 
@@ -116,6 +128,7 @@ class SQLQuery:
 class TableResult:
     table: object
     reference: str
+    rows: int | None = None
 
 
 
@@ -473,7 +486,8 @@ class DataPort(TypingProtocol):
     def table(self, reference: str, **query): ...
     def object(self, reference: str): ...
     def evidence(self, reference: str) -> str: ...
-    def put_rows(self, name: str, rows, *, keys, updates=None, types=None, refresh=False): ...
+    def put_rows(self, name: str, rows, *, keys, updates=None, types=None,
+                 refresh=False, storage=None): ...
     def save_manifest(self, dataset: str, manifest) -> None: ...
     def save_config(self, name: str, value) -> str: ...
     def config(self, name: str): ...
