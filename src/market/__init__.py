@@ -25,6 +25,11 @@ FACT_NUMERIC = {'adjust': ('forward', 'backward'),
                              'reserve_to_stock_per_share'),
                 'security': ()}
 
+# Source factor and dividend values carry up to 20 fractional digits. At scale
+# 18 pyarrow refuses to rescale them ("Rescaling Decimal128 value would cause
+# data loss"); 24 keeps every source digit and still leaves 14 integer digits.
+FACT_DECIMAL = 'DECIMAL(38,24)'
+
 
 def fact_ref(kind, code, start=None, end=None, year=None):
     return 'fact:' + ':'.join(quote(str(v), safe='.') if v is not None else ''
@@ -312,7 +317,7 @@ class DataBus:
         types['position'] = 'BIGINT'
         if numeric:
             types['_numeric_types'] = 'JSON'
-            types.update({column: 'DECIMAL(38,18)' for column in numeric})
+            types.update({column: FACT_DECIMAL for column in numeric})
             for row in rows:
                 row['_numeric_types'] = {column: type(row[column]).__name__ for column in numeric
                                          if row[column] is not None}

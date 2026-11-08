@@ -37,6 +37,21 @@ def identifier(name):
     return '"' + name.replace('"', '""') + '"'
 
 
+def declared_pattern(template, spec):
+    """A manifest fact template with only the varying parts left wild.
+
+    ``start`` and ``end`` are fixed by the manifest, so they are filled in
+    instead of globbed. Globbing them pulls in undeclared revisions of the same
+    fact (a later adjust run), which can carry values the declared columns do
+    not hold. Only symbol and year vary across the declared source files.
+    """
+    return re.sub(
+        r'\{([^}]+)\}',
+        lambda match: '*' if match.group(1) in ('symbol', 'year')
+        else str(spec.get(match.group(1), '')),
+        template)
+
+
 def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=None, end=None):
     """Explicit offline import. Runtime readers never inspect this source tree."""
     from copy import deepcopy
@@ -205,7 +220,7 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
                 for key, kind in (('adjustments', 'adjust'), ('securities', 'security'), ('distributions', 'dividend')):
                     spec = deepcopy(old_inputs[key])
                     template = spec['template']
-                    wildcard = re.sub(r'\{[^}]+\}', '*', template)
+                    wildcard = declared_pattern(template, spec)
                     patterns = [wildcard]
                     if requested is not None:
                         patterns = [template.format(symbol=code, start=spec.get('start'), end=spec.get('end'), year='*')
