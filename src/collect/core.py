@@ -8,6 +8,8 @@ import re
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
+from protocol import Filter, TableDef, TableQuery
+
 class Collect:
     """One execution engine for manual and scheduled source collection."""
 
@@ -15,6 +17,11 @@ class Collect:
         self.sources = sources
         self.methods = methods
         self.data = methods.data
+        self.data.define(TableDef(
+            'collection_jobs', {'job_id': 'VARCHAR', 'settings': 'JSON'}, ('job_id',), ('settings',)))
+        self.data.define(TableDef(
+            'collection_schedules', {'source_id': 'VARCHAR', 'settings': 'JSON'},
+            ('source_id',), ('settings',)))
         self._lock = threading.RLock()
         self._jobs = {}
         self._active = set()
@@ -32,12 +39,29 @@ class Collect:
         self._thread = None
 
     def _save(self, job):
-        self.data.write(
-            "state", "collect", f"jobs/{job['job_id']}.json",
-            json.dumps(job, ensure_ascii=False, sort_keys=True,
-                       separators=(",", ":"), allow_nan=False).encode(),
-        )
+        self.data.put_rows('collection_jobs', [{'job_id': job['job_id'],
+            'settings': json.dumps(job, ensure_ascii=False, sort_keys=True,
+                                   separators=(',', ':'), allow_nan=False)}],
+            keys=('job_id',), refresh=True)
         self._jobs[job['job_id']] = job
+
+    @staticmethod
+    def _settings(row):
+        value = row['settings']
+        return json.loads(value) if isinstance(value, str) else value
+
+    def _state(self, table, key, value=None):
+        column = 'job_id' if table == 'collection_jobs' else 'source_id'
+        query = TableQuery(table, (Filter(column, 'eq', key),))
+        if value is not None:
+            return self.data.put_rows(table, [{column: key, 'settings': json.dumps(
+                value, ensure_ascii=False, sort_keys=True, separators=(',', ':'), allow_nan=False)}],
+                keys=(column,), refresh=True)
+        rows = self.data.scan(query).table.to_pylist()
+        return self._settings(rows[0]) if rows else None
+
+    def _states(self, table):
+        return [self._settings(row) for row in self.data.scan(TableQuery(table)).table.to_pylist()]
 
     def run(self, request):
         if self._closed:
@@ -332,18 +356,14 @@ class Collect:
                 self._active.discard(source_id)
 
     def _recover_tasks(self):
-        for ref in self.data.list("state", "collect", "jobs"):
-            try:
-                job = json.loads(self.data.read("state", "collect", ref.name))
-            except Exception:
-                continue
+        for job in self._states('collection_jobs'):
             if job.get("status") not in {"running", "fetched"}:
-                self._jobs[job.get("job_id", ref.name)] = job
+                self._jobs[job['job_id']] = job
                 continue
             job.update(status="failed", error="collection interrupted before publish",
                        finished_at=datetime.now().isoformat())
             self._save(job)
-            self._jobs[job.get("job_id", ref.name)] = job
+            self._jobs[job['job_id']] = job
 
     @staticmethod
     def _fetch_view(job):
@@ -426,11 +446,7 @@ class Collect:
             "next_at": now + interval if enabled else None,
             "error": None,
         }
-        self.data.write(
-            "state", "collect", f"schedules/{source_id}.json",
-            json.dumps(value, ensure_ascii=False, sort_keys=True,
-                       separators=(",", ":"), allow_nan=False).encode(),
-        )
+        self._state('collection_schedules', source_id, value)
         return value
 
     def cancel(self, job_id):
@@ -443,7 +459,9 @@ class Collect:
         if job_id in self._jobs:
             return dict(self._jobs[job_id])
         try:
-            value = json.loads(self.data.read("state", "collect", f"jobs/{job_id}.json"))
+            value = self._state('collection_jobs', job_id)
+            if value is None:
+                raise KeyError(job_id)
         except Exception as error:
             raise KeyError(job_id) from error
         self._jobs[job_id] = value
@@ -480,8 +498,7 @@ class Collect:
 
     def tick(self, at=None):
         now = time.time() if at is None else at
-        for ref in self.data.list("state", "collect", "schedules"):
-            schedule = json.loads(self.data.read("state", "collect", ref.name))
+        for schedule in self._states('collection_schedules'):
             next_at = schedule.get("next_at")
             if (not schedule.get("enabled") or next_at is None or
                     next_at > now):
@@ -495,8 +512,7 @@ class Collect:
             result = self.run(request)
             schedule["last_job_id"] = result["job_id"]
             schedule["next_at"] = now + int(schedule.get("interval_seconds", 60))
-            self.data.write("state", "collect", ref.name,
-                            json.dumps(schedule, sort_keys=True).encode())
+            self._state('collection_schedules', schedule['source_id'], schedule)
 
     def handle(self, operation, value):
         value = value if isinstance(value, dict) else {}
@@ -613,21 +629,20 @@ class Collect:
 
 
     def _schedule_list(self):
-        return {"items": [json.loads(self.data.read("state", "collect", ref.name))
-                           for ref in self.data.list("state", "collect", "schedules")]}
+        return {"items": self._states('collection_schedules')}
 
 
     def _source_view(self, source):
         source_id = source["id"]
         job = None
-        for ref in self.data.list("state", "collect", "jobs"):
-            item = json.loads(self.data.read("state", "collect", ref.name))
+        for item in self._states('collection_jobs'):
             if item.get("source_id") == source_id:
                 if job is None or item.get("finished_at", "") > job.get("finished_at", ""):
                     job = item
         try:
-            schedule = json.loads(self.data.read(
-                "state", "collect", f"schedules/{source_id}.json"))
+            schedule = self._state('collection_schedules', source_id)
+            if schedule is None:
+                raise KeyError(source_id)
         except Exception:
             schedule = None
         try:

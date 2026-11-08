@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 from market import DataBus
 from protocol import DataError
+from protocol import TableDef, TableQuery
 from backend import Modules, Protocol
 from storage import DataStore
 from collect.methods import Methods
@@ -38,24 +39,21 @@ class CollectionTests(unittest.TestCase):
             job = {"job_id": "one", "source_id": "fixture", "status": "succeeded",
                    "finished_at": "2026-10-01T12:00:00"}
             schedule = {"source_id": "fixture", "enabled": False, "next_at": None}
-            bus.write("state", "collect", "jobs/one.json", json.dumps(job).encode())
-            bus.write("state", "collect", "schedules/fixture.json", json.dumps(schedule).encode())
-            bus.write("state", "collect", "raw/large.bin", b"unrelated")
-            original = store._ref
-
-            def read(kind, identity, name, path):
-                self.assertNotEqual(name, "raw/large.bin")
-                return original(kind, identity, name, path)
-
-            with patch.object(store, "_ref", side_effect=read):
-                collect = Collect(sources, Methods(bus))
-                self.assertEqual(collect.status("one"), job)
-                self.assertEqual(collect._schedule_list(), {"items": [schedule]})
-                collect.tick(at=1)
-                view = collect._source_view(source)
-                self.assertEqual(view["job"], job)
-                self.assertEqual(view["schedule"], schedule)
-                collect.close()
+            bus.define(TableDef('collection_jobs', {'job_id': 'VARCHAR', 'settings': 'JSON'}, ('job_id',), ('settings',)))
+            bus.define(TableDef('collection_schedules', {'source_id': 'VARCHAR', 'settings': 'JSON'}, ('source_id',), ('settings',)))
+            bus.put_rows('collection_jobs', [{'job_id': 'one', 'settings': json.dumps(job)}], keys=('job_id',))
+            bus.put_rows('collection_schedules', [{'source_id': 'fixture', 'settings': json.dumps(schedule)}], keys=('source_id',))
+            bus.define(TableDef('collection_audit', {'id': 'VARCHAR', 'settings': 'JSON'}, ('id',)))
+            bus.put_rows('collection_audit', [{'id': 'audit', 'settings': '{"event":"old"}'}], keys=('id',))
+            collect = Collect(sources, Methods(bus))
+            self.assertEqual(collect.status("one"), job)
+            self.assertEqual(collect._schedule_list(), {"items": [schedule]})
+            collect.tick(at=1)
+            view = collect._source_view(source)
+            self.assertEqual(view["job"], job)
+            self.assertEqual(view["schedule"], schedule)
+            self.assertEqual(bus.scan(TableQuery('collection_audit')).table.num_rows, 1)
+            collect.close()
 
     def test_baostock_spacing_and_network_retry(self):
         from collect.methods import BaostockDaily
@@ -630,6 +628,21 @@ class CollectionTests(unittest.TestCase):
                 sources.register(descriptor)
             restarted = Sources(DataBus(DataStore(Path(root))))
             self.assertEqual(restarted.get('fixture'), descriptor)
+
+    def test_collection_records_use_the_registered_typed_source_table(self):
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root)))
+            methods = Methods(bus, {'fixture': lambda source, request: {
+                'records': [{'code': 'sh.600001', 'date': '2026-11-01', 'close': 12.5}],
+                'raw': [], 'scope': {'symbols': ['sh.600001']}}})
+            source = {'id': '行情源', 'method': 'fixture',
+                      'params': {'key_fields': ['code', 'date']}}
+            packet = methods.fetch(source, {})
+            methods.publish(source, packet)
+            reference = bus.source('行情源', 'records')
+            self.assertTrue(reference.startswith('lake:'))
+            rows = bus.table(reference).to_pylist()
+            self.assertEqual(rows, [{'code': 'sh.600001', 'date': '2026-11-01', 'close': 12.5}])
 
     def test_sources_accepts_registered_market_descriptor_fields(self):
         from collect.sources import Sources

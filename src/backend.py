@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import asdict, dataclass, replace
 from datetime import date
 from functools import partial
@@ -31,6 +30,11 @@ from protocol import (
     normalize_security_id,
     parse_backtest_request,
     required_fields,
+    Filter,
+    TableDef,
+    TableQuery,
+    TableWrite,
+    SQLQuery,
     validate_execution,
 )
 from typing import Any, Literal, Mapping, Protocol as TypingProtocol
@@ -160,7 +164,7 @@ class Benchmarks:
             observed = None
             if aligned:
                 manifest = self.store.manifest(dataset_id)
-                calendar = json.loads(self.store.read('sources', dataset_id, manifest['calendar']))
+                calendar = self.store.calendar(dataset_id)
                 sessions = [date.fromisoformat(day) for day in calendar['sessions']]
                 source_zone, target_zone = ZoneInfo(spec['timezone']), ZoneInfo(spec['comparison_timezone'])
                 source_close, target_close = time.fromisoformat(spec['session_close']), time.fromisoformat(spec['comparison_close'])
@@ -227,63 +231,140 @@ class Benchmarks:
 
 
 class Research:
+    tables = (
+        TableDef('runs', {
+            'run_id': 'VARCHAR', 'strategy_id': 'VARCHAR', 'dataset_id': 'VARCHAR',
+            'status': 'VARCHAR', 'first_at': 'VARCHAR', 'last_at': 'VARCHAR',
+            'steps': 'BIGINT', 'fills': 'BIGINT', 'final_cash': 'VARCHAR',
+            'final_equity': 'VARCHAR', 'pending_orders': 'BIGINT',
+            'manifest': 'JSON', 'metadata': 'JSON', 'trace_sections': 'JSON', 'result_fields': 'JSON', 'hashes': 'JSON',
+        }, ('run_id',)),
+        TableDef('run_equity', {'run_id': 'VARCHAR', 'position': 'BIGINT',
+                               'at': 'VARCHAR', 'equity': 'DOUBLE'}, ('run_id', 'position')),
+        TableDef('run_trades', {
+            'run_id': 'VARCHAR', 'position': 'BIGINT', 'order_id': 'VARCHAR',
+            'symbol': 'VARCHAR', 'trade_date': 'VARCHAR', 'side': 'VARCHAR',
+            'status': 'VARCHAR', 'shares': 'BIGINT', 'price': 'DOUBLE',
+            'gross_amount': 'DOUBLE', 'commission': 'DOUBLE', 'stamp_duty': 'DOUBLE',
+            'transfer_fee': 'DOUBLE', 'reason': 'VARCHAR',
+        }, ('run_id', 'position')),
+        TableDef('run_positions', {'run_id': 'VARCHAR', 'symbol': 'VARCHAR',
+                                  'shares': 'VARCHAR'}, ('run_id', 'symbol')),
+        TableDef('run_events', {'run_id': 'VARCHAR', 'section': 'VARCHAR',
+                               'position': 'BIGINT', 'value': 'JSON'},
+                 ('run_id', 'section', 'position')),
+        TableDef('run_trials', {'run_id': 'VARCHAR', 'position': 'BIGINT',
+                               'trial_id': 'VARCHAR', 'extra': 'JSON', 'removed': 'JSON'},
+                 ('run_id', 'position')),
+        TableDef('run_failures', {'run_id': 'VARCHAR', 'code': 'VARCHAR',
+                                 'detail': 'VARCHAR', 'partial': 'JSON'}, ('run_id',)),
+    )
+
     def __init__(self, data):
         self.data = data
+        for table in self.tables:
+            data.define(table)
+
+    def rows(self, name, identity=None, *, order=()):
+        filters = (Filter('run_id', 'eq', identity),) if identity is not None else ()
+        rows = self.data.scan(TableQuery(name, filters, order=order)).table.to_pylist()
+        definition = next(table for table in self.tables if table.name == name)
+        for row in rows:
+            for column, kind in definition.columns.items():
+                if kind == 'JSON' and row[column] is not None:
+                    row[column] = json.loads(row[column])
+        return rows
+
+    def write(self, name, rows):
+        import pyarrow as pa
+        definition = next(table for table in self.tables if table.name == name)
+        if not rows:
+            return
+        encoded = [{column: json.dumps(row[column], ensure_ascii=False, sort_keys=True,
+                                       separators=(',', ':'), allow_nan=False)
+                    if kind == 'JSON' and row[column] is not None else row[column]
+                    for column, kind in definition.columns.items()} for row in rows]
+        self.data.write(TableWrite(name, pa.Table.from_pylist(encoded)))
 
     def _ids(self):
-        names = {}
-        for ref in self.data.list("runs"):
-            names.setdefault(ref.identity, set()).add(ref.name)
-        return tuple(sorted(identity for identity, files in names.items()
-                           if {"manifest.json", "metrics.json", "result.json", "trace.json"} <= files))
+        return tuple(row['run_id'] for row in self.rows('runs'))
 
-    def _read(self, identity):
-        from hashlib import sha256
-        manifest_bytes = self.data.read("runs", identity, "manifest.json")
-        metrics_bytes = self.data.read("runs", identity, "metrics.json")
-        result_bytes = self.data.read("runs", identity, "result.json")
-        manifest = json.loads(manifest_bytes)
-        metrics = json.loads(metrics_bytes)
-        result = json.loads(result_bytes)
+    def result(self, identity):
+        rows = self.rows('runs', identity)
+        if not rows:
+            raise KeyError(identity)
+        row = rows[0]
+        value = dict(row['metadata'])
+        value.update({key: row[key] for key in (
+            'run_id', 'strategy_id', 'dataset_id', 'first_at', 'last_at', 'steps',
+            'fills', 'final_cash', 'final_equity', 'pending_orders')})
+        value['id'] = identity
+        value['positions'] = {item['symbol']: item['shares'] for item in self.rows('run_positions', identity)}
+        value['equity'] = [{key: item[key] for key in ('at', 'equity')}
+                           for item in self.rows('run_equity', identity, order=('position',))]
+        value['trades'] = [{key: item[key] for key in item if key not in {'run_id', 'position'}}
+                           for item in self.rows('run_trades', identity, order=('position',))]
+        value['trace'] = {section: [] for section in row['trace_sections']}
+        for item in self.rows('run_events', identity, order=('section', 'position')):
+            value['trace'][item['section']].append(item['value'])
+        if 'search' in value:
+            trials = []
+            for item in self.rows('run_trials', identity, order=('position',)):
+                trial = self.result(item['trial_id'])
+                for key in item['removed']:
+                    trial.pop(key, None)
+                trial.update(item['extra'])
+                trials.append(trial)
+            value['search'] = {**value['search'], 'trials': trials}
+        return {key: item for key, item in value.items() if key in row['result_fields']}
+
+    def _read(self, identity, *, include_result=True):
+        rows = self.rows('runs', identity)
+        if not rows:
+            raise KeyError(identity)
+        row = rows[0]
+        manifest, metrics = row['manifest'], row['metadata']['metrics']
         return {
             "id": identity, "run_id": manifest["run_id"],
             "strategy_id": manifest["strategy_id"], "status": manifest["status"],
             "qualification": "unverified", "limitations": manifest.get("limitations", []),
-            "metrics": metrics, "manifest_file": f"data/result/{identity}/manifest.json",
-            "manifest_sha256": sha256(manifest_bytes).hexdigest(),
-            "metrics_sha256": sha256(metrics_bytes).hexdigest(),
+            "metrics": metrics, "manifest_file": f"lake:runs/{identity}",
+            "manifest_sha256": row['hashes']['manifest'],
+            "metrics_sha256": row['hashes']['metrics'],
             "source_hashes": manifest.get("source_hashes", {}),
             "config_hash": manifest.get("config_hash"),
             "note": manifest.get("note", "运行结果未经历史资格认定。"),
             "parameters": manifest.get("parameters", {}),
             "effective_config": manifest.get("effective_config", {}),
             "code_hash": manifest.get("code_hash"), "data_hash": manifest.get("data_hash"),
-            "execution_hash": manifest.get("execution_hash"), "result": result,
+            "execution_hash": manifest.get("execution_hash"), "result": self.result(identity) if include_result else None,
         }
 
     def list(self):
         return [self._read(identity) for identity in self._ids()]
 
     def detail(self, identity, offset=0, limit=50):
-        if identity not in self._ids():
-            raise KeyError(identity)
-        value = self._read(identity)
-        manifest = json.loads(self.data.read("runs", identity, "manifest.json"))
-        refs = {(item.identity, item.name): item for item in self.data.list("runs")}
-        result = value.pop("result")
-        all_trades, all_equity = result.get("trades", []), result.get("equity", [])
-        trades = all_trades[offset:offset + limit]
-        stride = max(1, (len(all_equity) + 799) // 800)
-        equity = all_equity[::stride]
-        if all_equity and equity[-1] != all_equity[-1]:
-            equity.append(all_equity[-1])
-        value["trades_total"] = len(all_trades)
-        value["equity_sampling"] = {"total": len(all_equity), "stride": stride}
-        evidence = []
-        for name in ("manifest.json", "metrics.json", "result.json", "trace.json"):
-            ref = refs.get((identity, name))
-            if ref is not None:
-                evidence.append({"file": ref.file, "sha256": ref.sha256})
+        if type(offset) is not int or type(limit) is not int or offset < 0 or limit < 0:
+            raise ValueError('offset and limit must be non-negative integers')
+        with self.data.transaction(readonly=True):
+            value = self._read(identity, include_result=False)
+            value.pop('result')
+            row = self.rows('runs', identity)[0]
+            manifest = row['manifest']
+            filters = (Filter('run_id', 'eq', identity),)
+            trades = self.data.scan(TableQuery('run_trades', filters, order=('position',),
+                                                limit=limit, offset=offset)).table.to_pylist()
+            trades = [{key: item for key, item in trade.items() if key not in {'run_id', 'position'}} for trade in trades]
+            total = self.data.scan(SQLQuery('SELECT count(*) AS n FROM run_trades WHERE run_id=?', (identity,))).table.to_pylist()[0]['n']
+            count = self.data.scan(SQLQuery('SELECT count(*) AS n FROM run_equity WHERE run_id=?', (identity,))).table.to_pylist()[0]['n']
+            stride = max(1, (count + 799) // 800)
+            equity = self.data.scan(SQLQuery('SELECT "at",equity FROM run_equity WHERE run_id=? '
+                'AND (position % ? = 0 OR position=?) ORDER BY position', (identity, stride, count - 1))).table.to_pylist()
+            value['trades_total'] = total
+            value['equity_sampling'] = {'total': count, 'stride': stride}
+            evidence = [{'file': reference, 'sha256': row['hashes'][name]} for name, reference in (
+                ('manifest', f'lake:runs/{identity}#manifest'), ('metrics', f'lake:runs/{identity}#metrics'),
+                ('result', f'lake:runs/{identity}'), ('trace', f'lake:run_events/{identity}'))]
         return {**value, "manifest": manifest, "trades": trades,
                 "trades_total": value["trades_total"], "equity": equity,
                 "evidence": evidence, "offset": offset, "limit": limit}
@@ -296,7 +377,6 @@ def build_protocol(modules: Modules) -> Protocol:
 
 
 def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, Any]) -> None:
-    metrics = value["metrics"]
     effective_config = value["effective_config"]
     manifest = {
         "schema": 1, "run_id": request.run_id, "strategy_id": request.strategy_id,
@@ -310,21 +390,55 @@ def save_backtest(data: DataPort, request: BacktestRequest, value: Mapping[str, 
         "limitations": ["运行结果未经历史资格认定。"],
         "note": "运行结果未经历史资格认定。",
     }
-    for name, item in (("metrics.json", metrics), ("result.json", value),
-                       ("trace.json", value.get("trace", {})), ("manifest.json", manifest)):
-        content = json.dumps(item, ensure_ascii=False, sort_keys=True,
-                             separators=(",", ":"), allow_nan=False).encode()
-        data.write("runs", request.run_id, name, content)
+    research = Research(data)
+    core = ('run_id', 'strategy_id', 'dataset_id', 'first_at', 'last_at', 'steps',
+            'fills', 'final_cash', 'final_equity', 'pending_orders')
+    excluded = {*core, 'id', 'equity', 'trades', 'trace', 'positions'}
+    metadata = {key: item for key, item in value.items() if key not in excluded}
+    trace = value.get('trace', {})
+    if not isinstance(trace, Mapping) or any(not isinstance(items, list) for items in trace.values()):
+        raise TypeError('account trace must contain event lists')
+    trials = []
+    if 'search' in metadata:
+        search = dict(metadata['search'])
+        trials = search.pop('trials')
+        metadata['search'] = search
+    run_id = request.run_id
+    row = {key: value[key] for key in core}
+    from hashlib import sha256
+    hashes = {name: sha256(json.dumps(item, ensure_ascii=False, sort_keys=True,
+               separators=(',', ':'), allow_nan=False).encode()).hexdigest()
+              for name, item in (('manifest', manifest), ('metrics', value['metrics']),
+                                 ('result', value), ('trace', trace))}
+    row.update(status='succeeded', manifest=manifest, metadata=metadata,
+               trace_sections=list(trace), result_fields=list(value), hashes=hashes)
+    with data.transaction():
+        research.write('runs', [row])
+        research.write('run_equity', [dict(run_id=run_id, position=index, **item)
+                                     for index, item in enumerate(value.get('equity', []))])
+        research.write('run_trades', [dict(run_id=run_id, position=index, **item)
+                                     for index, item in enumerate(value.get('trades', []))])
+        research.write('run_positions', [dict(run_id=run_id, symbol=symbol, shares=shares)
+                                        for symbol, shares in value['positions'].items()])
+        research.write('run_events', [dict(run_id=run_id, section=section, position=index, value=item)
+                                     for section, items in trace.items()
+                                     for index, item in enumerate(items)])
+        links = []
+        for index, trial in enumerate(trials):
+            stored = research.result(trial['run_id'])
+            links.append(dict(run_id=run_id, position=index, trial_id=trial['run_id'],
+                              extra={key: item for key, item in trial.items()
+                                     if key not in stored or item != stored[key]},
+                              removed=[key for key in stored if key not in trial]))
+        research.write('run_trials', links)
 
 
 def save_failed_backtest(data: DataPort, run_id: str, error: Exception,
                          partial: object | None) -> str:
-    value = {"run_id": run_id, "status": "failed", "code": getattr(error, "code", "run_failed"),
+    value = {"run_id": run_id, "code": getattr(error, "code", "run_failed"),
              "detail": str(error), "partial": _json_value(partial) if partial is not None else None}
-    name = "failed.json"
-    data.write("runs", run_id, name, json.dumps(
-        value, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False).encode())
-    return f"data/result/{run_id}/{name}"
+    Research(data).write('run_failures', [value])
+    return f"lake:run_failures/{run_id}"
 
 
 class CollectionPort:
@@ -626,7 +740,8 @@ class CommandPort:
                 price_workbook=Path(_text(data, "price")),
                 fundamental_workbook=Path(_text(data, "fundamentals")),
                 valuation_workbook=Path(_text(data, "valuations")),
-                output_dir=self._data.path("sources", identity, "manifest.json").parent,
+                data=self._data,
+                dataset=identity,
                 max_symbols=data.get("max_symbols"),
                 only_price_parts=(
                     tuple(data["price_part"]) if data.get("price_part") is not None else None
@@ -638,9 +753,8 @@ class CommandPort:
     def _check_run_identity(self, value: JsonValue) -> None:
         if not isinstance(value, str) or not value:
             raise ValueError("run_id must be a data identity")
-        self._data.path("runs", value, "manifest.json")
-        if len(os.fsencode(value)) > os.pathconf(self._root, "PC_NAME_MAX"):
-            raise ValueError("run_id exceeds the storage identity length")
+        if value != value.strip() or any(ord(char) < 32 for char in value):
+            raise ValueError("run_id must be a non-empty text identity without control characters")
 
 
 class Protocol:

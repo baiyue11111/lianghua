@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 import hashlib
 import json
 from pathlib import Path
@@ -11,10 +12,12 @@ import unittest
 
 import numpy as np
 import pyarrow as pa
-import pyarrow.parquet as pq
 
 from core.calculation import AdjustmentCoverageError
 from market.reader import _load_adjusted_panel
+from market import DataBus, digest, fact_ref
+from protocol import DataError, Filter, TableQuery
+from storage import DataStore
 
 
 FACTOR_START = date(1990, 1, 1)
@@ -60,7 +63,7 @@ class AdjustedPanelTests(unittest.TestCase):
         }
         for name, events in cases.items():
             with self.subTest(case=name):
-                self.code_changes.write_text(json.dumps({'schema': 1, 'events': events}))
+                self.write_changes({'schema': 1, 'events': events})
                 with self.assertRaises(AdjustmentCoverageError):
                     self.load()
 
@@ -83,13 +86,13 @@ class AdjustedPanelTests(unittest.TestCase):
             _bar('2020-01-02',close=11,open_=11,high=12,low=10)])
         self.write_cache([['sh.600001','2019-01-01','1','2','2']],code='sh.600001')
         self.write_cache([['sh.600000','2020-01-02','1','2','2']])
-        self.code_changes.write_text(json.dumps({'schema':1,'events':[
+        self.write_changes({'schema':1,'events':[
             {'old_code':'600001','new_code':'600000','effective_date':'2020-01-02',
-             'factor_basis_continuity_verified':True}]}))
+             'factor_basis_continuity_verified':True}]})
         panel = self.load()
         np.testing.assert_allclose(panel.back_factor[0],[2,2])
         np.testing.assert_allclose(panel.signal_close[0],[20,22])
-        self.assertTrue(any('adjust_sh.600001_' in h.path for h in panel.source_hashes))
+        self.assertTrue(any(h.path.startswith('fact:adjust:sh.600001:') for h in panel.source_hashes))
 
     def test_verified_multi_rename_chain_matches_final_code_factor_history(self):
         self.write_bars([
@@ -108,12 +111,12 @@ class AdjustedPanelTests(unittest.TestCase):
         self.write_cache([
             ['sh.600000', '2020-01-06', '1', '2', '2'],
         ])
-        self.code_changes.write_text(json.dumps({'schema': 1, 'events': [
+        self.write_changes({'schema': 1, 'events': [
             {'old_code': '600002', 'new_code': '600001',
              'effective_date': '2020-01-03', 'factor_basis_continuity_verified': True},
             {'old_code': '600001', 'new_code': '600000',
              'effective_date': '2020-01-06', 'factor_basis_continuity_verified': True},
-        ][::-1]}))
+        ][::-1]})
 
         renamed = self.load()
 
@@ -122,7 +125,7 @@ class AdjustedPanelTests(unittest.TestCase):
             ['sh.600000', '2020-01-02', '1', '2', '2'],
             ['sh.600000', '2020-01-06', '1', '2', '2'],
         ])
-        self.code_changes.write_text(json.dumps({'schema': 1, 'events': []}))
+        self.write_changes({'schema': 1, 'events': []})
         direct = self.load()
 
         np.testing.assert_allclose(renamed.back_factor, direct.back_factor)
@@ -134,9 +137,9 @@ class AdjustedPanelTests(unittest.TestCase):
                          _bar('2020-01-02',close=11,open_=11,high=12,low=10)])
         self.write_cache([['sh.600001','2019-01-01','1','2','2']],code='sh.600001')
         self.write_cache([['sh.600000','2020-01-02','1','1','1']])
-        self.code_changes.write_text(json.dumps({'schema':1,'events':[
+        self.write_changes({'schema':1,'events':[
             {'old_code':'600001','new_code':'600000','effective_date':'2020-01-02',
-             'factor_basis_continuity_verified':True}]}))
+             'factor_basis_continuity_verified':True}]})
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
         self.assertIn('invalid_factor_history',{issue.reason for issue in caught.exception.issues})
@@ -152,47 +155,57 @@ class AdjustedPanelTests(unittest.TestCase):
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
         self.root = Path(temporary.name)
-        self.daily = self.root / "daily"
-        self.cache = self.root / "cache"
-        self.stock_basic = self.root / "stock_basic"
-        self.code_changes = self.root / "code_changes.json"
-        self.daily.mkdir()
-        self.cache.mkdir()
-        self.stock_basic.mkdir()
-        self.code_changes.write_text(json.dumps({"schema": 1, "scope": "test", "events": []}),
-                                     encoding="utf-8")
+        self.data = DataBus(DataStore(self.root))
+        self.addCleanup(self.data.close)
+        self.code_changes = self.write_changes({'schema': 1, 'scope': 'test', 'events': []})
 
-    def write_bars(self, rows: list[dict]) -> Path:
-        path = self.daily / "2020.parquet"
-        pq.write_table(pa.Table.from_pylist(rows), path)
-        return path
+    def write_changes(self, value):
+        return self.data.save_config('code_changes', value)
 
-    def write_cache(self, rows: list[list[str]], *, code: str = "sh.600000",
-                    status: str | None = None) -> Path:
-        records = [{"date": row[1], "forward": float(row[2]), "backward": float(row[3])}
-                   for row in rows]
-        payload = {"schema": 1, "kind": "adjust", "code": code, "start": FACTOR_START.isoformat(),
-                   "end": FACTOR_END.isoformat(), "year": None,
-                   "source_hash": _sha256_json(records), "records": records}
-        path = self.cache / f"adjust_{code}_{FACTOR_START}_{FACTOR_END}.json"
-        path.write_text(json.dumps(payload), encoding="utf-8")
-        return path
+    def write_bars(self, rows):
+        reference = 'lake:adjusted_bars'
+        try:
+            self.data.definition('adjusted_bars')
+        except DataError as error:
+            if error.code != 'missing_table':
+                raise
+        else:
+            self.data.delete(TableQuery('adjusted_bars'))
+        self.data.put_rows('adjusted_bars', rows, keys=('code', 'date'), types={'tradestatus': 'DOUBLE'})
+        self.data.bind('fixture', 'bars', reference)
+        self.data.save_manifest('fixture', {
+            'schema': 3, 'scope': {'symbols': sorted({row['code'] for row in rows}), 'universe': 'TEST'},
+            'fields': {}, 'inputs': {'bars': reference}})
+        return reference
 
-    def write_stock_basic(self, *, code: str = "sh.600000",
-                          ipo_date: str = "2020-01-02") -> Path:
-        records = [{"listing_date": ipo_date, "delisting_date": None, "type": "1", "status": "1"}]
-        payload = {"schema": 1, "kind": "security", "code": code, "start": None, "end": None,
-                   "year": None, "source_hash": _sha256_json(records), "records": records}
-        path = self.stock_basic / f"stock_basic_{code}.json"
-        path.write_text(json.dumps(payload), encoding="utf-8")
-        return path
+    def write_cache(self, rows, *, code='sh.600000', status=None):
+        records = [{'date': row[1], 'forward': float(row[2]), 'backward': float(row[3])} for row in rows]
+        return self.data.save_fact({'schema': 1, 'kind': 'adjust', 'code': code,
+            'start': FACTOR_START.isoformat(), 'end': FACTOR_END.isoformat(), 'year': None,
+            'source_hash': _sha256_json(records), 'records': records})
+
+    def write_stock_basic(self, *, code='sh.600000', ipo_date='2020-01-02'):
+        records = [{'listing_date': ipo_date, 'delisting_date': None, 'type': '1', 'status': '1'}]
+        return self.data.save_fact({'schema': 1, 'kind': 'security', 'code': code,
+            'start': None, 'end': None, 'year': None,
+            'source_hash': _sha256_json(records), 'records': records})
+
+    def corrupt_fact(self, reference, changes):
+        kind = 'fact_' + reference.split(':')[1]
+        filters = (Filter('reference', 'eq', reference),)
+        rows = self.data.scan(TableQuery(kind, filters)).table.to_pylist()
+        rows[0].update(changes)
+        with self.data.transaction():
+            self.data.delete(TableQuery(kind, filters))
+            self.data.put_rows(kind, rows, keys=('reference', 'position'))
 
     def load(self, **kwargs):
-        return _load_adjusted_panel(
-            self.daily, self.cache, factor_start=FACTOR_START, factor_end=FACTOR_END,
-            stock_basic_dir=self.stock_basic, code_changes_path=self.code_changes,
-            read=lambda path: path.read_bytes(),
-            list_files=lambda directory, pattern: tuple(directory.glob(pattern)), **kwargs)
+        with self.data.transaction(readonly=True):
+            return _load_adjusted_panel(self.data, 'fixture', factor_start=FACTOR_START,
+                factor_end=FACTOR_END, code_changes_path=self.code_changes,
+                factor_template=fact_ref('adjust', '{symbol}', FACTOR_START, FACTOR_END).replace('%7Bsymbol%7D', '{symbol}'),
+                stock_basic_template=fact_ref('security', '{symbol}').replace('%7Bsymbol%7D', '{symbol}'),
+                read=self.data.object, **kwargs)
 
     def test_storage_code_forms_share_one_selected_history(self):
         self.write_bars([
@@ -237,8 +250,8 @@ class AdjustedPanelTests(unittest.TestCase):
         np.testing.assert_allclose(panel.raw_close[0], [10, 11, 5.5])
         np.testing.assert_allclose(panel.amount[0], [100_000_000] * 3)
         hashes = {entry.path: entry.sha256 for entry in panel.source_hashes}
-        self.assertEqual(hashes[str(daily_path)], hashlib.sha256(daily_path.read_bytes()).hexdigest())
-        self.assertEqual(hashes[str(cache_path)], hashlib.sha256(cache_path.read_bytes()).hexdigest())
+        self.assertEqual(hashes[daily_path], digest(self.data.table(daily_path)))
+        self.assertEqual(hashes[cache_path], self.data.evidence(cache_path))
 
     def test_first_bar_before_first_event_is_not_filled_with_one(self):
         # Regressions caught: a successful cache query is mistaken for proof of
@@ -256,10 +269,7 @@ class AdjustedPanelTests(unittest.TestCase):
         # Regressions caught: accepting a standard fact with an invalid factor.
         self.write_bars([_bar("2020-01-02", close=10, open_=10, high=10, low=10)])
         path = self.write_cache([["sh.600000", "2020-01-02", "1", "1", "1"]])
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["records"][0]["backward"] = -2
-        payload["source_hash"] = _sha256_json(payload["records"])
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        self.corrupt_fact(path, {'backward': Decimal('-2')})
 
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
@@ -303,9 +313,9 @@ class AdjustedPanelTests(unittest.TestCase):
         self.write_bars([_bar("2020-01-02", close=10, open_=10, high=10, low=10)])
         self.write_cache([["sh.600000", "2020-01-04", "0.9", "1", "1"]])
         self.write_stock_basic()
-        self.code_changes.write_text(json.dumps({"schema": 1, "events": [
+        self.write_changes({"schema": 1, "events": [
             {"old_code": "600099", "new_code": "600000", "effective_date": "2020-01-03",
-             "factor_basis_continuity_verified": False}]}), encoding="utf-8")
+             "factor_basis_continuity_verified": False}]})
 
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
@@ -321,9 +331,9 @@ class AdjustedPanelTests(unittest.TestCase):
             _bar("2020-01-04", close=11, open_=11, high=11, low=11),
         ])
         self.write_cache([["sh.600000", "2020-01-02", "1", "1", "1"]])
-        self.code_changes.write_text(json.dumps({"schema": 1, "events": [
+        self.write_changes({"schema": 1, "events": [
             {"old_code": "600099", "new_code": "600000", "effective_date": "2020-01-03",
-             "factor_basis_continuity_verified": False}]}), encoding="utf-8")
+             "factor_basis_continuity_verified": False}]})
 
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()
@@ -393,10 +403,7 @@ class AdjustedPanelTests(unittest.TestCase):
         self.write_bars([_bar("2020-01-02", close=10, open_=10, high=10, low=10)])
         self.write_cache([["sh.600000", "2020-01-03", "0.9", "1", "1"]])
         path = self.write_stock_basic()
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        payload["records"][0]["listing_date"] = "2020-02-30"
-        payload["source_hash"] = _sha256_json(payload["records"])
-        path.write_text(json.dumps(payload), encoding="utf-8")
+        self.corrupt_fact(path, {'listing_date': '2020-02-30'})
 
         with self.assertRaises(AdjustmentCoverageError) as caught:
             self.load()

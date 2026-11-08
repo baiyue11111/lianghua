@@ -12,9 +12,9 @@ from dataclasses import replace
 from datetime import date, datetime, time
 from decimal import Decimal
 from hashlib import sha256
-from pathlib import Path
 from protocol import (
     Bar,
+    DataError,
     Dataset,
     EXECUTION_FIELDS,
     HistoryBar,
@@ -26,8 +26,14 @@ from protocol import (
     _calendar_facts,
     normalize_security_id,
     validate_facts,
+    Filter,
+    SQLQuery,
 )
 from typing import Callable
+
+def _digest(value):
+    from market import digest
+    return digest(value)
 from zoneinfo import ZoneInfo
 
 def _sha256_json(value: object) -> str:
@@ -36,27 +42,11 @@ def _sha256_json(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _sha256_file(path: Path, read: Callable[[Path], bytes]) -> str:
-    return hashlib.sha256(read(path)).hexdigest()
-
-
-def _factor_number(raw: object, field: str) -> float:
-    if not isinstance(raw, str) or not re.fullmatch(r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)", raw):
-        raise ValueError(f"invalid {field}: {raw!r}")
-    try:
-        value = float(Decimal(raw))
-    except (InvalidOperation, ValueError) as exc:
-        raise ValueError(f"invalid {field}: {raw!r}") from exc
-    if not math.isfinite(value) or value <= 0:
-        raise ValueError(f"non-positive or non-finite {field}: {raw!r}")
-    return value
-
-
-def _load_factor_cache(path: Path, symbol: str, start: date,
-                       end: date, read: Callable[[Path], bytes]) -> tuple[tuple[FactorEvent, ...], SourceHash]:
+def _load_factor_cache(path: str, symbol: str, start: date,
+                       end: date, read: Callable[[str], dict]) -> tuple[tuple[FactorEvent, ...], SourceHash]:
     from core.calculation import FactorEvent, SourceHash
     raw_file = read(path)
-    payload = json.loads(raw_file)
+    payload = raw_file
     code = normalize_security_id(symbol)
     rows, _ = validate_facts(payload, kind="adjust", code=code,
                               start=start.isoformat(), end=end.isoformat(), year=None)
@@ -68,15 +58,15 @@ def _load_factor_cache(path: Path, symbol: str, start: date,
         back = float(row["backward"])
         events.append(FactorEvent(symbol, effective, fore, back))
         last_event = effective
-    return tuple(events), SourceHash(str(path), hashlib.sha256(raw_file).hexdigest())
+    return tuple(events), SourceHash(str(path), _digest(raw_file))
 
 
-def _load_stock_basic_anchor(path: Path, symbol: str, first_bar: date,
-                             read: Callable[[Path], bytes]) -> tuple[ListingAnchorEvidence, SourceHash]:
+def _load_stock_basic_anchor(path: str, symbol: str, first_bar: date,
+                             read: Callable[[str], dict]) -> tuple[ListingAnchorEvidence, SourceHash]:
     from core.calculation import ListingAnchorEvidence, SourceHash
     """Use a normalized security fact as listing-anchor evidence."""
     file_bytes = read(path)
-    payload = json.loads(file_bytes)
+    payload = file_bytes
     code = normalize_security_id(symbol)
     rows, source_hash = validate_facts(
         payload, kind="security", code=code, start=None, end=None, year=None)
@@ -90,11 +80,11 @@ def _load_stock_basic_anchor(path: Path, symbol: str, first_bar: date,
     if ipo_date != first_bar:
         raise ValueError(f"security listing {ipo_date} does not equal first raw bar {first_bar}")
     return (ListingAnchorEvidence(symbol, ipo_date, str(path), source_hash),
-            SourceHash(str(path), hashlib.sha256(file_bytes).hexdigest()))
+            SourceHash(str(path), _digest(file_bytes)))
 
 
-def _load_factor_history(cache_dir: Path, symbol: str, start: date, end: date,
-                         changes: tuple[dict, ...], read: Callable[[Path], bytes],
+def _load_factor_history(cache_dir: str, symbol: str, start: date, end: date,
+                         changes: tuple[dict, ...], read: Callable[[str], dict],
                          template: str = 'adjust_{symbol}_{start}_{end}.json'):
     from core.calculation import FactorEvent
     """Use explicit alias intervals, checking unchanged basis at each seam.
@@ -112,7 +102,7 @@ def _load_factor_history(cache_dir: Path, symbol: str, start: date, end: date,
     def load(code, visited):
         if code in visited:
             raise ValueError('cyclic code-change history')
-        path = cache_dir / template.format(symbol=normalize_security_id(code), start=start, end=end)
+        path = template.format(symbol=normalize_security_id(code), start=start, end=end)
         events, source = _load_factor_cache(path, code, start, end, read)
         if code not in incoming:
             return events, (source,)
@@ -135,10 +125,10 @@ def _load_factor_history(cache_dir: Path, symbol: str, start: date, end: date,
     return load(symbol, set())
 
 
-def _load_code_changes(path: Path, read: Callable[[Path], bytes]) -> tuple[tuple[dict, ...], SourceHash]:
+def _load_code_changes(path: str, read: Callable[[str], dict]) -> tuple[tuple[dict, ...], SourceHash]:
     from core.calculation import SourceHash
     file_bytes = read(path)
-    payload = json.loads(file_bytes)
+    payload = file_bytes
     if not isinstance(payload, dict) or payload.get("schema") != 1 or not isinstance(payload.get("events"), list):
         raise ValueError("unsupported code-change evidence schema")
     changes = []
@@ -178,7 +168,7 @@ def _load_code_changes(path: Path, read: Callable[[Path], bytes]) -> tuple[tuple
                 raise ValueError("reverse code-change dates")
             previous_date = change["effective_date"]
             code = change["new_code"]
-    return tuple(changes), SourceHash(str(path), hashlib.sha256(file_bytes).hexdigest())
+    return tuple(changes), SourceHash(str(path), _digest(file_bytes))
 
 
 def _float_or_nan(value: object, field: str, code: str, day: str,
@@ -191,36 +181,6 @@ def _float_or_nan(value: object, field: str, code: str, day: str,
     if not math.isfinite(number) or (positive and number <= 0) or (not positive and number < 0):
         raise ValueError(f"{code} {day}: invalid {field}: {value!r}")
     return number
-
-
-def _parquet_paths_for_dates(paths: tuple[Path, ...], start: date, end: date) -> tuple[Path, ...]:
-    import pyarrow.parquet as pq
-
-    selected=[]
-    for path in paths:
-        parquet=pq.ParquetFile(path)
-        column=parquet.schema_arrow.get_field_index('date')
-        if column < 0:
-            raise ValueError(f'parquet date field missing: {path}')
-        intersects=False
-        for index in range(parquet.metadata.num_row_groups):
-            stats=parquet.metadata.row_group(index).column(column).statistics
-            if stats is None or not stats.has_min_max:
-                intersects=True
-                break
-            low,high=stats.min,stats.max
-            low=low.date() if isinstance(low,datetime) else low
-            high=high.date() if isinstance(high,datetime) else high
-            if not isinstance(low,date):
-                low=date.fromisoformat(str(low))
-            if not isinstance(high,date):
-                high=date.fromisoformat(str(high))
-            if low<=end and high>=start:
-                intersects=True
-                break
-        if intersects:
-            selected.append(path)
-    return tuple(selected)
 
 
 class _BarEvidenceError(ValueError):
@@ -266,22 +226,9 @@ def _traded_bar(status: object, prices: tuple[float, float, float, float],
                             f"status missing, volume={volume}, amount={amount}")
 
 
-def _load_adjusted_panel(
-    daily_dir: Path,
-    cache_dir: Path,
-    *,
-    factor_start: date,
-    factor_end: date,
-    code_changes_path: Path,
-    stock_basic_dir: Path | None = None,
-    symbols: tuple[str, ...] | None = None,
-    date_start: date | None = None,
-    date_end: date | None = None,
-    factor_template: str = 'adjust_{symbol}_{start}_{end}.json',
-    stock_basic_template: str = 'stock_basic_{provider_code}.json',
-    read: Callable[[Path], bytes],
-    list_files: Callable[[Path, str], tuple[Path, ...]],
-) -> AdjustedPricePanel:
+def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_changes_path,
+                         stock_basic_dir=True, symbols=None, date_start=None, date_end=None,
+                         factor_template, stock_basic_template, read):
     from core.calculation import (AdjustedPricePanel, AdjustmentCoverageError, CoverageIssue,
                                   SourceHash)
     """Load the *entire* supplied A-share source with fail-closed factor coverage.
@@ -290,29 +237,35 @@ def _load_adjusted_panel(
     equal to that bar and no unresolved security code change. Listing identity
     and adjustment coverage come from standard fact records.
     """
-    daily_dir, cache_dir = Path(daily_dir), Path(cache_dir)
     if not isinstance(factor_start, date) or not isinstance(factor_end, date) or factor_start > factor_end:
-        raise ValueError("valid factor_start and factor_end dates are required")
-    paths = sorted(list_files(daily_dir, "*.parquet"))
-    if date_start is not None and date_end is not None:
-        paths=list(_parquet_paths_for_dates(tuple(paths),date_start,date_end))
-    if not paths:
-        raise AdjustmentCoverageError((CoverageIssue("*", "missing_source", str(daily_dir)),))
+        raise ValueError('valid factor_start and factor_end dates are required')
+    daily_dir = data.manifest(dataset)['inputs']['bars']
+    cache_dir = None
+    filters = []
+    definition = data.definition(daily_dir[5:])
+    def day_value(value):
+        return value if definition.columns['date'] == 'DATE' else value.isoformat()
+    if date_start is not None: filters.append(Filter('date', 'ge', day_value(date_start)))
+    if date_end is not None: filters.append(Filter('date', 'le', day_value(date_end)))
+    if symbols is not None:
+        aliases = sorted({alias for symbol in symbols for alias in (normalize_security_id(symbol), normalize_security_id(symbol).split('.')[-1])})
+        filters.append(Filter('code', 'in', aliases))
+    selected = data.table(daily_dir, filters=filters)
+    if selected.num_rows == 0:
+        raise AdjustmentCoverageError((CoverageIssue('*', 'missing_source', daily_dir),))
     connection = duckdb.connect()
-    source_hashes = tuple(SourceHash(str(path), _sha256_file(path, read)) for path in paths)
+    connection.register('raw_bars', selected)
+    source_hashes = (SourceHash(daily_dir, _digest(selected)),)
     try:
-        changes, identity_hash = _load_code_changes(Path(code_changes_path), read)
-    except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-        raise AdjustmentCoverageError((CoverageIssue(
-            "*", "invalid_code_change_evidence", str(exc)),)) from exc
-    files = [str(path) for path in paths]
-    # Resolve the storage key before selection and grouping. Price arithmetic
-    # uses the A-share number; the dataset port restores the requested identity.
+        changes, identity_hash = _load_code_changes(code_changes_path, read)
+    except (OSError, ValueError, TypeError) as exc:
+        connection.close()
+        raise AdjustmentCoverageError((CoverageIssue('*', 'invalid_code_change_evidence', str(exc)),)) from exc
     source = ("(SELECT split_part(identity, '.', 2) AS code, * EXCLUDE(code, identity) "
               "FROM (SELECT *, CASE WHEN contains(code, '.') THEN lower(code) "
               "WHEN starts_with(code, '6') THEN 'sh.' || code ELSE 'sz.' || code END AS identity "
-              "FROM read_parquet(?, union_by_name=true))")
-    query_params = [files]
+              "FROM raw_bars)")
+    query_params = []
     if symbols is not None:
         source += " WHERE identity IN (SELECT * FROM UNNEST(?))"
         query_params.append([normalize_security_id(symbol) for symbol in symbols])
@@ -348,6 +301,20 @@ def _load_adjusted_panel(
         stock_basic_hashes: list[SourceHash] = []
         events_by_code: dict[str, tuple[FactorEvent, ...]] = {}
         listing_anchor_codes: set[str] = set()
+        # One batched evidence read replaces a query per symbol per fact kind.
+        candidates = {normalize_security_id(str(row[0])) for row in bounds}
+        candidates.update(change['old_code'] for change in changes)
+        candidates.update(change['new_code'] for change in changes)
+        evidence_names = {factor_template.format(symbol=code, start=factor_start, end=factor_end)
+                          for code in candidates}
+        if stock_basic_dir is not None:
+            evidence_names.update(stock_basic_template.format(symbol=code, provider_code=code)
+                                  for code in candidates)
+        prefetched = data.facts(sorted(evidence_names))
+        def evidence_read(path):
+            if path in prefetched:
+                return prefetched[path]
+            return read(path)
         for code, first_string, last_string, count, distinct_count, name in bounds:
             code = str(code)
             symbols.append(code)
@@ -376,14 +343,14 @@ def _load_adjusted_panel(
                     code, "unverified_code_change",
                     f"{change['old_code']}->{change['new_code']} on {change['effective_date']}"))
                 continue
-            cache_path = cache_dir / factor_template.format(
+            cache_path = factor_template.format(
                 symbol=normalize_security_id(code), start=factor_start, end=factor_end)
             try:
                 events, history_hashes = _load_factor_history(
-                    cache_dir, code, factor_start, factor_end, changes, read,
+                    cache_dir, code, factor_start, factor_end, changes, evidence_read,
                     factor_template)
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-                reason = "missing_factor_cache" if isinstance(exc, FileNotFoundError) else "invalid_factor_history"
+                reason = "missing_factor_cache" if isinstance(exc, DataError) and exc.code == 'missing' else "invalid_factor_history"
                 issues.append(CoverageIssue(code, reason, f"{cache_path}: {exc}"))
                 continue
             cache_hashes.extend(history_hashes)
@@ -397,12 +364,12 @@ def _load_adjusted_panel(
                         code, "missing_initial_anchor",
                         "per-code stock-basic and code-change evidence are required"))
                     continue
-                stock_basic_path = Path(stock_basic_dir) / stock_basic_template.format(
+                stock_basic_path = stock_basic_template.format(
                     symbol=normalize_security_id(code), provider_code=market_code)
                 try:
-                    anchor, source_hash = _load_stock_basic_anchor(stock_basic_path, code, first, read)
+                    anchor, source_hash = _load_stock_basic_anchor(stock_basic_path, code, first, evidence_read)
                 except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
-                    reason = ("missing_stock_basic_snapshot" if isinstance(exc, FileNotFoundError)
+                    reason = ("missing_stock_basic_snapshot" if isinstance(exc, DataError) and exc.code == 'missing'
                               else "missing_initial_anchor" if "does not equal first raw bar" in str(exc)
                               else "invalid_stock_basic_snapshot")
                     issues.append(CoverageIssue(code, reason, f"{stock_basic_path}: {exc}"))
@@ -473,9 +440,6 @@ def _load_adjusted_panel(
                               f"{count} row(s); example {bar_issue_examples[(code, reason)]}")
                 for (code, reason), count in sorted(bar_issue_counts.items())
             )
-        for source in source_hashes:
-            if _sha256_file(Path(source.path), read) != source.sha256:
-                issues.append(CoverageIssue("*", "source_changed_during_load", source.path))
         if issues:
             raise AdjustmentCoverageError(tuple(issues), checked_bars=checked_bars)
 
@@ -522,58 +486,11 @@ def _load_dataset(data, query):
     if query.frequency!='daily' or query.price_basis!='adjusted':
         raise ValueError('historical adapter supports daily adjusted signal data only')
     dataset_id=query.dataset
-    folder=data.path('sources',dataset_id,'manifest.json').parent
-    def safe_path(root, name):
-        path=(root / name).resolve()
-        if not path.is_relative_to(root):
-            raise ValueError('historical evidence path escapes snapshot')
-        return path
-    def shared_ref(name):
-        parts=Path(name).parts
-        if not parts or parts[0]!='source':
-            return None
-        if len(parts)<2 or any(part in ('','.','..') for part in parts):
-            raise ValueError('invalid shared source reference')
-        identity=parts[1]
-        relative=Path(*parts[2:]).as_posix() if len(parts)>2 else ''
-        return identity,relative
+    read = data.object
     def source_ref(name):
-        shared=shared_ref(name)
-        if shared is not None:
-            identity,relative=shared
-            if not relative:
-                return data.path('sources',identity,'_').parent, identity, relative
-            return data.path('sources',identity,relative), identity, relative
-        path=safe_path(folder,name)
-        return path, dataset_id, path.relative_to(folder).as_posix()
+        return name, None, None
     def related_name(base, child):
-        if shared_ref(child) is not None:
-            return child
-        _, identity, relative = source_ref(base)
-        parent = Path(relative).parent
-        joined = (parent / child).as_posix()
-        if identity == dataset_id:
-            return joined
-        return f"source/{identity}/{joined}"
-    def read(name):
-        _, identity, relative=source_ref(name)
-        return data.read('sources',identity,relative)
-    def refs_under(directory):
-        shared=shared_ref(directory)
-        if shared is not None:
-            identity,relative=shared
-            prefix=relative.rstrip('/')+'/' if relative else ''
-            return tuple(ref for ref in data.list('sources',identity)
-                         if ref.name.startswith(prefix))
-        prefix=directory.rstrip('/')+'/'
-        return tuple(ref for ref in data.list('sources',dataset_id)
-                     if ref.name.startswith(prefix))
-    def ref_name(directory, name):
-        shared=shared_ref(directory)
-        if shared is not None:
-            identity,_=shared
-            return f"source/{identity}/{Path(name).as_posix()}"
-        return name
+        return child
     manifest=data.manifest(dataset_id)
     overlap=set(manifest.get('fields',{}))&provided
     if overlap: raise ValueError('reserved price fields cannot be redefined: '+', '.join(sorted(overlap)))
@@ -610,12 +527,13 @@ def _load_dataset(data, query):
             raise ValueError('duplicate historical evidence file')
         bound_names.add(ref['file'])
     for name,spec in facts_extra.items():
-        if spec['file'] not in bound_names or not spec['file'].endswith('.parquet'):
-            raise ValueError(f'declared fact file must be a Parquet evidence reference: {name}')
+        if spec['file'] not in bound_names or not spec['file'].startswith('lake:'):
+            raise ValueError(f'declared fact table must be bound as evidence: {name}')
+    prefetched_facts={}
     def evidence(name):
         path, _, _ = source_ref(name)
         if str(path) not in hashes:
-            hashes[str(path)]=sha256(read(name)).hexdigest()
+            hashes[str(path)]=_digest(prefetched_facts[name]) if name in prefetched_facts else data.evidence(name)
             names_by_path[str(path)]=name
         account_files[str(path)]=hashes[str(path)]
         return path
@@ -628,15 +546,15 @@ def _load_dataset(data, query):
         raise ValueError('calendar input must name a calendar file')
     calendar_name=inputs['calendar']
     market_evidence(calendar_name)
-    calendar_payload=json.loads(read(calendar_name))
+    calendar_payload=read(calendar_name)
     calendar, coverage = _calendar_facts(calendar_payload)
     calendar_start=coverage[0][0]
     calendar_end=coverage[-1][1]
     bars_dir=inputs['bars']
     adjustments=inputs['adjustments']
-    factor_dir=adjustments['template'].rsplit('/', 1)[0]
+    factor_dir='fact:adjust:'
     securities=inputs['securities']
-    stock_dir=securities['template'].rsplit('/', 1)[0]
+    stock_dir='fact:security:'
     changes_name=inputs['code_changes']
     policy_name=inputs['account_policy']
     factor_start=date.fromisoformat(adjustments['start'])
@@ -683,51 +601,21 @@ def _load_dataset(data, query):
     sentinel=calendar[end_index+1]
     if not _calendar_covers(coverage, read_start, sentinel):
         raise ValueError('calendar coverage does not cover selected warm-up, interval, and sentinel')
-    external_roots={}
-    for directory in (bars_dir, factor_dir, stock_dir):
-        shared=shared_ref(directory)
-        if shared is not None:
-            identity,_=shared
-            external_roots[identity]=data.path('sources',identity,'_').parent
-    def read_path(path):
-        if path.is_relative_to(folder):
-            identity=dataset_id
-            relative=path.relative_to(folder).as_posix()
-            name=relative
-        else:
-            source_root=data.path('sources','_','_').parents[1]
-            if not path.is_relative_to(source_root):
-                raise ValueError('unbound historical evidence path')
-            relative_path=path.relative_to(source_root)
-            if len(relative_path.parts)<2:
-                raise ValueError('unbound historical evidence path')
-            identity=relative_path.parts[0]
-            relative=Path(*relative_path.parts[1:]).as_posix()
-            name=f'source/{identity}/{relative}'
-        payload=data.read('sources',identity,relative)
-        digest=sha256(payload).hexdigest()
-        hashes[str(path)]=digest
-        names_by_path[str(path)]=name
-        market_files[str(path)]=digest
-        return payload
-    def list_files(directory, pattern):
-        # The published manifest owns the snapshot; hash only the selected inputs.
-        root=Path(directory)
-        return tuple(path for name in bound_names
-                     if (path:=source_ref(name)[0]).is_relative_to(root)
-                     and path.match(pattern))
     selected_symbols=(declared if requested_ids is None and declared else
                       None if requested_ids is None else
                       tuple(symbol.split('.')[-1] for symbol in requested_ids))
     panel=_load_adjusted_panel(
-        source_ref(bars_dir)[0],source_ref(factor_dir)[0],
+        data,dataset_id,
         factor_start=factor_start,factor_end=factor_end,
         code_changes_path=market_evidence(changes_name),stock_basic_dir=source_ref(stock_dir)[0],
         symbols=selected_symbols,date_start=read_start,date_end=read_end,
-        factor_template=Path(adjustments['template']).name,
-        stock_basic_template=Path(securities['template']).name,
-        read=read_path,
-        list_files=list_files)
+        factor_template=adjustments['template'],
+        stock_basic_template=securities['template'],
+        read=read)
+    for item in panel.source_hashes:
+        hashes[item.path]=item.sha256
+        names_by_path[item.path]=item.path
+        market_files[item.path]=item.sha256
     scope = dict(scope)
     scope['calendar_start'] = calendar_start.isoformat()
     scope['calendar_end'] = calendar[-2].isoformat()
@@ -746,10 +634,21 @@ def _load_dataset(data, query):
     coverage_template=inputs['distributions']['template']
     source_events={}; query_keys=set(); observations=[]; facts={}
     selected_codes=tuple(panel.symbols) if query.accounting == 'account' else ()
+    # One batched read replaces a query per (security, year) distribution.
+    dividend_names=tuple(coverage_template.format(symbol=normalize_security_id(code),year=year)
+                         for code in selected_codes
+                         for year in range(read_start.year, actual_end.year + 1))
+    if dividend_names:
+        prefetched_facts.update(data.facts(dividend_names))
+    unfetched=read
+    def read(name):
+        if name in prefetched_facts:
+            return prefetched_facts[name]
+        return unfetched(name)
     for code in selected_codes:
       for year in range(read_start.year, actual_end.year + 1):
         name=coverage_template.format(symbol=normalize_security_id(code),year=year)
-        path=market_evidence(name); payload=json.loads(read(name))
+        path=market_evidence(name); payload=read(name)
         records, _ = validate_facts(payload, kind='dividend',
             code=normalize_security_id(code), start=None, end=None, year=str(year))
         query_keys.add((code,year))
@@ -800,7 +699,7 @@ def _load_dataset(data, query):
                     if (code,distribution_id) not in facts:
                         raise ValueError(f'{name}, record {row}: noncash corporate action requires sourced credit and tax facts')
     policy_file=evidence(policy_name)
-    policy=json.loads(read(policy_name))
+    policy=read(policy_name)
     if policy['schema']!=1 or policy['investor']!='domestic_individual_unrestricted_a_share':
         raise ValueError('unsupported investor account policy')
     for source in policy['sources']:
@@ -828,41 +727,19 @@ def _load_dataset(data, query):
     field_data={}
     if extra:
         import pyarrow as pa
-        import pyarrow.parquet as pq
         field_data={name:np.full(panel.raw_close.shape,np.nan) for name in extra}
         if daily_extra:
-            refs=tuple(ref for ref in refs_under(bars_dir) if ref.name.endswith('.parquet'))
-            files=tuple(source_ref(ref_name(bars_dir,ref.name))[0] for ref in refs)
-            selected_paths=set(_parquet_paths_for_dates(files,panel.calendar[0],panel.calendar[-1]))
             columns=['code','date',*sorted({spec['column'] for spec in daily_extra.values()})]
-            paths=[]
-            for ref in refs:
-                file_name=ref_name(bars_dir, ref.name)
-                path,_,_=source_ref(file_name)
-                if path not in selected_paths:
-                    continue
-                market_evidence(file_name)
-                schema=pq.ParquetFile(path).schema_arrow
-                for name,spec in daily_extra.items():
-                    if spec['column'] not in schema.names:
-                        raise ValueError('declared field column missing: '+name)
-                    kind=schema.field(spec['column']).type
-                    if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
-                        raise ValueError('declared field column must be numeric: '+name)
-                paths.append(str(path))
-            if not paths:
-                raise ValueError('declared daily field has no Parquet source: '+', '.join(daily_extra))
-            code_filter=' WHERE code IN (SELECT * FROM UNNEST(?))' if panel.symbols else ''
-            params=[paths]
-            if panel.symbols: params.append(list(panel.symbols))
-            date_filter=' AND ' if code_filter else ' WHERE '
-            date_filter+='CAST(date AS DATE) BETWEEN ? AND ?'
-            params.extend((panel.calendar[0],panel.calendar[-1]))
-            connection=duckdb.connect()
-            try:
-                table=connection.execute('SELECT '+', '.join(columns)+' FROM read_parquet(?)'+code_filter+date_filter,params).to_arrow_table()
-            finally:
-                connection.close()
+            definition = data.definition(bars_dir[5:])
+            def day_value(day):
+                return day if definition.columns['date'] == 'DATE' else day.isoformat()
+            aliases=sorted({alias for code in panel.symbols for alias in (code,normalize_security_id(code))})
+            table=data.table(bars_dir, columns=columns, filters=(Filter('code','in',aliases),
+                Filter('date','ge',day_value(panel.calendar[0])),Filter('date','le',day_value(panel.calendar[-1]))))
+            for name,spec in daily_extra.items():
+                kind=table.schema.field(spec['column']).type
+                if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
+                    raise ValueError('declared field column must be numeric: '+name)
             codes={normalize_security_id(symbol):i for i,symbol in enumerate(panel.symbols)}
             dates={day:j for j,day in enumerate(panel.calendar)}
             seen=set()
@@ -889,28 +766,31 @@ def _load_dataset(data, query):
             ids=list(codes)
             aliases=list(dict.fromkeys([*ids,*[code.split('.')[-1] for code in ids]]))
             for file_name,names in grouped.items():
-                path,_,_=source_ref(file_name); market_evidence(file_name)
-                schema=pq.ParquetFile(path).schema_arrow
                 columns=set()
                 for name in names:
                     spec=facts_extra[name]
                     columns.update((spec['code'],spec['effective'],spec['known'],spec['column']))
-                    for key in ('code','effective','known','column'):
-                        if spec[key] not in schema.names: raise ValueError(f'declared fact column missing: {name}, {key}')
-                    kind=schema.field(spec['column']).type
+                projected = ', '.join('"' + column.replace('"', '""') + '"' for column in sorted(columns))
+                code_columns=sorted({facts_extra[name]['code'] for name in names})
+                # The filter has to normalize exactly like normalize_security_id:
+                # trim() strips spaces only, so a provider that pads with tabs or
+                # newlines would lose the row before Python ever sees it.
+                blank = r'^\s+|\s+$'
+                def normalized(column):
+                    quoted = '"' + column.replace('"', '""') + '"'
+                    return ("regexp_replace(lower(CAST(" + quoted + " AS VARCHAR)), '"
+                            + blank + "', '', 'g')")
+                conditions = ' OR '.join(normalized(column) + ' IN ?' for column in code_columns)
+                relation = '"' + file_name[5:].replace('"', '""') + '"'
+                table=data.scan(SQLQuery(f'SELECT {projected} FROM {relation} WHERE {conditions} ORDER BY {projected}',
+                                         tuple(aliases for _ in code_columns))).table
+                hashes[file_name] = _digest(table)
+                names_by_path[file_name] = file_name
+                market_files[file_name] = account_files[file_name] = hashes[file_name]
+                for name in names:
+                    kind=table.schema.field(facts_extra[name]['column']).type
                     if not (pa.types.is_integer(kind) or pa.types.is_floating(kind) or pa.types.is_decimal(kind)):
                         raise ValueError('declared fact column must be numeric: '+name)
-                selected=['"'+column.replace('"','""')+'"' for column in sorted(columns)]
-                code_columns=sorted({facts_extra[name]['code'] for name in names})
-                predicate=' OR '.join('lower(trim(CAST("'+column.replace('"','""')
-                                      +'" AS VARCHAR))) IN (SELECT * FROM UNNEST(?))'
-                                      for column in code_columns)
-                connection=duckdb.connect()
-                try:
-                    table=connection.execute('SELECT '+', '.join(selected)+' FROM read_parquet(?) WHERE '+predicate,
-                        [[str(path)], *[aliases for _ in code_columns]]).to_arrow_table()
-                finally:
-                    connection.close()
                 for row in table.to_pylist():
                     normalized_codes={column:normalize_security_id(str(row[column]))
                                       for column in code_columns if row[column] is not None}
@@ -949,11 +829,11 @@ def _load_dataset(data, query):
         if absent and query.accounting != 'research':
             raise ValueError('securities without observations in requested interval: '+', '.join(absent))
         quality={'missing_prices':[],'outside_period':[],'renamed_aliases':[]}
-        changes=json.loads(read(changes_name))['events'] if absent else []
+        changes=read(changes_name)['events'] if absent else []
         for identity in absent:
             name=securities['template'].format(symbol=identity)
             market_evidence(name)
-            records,_=validate_facts(json.loads(read(name)),kind='security',code=identity,start=None,end=None,year=None)
+            records,_=validate_facts(read(name),kind='security',code=identity,start=None,end=None,year=None)
             stock=records[0]
             if stock['listing_date']>actual_end.isoformat() or stock['delisting_date'] and stock['delisting_date']<read_start.isoformat():
                 category='outside_period'
@@ -1019,18 +899,17 @@ def _load_dataset(data, query):
 
 def _prepare_raw_dataset(data, query):
     import pyarrow as pa
-    import pyarrow.parquet as pq
     compare_only = query.purpose == "compare"
-    required = set(query.fields) if compare_only else {"open", "high", "low", "close", "volume", "amount"}
+    required = tuple(query.fields) if compare_only else EXECUTION_FIELDS
     if query.frequency != "daily" or query.price_basis != "raw":
         raise ValueError("raw market queries require daily frequency")
-    if not set(query.fields) <= required:
+    if not set(query.fields) <= set(required):
         raise ValueError("raw market fields must be OHLCVA")
     manifest = data.manifest(query.dataset)
     calendar_name = manifest.get("calendar")
     if not isinstance(calendar_name, str):
         raise ValueError("daily dataset calendar is required")
-    calendar_payload = json.loads(data.read("sources", query.dataset, calendar_name))
+    calendar_payload = data.calendar(query.dataset)
     sessions, coverage = _calendar_facts(calendar_payload)
     if query.start not in sessions or query.end not in sessions:
         raise ValueError("requested interval is outside historical snapshot")
@@ -1067,58 +946,36 @@ def _prepare_raw_dataset(data, query):
     }))
     rows = {}
     source_hashes = {}
-    for ref in manifest["files"]:
-        name = ref["file"]
-        parts = Path(name).parts
-        if not name.endswith(".parquet") or "daily" not in parts:
-            continue
-        daily_index = parts.index("daily")
-        identity = parts[1] if parts[0] == "source" else query.dataset
-        relative = Path(*parts[daily_index:]).as_posix()
-        stem = Path(parts[-1]).stem
-        if stem.isdigit() and len(stem) == 4 and stem not in needed_years:
-            continue
-        payload = data.read("sources", identity, relative)
-        source_hashes[name] = sha256(payload).hexdigest()
-        parquet = pq.ParquetFile(pa.BufferReader(payload))
-        names = set(parquet.schema_arrow.names)
-        if not {"code", "date"} | set(query.fields) <= names:
-            raise ValueError("daily Parquet fields are incomplete")
-        date_type = parquet.schema_arrow.field("date").type
-        date_value = start_value if pa.types.is_date(date_type) else start_value.isoformat()
-        end_value_for_filter = end_value if pa.types.is_date(date_type) else end_value.isoformat()
-        # ``tradestatus`` is an internal integrity input.  It is read only
-        # when the published table provides it; it is never added to the
-        # caller's requested fields or returned in the query result.
-        columns = ["code", "date", *required, *query.fields]
-        if "tradestatus" in names:
-            columns.append("tradestatus")
-        columns = list(dict.fromkeys(columns))
-        table = pq.read_table(
-            pa.BufferReader(payload), columns=columns,
-            filters=[("code", "in", list(read_symbols)),
-                     ("date", ">=", date_value),
-                     ("date", "<=", end_value_for_filter)],
-        )
-        for row in table.to_pylist():
-            key = (normalize_security_id(str(row.get("code"))), str(row.get("date")))
-            if not key[0] or key[0] == "None":
-                raise ValueError("daily row code is required")
-            day = date.fromisoformat(key[1])
-            value = dict(row)
-            if key in rows:
-                previous = rows[key]
-                for field, item in value.items():
-                    if field == 'code':
-                        continue
-                    if previous.get(field) is not None and item is not None and previous[field] != item:
-                        raise ValueError(f'conflicting daily input: {key} {field}')
-                    if previous.get(field) is None:
-                        previous[field] = item
-            else:
-                rows[key] = value
+    reference = manifest['inputs']['bars']
+    definition=data.definition(reference[5:])
+    names=set(definition.columns)
+    if not {'code','date',*query.fields} <= names:
+        raise ValueError('daily table fields are incomplete')
+    columns=list(dict.fromkeys(['code','date',*required,*query.fields,*(['tradestatus'] if 'tradestatus' in names else [])]))
+    date_value=start_value if definition.columns['date']=='DATE' else start_value.isoformat()
+    end_value_for_filter=end_value if definition.columns['date']=='DATE' else end_value.isoformat()
+    table=data.table(reference,columns=columns,filters=(Filter('code','in',read_symbols),
+        Filter('date','ge',date_value),Filter('date','le',end_value_for_filter)))
+    source_hashes[reference]=_digest(table)
+    for row in table.to_pylist():
+        key = (normalize_security_id(str(row.get("code"))), str(row.get("date")))
+        if not key[0] or key[0] == "None":
+            raise ValueError("daily row code is required")
+        day = date.fromisoformat(key[1])
+        value = dict(row)
+        if key in rows:
+            previous = rows[key]
+            for field, item in value.items():
+                if field == 'code':
+                    continue
+                if previous.get(field) is not None and item is not None and previous[field] != item:
+                    raise ValueError(f'conflicting daily input: {key} {field}')
+                if previous.get(field) is None:
+                    previous[field] = item
+        else:
+            rows[key] = value
     if not source_hashes:
-        raise ValueError("daily dataset Parquet files are required")
+        raise ValueError("daily dataset table is required")
     history = {symbol: deque(maxlen=query.history) for symbol in symbols}
     prepared = []
     for column, day in enumerate(run_days):

@@ -1,382 +1,150 @@
-import hashlib
-import json
-import tempfile
-import threading
-import time
-import unittest
+"""The public data port owns managed relations and atomic commits."""
+from datetime import date
+from decimal import Decimal
 from pathlib import Path
+from tempfile import TemporaryDirectory
+import unittest
 from unittest.mock import patch
+
+from market import DataBus
+from protocol import DataError, DataQuery, Filter, TableDef, TableQuery
+from storage import DataStore
 
 
 class DataProtocolTests(unittest.TestCase):
-    def test_manifest_checks_references_without_loading_their_contents(self):
-        from market import DataBus
-        from storage import DataStore
+    def setUp(self):
+        self.folder = TemporaryDirectory()
+        self.store = DataStore(Path(self.folder.name))
+        self.data = DataBus(self.store)
 
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root))
-            bus = DataBus(store)
-            ref = bus.write('sources', 'prices', 'daily/2020.parquet', b'price')
-            manifest = {'schema': 2, 'files': [
-                {'file': 'source/prices/daily/2020.parquet', 'sha256': ref.sha256}],
-                'fields': {}, 'scope': {'symbols': ['600001'], 'universe': 'fixed'}}
-            bus.write('sources', 'fixture', 'manifest.json', json.dumps(manifest).encode())
-            with patch.object(store, 'read', wraps=store.read) as reads:
-                self.assertEqual(bus.manifest('fixture'), manifest)
-            self.assertEqual([call.args for call in reads.call_args_list],
-                             [('sources', 'fixture', 'manifest.json')])
-            bus.delete('sources', 'prices', 'daily/2020.parquet')
-            from protocol import DataError
-            with self.assertRaisesRegex(DataError, 'unbound dataset evidence'):
-                bus.manifest('fixture')
+    def tearDown(self):
+        self.store.close()
+        self.folder.cleanup()
 
-    def test_delete_removes_empty_resource_directories_not_namespace(self):
-        from market import build_data
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            bus.write('sources', 'old', 'nested/file.bin', b'old')
-            bus.delete('sources', 'old', 'nested/file.bin')
-            self.assertFalse((Path(root) / 'data/source/old').exists())
-            self.assertTrue((Path(root) / 'data/source').is_dir())
+    def daily(self):
+        self.data.put_rows('prices', [
+            {'code': 'us.aapl', 'date': '2025-01-02', 'close': 100.0},
+            {'code': 'us.aapl', 'date': '2025-01-03', 'close': 101.0},
+        ], keys=('code', 'date'))
+        self.data.bind('prices', 'bars', 'lake:prices')
+        self.data.save_calendar('prices', {
+            'sessions': ['2025-01-02', '2025-01-03', '2025-01-06'],
+            'coverage': [{'start': '2025-01-02', 'end': '2025-01-06'}],
+        })
+        self.data.save_manifest('prices', {'schema': 3, 'calendar': 'calendar:prices',
+            'inputs': {'bars': 'lake:prices'}, 'fields': {},
+            'scope': {'symbols': ['us.aapl'], 'universe': 'TEST'}})
 
-    def test_fork_does_not_inherit_transaction_ownership_or_reentrant_lock(self):
-        import os
-        from market import DataBus
-        from protocol import DataError
-        from storage import DataStore
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root)); bus = DataBus(store)
-            with patch('storage.os.open', return_value=123), patch('storage.os.close'), patch('storage.fcntl.flock') as flock:
-                with store.namespace_lock('sources'):
-                    with patch('storage.os.getpid', return_value=os.getpid() + 1):
-                        with store.namespace_lock('sources'):
-                            pass
-                self.assertEqual(flock.call_count, 4)
-            # A child must not use its parent's in-progress publication token.
-            with self.assertRaises(DataError):
-                with bus.transaction('sources'):
-                    bus.write('sources', 'one', 'a.bin', b'a')
-                    from contextlib import nullcontext
-                    with patch('market.os.getpid', return_value=os.getpid() + 1), \
-                            patch.object(store, 'namespace_lock', side_effect=lambda _: nullcontext()):
-                        bus.read('sources', 'one', 'a.bin')
+    def test_old_file_and_publication_channels_are_removed(self):
+        for owner in (self.data, self.store):
+            for name in ('path', 'read', 'read_ref', 'list', 'publish', 'namespace_lock'):
+                self.assertFalse(hasattr(owner, name), name)
+
+    def test_query_reads_registered_relation_and_preserves_values(self):
+        self.daily()
+        dataset = self.data.query(DataQuery('prices', date(2025, 1, 2), date(2025, 1, 3),
+            ('close',), 1, 'raw', symbols=('us.aapl',), purpose='compare'))
+        self.assertEqual([record.frame.fields['us.aapl']['close'] for record in dataset.records], [100.0, 101.0])
+        self.assertEqual(dataset.scope['symbols'], ('us.aapl',))
+        self.assertEqual(dataset.calendar[-1], date(2025, 1, 6))
+
+    def test_missing_source_invalid_manifest_and_invalid_query_fail_explicitly(self):
+        with self.assertRaises(DataError):
+            self.data.source('missing')
+        with self.assertRaises(DataError):
+            self.data.manifest('missing')
+        with self.assertRaises(DataError):
+            self.data.query({})
+        self.daily()
+        with self.assertRaises(DataError):
+            self.data.save_manifest('prices', {'schema': 2})
+        with self.assertRaises(DataError):
+            self.data.query(DataQuery('prices', date(2025, 1, 2), date(2025, 1, 3),
+                ('close',), 1, 'raw', symbols=('MSFT',), purpose='compare'))
+
+    def test_multi_table_failure_rolls_back_data_registry_and_schema(self):
+        before = self.data.registry()
+        with self.assertRaises(ValueError):
+            with self.data.transaction():
+                self.data.update_registry(lambda _: {'sources': [{'id': 'new'}]})
+                self.data.put_rows('new_table', [{'id': 1}], keys=('id',))
+                raise ValueError('stop')
+        self.assertEqual(self.data.registry(), before)
+        with self.assertRaises(DataError):
+            self.data.definition('new_table')
 
     def test_nested_failure_cannot_be_hidden_by_outer_transaction(self):
-        from market import DataBus
-        from protocol import DataError
-        from storage import DataStore
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root)); bus = DataBus(store)
+        with self.assertRaises(DataError):
+            with self.data.transaction():
+                self.data.put_rows('new_table', [{'id': 1}], keys=('id',))
+                try:
+                    with self.data.transaction():
+                        raise ValueError('stop')
+                except ValueError:
+                    pass
+        with self.assertRaises(DataError):
+            self.data.definition('new_table')
+
+    def test_sparse_batch_keeps_later_fields_and_absence_does_not_erase(self):
+        self.data.put_rows('records', [{'id': 1, 'v': 1}, {'id': 2, 'v': 2, 'evidence': 'keep'}],
+                           keys=('id',), updates=('v', 'evidence'))
+        self.data.put_rows('records', [{'id': 2, 'v': 3}], keys=('id',), refresh=True)
+        self.assertEqual(self.data.table('lake:records').to_pylist(), [
+            {'id': 1, 'v': 1, 'evidence': None}, {'id': 2, 'v': 3, 'evidence': 'keep'}])
+        self.data.put_rows('records', [{'id': 2, 'evidence': None}], keys=('id',), refresh=True)
+        self.assertIsNone(self.data.table('lake:records').to_pylist()[1]['evidence'])
+
+    def test_registration_and_failed_first_write_are_atomic(self):
+        with self.assertRaises(DataError):
+            self.data.put_rows('bad', [{'id': None, 'v': Decimal('0.1')}],
+                               keys=('id',), types={'id': 'BIGINT'})
+        with self.assertRaises(DataError):
+            self.data.definition('bad')
+        self.data.put_rows('bad', [{'id': 1, 'v': Decimal('12.123456')}], keys=('id',))
+        with self.assertRaises(DataError):
+            self.data.put_rows('bad', [{'id': 2, 'v': Decimal('12.123456')}], keys=('v',))
+        with self.assertRaises(DataError):
+            self.data.put_rows('bad', [{'id': 2, 'v': Decimal('12.123456')}],
+                               keys=('id',), types={'v': 'DOUBLE'})
+        self.assertEqual(self.data.table('lake:bad').num_rows, 1)
+
+    @staticmethod
+    def dividend(value):
+        return {'schema': 1, 'kind': 'dividend', 'code': 'sh.600000',
+                'start': None, 'end': None, 'year': '2025', 'source_hash': '1' * 64,
+                'records': [{'announce_date': '2025-01-02', 'registration_date': '2025-01-03',
+                             'operation_date': '2025-01-06', 'payment_date': '2025-01-06',
+                             'stock_market_date': None, 'cash_per_share': value,
+                             'stock_dividend_per_share': None, 'reserve_to_stock_per_share': None,
+                             'cash_after_tax_text': None}]}
+
+    def test_fact_null_then_decimal_retains_type_and_missing_data_is_not_empty(self):
+        first = self.dividend(None)
+        reference = self.data.save_fact(first)
+        self.assertEqual(self.data.fact(reference), first)
+        second = self.dividend(Decimal('12.123456'))
+        self.data.save_fact(second)
+        self.assertEqual(self.data.fact(reference), second)
+        self.data.delete(TableQuery('fact_dividend'))
+        with self.assertRaises(DataError):
+            self.data.fact(reference)
+
+    def test_explicit_empty_fact_is_valid_and_writes_are_idempotent(self):
+        empty = self.dividend(None)
+        empty['records'] = []
+        reference = self.data.save_fact(empty)
+        self.assertEqual(self.data.fact(reference), empty)
+        self.data.put_rows('records', [{'id': 1, 'v': 'same'}, {'id': 1, 'v': 'same'}], keys=('id',))
+        self.data.put_rows('records', [{'id': 1, 'v': 'same'}], keys=('id',))
+        self.assertEqual(self.data.table('lake:records').num_rows, 1)
+
+    def test_query_rejects_wrong_adapter_result(self):
+        self.daily()
+        query = DataQuery('prices', date(2025, 1, 2), date(2025, 1, 3), ('close',), 1, 'raw', purpose='compare')
+        with patch('market.reader._prepare_dataset', return_value={}):
             with self.assertRaises(DataError):
-                with bus.transaction('sources'):
-                    bus.write('sources', 'one', 'a.bin', b'a')
-                    try:
-                        with bus.transaction('sources'):
-                            raise OSError('second write failed')
-                    except OSError:
-                        pass
-            self.assertTrue(store.publish_states())
-            with self.assertRaises(DataError):
-                bus.read('sources', 'one', 'a.bin')
+                self.data.query(query)
 
-    def test_mixed_market_declared_order_is_preserved_and_duplicate_aliases_rejected(self):
-        from datetime import date
-        from market import DataBus
-        from protocol import DataQuery, DataError
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root, symbols=('000001', '600000'))
-            bus = DataBus(DataStore(root))
-            query = DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
-                              ('open', 'high', 'low', 'close', 'volume', 'amount'),
-                              1, 'adjusted', symbols=('600000',))
-            result = bus.query(query)
-            self.assertEqual(result.scope['symbols'], ('600000',))
-            update_manifest(root, scope={'symbols': ['000001', '600000', 'sh.600000'],
-                                         'universe': 'CN_A_SHARE'})
-            with self.assertRaises(DataError):
-                bus.query(query)
 
-    def test_generic_transaction_starts_only_at_first_write_and_blocks_partial_publication(self):
-        from market import DataBus
-        from protocol import DataError
-        from storage import DataStore
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root)); bus = DataBus(store)
-            with self.assertRaises(ValueError):
-                with bus.transaction('sources'):
-                    raise ValueError('candidate encoding failed')
-            self.assertEqual(store.publish_states(), ())
-            with bus.transaction('sources'):
-                bus.write('sources', 'one', 'a.bin', b'a')
-                bus.write('sources', 'two', 'b.bin', b'b')
-            self.assertEqual(store.publish_states(), ())
-            self.assertEqual(bus.read('sources', 'two', 'b.bin'), b'b')
-            with self.assertRaises(RuntimeError):
-                with bus.transaction('sources'):
-                    bus.write('sources', 'one', 'a.bin', b'changed')
-                    raise RuntimeError('interrupted between files')
-            with self.assertRaises(DataError):
-                DataBus(store).read('sources', 'two', 'b.bin')
-            bus.write('state', 'process', 'event.json', b'{}')
-            self.assertEqual(bus.read('state', 'process', 'event.json'), b'{}')
-
-    def test_query_reads_dataset_from_data_store_without_reader(self):
-        from datetime import date
-        from market import DataBus
-        from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            bus = DataBus(DataStore(root))
-            dataset = bus.query(DataQuery(
-                "fixture", date(2020, 1, 31), date(2020, 2, 4),
-                ("open", "high", "low", "close", "volume", "amount", "signal_close"),
-                20, "adjusted",
-            ))
-            self.assertEqual(dataset.dataset, "fixture")
-            self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
-            manifest = json.loads((root / "data/source/fixture/manifest.json").read_bytes())
-            manifest["files"][0]["sha256"] = "0" * 64
-            (root / "data/source/fixture/manifest.json").write_text(json.dumps(manifest))
-            again = bus.query(DataQuery(
-                "fixture", date(2020, 1, 31), date(2020, 2, 4),
-                ("open", "high", "low", "close", "volume", "amount", "signal_close"),
-                20, "adjusted",
-            ))
-            self.assertEqual(
-                [record.trade_date for record in again.records],
-                [record.trade_date for record in dataset.records],
-            )
-
-    def test_query_rejects_a_dataset_while_publication_is_incomplete(self):
-        from datetime import date
-        from protocol import DataError, DataQuery
-        from market import DataBus
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); make_snapshot(root)
-            bus = DataBus(DataStore(root))
-            manifest = bus.manifest("fixture")
-            bus.begin_publish("fixture")
-            with self.assertRaisesRegex(DataError, "publication is incomplete"):
-                bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                                    ("close",), 20, "adjusted"))
-            bus.write("sources", "fixture", "daily/next.bin", b"new source version")
-            bus.publish("fixture", manifest)
-            dataset = bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                                          ("close",), 20, "adjusted"))
-            self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
-
-    def test_failed_publication_remains_explicitly_unavailable(self):
-        from datetime import date
-        from protocol import DataError, DataQuery
-        from market import DataBus
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); make_snapshot(root)
-            bus = DataBus(DataStore(root)); bus.begin_publish("fixture")
-            bus.write("sources", "fixture", "daily/partial.tmp", b"partial")
-            with self.assertRaisesRegex(DataError, "publication is incomplete"):
-                bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                                    ("close",), 20, "adjusted"))
-
-    def test_shared_source_publication_blocks_a_different_dataset_query(self):
-        from datetime import date
-        from protocol import DataError, DataQuery
-        from market import DataBus
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); make_snapshot(root)
-            bus = DataBus(DataStore(root)); bus.begin_publish("other_dataset")
-            with self.assertRaisesRegex(DataError, "publication is incomplete"):
-                bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                                    ("close",), 20, "adjusted"))
-            self.assertFalse((root / "data/.locks").exists())
-            self.assertTrue((root / "data/source/.locks/source.lock").exists())
-
-    def test_publication_owner_is_bound_to_the_writing_thread(self):
-        from protocol import DataError
-        from market import DataBus
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); bus = DataBus(DataStore(root)); bus.begin_publish("fixture")
-            errors = []
-
-            def write_from_other_thread():
-                for dataset in ("fixture", "other_dataset"):
-                    try:
-                        bus.write("sources", dataset, "daily/partial.bin", b"partial")
-                    except DataError as error:
-                        errors.append(error.code)
-
-            thread = threading.Thread(target=write_from_other_thread)
-            thread.start(); thread.join(2)
-            self.assertEqual(errors, ["dataset_publishing", "dataset_publishing"])
-
-    def test_source_delete_waits_for_the_same_source_lock_as_write(self):
-        from market import DataBus
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root)); bus = DataBus(store)
-            bus.write("sources", "fixture", "daily/old.bin", b"old")
-            deleted = threading.Event()
-            with store.source_lock():
-                thread = threading.Thread(
-                    target=lambda: (bus.delete("sources", "fixture", "daily/old.bin"), deleted.set())
-                )
-                thread.start()
-                time.sleep(0.1)
-                self.assertFalse(deleted.is_set())
-            thread.join(2)
-            self.assertTrue(deleted.is_set())
-
-    def test_unfinished_source_publication_guards_views_and_delete_but_not_state(self):
-        from protocol import DataError
-        from market import DataBus
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); make_snapshot(root)
-            bus = DataBus(DataStore(root))
-            bus.write("state", "jobs", "job.json", b"{}")
-            bus.begin_publish("fixture")
-            errors = []
-
-            def inspect_or_delete(dataset):
-                for operation in (
-                    lambda: bus.read("sources", dataset, "manifest.json"),
-                    lambda: bus.list("sources", dataset),
-                    lambda: bus.path("sources", dataset, "manifest.json"),
-                    lambda: bus.delete("sources", dataset, "manifest.json"),
-                ):
-                    try:
-                        operation()
-                    except DataError as error:
-                        errors.append(error.code)
-
-            thread = threading.Thread(target=inspect_or_delete, args=("fixture",))
-            other = threading.Thread(target=inspect_or_delete, args=("other_dataset",))
-            thread.start(); other.start(); thread.join(2); other.join(2)
-            self.assertEqual(errors.count("dataset_publishing"), 8)
-            bus.delete("state", "jobs", "job.json")
-            with self.assertRaises(DataError):
-                bus.read("state", "jobs", "job.json")
-
-    def test_delete_uses_the_same_identity_checks(self):
-        from market import build_data
-        from protocol import DataError
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            bus.write('state', 'cn_a', 'profile.json', b'{}')
-            bus.delete('state', 'cn_a', 'profile.json')
-            with self.assertRaises(DataError):
-                bus.read('state', 'cn_a', 'profile.json')
-            with self.assertRaises(DataError):
-                bus.delete('state', 'cn_a', '../../outside')
-
-    def test_protocol_is_the_read_write_boundary(self):
-        from market import DataBus
-        from storage import DataStore
-        with tempfile.TemporaryDirectory() as root:
-            bus = DataBus(DataStore(Path(root)))
-            ref = bus.write('sources', 'quotes', 'snapshot.json', b'{"price":10.12}')
-            self.assertEqual(bus.read('sources', 'quotes', 'snapshot.json'), b'{"price":10.12}')
-            self.assertEqual(ref.sha256, hashlib.sha256(b'{"price":10.12}').hexdigest())
-            self.assertEqual(bus.list('sources', 'quotes'), (ref,))
-
-    def test_missing_invalid_and_io_errors_are_distinct(self):
-        from market import DataBus
-        from protocol import DataError
-        from storage import DataStore
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root)); bus = DataBus(store)
-            for args in [('sources', '..', 'x'), ('archive', 'x', 'x')]:
-                with self.assertRaises(DataError) as caught:
-                    bus.read(*args)
-                self.assertEqual(caught.exception.code, 'invalid_identity')
-            with self.assertRaises(DataError) as caught:
-                bus.read('sources', 'quotes', 'missing.json')
-            self.assertEqual(caught.exception.code, 'missing')
-            with patch.object(store, 'write', side_effect=OSError('disk full')):
-                with self.assertRaises(DataError) as caught:
-                    bus.write('state', 'jobs', 'j.json', b'{}')
-                self.assertEqual(caught.exception.code, 'io_failed')
-
-    def test_identity_listing_does_not_read_other_groups(self):
-        from market import DataBus
-        from storage import DataStore
-        with tempfile.TemporaryDirectory() as root:
-            store = DataStore(Path(root)); bus = DataBus(store)
-            bus.write('sources', 'quotes', 'q.json', b'{}')
-            other = store.path('sources', 'large', 'other.json')
-            other.parent.mkdir(parents=True)
-            other.symlink_to(Path(root) / 'outside')
-            self.assertEqual(len(bus.list('sources', 'quotes')), 1)
-
-    def test_dataset_snapshot_and_publish_share_manifest_contract(self):
-        from protocol import DataError
-        from market import build_data
-
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            content = b'price'
-            ref = bus.write('sources', 'dataset', 'daily/bars.parquet', content)
-            manifest = {
-                'schema': 2,
-                'files': [{'file': 'daily/bars.parquet', 'sha256': ref.sha256, 'role': 'market'}],
-                'fields': {},
-                'scope': {'symbols': ['600001'], 'universe': 'fixed_symbols'},
-            }
-
-            published = bus.publish('dataset', manifest)
-
-            self.assertEqual(published.name, 'manifest.json')
-            self.assertEqual(bus.manifest('dataset'), manifest)
-            bus.write('sources', 'dataset', 'daily/bars.parquet', b'changed')
-            self.assertEqual(bus.manifest('dataset'), manifest)
-
-    def test_publish_rejects_unbound_files_and_invalid_scope(self):
-        from protocol import DataError
-        from market import build_data
-
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            for manifest in (
-                {'schema': 2, 'files': [], 'fields': {}, 'scope': {'symbols': [], 'universe': 'fixed'}},
-                {'schema': 2, 'files': [{'file': 'missing.json', 'sha256': '0' * 64, 'role': 'market'}],
-                 'fields': {}, 'scope': {'symbols': ['600001'], 'universe': 'fixed'}},
-            ):
-                with self.subTest(manifest=manifest), self.assertRaises(DataError):
-                    bus.publish('dataset', manifest)
-
-    def test_manifest_can_bind_another_source_identity_without_path_traversal(self):
-        from market import build_data
-
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            ref = bus.write('sources', 'cn_a', 'daily/2025.parquet', b'price')
-            manifest = {
-                'schema': 2,
-                'files': [{'file': 'source/cn_a/daily/2025.parquet',
-                           'sha256': ref.sha256, 'role': 'market'}],
-                'fields': {},
-                'scope': {'symbols': ['600001'], 'universe': 'fixed_symbols'},
-            }
-            bus.write('sources', 'dataset', 'manifest.json',
-                      json.dumps(manifest).encode())
-            self.assertEqual(bus.manifest('dataset'), manifest)
+if __name__ == '__main__':
+    unittest.main()

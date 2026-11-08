@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from backend import Research
 from importlib import import_module
 import json
 from pathlib import Path
@@ -63,8 +64,8 @@ class SearchProtocolTests(unittest.TestCase):
 
             self.assertEqual(message.kind, "problem")
             self.assertEqual(message.data["code"], "search_failed")
-            self.assertFalse(bus.path("runs", "empty-candidate-trial-0001", "manifest.json").exists())
-            failed = json.loads(bus.read("runs", "empty-candidate", "failed.json"))
+            self.assertFalse("empty-candidate-trial-0001" in Research(bus)._ids())
+            failed = Research(bus).rows("run_failures", "empty-candidate")[0]
             self.assertEqual(failed["partial"]["failed_values"], {})
             self.assertEqual(failed["partial"]["trial_index"], 1)
 
@@ -82,7 +83,7 @@ class SearchProtocolTests(unittest.TestCase):
 
             self.assertEqual(message.kind, "problem")
             self.assertEqual(message.data["code"], "search_failed")
-            failed = json.loads(bus.read("runs", "bad-shape", "failed.json"))
+            failed = Research(bus).rows("run_failures", "bad-shape")[0]
             self.assertEqual(
                 failed["partial"]["completed_trials"][0]["run_id"],
                 "bad-shape-trial-0001",
@@ -92,8 +93,8 @@ class SearchProtocolTests(unittest.TestCase):
                 {"fast_window": [], "slow_window": 3},
             )
             self.assertEqual(failed["partial"]["trial_index"], 2)
-            self.assertTrue(bus.path("runs", "bad-shape-trial-0001", "manifest.json").exists())
-            self.assertFalse(bus.path("runs", "bad-shape", "manifest.json").exists())
+            self.assertTrue("bad-shape-trial-0001" in Research(bus)._ids())
+            self.assertFalse("bad-shape" in Research(bus)._ids())
 
     def test_request_accepts_only_the_declared_search_shape(self):
         from protocol import parse_backtest_request
@@ -161,9 +162,9 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertEqual(value["search"]["best_run_id"], value["search"]["trials"][value["search"]["best_index"]]["run_id"])
             self.assertNotIn("validation", value["search"])
             self.assertNotIn("out_of_sample", value["search"])
-            identities = {ref.identity for ref in bus.list("runs")}
+            identities = set(Research(bus)._ids())
             self.assertTrue({"search", "search-trial-0001", "search-trial-0002"} <= identities)
-            manifest = json.loads(bus.read("runs", "search", "manifest.json"))
+            manifest = Research(bus).rows("runs", "search")[0]["manifest"]
             self.assertEqual(manifest["parameters"], value["parameters"])
             runs = await_protocol(protocol, "research.runs", {})
             self.assertIn("search", {item["id"] for item in runs["items"]})
@@ -205,12 +206,12 @@ class SearchProtocolTests(unittest.TestCase):
             self.assertNotIn("validation", value["search"])
             self.assertEqual(value["parameters"], {"fast_window": 1, "slow_window": 3, "exposure": 0})
             self.assertEqual(value["search"]["best_run_id"], "plugin-search-trial-0002")
-            identities = {ref.identity for ref in bus.list("runs")}
+            identities = set(Research(bus)._ids())
             self.assertTrue({
                 "plugin-search", "plugin-search-trial-0001", "plugin-search-trial-0002",
             } <= identities)
-            summary_manifest = json.loads(bus.read("runs", "plugin-search", "manifest.json"))
-            saved_summary = json.loads(bus.read("runs", "plugin-search", "result.json"))
+            summary_manifest = Research(bus).rows("runs", "plugin-search")[0]["manifest"]
+            saved_summary = Research(bus).result("plugin-search")
             from strategy import canonical_hash
             self.assertEqual(summary_manifest["parameters"], value["parameters"])
             self.assertEqual(summary_manifest["config_hash"], value["config_hash"])
@@ -224,9 +225,9 @@ class SearchProtocolTests(unittest.TestCase):
                 saved_summary["provenance"]["config_hash"],
             )
             self.assertEqual(value["search"]["trials"][0]["trial_config_hash"],
-                             json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"])
+                             Research(bus).rows("runs", "plugin-search-trial-0001")[0]["manifest"]["config_hash"])
             self.assertNotEqual(
-                json.loads(bus.read("runs", "plugin-search-trial-0001", "manifest.json"))["config_hash"],
+                Research(bus).rows("runs", "plugin-search-trial-0001")[0]["manifest"]["config_hash"],
                 summary_manifest["config_hash"],
             )
             runs = await_protocol(protocol, "research.runs", {})
@@ -249,7 +250,7 @@ class SearchProtocolTests(unittest.TestCase):
                 )))[0]
                 self.assertEqual(message.kind, "problem")
                 self.assertEqual(message.data["code"], "invalid_request")
-            self.assertEqual(bus.list("runs"), ())
+            self.assertEqual(Research(bus)._ids(), ())
 
     def test_invalid_search_declaration_has_no_run_evidence(self):
         with TemporaryDirectory() as root:
@@ -263,7 +264,7 @@ class SearchProtocolTests(unittest.TestCase):
 
             self.assertEqual(message.kind, "problem")
             self.assertEqual(message.data["code"], "invalid_search")
-            self.assertEqual(bus.list("runs"), ())
+            self.assertEqual(Research(bus)._ids(), ())
             self.assertNotIn("extensions", message.data)
 
     def test_busy_does_not_write_failed_evidence(self):
@@ -287,7 +288,7 @@ class SearchProtocolTests(unittest.TestCase):
                     "dataset_id": "fixture", "start": "2020-01-01",
                     "end": "2020-01-01", "initial_cash": "100",
                 })
-            self.assertEqual(bus.list("runs"), ())
+            self.assertEqual(Research(bus)._ids(), ())
 
     def test_failed_second_trial_keeps_first_trial_and_failure_evidence(self):
         from market import DataBus
@@ -320,10 +321,10 @@ class SearchProtocolTests(unittest.TestCase):
             with self.assertRaises(BacktestError) as caught:
                 port.handle("backtest.run", payload)
             self.assertEqual(caught.exception.code, "search_failed")
-            self.assertEqual(json.loads(bus.read("runs", "failed-search", "failed.json"))["partial"]["completed_trials"][0]["run_id"],
+            self.assertEqual(Research(bus).rows("run_failures", "failed-search")[0]["partial"]["completed_trials"][0]["run_id"],
                              "failed-search-trial-0001")
-            self.assertTrue(bus.path("runs", "failed-search-trial-0001", "manifest.json").exists())
-            self.assertFalse(bus.path("runs", "failed-search", "manifest.json").exists())
+            self.assertTrue("failed-search-trial-0001" in Research(bus)._ids())
+            self.assertFalse("failed-search" in Research(bus)._ids())
 
     def test_protocol_rejects_external_updater_module_and_unknown_search_field(self):
         from protocol import parse_backtest_request

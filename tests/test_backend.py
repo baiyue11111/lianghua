@@ -49,6 +49,44 @@ class EmptyPort:
         return {}
 
 
+class ResearchStorageTests(unittest.TestCase):
+    def test_relational_result_roundtrip_repeat_and_conflict_rollback(self):
+        from types import SimpleNamespace
+        from backend import Research, save_backtest
+        from protocol import DataError
+        from storage import DataStore
+        request = SimpleNamespace(run_id='one', strategy_id='strategy', dataset_id='prices', parameters={})
+        value = dict(id='one', run_id='one', strategy_id='strategy', dataset_id='prices',
+                     first_at='2025-01-02T15:00:00+08:00', last_at='2025-01-03T15:00:00+08:00',
+                     steps=2, fills=1, final_cash='900.000000000000000001',
+                     final_equity='1000.000000000000000001', pending_orders=0,
+                     positions={'600000': '10'}, metrics={'total_return': 0.0},
+                     effective_config={}, parameters={},
+                     equity=[{'at': '2025-01-03', 'equity': 1000.0}],
+                     trades=[dict(order_id='order', symbol='600000', trade_date='2025-01-03',
+                                  side='buy', status='filled', shares=10, price=10.0,
+                                  gross_amount=100.0, commission=0.0, stamp_duty=0.0,
+                                  transfer_fee=0.0, reason=None)],
+                     trace={'fills': [{'symbol': '600000'}], 'pending': []})
+        with TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            try:
+                save_backtest(store, request, value)
+                save_backtest(store, request, value)
+                research = Research(store)
+                self.assertEqual(research.result('one'), value)
+                self.assertEqual(len(research.rows('run_trades', 'one')), 1)
+                self.assertEqual(research.detail('one')['trades'], value['trades'])
+                with self.assertRaises(DataError):
+                    save_backtest(store, request, {**value, 'trades': [dict(value['trades'][0], price=11.0)]})
+                self.assertEqual(research.result('one'), value)
+                store.close()
+                store = DataStore(Path(root))
+                self.assertEqual(Research(store).result('one'), value)
+            finally:
+                store.close()
+
+
 class ProtocolTests(unittest.TestCase):
     def test_extra_limits_are_unlimited_and_lot_size_comes_from_execution(self):
         from core.calculation import AllocationLimits
@@ -324,7 +362,8 @@ class ProtocolTests(unittest.TestCase):
                 "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                 **settlement_payload(),
             })
-            saved = json.loads(bus.read("runs", "one", "result.json"))
+            from backend import Research
+            saved = Research(bus).result('one')
 
         self.assertEqual(result.data["run_id"], "one")
         self.assertEqual(saved["trace"], result.data["trace"])

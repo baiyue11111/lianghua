@@ -1,223 +1,357 @@
-import hashlib
-import multiprocessing
+import os
+import math
+from hashlib import sha256
+from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import threading
-import time
 import unittest
-from pathlib import Path
+from datetime import date
+from decimal import Decimal
 
-
-def hold_source_lock(root, ready, release):
-    from storage import DataStore
-    with DataStore(Path(root)).source_lock():
-        ready.send(True)
-        release.recv()
+import pyarrow as pa
+import pyarrow.parquet as pq
+import duckdb
+from protocol import DataError, Filter, TableDef, TableQuery, TableWrite, SQLQuery
+from storage import DataStore
 
 
 class DataStoreTest(unittest.TestCase):
-    def test_write_returns_the_same_reference_without_reading_the_file_back(self):
-        from storage import DataStore
-        from unittest.mock import patch
+    def setUp(self):
+        self.folder = tempfile.TemporaryDirectory()
+        self.store = DataStore(Path(self.folder.name))
+        self.table = TableDef('prices', {'code': 'VARCHAR', 'day': 'DATE', 'price': 'DECIMAL(20,6)',
+                                        'shares': 'BIGINT'}, ('code', 'day'), ('price',))
+        self.store.define(self.table)
+        self.row = {'code': 'sh.600000', 'day': date(2025, 1, 2), 'price': Decimal('12.123456'),
+                    'shares': 9007199254740993}
 
-        with tempfile.TemporaryDirectory() as directory:
-            store = DataStore(Path(directory))
-            value = b'price\x00\xff' * 1000
-            for kind in ('sources', 'runs', 'state'):
-                with patch.object(store, '_ref', wraps=store._ref) as scans:
-                    first = store.write(kind, 'one', 'record.bin', value)
-                    second = store.write(kind, 'one', 'record.bin', value)
-                self.assertEqual(first, second)
-                self.assertEqual(first.size, len(value))
-                self.assertEqual(first.sha256, hashlib.sha256(value).hexdigest())
-                self.assertEqual(store.read(kind, 'one', 'record.bin'), value)
-                self.assertEqual(store.list(kind, 'one'), (first,))
-                self.assertEqual(scans.call_count, 0)
+    def tearDown(self):
+        self.store.close()
+        self.folder.cleanup()
 
-    def test_folder_query_keeps_names_and_hashes_without_reading_siblings(self):
-        from market import DataBus
-        from storage import DataStore
-        from unittest.mock import patch
+    def test_native_types_and_parquet_persist_after_reopen(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        self.store.close()
+        self.store = DataStore(Path(self.folder.name))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.column_names, list(self.table.columns))
+        self.assertTrue(list((Path(self.folder.name) / 'data/parquet').rglob('*.parquet')))
+        self.assertFalse(hasattr(self.store, 'path'))
 
-        with tempfile.TemporaryDirectory() as directory:
-            store = DataStore(Path(directory))
-            bus = DataBus(store)
-            for kind in ("state", "sources", "runs"):
-                expected = store.write(kind, "fixture", "jobs/nested/one.json", b"{}")
-                store.write(kind, "fixture", "raw/large.bin", b"unrelated")
-                with patch.object(store, "_ref", wraps=store._ref) as read:
-                    self.assertEqual(bus.list(kind, "fixture", "jobs"), (expected,))
-                    self.assertEqual(read.call_count, 1)
-                    self.assertEqual(read.call_args.args[2], "jobs/nested/one.json")
-                self.assertEqual(bus.list(kind, "fixture", "missing"), ())
+    def test_idempotency_and_batch_conflict_are_atomic(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row, self.row])))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 1)
+        different = {**self.row, 'price': Decimal('13')}
+        with self.assertRaises(DataError):
+            self.store.write(TableWrite('prices', pa.Table.from_pylist([different, self.row]), True))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
 
-    def test_folder_query_rejects_escape_and_missing_identity(self):
-        from market import DataBus
-        from protocol import DataError
-        from storage import DataStore
+    def test_refresh_updates_only_registered_columns(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        with self.assertRaises(DataError):
+            self.store.write(TableWrite('prices', pa.Table.from_pylist([{**self.row, 'price': Decimal('13')}] )))
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([{**self.row, 'price': Decimal('13')}] ), True))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist()[0]['price'], Decimal('13'))
+        with self.assertRaises(DataError):
+            self.store.write(TableWrite('prices', pa.Table.from_pylist([{**self.row, 'shares': 1}] ), True))
 
-        with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
-            store = DataStore(project)
-            store.write("state", "collect", "jobs/one.json", b"{}")
-            outside = project / "outside"
-            outside.mkdir()
-            store.path("state", "collect", "link").symlink_to(outside, target_is_directory=True)
-            for identity, folder in ((None, "jobs"), ("collect", "../outside"),
-                                     ("collect", str(outside)), ("collect", "link")):
-                with self.subTest(identity=identity, folder=folder):
-                    with self.assertRaises(ValueError):
-                        store.list("state", identity, folder)
-                    with self.assertRaises(DataError):
-                        DataBus(store).list("state", identity, folder)
+    def test_nested_failure_cannot_commit_other_tables_or_metadata(self):
+        with self.assertRaises(DataError):
+            with self.store.transaction():
+                self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+                try:
+                    with self.store.transaction():
+                        self.store.define(TableDef('second', {'id': 'BIGINT'}, ('id',)))
+                        raise ValueError('stop')
+                except ValueError:
+                    pass
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [])
+        with self.assertRaises(DataError):
+            self.store.definition('second')
 
-    def test_one_root_reads_writes_and_lists_every_format(self):
-        from storage import DataStore
+    def test_shared_writer_serializes_threads(self):
+        other = DataStore(Path(self.folder.name))
+        self.assertIs(self.store, other)
+        failures = []
+        def insert():
+            try:
+                other.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+            except Exception as error:
+                failures.append(error)
+        threads = [threading.Thread(target=insert) for _ in range(4)]
+        for thread in threads: thread.start()
+        for thread in threads: thread.join()
+        self.assertEqual(failures, [])
+        self.assertEqual(other.scan(TableQuery('prices')).table.num_rows, 1)
 
-        with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
-            store = DataStore(project)
-            manifest = b'{"run_id":"r1"}'
-            parquet = b"PAR1fixture"
+    def test_lossy_decimal_and_integer_casts_are_rejected(self):
+        for row in ({**self.row, 'price': Decimal('12.1234567')},
+                    {**self.row, 'shares': 1.5}):
+            with self.assertRaisesRegex(DataError, 'lossy'):
+                self.store.write(TableWrite('prices', pa.Table.from_pylist([row])))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
 
-            first = store.write("runs", "r1", "manifest.json", manifest)
-            second = store.write("sources", "daily", "bars.parquet", parquet)
+    def test_second_process_fails_busy(self):
+        script = "from storage import DataStore; from pathlib import Path; from protocol import DataError; import sys\ntry: DataStore(Path(sys.argv[1]))\nexcept DataError as e: print(e.code); sys.exit(5)"
+        result = subprocess.run([sys.executable, '-c', script, self.folder.name], env=os.environ,
+                                capture_output=True, text=True)
+        self.assertEqual(result.returncode, 5, result.stderr)
+        self.assertIn('storage_busy', result.stdout)
 
-            self.assertEqual(store.root, project.resolve() / "data")
-            self.assertEqual(store.read("runs", "r1", "manifest.json"), manifest)
-            self.assertEqual(first.sha256, hashlib.sha256(manifest).hexdigest())
-            self.assertEqual(first.size, len(manifest))
-            self.assertEqual(first.file, "data/result/r1/manifest.json")
-            self.assertEqual(second.file, "data/source/daily/bars.parquet")
-            self.assertTrue((project / "data/result/r1/manifest.json").is_file())
-            self.assertTrue((project / "data/source/daily/bars.parquet").is_file())
-            self.assertEqual(
-                [(item.identity, item.name) for item in store.list("runs")],
-                [("r1", "manifest.json")],
-            )
-            self.assertEqual(list((project / "data").rglob("*.tmp")), [])
+    def test_structured_filters_delete_and_schema_conflict(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        query = TableQuery('prices', (Filter('shares', 'gt', 9007199254740992),))
+        self.assertEqual(self.store.scan(query).table.to_pylist(), [self.row])
+        self.store.delete(query)
+        self.assertEqual(self.store.scan(query).table.to_pylist(), [])
+        with self.assertRaises(DataError):
+            self.store.define(TableDef('prices', {'id': 'BIGINT'}, ('id',)))
+        with self.assertRaises(DataError):
+            self.store.scan(TableQuery('prices', (Filter('x;drop table', 'eq', 1),)))
 
-    def test_state_is_stored_in_the_independent_project_log_root(self):
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
-            store = DataStore(project)
-            ref = store.write("state", "jobs", "j.json", b"{}")
-            self.assertEqual(ref.file, "log/jobs/j.json")
-            self.assertTrue((project / "log/jobs/j.json").is_file())
-            self.assertFalse((project / "data/log").exists())
-
-    def test_path_rejects_every_escape_segment(self):
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as directory:
-            store = DataStore(Path(directory))
-            for values in (("../runs", "r1", "x"), ("runs", "../r1", "x"), ("runs", "r1", "../x")):
-                with self.subTest(values=values), self.assertRaises(ValueError):
-                    store.path(*values)
-
-    def test_identity_cannot_collapse_a_namespace(self):
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as directory:
-            store = DataStore(Path(directory))
-            for values in (("..", "r1", "x"), ("runs", "..", "x"), ("runs", ".", "x"), ("runs", "r1", ".")):
-                with self.subTest(values=values), self.assertRaises(ValueError):
-                    store.path(*values)
-
-    def test_source_infrastructure_is_not_a_business_identity(self):
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as directory:
-            store = DataStore(Path(directory))
-            store.write("sources", "daily", "bars.parquet", b"bars")
-            with store.source_lock():
-                pass
-            store.begin_publish("daily", "token")
-            hidden = store.root / "source" / ".hiddencontrol"
-            hidden.mkdir()
-            (hidden / "internal.state").write_bytes(b"internal")
-
-            self.assertEqual(store.publish_state("daily"), "token")
-            self.assertEqual(
-                [(item.identity, item.name) for item in store.list("sources")],
-                [("daily", "bars.parquet")],
-            )
-            for identity, name in (
-                (".locks", "source.lock"),
-                (".publish", "daily.state"),
-                (".hiddencontrol", "internal.state"),
-            ):
-                for operation in (
-                    lambda: store.path("sources", identity, name),
-                    lambda: store.read("sources", identity, name),
-                    lambda: store.write("sources", identity, name, b"blocked"),
-                    lambda: store.delete("sources", identity, name),
-                    lambda: store.list("sources", identity),
-                ):
-                    with self.subTest(identity=identity, name=name, operation=operation):
-                        with self.assertRaises(ValueError):
-                            operation()
-
-    def test_identity_symlink_cannot_cross_into_source_infrastructure(self):
-        from market import DataBus
-        from protocol import DataError
-        from storage import DataStore
-
-        with tempfile.TemporaryDirectory() as directory:
-            store = DataStore(Path(directory))
-            with store.source_lock():
-                pass
-            alias = store.root / "source" / "alias"
-            alias.symlink_to(store.root / "source" / ".locks", target_is_directory=True)
-            bus = DataBus(store)
-
-            with self.assertRaises(ValueError):
-                store.path("sources", "alias", "source.lock")
+    def test_native_select_and_unicode_columns_use_the_same_port(self):
+        self.store.define(TableDef('公告 行情', {'证券': 'VARCHAR', '金额': 'DECIMAL(20,6)'}, ('证券',)))
+        self.store.write(TableWrite('公告 行情', pa.Table.from_pylist([
+            {'证券': '600000', '金额': Decimal('12.123456')}])) )
+        result = self.store.scan(SQLQuery('SELECT sum("金额") AS total FROM "公告 行情" WHERE "证券"=?', ('600000',)))
+        self.assertEqual(result.table.to_pylist(), [{'total': Decimal('12.123456')}])
+        for sql in ('DELETE FROM prices', 'SELECT 1; DROP TABLE prices'):
             with self.assertRaises(DataError):
-                bus.path("sources", "alias", "source.lock")
-            with self.assertRaises(DataError):
-                bus.write("sources", "alias", "source.lock", b"blocked")
+                self.store.scan(SQLQuery(sql))
 
-    def test_listing_rejects_symlinks_outside_the_store(self):
-        from storage import DataStore
+    def test_numeric_cast_rejects_loss_in_values_and_keys(self):
+        for sql in ('DOUBLE', 'FLOAT'):
+            for key in (False, True):
+                name = sql.lower() + ('_key' if key else '_value')
+                self.store.define(TableDef(name, {'id': 'BIGINT', 'value': sql},
+                                           ('value',) if key else ('id',)))
+                for value in (Decimal('0.1'), Decimal('9007199254740993.123456')):
+                    with self.subTest(sql=sql, key=key, value=value):
+                        with self.assertRaises(DataError) as caught:
+                            with self.store.transaction():
+                                self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+                                self.store.write(TableWrite(name, pa.table({'id': [1], 'value': [value]})))
+                        self.assertEqual(caught.exception.code, 'invalid_record')
+                        self.assertEqual(self.store.scan(TableQuery(name)).table.num_rows, 0)
+                        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
 
-        with tempfile.TemporaryDirectory() as directory:
-            project = Path(directory)
-            store = DataStore(project)
-            store.write("runs", "r1", "manifest.json", b"{}")
-            outside = project / "secret"
-            outside.write_bytes(b"private")
-            store.path("runs", "r1", "link").symlink_to(outside)
-            with self.assertRaises(ValueError):
-                store.list("runs")
+    def test_float_keys_do_not_collapse_distinct_decimal_keys(self):
+        self.store.define(TableDef('keys', {'value': 'DOUBLE'}, ('value',)))
+        batch = pa.table({'value': [Decimal('9007199254740992'), Decimal('9007199254740993')]})
+        with self.assertRaises(DataError):
+            self.store.write(TableWrite('keys', batch))
+        self.assertEqual(self.store.scan(TableQuery('keys')).table.num_rows, 0)
 
-    def test_source_lock_blocks_another_process_until_release(self):
-        with tempfile.TemporaryDirectory() as directory:
-            context = multiprocessing.get_context("fork")
-            ready_parent, ready_child = context.Pipe()
-            release_parent, release_child = context.Pipe()
-            process = context.Process(target=hold_source_lock,
-                                      args=(directory, ready_child, release_child))
-            process.start()
-            self.assertTrue(ready_parent.recv())
-            acquired = threading.Event()
+    def test_exact_numeric_cast_preserves_null_nan_and_infinity(self):
+        for sql in ('DOUBLE', 'FLOAT'):
+            name = sql.lower()
+            self.store.define(TableDef(name, {'id': 'BIGINT', 'value': sql}, ('id',)))
+            self.store.write(TableWrite(name, pa.table({'id': [1, 2],
+                                                       'value': [Decimal('0.5'), None]})))
+            self.store.write(TableWrite(name, pa.table({'id': [3, 4, 5, 6],
+                                                       'value': [float('nan'), float('inf'), -float('inf'), 1.5]})))
+            values = self.store.scan(TableQuery(name)).table.column('value').to_pylist()
+            self.assertEqual(values[:2], [0.5, None])
+            self.assertTrue(math.isnan(values[2]))
+            self.assertEqual(values[3:], [float('inf'), -float('inf'), 1.5])
+        for value in (1.1, 16777217):
+            with self.subTest(value=value), self.assertRaises(DataError):
+                self.store.write(TableWrite('float', pa.table({'id': [7], 'value': [value]})))
 
-            def acquire():
-                from storage import DataStore
-                with DataStore(Path(directory)).source_lock():
-                    acquired.set()
+    def test_sql_error_preserves_data_error_and_rolls_back_all_tables(self):
+        self.store.define(TableDef('jsons', {'id': 'BIGINT', 'doc': 'JSON'}, ('id',)))
+        for caught_inside in (False, True):
+            with self.subTest(caught_inside=caught_inside):
+                with self.assertRaises(DataError) as outer:
+                    with self.store.transaction():
+                        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+                        self.store.define(TableDef('second', {'id': 'BIGINT'}, ('id',)))
+                        self.store.write(TableWrite('second', pa.table({'id': [1]})))
+                        bad = TableWrite('jsons', pa.table({'id': [1], 'doc': ['{broken']}))
+                        if caught_inside:
+                            with self.assertRaises(DataError) as inner:
+                                self.store.write(bad)
+                            self.assertEqual(inner.exception.code, 'invalid_record')
+                            self.assertIn('Malformed JSON', str(inner.exception))
+                        else:
+                            self.store.write(bad)
+                self.assertEqual(outer.exception.code, 'transaction_failed' if caught_inside else 'invalid_record')
+                if not caught_inside:
+                    self.assertIn('Malformed JSON', str(outer.exception))
+                self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
+                self.assertEqual(self.store.scan(TableQuery('jsons')).table.num_rows, 0)
+                with self.assertRaises(DataError):
+                    self.store.definition('second')
+        self.store.write(TableWrite('jsons', pa.table({'id': [2], 'doc': ['{"ok":true}']})))
+        self.assertEqual(self.store.scan(TableQuery('jsons')).table.num_rows, 1)
 
-            thread = threading.Thread(target=acquire)
-            thread.start()
-            time.sleep(0.1)
-            self.assertFalse(acquired.is_set())
-            release_parent.send(True)
-            thread.join(2)
-            process.join(2)
-            self.assertTrue(acquired.is_set())
-            self.assertEqual(process.exitcode, 0)
+    def test_sql_scan_rejects_ducklake_import_that_writes(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        schema = self.store.scan(TableQuery('prices')).table.schema
+        path = Path(self.folder.name) / 'incoming.parquet'
+        pq.write_table(pa.Table.from_pylist([{**self.row, 'price': Decimal('99')}], schema=schema), path)
+        for sql in ("SELECT * FROM ducklake_add_data_files('lake', 'prices', ?)",
+                    "WITH x AS (SELECT * FROM ducklake_add_data_files('lake', 'prices', ?)) SELECT * FROM x"):
+            with self.subTest(sql=sql), self.assertRaises(DataError) as caught:
+                self.store.scan(SQLQuery(sql, (str(path),)))
+            self.assertEqual(caught.exception.code, 'invalid_query')
+            self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        result = self.store.scan(SQLQuery('SELECT code FROM prices WHERE code IN (SELECT UNNEST(?))',
+                                          ([self.row['code']],)))
+        self.assertEqual(result.table.to_pylist(), [{'code': self.row['code']}])
+
+    def test_sql_scan_cannot_nest_in_write_transaction(self):
+        with self.assertRaises(DataError) as outer:
+            with self.store.transaction():
+                self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+                with self.assertRaises(DataError) as inner:
+                    self.store.scan(SQLQuery('SELECT 1'))
+                self.assertEqual(inner.exception.code, 'transaction_mode')
+        self.assertEqual(outer.exception.code, 'transaction_failed')
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
+        with self.store.transaction(readonly=True):
+            self.assertEqual(self.store.scan(SQLQuery('SELECT 1 AS value')).table.to_pylist(), [{'value': 1}])
+
+    def test_readonly_transaction_rejects_native_insert(self):
+        with self.assertRaises(duckdb.Error):
+            with self.store.transaction(readonly=True):
+                self.store._connection.execute("INSERT INTO lake.main.prices (code, day) VALUES ('sh.600000', DATE '2025-01-02')")
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
+
+    def test_partial_write_preserves_absent_columns_and_can_set_null(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([
+            {'price': Decimal('13.5'), 'day': self.row['day'], 'code': self.row['code']}]), True))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [{**self.row, 'price': Decimal('13.5')}])
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([
+            {'code': self.row['code'], 'day': self.row['day'], 'price': None}]), True))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [{**self.row, 'price': None}])
+        self.store.write(TableWrite('prices', pa.record_batch({'code': ['sh.600001'], 'day': [self.row['day']]})))
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist()[1],
+                         {'code': 'sh.600001', 'day': self.row['day'], 'price': None, 'shares': None})
+        self.store.write(TableWrite('prices', pa.table({'code': [self.row['code']], 'day': [self.row['day']]}), True))
+        with self.assertRaises(DataError) as caught:
+            self.store.write(TableWrite('prices', pa.table({'code': [self.row['code']],
+                                                            'day': [self.row['day']], 'shares': [1]}), True))
+        self.assertEqual(caught.exception.code, 'data_conflict')
+
+    def test_partial_write_rejects_missing_keys_and_extra_columns(self):
+        for batch in (pa.table({'code': ['sh.600000']}),
+                      pa.table({'code': ['sh.600000'], 'day': [self.row['day']], 'extra': [1]}),
+                      pa.table({})):
+            with self.subTest(columns=batch.column_names), self.assertRaises(DataError) as caught:
+                self.store.write(TableWrite('prices', batch))
+            self.assertEqual(caught.exception.code, 'invalid_record')
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
+
+    def test_additive_schema_preserves_columns_values_and_reopen(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        columns = {**self.table.columns, '净"利润': 'DOUBLE', '来源': 'VARCHAR'}
+        extended = TableDef('prices', columns, self.table.keys, (*self.table.updates, '净"利润'))
+        self.store.define(extended)
+        self.store.define(extended)
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(),
+                         [{**self.row, '净"利润': None, '来源': None}])
+        self.store.write(TableWrite('prices', pa.table({'净"利润': [Decimal('0.5')],
+                                                        'day': [self.row['day']], 'code': [self.row['code']]}), True))
+        self.store.close()
+        self.store = DataStore(Path(self.folder.name))
+        result = self.store.scan(TableQuery('prices')).table
+        self.assertEqual(result.column_names, list(columns))
+        self.assertEqual(result.to_pylist(), [{**self.row, '净"利润': 0.5, '来源': None}])
+        self.assertEqual(self.store.definition('prices'), extended)
+
+    def test_additive_schema_rejects_changes_to_old_contract(self):
+        columns = dict(self.table.columns)
+        definitions = [
+            TableDef('prices', {**columns, 'price': 'DOUBLE'}, self.table.keys, self.table.updates),
+            TableDef('prices', dict(reversed(list(columns.items()))), self.table.keys, self.table.updates),
+            TableDef('prices', columns, ('code',), self.table.updates),
+            TableDef('prices', columns, self.table.keys, self.table.updates, True),
+            TableDef('prices', {**columns, 'new': 'BIGINT'}, self.table.keys),
+            TableDef('prices', {**columns, 'new': 'BIGINT'}, self.table.keys, ('price', 'shares')),
+        ]
+        for definition in definitions:
+            with self.subTest(definition=definition), self.assertRaises(DataError) as caught:
+                self.store.define(definition)
+            self.assertEqual(caught.exception.code, 'schema_conflict')
+            self.assertEqual(self.store.definition('prices'), self.table)
+
+    def test_additive_schema_and_metadata_roll_back_on_sql_error(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        self.store.define(TableDef('jsons', {'id': 'BIGINT', 'doc': 'JSON'}, ('id',)))
+        extended = TableDef('prices', {**self.table.columns, '附加': 'BIGINT'}, self.table.keys, self.table.updates)
+        with self.assertRaises(DataError) as caught:
+            with self.store.transaction():
+                self.store.define(extended)
+                self.store.write(TableWrite('jsons', pa.table({'id': [1], 'doc': ['{broken']})))
+        self.assertEqual(caught.exception.code, 'invalid_record')
+        self.assertEqual(self.store.definition('prices'), self.table)
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
+        self.store.close()
+        self.store = DataStore(Path(self.folder.name))
+        self.assertEqual(self.store.definition('prices'), self.table)
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.column_names, list(self.table.columns))
+
+    def test_fingerprint_hashes_typed_rows_and_nulls_in_key_order(self):
+        definition = TableDef('摘要', {'证券': 'VARCHAR', '金额': 'DECIMAL(20,6)', '注释': 'VARCHAR'},
+                              ('证券',), ('金额', '注释'))
+        self.store.define(definition)
+        self.store.write(TableWrite('摘要', pa.Table.from_pylist([
+            {'证券': 'B', '金额': Decimal('1.5'), '注释': '换\n行'},
+            {'证券': 'A', '金额': Decimal('0.5'), '注释': None}])))
+        text = ('[["证券","VARCHAR"],["金额","DECIMAL(20,6)"],["注释","VARCHAR"]]\n'
+                '{"证券":"A","金额":0.500000,"注释":null}\n'
+                '{"证券":"B","金额":1.500000,"注释":"换\\n行"}')
+        before = self.store.fingerprint('摘要')
+        self.assertEqual(before, sha256(text.encode()).hexdigest())
+        with self.store.transaction(readonly=True):
+            self.assertEqual(self.store.fingerprint('摘要'), before)
+        with self.store.transaction():
+            self.store.write(TableWrite('摘要', pa.table({'证券': ['A'], '注释': ['']}), True))
+            self.assertNotEqual(self.store.fingerprint('摘要'), before)
+        changed = self.store.fingerprint('摘要')
+        self.store.close()
+        self.store = DataStore(Path(self.folder.name))
+        self.assertEqual(self.store.fingerprint('摘要'), changed)
+
+    def test_fingerprint_includes_schema_and_ignores_insert_order(self):
+        for name, kind in (('a', 'DOUBLE'), ('b', 'DOUBLE'), ('c', 'DECIMAL(20,6)')):
+            self.store.define(TableDef(name, {'id': 'BIGINT', 'value': kind}, ('id',)))
+        a = self.store.fingerprint('a')
+        self.assertEqual(a, self.store.fingerprint('b'))
+        self.assertNotEqual(a, self.store.fingerprint('c'))
+        for name, ids in (('a', [2, 1]), ('b', [1, 2])):
+            self.store.write(TableWrite(name, pa.table({'id': ids, 'value': [0.5, 0.5]})))
+        self.assertNotEqual(self.store.fingerprint('a'), a)
+        self.assertEqual(self.store.fingerprint('a'), self.store.fingerprint('b'))
+        with self.assertRaises(DataError):
+            self.store.fingerprint('missing')
+
+    def test_fingerprint_covers_all_fields_when_a_column_is_named_row(self):
+        self.store.define(TableDef('items', {'id': 'BIGINT', 'row': 'VARCHAR', 'value': 'BIGINT'},
+                                   ('id',), ('value',)))
+        self.store.write(TableWrite('items', pa.table({'id': [1], 'row': ['same'], 'value': [1]})))
+        before = self.store.fingerprint('items')
+        self.store.write(TableWrite('items', pa.table({'id': [1], 'value': [2]}), True))
+        self.assertNotEqual(self.store.fingerprint('items'), before)
+
+    def test_sql_reads_only_registered_relations_and_scoped_ctes(self):
+        import pyarrow.parquet as pq
+        path = Path(self.folder.name) / 'outside.parquet'
+        pq.write_table(pa.table({'id': [9]}), path)
+        with self.assertRaisesRegex(DataError, 'registered relation'):
+            self.store.scan(SQLQuery(f'SELECT * FROM "{path}"'))
+        rows = self.store.scan(SQLQuery(
+            'WITH selected AS (SELECT * FROM prices) SELECT count(*) AS n FROM selected')).table.to_pylist()
+        self.assertEqual(rows, [{'n': 0}])
+        with self.assertRaisesRegex(DataError, 'registered relation'):
+            self.store.scan(SQLQuery('SELECT * FROM (WITH hidden AS (SELECT 1) SELECT * FROM hidden) t '
+                                     'JOIN hidden USING (x)'))
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
