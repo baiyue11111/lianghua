@@ -772,8 +772,15 @@ def _load_dataset(data, query):
                     columns.update((spec['code'],spec['effective'],spec['known'],spec['column']))
                 projected = ', '.join('"' + column.replace('"', '""') + '"' for column in sorted(columns))
                 code_columns=sorted({facts_extra[name]['code'] for name in names})
-                conditions = ' OR '.join('lower(trim(CAST("' + column.replace('"', '""') + '" AS VARCHAR))) IN ?'
-                                         for column in code_columns)
+                # The filter has to normalize exactly like normalize_security_id:
+                # trim() strips spaces only, so a provider that pads with tabs or
+                # newlines would lose the row before Python ever sees it.
+                blank = r'^\s+|\s+$'
+                def normalized(column):
+                    quoted = '"' + column.replace('"', '""') + '"'
+                    return ("regexp_replace(lower(CAST(" + quoted + " AS VARCHAR)), '"
+                            + blank + "', '', 'g')")
+                conditions = ' OR '.join(normalized(column) + ' IN ?' for column in code_columns)
                 relation = '"' + file_name[5:].replace('"', '""') + '"'
                 table=data.scan(SQLQuery(f'SELECT {projected} FROM {relation} WHERE {conditions} ORDER BY {projected}',
                                          tuple(aliases for _ in code_columns))).table
