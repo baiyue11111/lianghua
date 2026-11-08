@@ -271,7 +271,7 @@ class DataBus:
                           keys=('reference',), refresh=True)
             for kind, entries in grouped.items():
                 name = 'fact_' + kind
-                columns = FACT_NUMERIC[kind]
+                columns = FACT_NUMERIC.get(kind, ())
                 try:
                     self.definition(name)
                     exists = True

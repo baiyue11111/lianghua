@@ -1419,12 +1419,31 @@ class Methods:
             date.fromisoformat(request['end']), fields, identity=source.get('storage_id', source['id'])))
 
     def no_trade(self, manifest):
+        """Read declared whole-session suspensions, never bars.
+
+        Evidence arrives two ways: a no_trade document the dataset declares in
+        its files, and a no_trade relation a collector published. Neither is
+        required, so a dataset that declares neither simply has no no-trade
+        coverage instead of failing every coverage check.
+        """
         dataset = manifest.get('dataset_id')
         if not dataset:
             raise DataError('invalid_manifest', 'no-trade source requires a dataset identity')
+        records = []
         with self.data.transaction(readonly=True):
-            reference = self.data.source(dataset, 'no_trade')
-            return self.data.table(reference).to_pylist()
+            for item in manifest.get('files') or ():
+                reference = str(item.get('file', ''))
+                if not reference.endswith('/no_trade.json'):
+                    continue
+                records.extend(self.data.object(reference).get('records') or ())
+            try:
+                bound = self.data.source(dataset, 'no_trade')
+            except DataError as error:
+                if error.code != 'missing':
+                    raise
+            else:
+                records.extend(self.data.table(bound).to_pylist())
+        return records
 
     def daily_coverage(self, dataset: str, symbols: tuple[str, ...],
                        start: date, end: date, fields: tuple[str, ...], *, identity=None) -> Mapping[str, object]:

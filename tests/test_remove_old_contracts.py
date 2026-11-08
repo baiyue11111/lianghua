@@ -66,7 +66,9 @@ class RemoveOldContractsTests(unittest.TestCase):
         protocol = importlib.import_module("protocol")
         members = protocol.DataPort.__dict__
         self.assertIn("query", members)
-        self.assertIn("read_ref", members)
+        self.assertIn("bind", members)
+        self.assertIn("source", members)
+        self.assertNotIn("read_ref", members)
         self.assertNotIn("_DataStore", protocol.__all__)
 
     def test_fixed_kernel_has_no_run_or_components_export(self):
