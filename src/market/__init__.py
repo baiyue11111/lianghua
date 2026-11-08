@@ -19,6 +19,13 @@ def table_name(value):
     return 'source_' + sha256(value.encode()).hexdigest()[:24]
 
 
+# Fact payload columns that stay numeric in the lake instead of being stored as text.
+FACT_NUMERIC = {'adjust': ('forward', 'backward'),
+                'dividend': ('cash_per_share', 'stock_dividend_per_share',
+                             'reserve_to_stock_per_share'),
+                'security': ()}
+
+
 def fact_ref(kind, code, start=None, end=None, year=None):
     return 'fact:' + ':'.join(quote(str(v), safe='.') if v is not None else ''
                              for v in (kind, code, start, end, year))
@@ -236,42 +243,72 @@ class DataBus:
         return self._settings(rows[0])
 
     def save_fact(self, payload):
-        kind, code, start, end, year = (payload[k] for k in ('kind', 'code', 'start', 'end', 'year'))
-        validate_facts(payload, kind=kind, code=code, start=start, end=end, year=year)
-        reference = fact_ref(kind, code, start, end, year)
+        return self.save_facts((payload,))[0]
+
+    def save_facts(self, payloads, *, batch=2000):
+        """Write many fact payloads in one transaction, one insert per kind.
+
+        A full-market import produces tens of thousands of small payloads. One
+        transaction and one parquet file per payload is what made the legacy
+        import take hours, so payloads are grouped by kind and written in
+        batches inside a single commit.
+        """
+        items = []
+        for payload in payloads:
+            kind, code, start, end, year = (payload[k] for k in ('kind', 'code', 'start', 'end', 'year'))
+            validate_facts(payload, kind=kind, code=code, start=start, end=end, year=year)
+            items.append((fact_ref(kind, code, start, end, year), payload))
+        if not items:
+            return ()
+        grouped = {}
+        for reference, payload in items:
+            grouped.setdefault(payload['kind'], []).append((reference, payload['records']))
         with self.transaction():
-            self.put_rows('fact_coverage', [{k: payload[k] for k in ('kind','code','start','end','year','source_hash')} | {
-                'reference': reference, 'record_count': len(payload['records'])}], keys=('reference',), refresh=True)
-            name = 'fact_' + kind
-            rows = [{'reference': reference, 'position': i, **row} for i, row in enumerate(payload['records'])]
-            numeric = {'adjust': ('forward', 'backward'),
-                       'dividend': ('cash_per_share', 'stock_dividend_per_share', 'reserve_to_stock_per_share'),
-                       'security': ()}[kind]
-            types = {column: 'VARCHAR' for row in rows for column in row
-                     if column not in {'position', *numeric}}
-            types['position'] = 'BIGINT'
-            if numeric:
-                types['_numeric_types'] = 'JSON'
-                types.update({column: 'DECIMAL(38,18)' for column in numeric})
-                for row in rows:
-                    row['_numeric_types'] = {column: type(row[column]).__name__ for column in numeric
-                                             if row[column] is not None}
-                    for column in numeric:
-                        if row[column] is not None:
-                            row[column] = Decimal(str(row[column]))
-            try:
-                definition = self.definition(name)
-            except DataError as error:
-                if error.code != 'missing_table':
-                    raise
-                definition = None
-            if rows:
-                if definition is not None:
-                    self.delete(TableQuery(name, (Filter('reference', 'eq', reference),)))
-                self.put_rows(name, rows, keys=('reference', 'position'), types=types)
-            elif definition is not None:
-                self.delete(TableQuery(name, (Filter('reference', 'eq', reference),)))
-        return reference
+            self.put_rows('fact_coverage',
+                          [{k: payload[k] for k in ('kind', 'code', 'start', 'end', 'year', 'source_hash')}
+                           | {'reference': reference, 'record_count': len(payload['records'])}
+                           for reference, payload in items],
+                          keys=('reference',), refresh=True)
+            for kind, entries in grouped.items():
+                name = 'fact_' + kind
+                columns = FACT_NUMERIC[kind]
+                try:
+                    self.definition(name)
+                    exists = True
+                except DataError as error:
+                    if error.code != 'missing_table':
+                        raise
+                    exists = False
+                for start in range(0, len(entries), batch):
+                    chunk = entries[start:start + batch]
+                    if exists:
+                        self.delete(TableQuery(name, (Filter('reference', 'in',
+                                                             [reference for reference, _ in chunk]),)))
+                    rows, types = self._fact_rows(chunk, columns)
+                    if rows:
+                        self.put_rows(name, rows, keys=('reference', 'position'), types=types)
+        return tuple(reference for reference, _ in items)
+
+    @staticmethod
+    def _fact_rows(entries, numeric):
+        """Build the fact rows and their declared column types for one batch."""
+        rows = []
+        for reference, records in entries:
+            for position, record in enumerate(records):
+                rows.append({'reference': reference, 'position': position, **record})
+        types = {column: 'VARCHAR' for row in rows for column in row
+                 if column not in {'position', *numeric}}
+        types['position'] = 'BIGINT'
+        if numeric:
+            types['_numeric_types'] = 'JSON'
+            types.update({column: 'DECIMAL(38,18)' for column in numeric})
+            for row in rows:
+                row['_numeric_types'] = {column: type(row[column]).__name__ for column in numeric
+                                         if row[column] is not None}
+                for column in numeric:
+                    if row[column] is not None:
+                        row[column] = Decimal(str(row[column]))
+        return rows, types
 
     def fact(self, reference):
         payloads = self.facts((reference,), strict=True)

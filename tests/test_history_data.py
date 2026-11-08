@@ -251,7 +251,10 @@ class HistoricalDataTests(unittest.TestCase):
             make_snapshot(root, symbols=('600003', '600004'))
             with fixture_data(root) as data:
                 reference = data.source('fixture', 'bars')
-                data.delete(TableQuery(reference[5:], (Filter('code', 'eq', '600004'),)))
+                # Prices are stored under their normalized identity, so the
+                # removal has to name the row the way the import wrote it.
+                data.delete(TableQuery(reference[5:],
+                                       (Filter('code', 'eq', normalize_security_id('600004')),)))
                 request = DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4), FIELDS, 3,
                     'adjusted', symbols=('600003', '600004'), tax='none', accounting='research')
                 result = data.query(request)

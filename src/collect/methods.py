@@ -1395,12 +1395,16 @@ class Methods:
     def save_facts(self, dataset, manifest, outputs, *, end=None):
         updated = deepcopy(manifest)
         updated.pop('files', None)
+        payloads = []
         for reference, raw, fact, task in outputs:
-            self.data.save_fact(fact)
+            payloads.append(fact)
             self.log({'dataset': dataset, 'fact': reference, 'raw': raw})
             if task.kind == 'dividend':
                 _put_config(self.data, 'coverage', task.key,
                             {'end': end, 'sha256': _sha256(fact)})
+        # One grouped write: a transaction and a parquet file per payload is what
+        # made a full-market fact collection take hours.
+        self.data.save_facts(payloads)
         self.data.save_manifest(dataset, updated)
         return updated
 
