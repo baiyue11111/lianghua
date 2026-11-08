@@ -396,11 +396,10 @@ class SettlementFlowTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'failed'):
             settlement.plan(None, 'breadth_low_amount_reversal')
 
-    def test_failed_trace_is_saved_under_the_failed_json_path(self):
-        import json
+    def test_failed_trace_is_saved_in_the_run_failure_table(self):
         from tempfile import TemporaryDirectory
 
-        from backend import save_failed_backtest
+        from backend import Research, save_failed_backtest
         from protocol import BacktestError, BacktestRequest
         from market import build_data
 
@@ -414,10 +413,12 @@ class SettlementFlowTests(unittest.TestCase):
         )
         error = BacktestError('run_failed', 'bad historical day')
         with TemporaryDirectory() as root:
-            value = save_failed_backtest(build_data(Path(root)), request.run_id, error, partial)
-            self.assertEqual(value, 'data/result/failed-trace/failed.json')
-            saved = json.loads((Path(root) / value).read_text())
-        self.assertEqual(saved['status'], 'failed')
+            data = build_data(Path(root))
+            value = save_failed_backtest(data, request.run_id, error, partial)
+            self.assertEqual(value, 'lake:run_failures/failed-trace')
+            saved = Research(data).rows('run_failures', 'failed-trace')[0]
+        self.assertEqual(saved['code'], 'run_failed')
+        self.assertEqual(saved['detail'], 'bad historical day')
         self.assertEqual(saved['partial']['equity'][0]['day'], '2020-01-31')
         self.assertEqual(saved['partial']['equity'][0]['cash'], '100000')
         self.assertEqual(saved['partial']['holdings'][0][1], [])
