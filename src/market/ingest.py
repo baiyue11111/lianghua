@@ -17,11 +17,24 @@ import pyarrow as pa
 from .xlsx_matrix import iter_sheet_rows
 
 
+# The source archive spells the same instrument two ways: 2003-2012 files carry a
+# market prefix ("sh.600036") and 2013+ files carry the bare six-digit code. Price
+# rows are stored under the identity normalize_security_id would produce, so one
+# instrument is one key and a long history does not split across two of them.
+CODE_IDENTITY = ("CASE"
+                 " WHEN regexp_matches(lower(trim(code)), '^[a-z][a-z0-9_-]{0,7}\\.')"
+                 " THEN lower(trim(code))"
+                 " WHEN left(lower(trim(code)), 1) = '6' THEN 'sh.' || lower(trim(code))"
+                 " WHEN regexp_matches(lower(trim(code)), '^(000|001|002|003|300|301|302)')"
+                 " THEN 'sz.' || lower(trim(code))"
+                 " ELSE lower(trim(code)) END")
+
+
 def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=None, end=None):
     """Explicit offline import. Runtime readers never inspect this source tree."""
     from copy import deepcopy
     from market import table_name, fact_ref
-    from protocol import DataError, normalize_security_id
+    from protocol import DataError, Filter, TableQuery, normalize_security_id
     import duckdb
 
     root = Path(project).resolve() / 'data' / 'source'
@@ -31,6 +44,7 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
     converted = {}
     counts = {}
     connection = duckdb.connect(config={'threads': '4'})
+    pending_facts = []
 
     def source_path(dataset, name):
         candidate = (root.parent / name) if name.startswith('source/') else (root / dataset / name)
@@ -42,9 +56,11 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
     def import_table(identity, kind, paths, keys, *, price=False):
         name = table_name(f'{identity}/{kind}')
         relation = connection.read_parquet([str(path) for path in paths], union_by_name=True)
+        if price:
+            relation = relation.query('prices',
+                                      'SELECT * EXCLUDE ("code"), ' + CODE_IDENTITY + ' AS code FROM prices')
         if price and requested is not None:
-            aliases = sorted(requested | {code.split('.')[-1] for code in requested})
-            connection.register('_codes', pa.table({'code': aliases}))
+            connection.register('_codes', pa.table({'code': sorted(requested)}))
             relation = relation.filter('code IN (SELECT code FROM _codes)')
         if price and start is not None:
             relation = relation.filter("CAST(date AS DATE) >= DATE '" + date.fromisoformat(str(start)).isoformat() + "'")
@@ -59,6 +75,16 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
             count += table.num_rows
         if not count:
             raise DataError('missing', f'import table is empty: {identity}/{kind}')
+        if price and requested is not None:
+            # A narrowed import replaces the dataset's price table, it does not
+            # merge into it. Rows left over from a wider earlier import would
+            # stay in the lake while the manifest says they are not there, so
+            # the next reader inherits prices the scope denies.
+            present = {row['code'] for row in
+                       data.scan(TableQuery(name, columns=('code',))).table.to_pylist()}
+            stale = sorted(present - requested)
+            if stale:
+                data.delete(TableQuery(name, (Filter('code', 'in', stale),)))
         reference = 'lake:' + name
         data.bind(identity, kind, reference)
         counts[f'{identity}/{kind}'] = count
@@ -79,7 +105,10 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
         elif path.suffix == '.json':
             value = json.loads(path.read_text())
             if isinstance(value, dict) and value.get('schema') == 1 and value.get('kind') in ('adjust', 'security', 'dividend', 'no_trade'):
-                reference = data.save_fact(value)
+                # Deferred: one grouped write replaces a transaction per payload.
+                pending_facts.append(value)
+                reference = fact_ref(value['kind'], value['code'],
+                                     value['start'], value['end'], value['year'])
             elif path.name == 'calendar.json':
                 data.save_calendar(dataset, value)
                 reference = 'calendar:' + dataset
@@ -165,9 +194,19 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
                 manifest['files'] = refs
                 manifest['schema'] = 3
                 if requested is not None:
-                    manifest['scope']['symbols'] = sorted(code for code in manifest['scope']['symbols']
-                                                          if normalize_security_id(code) in requested)
+                    declared = manifest['scope']['symbols']
+                    kept = sorted(code for code in declared if normalize_security_id(code) in requested)
+                    # The narrowed scope is what the data really holds; record the
+                    # shortfall so a later reader does not mistake it for the market.
+                    manifest['scope']['symbols'] = kept
+                    dropped = len(declared) - len(kept)
+                    if dropped:
+                        limitations = list(manifest.get('limitations') or ())
+                        limitations.append(
+                            f'partial import: {len(kept)} of {len(declared)} declared symbols present')
+                        manifest['limitations'] = limitations
                 data.save_manifest(identity, manifest)
+            data.save_facts(pending_facts)
         return counts
     finally:
         connection.close()

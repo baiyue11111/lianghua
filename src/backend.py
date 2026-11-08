@@ -157,13 +157,18 @@ class Benchmarks:
             from datetime import datetime, time
             from zoneinfo import ZoneInfo
             requested_code = normalize_security_id(spec["code"])
+            manifest = self.store.manifest(dataset_id)
+            declared = {normalize_security_id(str(code))
+                        for code in (manifest.get('scope') or {}).get('symbols') or ()}
+            if declared and requested_code not in declared:
+                raise ValueError(f'基准 {identity} 需要 {requested_code} 的行情，'
+                                 f'数据集 {dataset_id} 未包含；先导入该基准数据，或改用已导入的基准')
             first, last = date.fromisoformat(str(start)), date.fromisoformat(str(end))
             if spec.get('alignment') not in (None, 'previous_close'):
                 raise ValueError('unsupported benchmark date alignment')
             aligned = spec.get('alignment') == 'previous_close'
             observed = None
             if aligned:
-                manifest = self.store.manifest(dataset_id)
                 calendar = self.store.calendar(dataset_id)
                 sessions = [date.fromisoformat(day) for day in calendar['sessions']]
                 source_zone, target_zone = ZoneInfo(spec['timezone']), ZoneInfo(spec['comparison_timezone'])
