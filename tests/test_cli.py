@@ -12,7 +12,7 @@ protocol=importlib.import_module('frontend.ui-protocol')
 
 class CliTest(unittest.TestCase):
     def test_help_and_empty_args(self):
-        for values in ([],['--help'],['ingest','--help']):
+        for values in ([],['--help']):
             with contextlib.redirect_stdout(io.StringIO()):
                 try: result=cli.main(values)
                 except SystemExit as exc: result=exc.code
@@ -20,12 +20,13 @@ class CliTest(unittest.TestCase):
 
     def test_all_commands_become_actions_without_calling_business_services(self):
         parser=cli.build_parser()
-        commands=[['--backtest','x.json'],['ingest','--price','p','--fundamentals','f','--valuations','v','--output','o']]
-        for values in commands:
+        commands=[(['--backtest','x.json'],'cli.backtest',{'config':'x.json'}),
+                  (['--collect','沪深:latest','--data','daily'],'cli.collect',None)]
+        for values,operation,expected in commands:
             action=cli.to_action(parser.parse_args(values))
             self.assertEqual(action.kind,'invoke')
-            self.assertEqual(action.operation,'cli.backtest' if values[0]=='--backtest' else 'cli.'+values[0])
-            if values[0]=='--backtest': self.assertEqual(action.data,{'config':'x.json'})
+            self.assertEqual(action.operation,operation)
+            if expected is not None: self.assertEqual(action.data,expected)
             protocol.parse_wire('UiAction',action.to_dict())
 
     def test_unimplemented_report_command_is_not_advertised(self):
@@ -38,9 +39,11 @@ class CliTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             cli.build_parser().parse_args(['run','--config','x.json'])
 
-    def test_backtest_cannot_silently_ignore_ingest(self):
+    def test_retired_ingest_subcommand_is_rejected(self):
         with self.assertRaises(SystemExit):
-            cli.main(['--backtest','x.json','ingest','--price','p','--fundamentals','f','--valuations','v','--output','o'])
+            cli.build_parser().parse_args(['ingest','--price','p','--fundamentals','f','--valuations','v','--output','o'])
+        with self.assertRaises(SystemExit):
+            cli.main(['--backtest','x.json','ingest','--price','p'])
 
     def test_cli_does_not_import_business_assembly(self):
         root=Path(__file__).resolve().parents[1]

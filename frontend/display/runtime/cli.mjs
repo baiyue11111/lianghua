@@ -9051,99 +9051,24 @@ var collect = async (raw, { call, progress, signal }) => {
   if (!duration) throw Error("interval \u9700\u8981\u6B63\u6570\u548C\u5355\u4F4D s\u3001m\u3001h \u6216 d");
   const interval = Number(duration[1]) * { s: 1, m: 60, h: 3600, d: 86400 }[duration[2]] * 1e3;
   if (!Number.isSafeInteger(interval) || interval > 2147483647) throw Error("interval \u8D85\u51FA\u8303\u56F4");
-  const registry = await call("collection.describe", {});
-  const markets = registry.markets.filter((m) => [m.scope, m.name, ...m.aliases ?? []].includes(name));
-  if (markets.length !== 1) throw Error("\u5E02\u573A\u672A\u552F\u4E00\u767B\u8BB0\uFF1A" + name);
-  const market = markets[0];
-  if (typeof market.timezone !== "string" || !market.timezone) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u65F6\u533A");
-  if (command === "status") return { market: market.scope, sources: await call("collection.sources", {}) };
-  const spec = market.collect;
-  if (!spec?.data) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u6536\u96C6\u6570\u636E\u6E90");
-  let types = items(values.data);
-  if (!types.length) types = spec.default ?? [];
-  if (types.length === 1 && types[0] === "all") types = Object.keys(spec.data);
-  if (!types.length || types.some((kind) => !spec.data[kind])) throw Error("\u6570\u636E\u7C7B\u578B\u672A\u767B\u8BB0");
-  const source = (id) => {
-    const found = registry.sources.find((s) => s.id === id);
-    if (!found) throw Error("\u6570\u636E\u6E90\u672A\u767B\u8BB0\uFF1A" + id);
-    return found;
-  };
-  const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: market.timezone, year: "numeric", month: "2-digit", day: "2-digit" }).format(/* @__PURE__ */ new Date());
+  const request = { market: name, command: command === "auto" ? "latest" : command };
+  for (const field of ["data", "codes", "fields"]) if (values[field] !== void 0) request[field] = items(values[field]);
+  for (const field of ["start", "end", "refresh"]) if (values[field] !== void 0) request[field] = values[field];
   if (values.start) {
     day(values.start);
     day(values.end);
-    if (values.start > values.end || values.end > today()) throw Error("\u65E5\u671F\u5E94\u6709\u5E8F\u4E14\u4E0D\u665A\u4E8E\u4ECA\u5929");
+    if (values.start > values.end) throw Error("\u65E5\u671F\u5E94\u6709\u5E8F");
   }
-  const requested = items(values.codes);
-  const codes = async () => {
-    if (spec.codes) return spec.codes;
-    const binding = spec.securities;
-    if (!binding) throw Error("\u5E02\u573A\u672A\u767B\u8BB0\u8BC1\u5238\u76EE\u5F55\uFF0C\u8BF7\u63D0\u4F9B codes");
-    source(binding.source);
-    if (command !== "check") {
-      const input2 = { source_id: binding.source, refresh: true };
-      if (binding.exchanges !== void 0) input2.exchanges = binding.exchanges;
-      await call("collection.run", input2);
-    }
-    let rows = [], offset = 0;
-    while (true) {
-      const page = await call("collection.snapshot", { id: binding.source, offset });
-      rows.push(...page.records);
-      offset += page.records.length;
-      if (offset >= page.total || !page.records.length) break;
-    }
-    const exchanges = /* @__PURE__ */ new Set();
-    const result = rows.filter((row) => {
-      if (Object.entries(binding.filters ?? {}).some(([field, allowed]) => !allowed.includes(row[field]))) return false;
-      const code = row[binding.code];
-      if (typeof code !== "string") throw Error("\u76EE\u5F55\u7F3A\u5C11\u8BC1\u5238\u4EE3\u7801");
-      if (market.code_pattern && !new RegExp("^(?:" + market.code_pattern + ")$").test(code)) return false;
-      exchanges.add(code.split(".")[0]);
-      const opened = row[binding.from], closed = row[binding.to];
-      return !(opened && opened > (values.end ?? today()) || closed && (values.start ? closed < values.start : command !== "doctor"));
-    }).map((row) => row[binding.code]);
-    if ((binding.exchanges ?? []).some((exchange) => !exchanges.has(exchange))) throw Error("\u8BC1\u5238\u76EE\u5F55\u7F3A\u5C11\u767B\u8BB0\u7684\u4EA4\u6613\u6240");
-    return [...new Set(result)].sort();
-  };
   const cycle = async () => {
-    const plans = [], jobs = [];
-    let marketCodes;
-    for (const kind of types) {
-      if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
-      const binding = spec.data[kind];
-      source(binding.source);
-      const selected = binding.codes ?? (requested.length ? requested : marketCodes ??= await codes());
-      if (!selected.length) throw Error("\u533A\u95F4\u5185\u6CA1\u6709\u8BC1\u5238");
-      let start = values.start, end = values.end;
-      if (!start && command !== "doctor") {
-        const stored = await call("collection.inspect", { source_id: binding.source, codes: selected });
-        if (!stored.last_date) throw Error("\u6CA1\u6709\u5DF2\u5B58\u6570\u636E\uFF0C\u8BF7\u7528 range \u6307\u5B9A start \u548C end");
-        start = stored.last_date;
-        end = today();
-      }
-      const request = { source_id: binding.source, ...start ? { start, end } : {} };
-      if (values.fields) request.fields = items(values.fields);
-      const size = command === "doctor" || spec.batch_size === void 0 ? selected.length : spec.batch_size;
-      if (!Number.isSafeInteger(size) || size < 1) throw Error("\u5E02\u573A\u6536\u96C6\u6279\u91CF\u8BBE\u7F6E\u65E0\u6548");
-      for (let offset = 0; offset < selected.length; offset += size) {
-        if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
-        const batch = { ...request, codes: selected.slice(offset, offset + size) };
-        if (command === "check") {
-          const result = await call("collection.inspect", batch);
-          plans.push({ data: kind, request: batch, coverage: result.coverage });
-        } else {
-          if (values.refresh || ["latest", "auto"].includes(command)) Object.assign(batch, { refresh: true, ...command === "doctor" ? {} : { force: true } });
-          jobs.push(await call(command === "doctor" ? "collection.doctor" : "collection.run", batch));
-          if (selected.length > size) progress({ market: market.scope, data: kind, status: "running", completed: Math.min(offset + size, selected.length), total: selected.length });
-        }
-      }
-    }
-    return command === "check" ? { market: market.scope, status: plans.every((p) => p.coverage.complete) ? "complete" : "incomplete", plans } : { market: market.scope, status: "succeeded", jobs };
+    if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
+    const result = await call("collection.run", request);
+    if (command === "auto" || result.status === "failed") progress(result);
+    if (result.status === "failed") throw Error(result.error ?? "\u6536\u96C6\u5931\u8D25");
+    return result;
   };
   do {
     const result = await cycle();
     if (command !== "auto") return result;
-    progress(result);
     await new Promise((resolve, reject) => {
       const abort = () => {
         clearTimeout(timer);
@@ -9225,12 +9150,11 @@ var defs = {
   "data.check": { input: object2(), poll: 3e3 },
   "collection.repair": { input: object2({ id: text }), mode: "write" },
   "collection.repair_job": { input: object2(), poll: 1e3 },
-  "cli.ingest": { input: object2({ price: text, fundamentals: text, valuations: text, output: text, max_symbols: { anyOf: [integer, { type: "null" }] }, price_part: { anyOf: [{ type: "array", items: integer }, { type: "null" }] } }), mode: "write" },
   "cli.backtest": { input: object2({ config: text }), mode: "write" },
   "collection.describe": { input: object2() },
   "collection.inspect": { input: object2({ source_id: text, codes: { type: "array", items: text }, start: text, end: text, fields: { type: "array", items: text } }, ["source_id"]) },
   "collection.doctor": { input: object2({ source_id: text, codes: { type: "array", items: text, minItems: 1 }, start: text, end: text, refresh: boolean }, ["source_id", "codes"]), mode: "write" },
-  "collection.run": { input: { type: "object", required: ["source_id"], properties: { source_id: text }, additionalProperties: true }, mode: "write" },
+  "collection.run": { input: { oneOf: [object2({ market: text, command: { enum: ["range", "latest", "check", "doctor", "status"] }, data: { type: "array", items: text }, codes: { type: "array", items: text }, fields: { type: "array", items: text }, start: text, end: text, refresh: boolean }, ["market", "command"]), { type: "object", required: ["source_id"], properties: { source_id: text }, not: { required: ["market"] }, additionalProperties: true }] }, mode: "write" },
   "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, interval: text, refresh: boolean }, ["selector"]), mode: "write" }
 };
 var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;

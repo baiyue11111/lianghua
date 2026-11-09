@@ -30,7 +30,7 @@ class FrontendLayoutTests(unittest.TestCase):
 
     def test_entries_have_no_business_channel(self):
         source=(ROOT/"frontend"/"cli.py").read_text()
-        for name in ("from application", "from data", "run_backtest", "ingest_exploratory"):
+        for name in ("from application", "from data", "run_backtest"):
             self.assertNotIn(name,source)
         for path in (WEB/"src").rglob("*.tsx"):
             if "components" in path.parts or "hooks" in path.parts:

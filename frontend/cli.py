@@ -19,19 +19,6 @@ def build_parser() -> argparse.ArgumentParser:
         description="可审计的 A 股研究与回测工具。",
         epilog="示例：lianghua --backtest config.json",
     )
-    commands = parser.add_subparsers(dest="command")
-    ingest = commands.add_parser(
-        "ingest",
-        help="把原始行情、基本面和估值文件整理为研究数据。",
-        description="把原始行情、基本面和估值文件整理为研究数据。",
-        epilog="示例：lianghua ingest --price prices.xlsx --fundamentals fundamentals.xlsx --valuations valuations.xlsx --output data/exploratory",
-    )
-    ingest.add_argument("--price", type=Path, required=True, help="raw_prices_matrix.xlsx or 完整全股池2014-2025.zip")
-    ingest.add_argument("--fundamentals", type=Path, required=True)
-    ingest.add_argument("--valuations", type=Path, required=True, help="valuation workbook or the complete data zip")
-    ingest.add_argument("--output", type=Path, required=True)
-    ingest.add_argument("--max-symbols", type=int)
-    ingest.add_argument("--price-part", type=int, action="append", help="process only this 0-based zip price part; repeatable")
     parser.add_argument("--backtest", type=Path, help="直接读取一个 backtest JSON 配置")
     parser.add_argument("--collect", metavar="MARKET:COMMAND", help="收集：沪深:[2003,2012]、latest、range、auto、check、doctor、status；auto 前台运行，Ctrl+C 停止")
     parser.add_argument("--refresh", action="store_true", help="重新获取并替换指定区间的已有记录")
@@ -58,12 +45,7 @@ def to_action(args: argparse.Namespace):
         values = {"config": str(args.backtest)}
         operation = "cli.backtest"
     else:
-        values = {
-            name: str(value) if isinstance(value, Path) else value
-            for name, value in vars(args).items()
-            if name not in {"command", "backtest", "collect"} and value is not None
-        }
-        operation = "cli." + args.command
+        raise ValueError('no command selected: pass --backtest or --collect')
     return protocol.UiAction("cli-1", "invoke", "cli", values, operation)
 
 
@@ -75,14 +57,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         return 0
     args = parser.parse_args(values)
     try:
-        if args.collect is not None:
-            if args.command is not None or args.backtest is not None:
-                parser.error('--collect cannot be combined with another command')
-
+        if args.collect is not None and args.backtest is not None:
+            parser.error('--collect cannot be combined with --backtest')
         if args.collect is None and any(getattr(args, name) is not None for name in ('data', 'codes', 'fields', 'start', 'end', 'interval')):
             parser.error('collection arguments require --collect')
-        if args.backtest is not None and args.command is not None:
-            parser.error("--backtest cannot be combined with ingest")
         state = protocol.exchange(to_action(args), on_state=print_state) if args.collect is not None else protocol.exchange(to_action(args))
         slot = state.targets["cli"]
         if slot.problems:

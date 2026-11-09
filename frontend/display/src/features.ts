@@ -26,7 +26,6 @@ const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Opera
  'collection.set_automatic':{input:object({enabled:boolean}),mode:'write'},
  'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object(),poll:1000},
  'data.check':{input:object(),poll:3000},'collection.repair':{input:object({id:text}),mode:'write'},'collection.repair_job':{input:object(),poll:1000},
- 'cli.ingest':{input:object({price:text,fundamentals:text,valuations:text,output:text,max_symbols:{anyOf:[integer,{type:'null'}]},price_part:{anyOf:[{type:'array',items:integer},{type:'null'}]}}),mode:'write'},
  'cli.backtest':{input:object({config:text}),mode:'write'},
  'collection.describe':{input:object()},
  'collection.inspect':{input:object({source_id:text,codes:{type:'array',items:text},start:text,end:text,fields:{type:'array',items:text}},['source_id'])},

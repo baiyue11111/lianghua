@@ -174,7 +174,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "backtest.strategies", "backtest.prepare", "backtest.run",
-            "cli.backtest", "collection.doctor", "collection.describe", "collection.inspect", "collection.run", "cli.ingest", "research.runs", "research.run", "research.benchmarks",
+            "cli.backtest", "collection.doctor", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
             "research.benchmark", "data.research_inputs", "collection.sources", "collection.sync",
             "collection.schedule", "collection.job", "collection.snapshot",
             "collection.evidence",
@@ -182,7 +182,6 @@ class ProtocolBoundaryTests(unittest.TestCase):
             "collection.start", "collection.current", "collection.stop",
             "collection.automatic", "collection.set_automatic", "collection.merge",
             "collection.merge_job", "data.check", "collection.repair", "collection.repair_job",
-            "cli.ingest",
         })
         self.assertEqual(operations["backtest.run"]["mode"], "write")
         self.assertEqual(operations["data.status"]["mode"], "read")

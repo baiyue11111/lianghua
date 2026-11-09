@@ -5,19 +5,10 @@ import re
 import unittest
 
 from market import DataBus, FACT_DECIMAL, FACT_NUMERIC, build_data
-from market.ingest import declared_pattern, sha256_file
+from market.ingest import declared_pattern
 
 
 class IngestionTests(unittest.TestCase):
-    def test_sha256_file_is_content_addressed(self) -> None:
-        with TemporaryDirectory() as directory:
-            path = Path(directory) / "sample.txt"
-            path.write_text("audit me", encoding="utf-8")
-            self.assertEqual(
-                sha256_file(path),
-                "3a7f63b380ceb6f5a07f7a8faa342e14252c0fdd5c874bf9ce7cc01b99f6d934",
-            )
-
     def test_declared_pattern_pins_manifest_dates(self) -> None:
         template = 'source/facts/adjust_{symbol}_{start}_{end}.json'
         spec = {'start': '1990-01-01', 'end': '2026-10-13', 'template': template}

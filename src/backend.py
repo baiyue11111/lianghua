@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass, replace
+from dataclasses import dataclass, replace
 from datetime import date
 from functools import partial
 from importlib import import_module
@@ -88,7 +88,6 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("collection.doctor", "write", "collection-doctor", "collection-doctor", "document", "sources"),
     OperationSpec("collection.inspect", "read", "collection-inspect", "collection-inspect", "document", "sources"),
     OperationSpec("collection.run", "write", "collection-run", "collection-run", "operation", "sources"),
-    OperationSpec("cli.ingest", "write", "cli-ingest", "cli-ingest", "operation", "commands"),
     OperationSpec("research.runs", "read", "runs", "runs", "collection", "research"),
     OperationSpec("research.run", "read", "run", "run", "resource", "research"),
     OperationSpec("research.benchmarks", "read", "benchmarks", "benchmarks", "collection", "research"),
@@ -740,22 +739,6 @@ class CommandPort:
                 "resource", "lianghua:cli-backtest",
                 "urn:lianghua:ui:output:cli.backtest:v1", value,
             )
-        if operation == "cli.ingest":
-            from market.ingest import ingest_exploratory
-
-            identity = _identity(data, "output")
-            result = ingest_exploratory(
-                price_workbook=Path(_text(data, "price")),
-                fundamental_workbook=Path(_text(data, "fundamentals")),
-                valuation_workbook=Path(_text(data, "valuations")),
-                data=self._data,
-                dataset=identity,
-                max_symbols=data.get("max_symbols"),
-                only_price_parts=(
-                    tuple(data["price_part"]) if data.get("price_part") is not None else None
-                ),
-            )
-            return asdict(result)
         raise ValueError(f"unsupported command operation: {operation}")
 
     def _check_run_identity(self, value: JsonValue) -> None:
