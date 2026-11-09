@@ -40,8 +40,8 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
  const cycle=async():Promise<JsonValue>=>{
   if(signal.aborted)throw Error('会话已停止');
   const result=await call('collection.run',request) as Row;
-  if(command==='auto'||result.status==='failed')progress(result);
-  if(result.status==='failed')throw Error(result.error??'收集失败');
+  if(command==='auto'||result.outcome==='failed')progress(result);
+  if(result.outcome==='failed')throw Error(result.error??'收集失败');
   return result;
  };
  do {

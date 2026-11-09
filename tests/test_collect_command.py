@@ -55,7 +55,7 @@ class CollectionCommandTests(unittest.TestCase):
         with patch.object(self.collect.methods, 'coverage', side_effect=AssertionError('ordinary collection must not inspect coverage')):
             result = self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y', 'Z'],
                                        'start': '2026-10-01', 'end': '2026-10-14'})
-        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['outcome'], 'partial')
         self.assertEqual(result['records'], 2)
         self.assertEqual([item['code'] for item in result['failures']], ['Y'])
         rows = self.collect.methods.records(self.sources.get('prices'))['records']
@@ -64,7 +64,7 @@ class CollectionCommandTests(unittest.TestCase):
     def test_market_request_plans_in_collector_without_interaction_core(self):
         result = self.collect.run({'market': 'TEST', 'command': 'range',
                                    'start': '2026-10-01', 'end': '2026-10-14'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual(result['market'], 'TEST')
         self.assertEqual([request['codes'] for request in self.calls], [['X'], ['Y']])
 
@@ -74,7 +74,7 @@ class CollectionCommandTests(unittest.TestCase):
             'data': {'series': {'source': 'prices', 'codes': ['INDEX']}}}}]})
         result = self.collect.run({'market': 'OTHER', 'command': 'range',
                                    'start': '2026-10-01', 'end': '2026-10-14'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([request['codes'] for request in self.calls], [['INDEX']])
 
     def test_market_latest_uses_each_security_watermark(self):
@@ -84,7 +84,7 @@ class CollectionCommandTests(unittest.TestCase):
                           'start': '2026-10-01', 'end': '2026-10-20'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual({request['codes'][0]: request['start'] for request in self.calls},
                          {'X': '2026-10-14', 'Y': '2026-10-20'})
 
@@ -93,7 +93,7 @@ class CollectionCommandTests(unittest.TestCase):
                           'start': '2026-10-01', 'end': '2026-10-14'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest'})
-        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['outcome'], 'failed')
         self.assertEqual([item['code'] for item in result['failures']], ['Y'])
         self.assertEqual([request['codes'] for request in self.calls], [['X']])
 
@@ -114,12 +114,12 @@ class CollectionCommandTests(unittest.TestCase):
                           'start': '2026-10-01', 'end': '2026-10-14'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual({r['codes'][0]: r['start'] for r in self.calls},
                          {'X': '2026-10-14', 'Y': '2026-10-22'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['Y']})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([r['codes'] for r in self.calls], [['Y']])
 
     def test_invalid_catalogue_security_does_not_block_other_prices(self):
@@ -142,7 +142,7 @@ class CollectionCommandTests(unittest.TestCase):
         with patch.object(Catalogue, 'collect', return_value={'records': rows, 'raw': [], 'scope': {}}):
             result = self.collect.run({'market': 'CN_A', 'command': 'range',
                                        'start': '2020-02-03', 'end': '2020-02-04'})
-        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['outcome'], 'failed')
         self.assertEqual([r['codes'] for r in self.calls], [['sh.600003']])
         self.assertEqual([r['code'] for r in result['failures']], ['sz.000004'])
 
@@ -161,7 +161,7 @@ class CollectionCommandTests(unittest.TestCase):
                           'start': '2026-10-01', 'end': '2026-10-14'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['X']})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([(r['codes'], r['start']) for r in self.calls], [(['X'], '2026-10-14')])
 
     def test_catalogue_failure_keeps_updates_for_observed_securities(self):
@@ -182,7 +182,7 @@ class CollectionCommandTests(unittest.TestCase):
                           'start': '2026-10-01', 'end': '2026-10-14'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['X', 'Y']})
-        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['outcome'], 'failed')
         self.assertEqual([(r['codes'], r['start']) for r in self.calls], [(['X'], '2026-10-14')])
         self.assertIn('Y', [r['code'] for r in result['failures']])
 
@@ -209,7 +209,7 @@ class CollectionCommandTests(unittest.TestCase):
                     'coverage': [{'start': '2020-02-05', 'end': '2020-02-06'}]}}
         self.collect.methods.handlers['fixture'] = fetch
         result = self.collect.run({'market': 'CN_A', 'command': 'latest'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         rows = pq.read_table(pa.BufferReader(self.bus.read('sources', 'fixture', 'daily/2020.parquet'))).to_pylist()
         self.assertEqual({row['date']: row['peTTM'] for row in rows},
                          {'2020-02-05': 12., '2020-02-06': 12.})
@@ -224,7 +224,7 @@ class CollectionCommandTests(unittest.TestCase):
         with patch.object(self.collect.methods, 'publish', wraps=self.collect.methods.publish) as publish:
             result = self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y'],
                                        'start': '2026-10-01', 'end': '2026-10-14'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual(publish.call_count, 1)
         event = self.collect.methods.evidence(result['snapshot_id'])
         self.assertEqual([row['raw_page'] for row in event['incoming']], [0, 1])
@@ -244,7 +244,7 @@ class CollectionCommandTests(unittest.TestCase):
             'collect': {**r['markets'][0]['collect'], 'batch_size': 1}}]})
         result = self.collect.run({'market': 'TEST', 'command': 'range',
                                    'start': '2026-10-01', 'end': '2026-10-14'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual(attempted, ['X', 'Y'])
 
     def test_partial_and_empty_results_are_received_not_full_table_counts(self):
@@ -257,7 +257,7 @@ class CollectionCommandTests(unittest.TestCase):
         self.collect.methods.handlers['fixture'] = fetch
         result = self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y'],
                                    'start': '2026-10-01', 'end': '2026-10-14'})
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual(result['records'], 1)
         self.assertEqual(result['empty_codes'], ['Y'])
         rows = self.collect.methods.records(self.sources.get('prices'))['records']
@@ -291,7 +291,7 @@ class CollectionCommandTests(unittest.TestCase):
         with patch.object(self.bus, 'write', side_effect=write):
             result = self.collect.run({'source_id': 'daily', 'codes': ['sh.600000', 'sh.600001', 'sh.600002'],
                                        'start': '2026-10-01', 'end': '2026-10-01'})
-        self.assertEqual(result['status'], 'failed')
+        self.assertEqual(result['outcome'], 'failed')
         self.assertEqual(result['records'], 2)
         self.assertEqual([item['code'] for item in result['failures']], ['sh.600000'])
         self.assertEqual(writes, ['daily/2026.parquet'])
@@ -302,9 +302,9 @@ class CollectionCommandTests(unittest.TestCase):
                                   'start': '2026-10-01', 'end': '2026-10-01'})
         self.collect._fetch_thread.join(2)
         job_id = self.collect._current_job_id
-        self.assertEqual(self.collect.status(job_id)['status'], 'fetched')
+        self.assertEqual(self.collect.status(job_id)['status'], 'awaiting_publish')
         self.collect._merge_task(job_id, False)
-        self.assertEqual(self.collect.status(job_id)['status'], 'failed')
+        self.assertEqual(self.collect.status(job_id)['outcome'], 'failed')
         self.assertEqual(self.collect.status(job_id)['records'], 0)
         self.assertEqual(self.collect.status(job_id)['failures'][0]['code'], 'sh.600000')
 
@@ -335,7 +335,7 @@ class CollectionCommandTests(unittest.TestCase):
     def test_doctor_uses_method_port_without_daily_collection(self):
         with patch.object(self.collect.methods, 'doctor', return_value={'status': 'complete'}) as doctor:
             result = self.invoke('TEST:doctor')
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual(doctor.call_args.args[1]['codes'], ['X', 'Y'])
         self.assertEqual(self.calls, [])
 
@@ -349,7 +349,7 @@ class CollectionCommandTests(unittest.TestCase):
 
     def test_year_range_is_resolved_only_in_the_interaction_core(self):
         result=self.invoke('测试市场:[2003,2012]')
-        self.assertEqual(result['status'],'succeeded')
+        self.assertEqual(result['outcome'],'succeeded')
         self.assertEqual(self.calls[0]['start'],'2003-01-01')
         self.assertEqual(self.calls[0]['end'],'2012-12-31')
 
@@ -359,7 +359,7 @@ class CollectionCommandTests(unittest.TestCase):
             return registry
         self.bus.update_registry(change)
         result=self.invoke('测试市场:[2003,2012]')
-        self.assertEqual(result['status'],'succeeded')
+        self.assertEqual(result['outcome'],'succeeded')
         self.assertEqual([r['codes'] for r in self.calls],[['X'],['Y']])
 
     def test_invalid_or_ambiguous_range_fetches_nothing(self):
@@ -370,7 +370,7 @@ class CollectionCommandTests(unittest.TestCase):
 
     def test_range_resolves_market_and_uses_full_registered_codes(self):
         result = self.invoke('测试市场:range', start='2026-10-01', end='2026-10-14')
-        self.assertEqual(result['status'], 'succeeded')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([request['codes'] for request in self.calls], [['X'], ['Y']])
         self.assertEqual(self.calls[0]['start'], '2026-10-01')
 

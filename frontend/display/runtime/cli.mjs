@@ -9062,8 +9062,8 @@ var collect = async (raw, { call, progress, signal }) => {
   const cycle = async () => {
     if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
     const result = await call("collection.run", request);
-    if (command === "auto" || result.status === "failed") progress(result);
-    if (result.status === "failed") throw Error(result.error ?? "\u6536\u96C6\u5931\u8D25");
+    if (command === "auto" || result.outcome === "failed") progress(result);
+    if (result.outcome === "failed") throw Error(result.error ?? "\u6536\u96C6\u5931\u8D25");
     return result;
   };
   do {

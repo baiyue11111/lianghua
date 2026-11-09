@@ -1,5 +1,7 @@
 """Collection inputs, task state and scheduling; no provider or file I/O."""
 from __future__ import annotations
+import os
+import socket
 import threading
 import time
 import uuid
@@ -9,6 +11,32 @@ from copy import deepcopy
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 from protocol import Filter, TableDef, TableQuery
+
+# A job has three states and one outcome. "How it ended" is not a state: nothing
+# leaves ``finished``, so folding six outcomes into the state set would only add
+# transitions that can never be legal. This is the same split GitHub Actions
+# uses (status / conclusion) and it keeps the table small enough to read.
+RUNNING, WAITING, FINISHED = 'running', 'awaiting_publish', 'finished'
+OUTCOMES = ('succeeded', 'partial', 'failed', 'cancelled', 'interrupted')
+LEGAL = {
+    (None, 'submit'): RUNNING,
+    (None, 'fail'): FINISHED,
+    (RUNNING, 'phase'): RUNNING,
+    (RUNNING, 'fetched'): WAITING,
+    (WAITING, 'merge'): RUNNING,
+    (RUNNING, 'publish'): FINISHED,
+    (WAITING, 'publish'): FINISHED,
+    (RUNNING, 'fail'): FINISHED,
+    (WAITING, 'fail'): FINISHED,
+    (RUNNING, 'cancel'): FINISHED,
+    (WAITING, 'cancel'): FINISHED,
+    (RUNNING, 'expire'): FINISHED,
+    (WAITING, 'expire'): FINISHED,
+}
+# A running job holds a lease it must renew; an expired lease is the only proof
+# that the process holding it is gone. Airflow calls the same thing a zombie.
+LEASE_SECONDS = 300
+
 
 class Collect:
     """One execution engine for manual and scheduled source collection."""
@@ -31,8 +59,7 @@ class Collect:
         self._current_job_id = None
         self._fetch_thread = None
         self._merge_thread = None
-        self._merge_state = {"running": False, "output": "", "error": None,
-                             "started_at": None, "finished_at": None}
+        self._scheduler_error = None
         self._recover_tasks()
         self._closed = False
         self._stop = threading.Event()
@@ -44,6 +71,56 @@ class Collect:
                                    separators=(',', ':'), allow_nan=False)}],
             keys=('job_id',), refresh=True)
         self._jobs[job['job_id']] = job
+
+    def _transition(self, job, event, *, outcome=None, **changes):
+        """Move a job along the table above and persist it; refuse anything else.
+
+        This is the only place that writes ``status``. Keeping the table and the
+        write together is what makes the states real: a caller cannot invent a
+        move, and an illegal one fails here instead of surfacing later as a job
+        stuck in a shape nothing handles.
+        """
+        current = job.get('status')
+        try:
+            following = LEGAL[(current, event)]
+        except KeyError:
+            raise ValueError(f'no transition from {current!r} on {event!r}') from None
+        if following == FINISHED and outcome not in OUTCOMES:
+            raise ValueError(f'finishing requires a known outcome, not {outcome!r}')
+        now = datetime.now().isoformat()
+        job.update(changes)
+        job.update(status=following, updated_at=now)
+        if following == FINISHED:
+            job.update(outcome=outcome, finished_at=now)
+            for name in ('lease_owner', 'lease_expires_at'):
+                job.pop(name, None)
+        self._save(job)
+        return job
+
+    @staticmethod
+    def _renew(job):
+        """Extend the lease; called between batches so a live job stays live."""
+        job['lease_owner'] = f'{socket.gethostname()}:{os.getpid()}'
+        job['lease_expires_at'] = (datetime.now() + timedelta(seconds=LEASE_SECONDS)).isoformat()
+
+    @staticmethod
+    def _lease_dead(job):
+        """True when nothing is holding this job any more.
+
+        An expired timestamp is enough across machines; on this machine a dead
+        pid is proof right away, so a restart does not wait out the full lease.
+        """
+        host, _, rest = str(job.get('lease_owner') or '').partition(':')
+        pid, _, _ = rest.partition(':')
+        if host == socket.gethostname() and pid.isdigit():
+            try:
+                os.kill(int(pid), 0)
+            except OSError:
+                return True
+            if int(pid) != os.getpid():
+                return False
+        expires = job.get('lease_expires_at')
+        return not expires or expires < datetime.now().isoformat()
 
     @staticmethod
     def _settings(row):
@@ -115,16 +192,15 @@ class Collect:
                 raise RuntimeError("source collection already running")
             self._active.add(source_id)
         job = {'job_id': uuid.uuid4().hex, 'source_id': source_id,
-               'request': dict(request), 'status': 'running', 'error': None,
+               'request': dict(request), 'status': None, 'outcome': None, 'error': None,
                'started_at': datetime.now().isoformat(), 'finished_at': None,
                'snapshot_id': None, 'records': 0, 'failures': [], 'empty_codes': []}
         self._jobs[job['job_id']] = job
         self._job_sources[job['job_id']] = deepcopy(source)
         self._current_job_id = job['job_id']
-        saved = False
         try:
-            self._save(job)
-            saved = True
+            self._renew(job)
+            self._transition(job, 'submit', phase='fetch')
             codes = request.get('codes') or [None]
             for offset in range(0, len(codes), size):
                 packets = []
@@ -171,26 +247,41 @@ class Collect:
                     except Exception as error:
                         job['failures'].extend({'code': code, 'error': f'{type(error).__name__}: {error}'}
                             for item in packets for code in item['request'].get('codes', [None]))
-                if saved:
-                    self._save(job)
+                self._renew(job)
+                self._save(job)
             if job['records']:
                 job['snapshot_id'] = self.methods.records(source, 0, 0)['snapshot_id']
-            job['status'] = 'failed' if job['failures'] else 'succeeded'
             if job['failures']:
                 job['error'] = '; '.join(f"{item['code']}: {item['error']}" for item in job['failures'])
+                self._transition(job, 'publish', phase='publish',
+                                 outcome='partial' if job['records'] else 'failed')
+            else:
+                self._transition(job, 'publish', phase='publish', outcome='succeeded')
         except Exception as error:
-            job.update(status='failed', error=f'{type(error).__name__}: {error}')
+            message = f'{type(error).__name__}: {error}'
+            job['error'] = message
+            if job.get('status') != FINISHED:
+                cancelled = job['job_id'] in self._cancelled
+                try:
+                    self._transition(job, 'cancel' if cancelled else 'fail',
+                                     outcome='cancelled' if cancelled else 'failed', error=message)
+                except Exception as store_error:
+                    # The store itself is unavailable; keep the result honest in
+                    # memory so the caller still learns what happened.
+                    job.update(status=FINISHED, outcome='cancelled' if cancelled else 'failed',
+                               finished_at=datetime.now().isoformat(),
+                               save_error=f'{type(store_error).__name__}: {store_error}')
         finally:
             try:
-                job['finished_at'] = datetime.now().isoformat()
                 try:
                     self.methods.log({'job_id': job['job_id'], 'source_id': source_id,
-                                      'status': job['status'], 'error': job['error'],
+                                      'status': job.get('status'), 'outcome': job.get('outcome'),
+                                      'error': job['error'],
                                       'records': job['records'], 'failures': job['failures'],
                                       'empty_codes': job['empty_codes']})
                 except Exception as error:
                     job['log_error'] = f'{type(error).__name__}: {error}'
-                if saved:
+                if job.get('status') == FINISHED:
                     try:
                         self._save(job)
                     except Exception as error:
@@ -250,7 +341,7 @@ class Collect:
                             **({'exchanges': securities['exchanges']} if 'exchanges' in securities else {})})
                         jobs.append(update)
                     catalogue, exchanges = {}, set()
-                    if command == 'check' or update['status'] == 'succeeded' or update['records']:
+                    if command == 'check' or update.get('outcome') == 'succeeded' or update.get('records'):
                         rejected = {item['code'] for item in update['failures']} if command != 'check' else set()
                         for row in self.methods.record_rows(directory):
                             code = row[securities['code']]
@@ -268,7 +359,7 @@ class Collect:
                 if codes is None:
                     codes = sorted(catalogue)
             if not codes:
-                if any(job.get('status') == 'failed' for job in jobs):
+                if any(job.get('outcome') in ('failed', 'interrupted') for job in jobs):
                     continue
                 raise ValueError('no securities in the requested interval')
             request = {key: value[key] for key in ('start', 'end', 'fields', 'refresh') if key in value}
@@ -315,9 +406,9 @@ class Collect:
             return {'market': market['scope'], 'status': 'complete' if all(
                 plan['coverage']['complete'] for plan in plans) else 'incomplete', 'plans': plans}
         failures = [item for job in jobs for item in job.get('failures', ())]
-        failures.extend({'code': None, 'error': job['error']} for job in jobs
-                        if job.get('status') == 'failed' and not job.get('failures'))
-        return {'market': market['scope'], 'status': 'failed' if failures else 'succeeded',
+        failures.extend({'code': None, 'error': job.get('error')} for job in jobs
+                        if job.get('outcome') in ('failed', 'interrupted') and not job.get('failures'))
+        return {'market': market['scope'], 'outcome': 'failed' if failures else 'succeeded',
                 'jobs': jobs, 'failures': failures,
                 'error': '; '.join(f"{item['code']}: {item['error']}" for item in failures) or None}
 
@@ -346,13 +437,14 @@ class Collect:
                 raise RuntimeError("source collection already running")
             self._active.add(source_id)
         job = {"job_id": uuid.uuid4().hex, "source_id": source_id,
-               "request": dict(request), "status": "running", "phase": "fetch",
+               "request": dict(request), "status": None, "outcome": None,
                "error": None, "started_at": datetime.now().isoformat(),
                "finished_at": None, "snapshot_id": None, "records": 0}
         self._jobs[job["job_id"]] = job
         self._job_sources[job['job_id']] = deepcopy(source)
         self._current_job_id = job["job_id"]
-        self._save(job)
+        self._renew(job)
+        self._transition(job, 'submit', phase="fetch")
         self._fetch_thread = threading.Thread(
             target=self._fetch_task, args=(source, request, job), daemon=True)
         self._fetch_thread.start()
@@ -361,37 +453,48 @@ class Collect:
     def _fetch_task(self, source, request, job):
         source_id = source["id"]
         try:
+            self._renew(job)
+            self._save(job)
             packet = self.methods.fetch(source, request)
             self.methods.validate(packet)
             if job["job_id"] in self._cancelled:
-                job.update(status="stopped", phase="fetch", error="collection stopped")
+                self._transition(job, 'cancel', outcome='cancelled',
+                                 phase="fetch", error="collection stopped")
             else:
                 self._packets[job["job_id"]] = packet
-                job.update(status="fetched", phase="validate", records=len(packet["records"]))
+                self._transition(job, 'fetched', phase="validate", records=len(packet["records"]))
         except Exception as error:
-            job.update(status="failed", phase="fetch", error=f"{type(error).__name__}: {error}")
+            if job.get('status') != FINISHED:
+                self._transition(job, 'fail', outcome='failed', phase="fetch",
+                                 error=f"{type(error).__name__}: {error}")
         finally:
-            job["finished_at"] = datetime.now().isoformat()
-            self._save(job)
             with self._lock:
                 self._active.discard(source_id)
 
     def _recover_tasks(self):
+        """Resolve jobs whose process is gone; leave the ones still held.
+
+        The old test was "status is running or fetched", which cannot tell a
+        live worker from a dead one and would fail a job another process was
+        still writing. The lease answers that, and a dead pid on this machine
+        answers it without waiting the lease out.
+        """
         for job in self._states('collection_jobs'):
-            if job.get("status") not in {"running", "fetched"}:
-                self._jobs[job['job_id']] = job
-                continue
-            job.update(status="failed", error="collection interrupted before publish",
-                       finished_at=datetime.now().isoformat())
-            self._save(job)
+            if job.get('status') in (RUNNING, WAITING) and self._lease_dead(job):
+                try:
+                    self._transition(job, 'expire', outcome='interrupted',
+                                     error="collection interrupted before publish")
+                except ValueError:
+                    pass
             self._jobs[job['job_id']] = job
 
     @staticmethod
     def _fetch_view(job):
-        return {"ok": job["status"] == "fetched", "status": job["status"],
-                "job_id": job["job_id"], "done": 1 if job["status"] == "fetched" else 0,
+        ready = job.get("status") == WAITING
+        return {"ok": ready, "status": job.get("status"), "outcome": job.get("outcome"),
+                "job_id": job["job_id"], "done": 1 if ready else 0,
                 "total": 1, "rows": job.get("records", 0), "empty": 0,
-                "failed": [] if job["status"] == "fetched" else [job["source_id"]],
+                "failed": [] if ready else [job["source_id"]],
                 "current": job.get("source_id", ""), "finished_at": job.get("finished_at"),
                 "error": job.get("error"), "log": []}
 
@@ -402,41 +505,43 @@ class Collect:
             source = self._job_sources[job_id]
             stats = self.methods.prepare(source, packet)
             if dry_run:
-                job.update(status="validated", phase="validate", merge=stats)
-            else:
-                result = self.methods.publish(source, packet)
-                failures = result['failures']
-                job.update(status='failed' if failures else 'succeeded', phase='publish',
-                           merge=stats, records=result['records'], failures=failures,
-                           error='; '.join(f"{item['code']}: {item['error']}" for item in failures) or None)
-                if result['ref'] is not None:
-                    job['snapshot_id'] = self.methods.records(source, 0, 0)['snapshot_id']
-                self._packets.pop(job_id, None)
-            job["finished_at"] = datetime.now().isoformat()
-            self._save(job)
-            self._merge_state.update(running=False, output=json.dumps(stats, ensure_ascii=False),
-                                     error=job.get('error'), finished_at=job["finished_at"])
+                # A dry run answers "what would this write" and consumes nothing,
+                # so the job stays where it is and can still be published after.
+                job.update(dry_run=stats)
+                self._save(job)
+                return
+            result = self.methods.publish(source, packet)
+            failures = result['failures']
+            self._transition(job, 'publish', phase='publish', merge=stats,
+                             records=result['records'], failures=failures,
+                             outcome=('partial' if failures and result['records'] else
+                                      'failed' if failures else 'succeeded'),
+                             error='; '.join(f"{item['code']}: {item['error']}"
+                                             for item in failures) or None)
+            if result['ref'] is not None:
+                job['snapshot_id'] = self.methods.records(source, 0, 0)['snapshot_id']
+                self._save(job)
+            self._packets.pop(job_id, None)
         except Exception as error:
-            message = f"{type(error).__name__}: {error}"
             job = self.status(job_id)
-            job.update(status="failed", phase="publish", error=message,
-                       finished_at=datetime.now().isoformat())
-            self._save(job)
-            self._merge_state.update(running=False, output="", error=message,
-                                     finished_at=job["finished_at"])
+            if job.get('status') != FINISHED:
+                self._transition(job, 'fail', phase="publish", outcome='failed',
+                                 error=f"{type(error).__name__}: {error}")
 
     def _merge_current(self, dry_run):
         job_id = self._current_job_id
         if not job_id or job_id not in self._packets:
             raise RuntimeError("no fetched collection task")
-        if self._merge_state["running"]:
+        job = self.status(job_id)
+        if job.get('status') != WAITING:
             raise RuntimeError("merge already running")
-        self._merge_state = {"running": True, "output": "", "error": None,
-                             "started_at": datetime.now().isoformat(), "finished_at": None}
+        if not dry_run:
+            self._renew(job)
+            self._transition(job, 'merge', phase='publish')
         self._merge_thread = threading.Thread(target=self._merge_task,
                                               args=(job_id, bool(dry_run)), daemon=True)
         self._merge_thread.start()
-        return {"ok": True, "status": "running", "job_id": job_id,
+        return {"ok": True, "status": RUNNING, "job_id": job_id,
                 "dryRun": bool(dry_run), "error": None}
 
     def schedule(self, source_id, settings):
@@ -471,8 +576,14 @@ class Collect:
         return value
 
     def cancel(self, job_id):
+        """A job waiting to publish stops at once; a running one stops at its
+        next batch boundary, because that is the only safe place to break."""
         job = self.status(job_id)
-        if job["status"] == "running":
+        state = job.get('status')
+        if state == WAITING:
+            return dict(self._transition(job, 'cancel', outcome='cancelled',
+                                         error='collection stopped'))
+        if state == RUNNING:
             self._cancelled.add(job_id)
         return dict(job)
 
@@ -515,7 +626,14 @@ class Collect:
 
     def _loop(self):
         while not self._stop.wait(1):
-            self.tick()
+            try:
+                self.tick()
+            except Exception as error:
+                # One bad tick must not end the scheduler: before this, a single
+                # rejected overlapping collection killed the thread for good.
+                self._scheduler_error = f'{type(error).__name__}: {error}'
+            else:
+                self._scheduler_error = None
 
     def tick(self, at=None):
         now = time.time() if at is None else at
@@ -530,9 +648,19 @@ class Collect:
                 request["start"] = (today - timedelta(days=schedule["window_days"])).isoformat()
                 request["end"] = today.isoformat()
             request["source_id"] = schedule["source_id"]
-            result = self.run(request)
-            schedule["last_job_id"] = result["job_id"]
-            schedule["next_at"] = now + int(schedule.get("interval_seconds", 60))
+            interval = int(schedule.get("interval_seconds", 60))
+            try:
+                result = self.run(request)
+                schedule["last_job_id"] = result.get("job_id")
+                schedule["error"] = None
+                delay = interval
+            except Exception as error:
+                # Retry soon rather than a whole interval later, and keep the
+                # other schedules in this tick moving.
+                schedule["error"] = f'{type(error).__name__}: {error}'
+                delay = min(300, interval)
+            schedule["last_run_at"] = datetime.fromtimestamp(now).isoformat()
+            schedule["next_at"] = now + delay
             self._state('collection_schedules', schedule['source_id'], schedule)
 
     def handle(self, operation, value):
@@ -578,7 +706,7 @@ class Collect:
             if self._current_job_id is None:
                 return {"ok": False, "message": "no active collection task"}
             job = self.status(self._current_job_id)
-            if job.get("status") != "running":
+            if job.get("status") not in (RUNNING, WAITING):
                 return {"ok": False, "message": "collection task is not running", **self._fetch_view(job)}
             return {"ok": True, **self._fetch_view(self.cancel(self._current_job_id))}
         if operation == "collection.automatic":
@@ -592,7 +720,11 @@ class Collect:
         if operation == "collection.merge":
             return self._merge_current(value["dryRun"])
         if operation == "collection.merge_job":
-            return dict(self._merge_state)
+            job = self.status(self._current_job_id) if self._current_job_id else {}
+            return {"running": job.get('status') == RUNNING and job.get('phase') == 'publish',
+                    "output": json.dumps(job.get('merge') or {}, ensure_ascii=False),
+                    "error": job.get('error'), "started_at": job.get('started_at'),
+                    "finished_at": job.get('finished_at')}
         if operation == "collection.repair":
             return self._doctor_fix(value["id"], value.get("max_tasks", 0))
         if operation == "collection.repair_job":
@@ -637,16 +769,17 @@ class Collect:
         }
 
     def _doctor_job(self):
-        if self._current_job_id is None:
+        job = self.status(self._current_job_id) if self._current_job_id else None
+        if job is None:
             return {"running": False, "issue": "", "stage": "", "verdict": None,
                     "verdicts": {}, "merge_output": "", "log": [], "finished_at": None,
-                    "fetch": self._fetch_view({"status": "idle", "job_id": "", "source_id": "",
-                                               "finished_at": None, "records": 0, "error": None})}
-        return {"running": False, "issue": "", "stage": "publish",
-                "verdict": self.status(self._current_job_id)["status"],
+                    "fetch": self._fetch_view({"status": None, "outcome": None, "job_id": "",
+                                               "source_id": "", "finished_at": None,
+                                               "records": 0, "error": None})}
+        return {"running": job.get('status') == RUNNING, "issue": "",
+                "stage": job.get('phase') or "", "verdict": job.get('outcome'),
                 "verdicts": {}, "merge_output": "", "log": [],
-                "finished_at": self.status(self._current_job_id).get("finished_at"),
-                "fetch": self._fetch_view(self.status(self._current_job_id))}
+                "finished_at": job.get('finished_at'), "fetch": self._fetch_view(job)}
 
 
     def _schedule_list(self):

@@ -36,8 +36,8 @@ class CollectionTests(unittest.TestCase):
             source = {"id": "fixture", "name": "Fixture", "method": "fixture",
                       "frequency": "daily", "defaults": {}}
             sources.register(source)
-            job = {"job_id": "one", "source_id": "fixture", "status": "succeeded",
-                   "finished_at": "2026-10-01T12:00:00"}
+            job = {"job_id": "one", "source_id": "fixture", "status": "finished",
+                   "outcome": "succeeded", "finished_at": "2026-10-01T12:00:00"}
             schedule = {"source_id": "fixture", "enabled": False, "next_at": None}
             bus.define(TableDef('collection_jobs', {'job_id': 'VARCHAR', 'settings': 'JSON'}, ('job_id',), ('settings',)))
             bus.define(TableDef('collection_schedules', {'source_id': 'VARCHAR', 'settings': 'JSON'}, ('source_id',), ('settings',)))
@@ -319,7 +319,7 @@ class CollectionTests(unittest.TestCase):
             })
             self.assertTrue(fetched["ok"])
             collect._fetch_thread.join(2)
-            self.assertEqual(collect.handle("collection.current", {})["status"], "fetched")
+            self.assertEqual(collect.handle("collection.current", {})["status"], "awaiting_publish")
             self.assertTrue(collect.handle("collection.merge", {"dryRun": False})["ok"])
             collect._merge_thread.join(2)
             parquet = pq.read_table(pa.BufferReader(
@@ -395,7 +395,7 @@ class CollectionTests(unittest.TestCase):
                     "calendar_end": "2026-01-08"})
                 self.assertTrue(fetched["ok"])
                 collect._fetch_thread.join(2)
-                self.assertEqual(collect.handle("collection.current", {})["status"], "fetched")
+                self.assertEqual(collect.handle("collection.current", {})["status"], "awaiting_publish")
                 packet = collect._packets[collect._current_job_id]
                 history = next(item for item in packet["raw"]
                                if item["response"]["fields"][0] == "date")
@@ -545,7 +545,7 @@ class CollectionTests(unittest.TestCase):
             self.assertTrue(fetched["ok"])
             self.assertEqual(published, [])
             collect._fetch_thread.join(2)
-            self.assertEqual(collect.handle("collection.current", {} )["status"], "fetched")
+            self.assertEqual(collect.handle("collection.current", {} )["status"], "awaiting_publish")
             self.assertTrue(collect.handle("collection.merge", {"dryRun": True})["ok"])
             collect._merge_thread.join(2)
             self.assertEqual(published, [])
@@ -691,7 +691,7 @@ class CollectionTests(unittest.TestCase):
                                      "source": "new_quotes"}], "raw": [],
                         "scope": {"kind": "fixture"}}):
                     result = backend._modules.sources.handle("collection.run", {"source_id": "new_quotes"})
-                self.assertEqual(result["status"], "succeeded")
+                self.assertEqual(result["outcome"], "succeeded")
             finally:
                 backend.close()
 
@@ -760,9 +760,9 @@ class CollectionTests(unittest.TestCase):
             })
             collect = Collect(sources, methods)
             result = collect.run({'source_id': 'fixture', 'date': '2026-10-14'})
-            self.assertEqual(result['status'], 'succeeded')
+            self.assertEqual(result['outcome'], 'succeeded')
             self.assertEqual(result['records'], 1)
-            self.assertEqual(collect.status(result['job_id'])['status'], 'succeeded')
+            self.assertEqual(collect.status(result['job_id'])['outcome'], 'succeeded')
             collect.close()
 
     def test_collect_freezes_source_defaults_and_request_overrides_them(self):
@@ -1053,7 +1053,7 @@ class CollectionTests(unittest.TestCase):
                               "amount": 1380.0, "close_hfq": 11.5}], "calendar": _calendar(["2026-01-02", "2026-01-05", "2026-01-06"]),
                 "raw": [], "scope": {"symbols": ["600000"]}}})
             job = Collect(sources, methods).run({"source_id": "market", "force": True})
-            self.assertEqual(job["status"], "succeeded")
+            self.assertEqual(job["outcome"], "succeeded")
             self.assertTrue(job["snapshot_id"])
             self.assertGreater(job["records"], 0)
             collect = Collect(sources, methods)
@@ -1230,7 +1230,7 @@ class CollectionTests(unittest.TestCase):
             collect.cancel(job_id)
             release.set()
             thread.join(2)
-            self.assertEqual(result[0]["status"], "failed")
+            self.assertEqual(result[0]["outcome"], "cancelled")
             self.assertEqual(published, [])
             collect.start()
             collect.close()
@@ -1250,7 +1250,7 @@ class CollectionTests(unittest.TestCase):
             collect = Collect(sources, methods)
             collect._save = lambda _job: (_ for _ in ()).throw(OSError("save failed"))
             result = collect.run({"source_id": "fixture"})
-            self.assertEqual(result["status"], "failed")
+            self.assertEqual(result["outcome"], "failed")
             self.assertEqual(collect._active, set())
 
     def test_collect_log_failure_does_not_change_successful_publish(self):
@@ -1268,7 +1268,7 @@ class CollectionTests(unittest.TestCase):
                 "records": [{"value": 1}], "raw": [], "scope": {"kind": "fixture"}}})
             methods.log = lambda _event: (_ for _ in ()).throw(OSError("log failed"))
             result = Collect(sources, methods).run({"source_id": "fixture"})
-            self.assertEqual(result["status"], "succeeded")
+            self.assertEqual(result["outcome"], "succeeded")
             self.assertIn("log_error", result)
 
     def test_enabled_schedule_runs_through_collect_run(self):
@@ -1294,7 +1294,7 @@ class CollectionTests(unittest.TestCase):
             collect.tick(at=schedule["next_at"])
             jobs = [value for value in collect._jobs.values() if value["source_id"] == "fixture"]
             self.assertEqual(len(jobs), 1)
-            self.assertEqual(jobs[0]["status"], "succeeded")
+            self.assertEqual(jobs[0]["outcome"], "succeeded")
 
     def test_minute_quotes_use_time_keys_and_minute_fields(self):
         from collect.methods import collect_daily
@@ -1362,11 +1362,11 @@ class CollectionTests(unittest.TestCase):
             collect = Collect(sources, methods)
             request = {'source_id': 'news', 'start': '2026-10-01', 'end': '2026-10-01', 'codes': []}
             job = collect.run(request)
-            self.assertEqual(job['status'], 'succeeded', job['error'])
+            self.assertEqual(job['outcome'], 'succeeded', job['error'])
             snapshot = methods.records(sources.get('news'))
             self.assertEqual(snapshot['records'][0]['articles'][0]['content'], '正文链接结尾')
             self.assertEqual(snapshot['raw'][0]['response'], page)
-            self.assertEqual(collect.run(request)['status'], 'succeeded')
+            self.assertEqual(collect.run(request)['outcome'], 'succeeded')
             self.assertEqual(len(calls), 1)
             self.assertEqual(methods.records(sources.get('news'))['total'], 1)
             self.assertEqual(list(Path(root).rglob('*.db')), [])
@@ -1435,9 +1435,9 @@ class CollectionTests(unittest.TestCase):
             collect = Collect(sources, methods)
             for day in ('01', '03'):
                 self.assertEqual(collect.run({'source_id': 'news', 'start': f'2026-10-{day}',
-                                             'end': f'2026-10-{day}'})['status'], 'succeeded')
+                                             'end': f'2026-10-{day}'})['outcome'], 'succeeded')
             self.assertEqual(collect.run({'source_id': 'news', 'start': '2026-10-01',
-                'end': '2026-10-03', 'keyword': '不匹配', 'fields': ['date']})['status'], 'succeeded')
+                'end': '2026-10-03', 'keyword': '不匹配', 'fields': ['date']})['outcome'], 'succeeded')
             self.assertEqual([url[-3:-1] for url in calls], ['01', '03', '02'])
             self.assertEqual(methods.records(source)['total'], 3)
             self.assertEqual(methods.records(source)['records'][0]['articles'][0]['content'], '全文')
