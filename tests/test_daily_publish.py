@@ -46,12 +46,16 @@ class DailyPublishTests(unittest.TestCase):
         self.assertEqual([row['date'] for row in rows], ['2026-10-30', '2026-11-09'])
         self.assertEqual([row['close'] for row in rows], [9.0, 10.0])
 
-    def test_conflicting_value_for_a_stored_key_is_rejected(self):
+    def test_a_stored_bar_wins_over_a_later_differing_value(self):
+        # Re-requesting a range resends bars already held; the stored bar is the
+        # record of what was observed, so the overlap is skipped rather than
+        # refused. One revised bar must not fail the codes sharing its batch.
         self.publish([self.bar('sh.600000', '2026-10-30', 9.0)])
-        with self.assertRaises(DataError) as caught:
-            self.publish([self.bar('sh.600000', '2026-10-30', 9.5)])
-        self.assertEqual(caught.exception.code, 'data_conflict')
-        self.assertEqual([row['close'] for row in self.stored()], [9.0])
+        result = self.publish([self.bar('sh.600000', '2026-10-30', 9.5),
+                               self.bar('sz.000001', '2026-11-09', 20.0)])
+        self.assertEqual(result['failures'], [])
+        self.assertEqual([(row['code'], row['date'], row['close']) for row in self.stored()],
+                         [('sh.600000', '2026-10-30', 9.0), ('sz.000001', '2026-11-09', 20.0)])
 
     def test_date_keeps_the_type_the_catalog_declared(self):
         self.publish([self.bar('sh.600000', '2026-11-09', 10.0)])

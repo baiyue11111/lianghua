@@ -1895,10 +1895,12 @@ class Methods:
 
         A daily source holds millions of rows, so reading it back into Python to
         merge costs far more than the write itself and does not fit in memory.
-        ``put_rows`` already merges on the logical key with an anti-join and
-        refuses a stored key whose immutable columns differ, which is the same
-        guarantee executed where the rows live. Column types come from the
-        registered definition, never from a second declaration here.
+        ``put_rows`` already merges on the logical key with an anti-join. The
+        range a source serves has to be re-requested on every pass, so bars we
+        already hold come back as a matter of course: ``on_conflict='skip'``
+        keeps the stored bar and writes the rest instead of refusing a batch
+        over an overlap that is normal. Column types come from the registered
+        definition, never from a second declaration here.
         """
         self._validate_canonical_daily(packet)
         incoming = list(self.daily_rows(packet).values())
@@ -1928,7 +1930,7 @@ class Methods:
             raise DataError('unsupported_refresh',
                             'daily source is append-only: replacing stored bars needs a compaction pass')
         with self.data.transaction():
-            self.data.put_rows(name, incoming, keys=('code', 'date'), refresh=refresh)
+            self.data.put_rows(name, incoming, keys=('code', 'date'), refresh=refresh, on_conflict='skip')
             if dataset_id and isinstance(calendar, Mapping):
                 incoming_calendar = _calendar_payload(calendar)
                 try:

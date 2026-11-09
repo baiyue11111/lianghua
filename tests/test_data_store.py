@@ -78,6 +78,16 @@ class DataStoreTest(unittest.TestCase):
             self.store.write(TableWrite('prices', pa.Table.from_pylist([different, self.row]), True))
         self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
 
+    def test_skip_conflict_keeps_the_stored_row_and_writes_the_rest(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        changed = {**self.row, 'price': Decimal('99.000000')}
+        added = {'code': 'sz.000001', 'day': self.row['day'], 'price': Decimal('1.500000'), 'shares': 5}
+        result = self.store.write(TableWrite('prices', pa.Table.from_pylist([changed, added]), on_conflict='skip'))
+        self.assertEqual(result.rows, 2)
+        self.assertEqual([(row['code'], row['price']) for row in
+                          self.store.scan(TableQuery('prices', order=('code',))).table.to_pylist()],
+                         [('sh.600000', self.row['price']), ('sz.000001', Decimal('1.500000'))])
+
     def test_refresh_updates_only_registered_columns(self):
         self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
         with self.assertRaises(DataError):

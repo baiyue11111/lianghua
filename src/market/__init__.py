@@ -98,7 +98,8 @@ class DataBus:
             raise DataError('missing', f'source is not registered: {identity}/{kind}')
         return rows[0]['reference']
 
-    def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False, storage=None):
+    def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False, storage=None,
+                 on_conflict='reject'):
         """Write only provided fields; SQL owns casts, merge and atomicity.
 
         ``rows`` is a record sequence, an Arrow table, or a ``TableSelect``: a
@@ -174,7 +175,7 @@ class DataBus:
             self.define(TableDef(name, columns, keys, policy, storage=layers))
             result = None
             for group in groups:
-                result = self.write(TableWrite(name, group, refresh))
+                result = self.write(TableWrite(name, group, refresh, on_conflict))
             return result
 
     @staticmethod

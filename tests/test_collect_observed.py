@@ -119,20 +119,29 @@ class ObservedTests(unittest.TestCase):
             m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':12.}]))
             self.assertEqual(m.last_dates(source,['600003','sh.600999']),{'600003':'2020-02-04'})
 
-    def test_storage_conflict_rejects_only_that_security_and_publishes_others(self):
+    def test_a_stored_bar_is_kept_and_the_rest_of_the_packet_lands(self):
         with tempfile.TemporaryDirectory() as folder:
             bus,m,source=self.setup_store(folder)
-            m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':12.}]))
-            packet=self.packet([{'code':'sh.600003','date':'2020-01-31','close':13.},
-                                {'code':'sh.600003','date':'2020-02-03','close':14.},
-                                {'code':'sh.600004','date':'2020-01-31','close':20.}])
+            m.publish(source,self.packet([{'code':'sh.600003','date':'2020-02-05','close':12.}],
+                                         start='2020-02-03',end='2020-02-06'))
+            # The snapshot already holds 2020-02-03 close 11; the packet sends a
+            # different value for it alongside two bars nobody has.
+            packet=self.packet([{'code':'sh.600003','date':'2020-02-03','close':14.},
+                                {'code':'sh.600003','date':'2020-02-06','close':15.},
+                                {'code':'sh.600004','date':'2020-02-05','close':20.}],
+                               start='2020-02-03',end='2020-02-06')
             packet['request']['codes'].append('sh.600004')
             result=m.publish(source,packet)
-            self.assertEqual(result['records'],1)
-            self.assertEqual([x['code'] for x in result['failures']],['sh.600003'])
-            rows=pq.read_table(pa.BufferReader(bus.read('sources','fixture','daily/2020.parquet'))).to_pylist()
-            self.assertEqual([(r['code'],r['date'],r['close']) for r in rows],
-                             [('sh.600003','2020-01-31',12.),('sh.600004','2020-01-31',20.)])
+            self.assertEqual(result['failures'],[])
+            # ``records`` counts the bars the source delivered; the overlapping
+            # one is skipped at the store, not refused.
+            self.assertEqual(result['records'],3)
+            rows=[row for row in m.data.table(m.data.source('fixture','bars')).to_pylist()
+                  if row['date'] >= '2020-02-03']
+            self.assertEqual(sorted((r['code'],r['date'],r['close']) for r in rows),
+                             [('sh.600003','2020-02-03',11.),('sh.600003','2020-02-04',12.),
+                              ('sh.600003','2020-02-05',12.),('sh.600003','2020-02-06',15.),
+                              ('sh.600004','2020-02-05',20.)])
 
     def test_partial_merge_validates_the_result_and_keeps_other_securities(self):
         with tempfile.TemporaryDirectory() as folder:

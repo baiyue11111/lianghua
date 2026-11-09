@@ -535,6 +535,8 @@ class DataStore:
     def write(self, value: TableWrite):
         if not isinstance(value, TableWrite):
             raise TypeError('TableWrite required')
+        if value.on_conflict not in ('reject', 'skip'):
+            raise DataError('invalid_record', 'on_conflict must be reject or skip')
         with self.transaction():
             table = self.definition(value.name)
             select = value.source if isinstance(value.source, TableSelect) else None
@@ -611,9 +613,17 @@ class DataStore:
                     # a store written by an older version. Bulk tables are checked
                     # once at open by ``_reconcile`` instead of on every batch.
                     raise DataError('data_corrupt', 'target contains duplicate logical keys')
+                # A stored key wins when the writer says so. The lake is
+                # append-only: a row already written records what was observed
+                # then, and only a column the table declares updatable, written
+                # with ``refresh``, is changed. A feed that re-requests the same
+                # date range on every pass overlaps by design, so comparing
+                # values would turn that ordinary overlap into an error and one
+                # revised bar would fail every code sharing its batch.
                 immutable = [n for n in columns if n not in table.keys and (n not in table.updates or not value.refresh)]
                 differing = ' OR '.join('old.' + quote(n) + ' IS DISTINCT FROM new.' + quote(n) for n in immutable)
-                if differing and connection.execute(f'SELECT 1 FROM {source_relation} old JOIN incoming new ON {match} WHERE {differing} LIMIT 1').fetchone():
+                if (value.on_conflict != 'skip' and differing
+                        and connection.execute(f'SELECT 1 FROM {source_relation} old JOIN incoming new ON {match} WHERE {differing} LIMIT 1').fetchone()):
                     raise DataError('data_conflict', 'stored logical key has conflicting immutable values')
                 rows = connection.execute('SELECT count(*) FROM incoming').fetchone()[0]
                 if not rows:
