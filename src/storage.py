@@ -485,6 +485,25 @@ class DataStore:
                    f'FROM (SELECT {columns} FROM {self._physical(name)}) AS row')
             return self._connection.execute(sql, [schema]).fetchone()[0]
 
+    def manifest_digest(self, name):
+        """A generation id for a bulk table: its file set, not its rows.
+
+        ``fingerprint`` serialises every row and aggregates the result into one
+        string, which on a table of millions of rows means a full scan and a
+        multi-gigabyte allocation. The manifest is the authority for what a bulk
+        table is made of and already carries one digest per immutable file, so
+        hashing it is O(parts) and changes exactly when the table changes.
+        """
+        definition = self.definition(name)
+        if definition.storage != 'parquet':
+            return self.fingerprint(name)
+        with self._lock:
+            self._check()
+            rows = self._connection.execute(
+                'SELECT path, row_count, size_bytes, sha256 FROM lake.main._files '
+                'WHERE table_name=? ORDER BY path', [name]).fetchall()
+        return sha256(json.dumps(rows, ensure_ascii=False, default=str).encode()).hexdigest()
+
     def select_schema(self, select: TableSelect):
         """Columns and Arrow types a stored ``SELECT`` returns, without running it."""
         with self._lock:

@@ -408,6 +408,12 @@ class DataBus:
             return self._store.fingerprint(reference[5:])
         return digest(self.object(reference))
 
+    def manifest_digest(self, reference):
+        """Generation of a bulk table by its file manifest, not by every row."""
+        if not isinstance(reference, str) or not reference.startswith('lake:'):
+            raise DataError('invalid_ref', 'native table reference required')
+        return self._store.manifest_digest(reference[5:])
+
     def query(self, query):
         if not isinstance(query, DataQuery):
             raise DataError('invalid_query', 'query must be DataQuery')

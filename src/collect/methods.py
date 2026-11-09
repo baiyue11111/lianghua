@@ -1003,7 +1003,7 @@ class Methods:
             raise DataError('invalid_identity', 'source identity is required')
         return identity
 
-    def _source_table(self, identity, kind, rows=(), keys=(), types=None):
+    def _source_table(self, identity, kind, rows=(), keys=(), types=None, updates=None):
         """Resolve a named source binding, creating its typed table on first write."""
         try:
             reference = self.data.source(identity, kind)
@@ -1013,9 +1013,9 @@ class Methods:
             from market import table_name
             name = table_name(f'{identity}/{kind}')
             columns = set().union(*(row.keys() for row in rows))
-            updates = tuple(sorted(columns - set(keys)))
+            policy = tuple(sorted(columns - set(keys))) if updates is None else tuple(updates)
             with self.data.transaction():
-                self.data.put_rows(name, rows, keys=keys, updates=updates, types=types)
+                self.data.put_rows(name, rows, keys=keys, updates=policy, types=types)
                 reference = 'lake:' + name
                 self.data.bind(identity, kind, reference)
         return reference
@@ -1767,28 +1767,44 @@ class Methods:
         return merged
 
     def _publish_daily(self, identity: str, dataset_id: str | None, packet: Mapping[str, object], *, dry_run: bool = False) -> dict:
-        """Merge validated bars into the source table registered for this source."""
+        """Hand the new bars to the store; merging belongs to the store.
+
+        A daily source holds millions of rows, so reading it back into Python to
+        merge costs far more than the write itself and does not fit in memory.
+        ``put_rows`` already merges on the logical key with an anti-join and
+        refuses a stored key whose immutable columns differ, which is the same
+        guarantee executed where the rows live. Column types come from the
+        registered definition, never from a second declaration here.
+        """
         self._validate_canonical_daily(packet)
         incoming = list(self.daily_rows(packet).values())
         if not incoming:
             return {'incoming': 0, 'records': 0, 'failures': []} if dry_run else {'ref': None, 'records': 0, 'failures': []}
+        if dry_run:
+            return {'incoming': len(incoming), 'records': len(incoming), 'failures': []}
+        calendar = packet.get('calendar')
+        declared = None
         try:
-            old = self._source_rows(identity, 'bars')
+            self.data.source(identity, 'bars')
         except DataError as error:
             if error.code != 'missing':
                 raise
-            old = []
-        records, failures = self.merge_records(
-            old, incoming, ('code', 'date'), refresh=packet.get('request', {}).get('refresh') is True)
-        if dry_run:
-            return {'incoming': len(incoming), 'records': len(records), 'failures': failures}
-        calendar = packet.get('calendar')
+            # Only the first write has to name the columns; every later write
+            # reads the registered definition instead of repeating it.
+            declared = {'code': 'VARCHAR', 'date': 'VARCHAR',
+                        'open': 'DOUBLE', 'high': 'DOUBLE', 'low': 'DOUBLE', 'close': 'DOUBLE',
+                        'volume': 'DOUBLE', 'amount': 'DOUBLE', 'price_basis': 'VARCHAR'}
+        reference = self._source_table(identity, 'bars', incoming, ('code', 'date'), declared, updates=())
+        name = reference[5:]
+        refresh = packet.get('request', {}).get('refresh') is True
+        if refresh and not self.data.definition(name).updates:
+            # A bar for a stored (code, date) may not change silently: the file
+            # that holds it is immutable, so a replacement is a compaction pass,
+            # not something a batch write can do in place.
+            raise DataError('unsupported_refresh',
+                            'daily source is append-only: replacing stored bars needs a compaction pass')
         with self.data.transaction():
-            if records:
-                types = self._types(records, {'code': 'VARCHAR', 'date': 'DATE',
-                    'open': 'DOUBLE', 'high': 'DOUBLE', 'low': 'DOUBLE', 'close': 'DOUBLE',
-                    'volume': 'DOUBLE', 'amount': 'DOUBLE', 'price_basis': 'VARCHAR'})
-                self._replace_source_rows(identity, 'bars', records, ('code', 'date'), types)
+            self.data.put_rows(name, incoming, keys=('code', 'date'), refresh=refresh)
             if dataset_id and isinstance(calendar, Mapping):
                 incoming_calendar = _calendar_payload(calendar)
                 try:
@@ -1802,9 +1818,7 @@ class Methods:
                     'coverage': _calendar_coverage([*current_calendar['coverage'], *incoming_calendar['coverage']]),
                 }
                 self.data.save_calendar(dataset_id, merged_calendar)
-        rejected = {item['code'] for item in failures}
-        return {'ref': None, 'records': sum(row.get('code') not in rejected for row in incoming),
-                'failures': failures}
+        return {'ref': None, 'records': len(incoming), 'failures': []}
 
     @staticmethod
     def _merge_daily_row(old, new, key, *, refresh=False):
@@ -1883,7 +1897,7 @@ class Methods:
         identity = source.get('storage_id', source_id)
         reference = self.data.source(identity, 'bars')
         generation = {'source_id': source_id, 'dataset': dataset_id, 'reference': reference,
-                      'evidence': self.data.evidence(reference), 'scope': scope,
+                      'evidence': self.data.manifest_digest(reference), 'scope': scope,
                       'calendar': [day.isoformat() for day in sessions]}
         snapshot_id = hashlib.sha256(_bytes(generation)).hexdigest()
         return manifest, sessions, scope, symbols, reference, snapshot_id, dataset_symbols
