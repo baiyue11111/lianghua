@@ -1450,6 +1450,145 @@ class Methods:
         with self.data.transaction(readonly=True):
             return self._daily_coverage_readonly(dataset, symbols, start, end, fields, identity=identity)
 
+    # Sessions a source resumes from when a security has never been stored.
+    # Long enough to step over a market-wide closure, short enough that the
+    # query stays a tail scan instead of enumerating a decade of history.
+    RESUME_WINDOW = 20
+
+    @staticmethod
+    def _code_key(code):
+        """Normalise a code when its shape is known, otherwise keep it as given.
+
+        Daily bindings are not all A-share: a series keyed by ``fred.nasdaqcom``
+        is a legal code in its own dataset, and refusing it here would make a
+        difference set only work for one market.
+        """
+        try:
+            return normalize_security_id(code)
+        except ValueError:
+            return str(code)
+
+    def missing_days(self, source: Mapping, codes, *, start=None, end=None, fields=None):
+        """The sessions a daily source is known to lack, as one difference.
+
+        ``(calendar x codes) - bars``, bounded by each security's listing
+        window. The subtraction runs where the rows live: the market table is
+        16.7M rows, and pulling a range across to build a Python set is what
+        makes a coverage check cost more than the write it guards.
+
+        With no ``start`` each security resumes from its own last stored bar,
+        or from the last ``RESUME_WINDOW`` sessions when it has none. Returns
+        ``None`` when the calendar cannot define the window -- a difference set
+        exists only where a clock exists.
+
+        Keys are the codes as given, so a caller never has to guess how they
+        were normalised on the way in.
+        """
+        original, symbols = {}, []
+        for code in codes:
+            key = self._code_key(code)
+            if key not in original:
+                original[key] = []
+                symbols.append(key)
+            if code not in original[key]:
+                original[key].append(code)
+        if not symbols:
+            return {}
+        wanted = tuple(fields or source.get('fields')
+                       or ('open', 'high', 'low', 'close', 'volume', 'amount'))
+        last = date.fromisoformat(end) if isinstance(end, str) else (end or date.today())
+        resume = start is None
+        if resume:
+            with self.data.transaction(readonly=True):
+                tail = self.data.scan(SQLQuery(
+                    'SELECT session FROM calendar_sessions '
+                    'WHERE dataset = ? AND session <= ? '
+                    'ORDER BY 1 DESC LIMIT ?',
+                    (source.get('dataset_id', source['id']), last.isoformat(),
+                     self.RESUME_WINDOW))).table.to_pylist()
+            floor = sorted(str(row['session']) for row in tail)
+            if not floor:
+                return None
+            lower = floor[0]
+        else:
+            lower = date.fromisoformat(start).isoformat() if isinstance(start, str) else start.isoformat()
+        try:
+            reference = self.data.source(source.get('storage_id', source['id']), 'bars')
+        except DataError as error:
+            if error.code != 'missing':
+                raise
+            reference = None
+        stored = '' if reference is None else self._sql_name(reference[5:])
+        if stored:
+            if not set(('code', 'date', *wanted)) <= self.data.definition(reference[5:]).columns.keys():
+                raise DataError('invalid_query', 'daily coverage fields are not registered')
+        scope = self._security_scope()
+        # Sessions and bar dates are ISO text, so they order as text too. The
+        # comparison stays textual on purpose: casting the stored column hides
+        # the parquet statistics and turns every probe into a full scan.
+        lines = ['WITH wanted AS (',
+                 '  SELECT s.code AS code, e.session AS session',
+                 '  FROM (SELECT UNNEST(CAST(? AS VARCHAR[])) AS code) s']
+        values = [list(symbols)]
+        if resume and stored:
+            lines.append(f'  LEFT JOIN (SELECT code, max(date) AS stopped '
+                         f'FROM {stored} GROUP BY 1) w ON w.code = s.code')
+        if scope:
+            lines.append(f'  LEFT JOIN {scope} f ON f.code = s.code')
+        lines += ['  JOIN calendar_sessions e ON e.dataset = ?',
+                  '   AND e.session <= ?']
+        values += [source.get('dataset_id', source['id']), last.isoformat()]
+        lines.append('   AND e.session >= '
+                     + ('coalesce(w.stopped, CAST(? AS VARCHAR))' if resume and stored
+                        else 'CAST(? AS VARCHAR)'))
+        values.append(lower)
+        if scope:
+            lines += ['  WHERE (f.listed IS NULL OR e.session >= f.listed)',
+                      '    AND (f.delisted IS NULL OR e.session < f.delisted)']
+        if stored:
+            lines += ['), have AS (',
+                      f'  SELECT code, date AS session FROM {stored}',
+                      '  WHERE code IN (SELECT UNNEST(CAST(? AS VARCHAR[])))',
+                      '    AND date BETWEEN ? AND ?']
+            lines += [f'    AND {self._sql_name(name)} IS NOT NULL' for name in wanted]
+            values += [list(symbols), lower, last.isoformat()]
+        else:
+            lines += ['), have AS (', '  SELECT NULL::VARCHAR AS code, NULL::VARCHAR AS session '
+                      'WHERE FALSE']
+        lines += [')',
+                  'SELECT w.code AS code, w.session AS session FROM wanted w',
+                  'WHERE NOT EXISTS (SELECT 1 FROM have h '
+                  'WHERE h.code = w.code AND h.session = w.session)',
+                  'ORDER BY 1, 2']
+        with self.data.transaction(readonly=True):
+            rows = self.data.scan(SQLQuery('\n'.join(lines), tuple(values))).table.to_pylist()
+        missing, stored_days = {}, {}
+        for row in rows:
+            stored_days.setdefault(str(row['code']), []).append(str(row['session']))
+        for key, days in stored_days.items():
+            for code in original.get(key, (key,)):
+                missing[code] = days
+        return missing
+
+    def _security_scope(self):
+        """The listing window per security, as a derived relation, or ``None``.
+
+        Security facts keep their code inside the reference string, so this is
+        the one place that knows how to cut it out. Without the relation every
+        session before a security listed looks missing, which is most of the
+        difference set on a young table.
+        """
+        try:
+            self.data.definition('fact_security')
+        except DataError as error:
+            if error.code != 'missing_table':
+                raise
+            return None
+        return ("(SELECT split_part(reference, ':', 3) AS code, "
+                "min(nullif(listing_date, '')) AS listed, "
+                "max(nullif(delisting_date, '')) AS delisted "
+                'FROM fact_security GROUP BY 1)')
+
     def _daily_coverage_readonly(self, dataset: str, symbols: tuple[str, ...],
                                  start: date, end: date, fields: tuple[str, ...], *, identity=None) -> Mapping[str, object]:
         if (not symbols or not fields or start > end or
@@ -1459,38 +1598,23 @@ class Methods:
         calendar = self.data.calendar(dataset)
         sessions = tuple(date.fromisoformat(str(value)) for value in calendar.get('sessions', ()))
         wanted_days = tuple(day for day in sessions if start <= day <= end)
-        requested_ids = {normalize_security_id(value) for value in symbols}
-        declared = manifest['scope']['symbols']
-        aliases = sorted({str(value) for value in (*symbols, *declared)
-                          if normalize_security_id(str(value)) in requested_ids} | requested_ids)
-        reference = self.data.source(identity or dataset, 'bars')
-        table_name = reference[5:]
-        definition = self.data.definition(table_name)
-        columns = ('code', 'date', *fields)
-        if not set(columns) <= definition.columns.keys():
-            raise DataError('invalid_query', 'daily coverage fields are not registered')
-        projection = ', '.join(self._sql_name(name) for name in columns)
-        statement = (f'SELECT {projection} FROM {self._sql_name(table_name)} '
-                     'WHERE code IN (SELECT UNNEST(?)) '
-                     'AND CAST(date AS DATE) BETWEEN CAST(? AS DATE) AND CAST(? AS DATE)')
-        with self.data.transaction(readonly=True):
-            rows = self.data.scan(SQLQuery(statement, (aliases, start.isoformat(), end.isoformat()))).table.to_pylist()
-        found = {(normalize_security_id(str(row['code'])), str(row['date'])[:10])
-                 for row in rows if all(row.get(field) is not None for field in fields)}
+        missing = self.missing_days({'id': identity or dataset, 'storage_id': identity or dataset,
+                                     'dataset_id': dataset},
+                                    symbols, start=start, end=end, fields=fields)
+        if missing is None:
+            raise DataError('missing_calendar', 'daily coverage needs a registered calendar')
         for item in self.no_trade({**manifest, 'dataset_id': dataset}):
-            if normalize_security_id(str(item.get('code'))) not in requested_ids:
+            code = self._code_key(str(item.get('code')))
+            if code not in missing:
                 continue
-            for day in wanted_days:
-                if item.get('start') <= day.isoformat() <= item.get('end'):
-                    found.add((normalize_security_id(str(item['code'])), day.isoformat()))
-        missing = {symbol: [day.isoformat() for day in wanted_days
-                            if (normalize_security_id(symbol), day.isoformat()) not in found]
-                   for symbol in symbols}
+            missing[code] = [day for day in missing[code]
+                             if not item.get('start') <= day <= item.get('end')]
+        absent = {symbol: missing.get(symbol, []) for symbol in symbols}
         calendar_complete = bool(sessions) and sessions[0] <= start <= end < sessions[-1]
         return {'dataset': dataset, 'start': start.isoformat(), 'end': end.isoformat(),
                 'calendar_complete': calendar_complete, 'fields': tuple(fields),
-                'complete': bool(wanted_days) and calendar_complete and not any(missing.values()),
-                'missing': missing, 'sessions': tuple(day.isoformat() for day in wanted_days)}
+                'complete': bool(wanted_days) and calendar_complete and not any(absent.values()),
+                'missing': absent, 'sessions': tuple(day.isoformat() for day in wanted_days)}
 
     @staticmethod
     def missing_request(request: Mapping, coverage: Mapping) -> dict:

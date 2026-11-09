@@ -105,7 +105,7 @@ class Collect:
             result['data_as_of'] = max(observed)
         return result
 
-    def _run(self, source, request, *, starts=None, size=25):
+    def _run(self, source, request, *, starts=None, missing=None, size=25):
         source_id = source['id']
         request = {**request, 'source_id': source_id}
         if type(size) is not int or size < 1:
@@ -134,7 +134,13 @@ class Collect:
                     unit = {**request, **({'codes': [code]} if code is not None else {})}
                     packet = None
                     try:
-                        if starts is not None:
+                        if missing is not None:
+                            # A security with nothing absent needs no request.
+                            days = missing.get(code) if code is not None else None
+                            if not days:
+                                continue
+                            unit['start'], unit['end'] = days[0], days[-1]
+                        elif starts is not None:
                             if not starts.get(code):
                                 raise ValueError('collection start is unknown; provide a range or a registered listing date')
                             unit['start'] = starts[code]
@@ -231,10 +237,11 @@ class Collect:
             binding = spec['data'][kind]
             source = self.sources.get(binding['source'])
             codes = binding.get('codes', selected)
-            starts = (self.methods.last_dates(source, codes)
-                      if command == 'latest' and codes is not None else None)
-            if 'codes' not in binding and (codes is None or command == 'latest'
-                    and 'securities' in spec and set(codes) - starts.keys()):
+            # Listing dates come from the security relation inside the
+            # difference query, so the catalogue is only needed to resolve an
+            # unstated universe -- never to supply a starting date.
+            starts = None
+            if 'codes' not in binding and codes is None:
                 if catalogue is None:
                     securities = spec['securities']
                     directory = self.sources.get(securities['source'])
@@ -266,12 +273,27 @@ class Collect:
                 raise ValueError('no securities in the requested interval')
             request = {key: value[key] for key in ('start', 'end', 'fields', 'refresh') if key in value}
             request.update(source_id=source['id'], codes=sorted(set(codes)))
+            missing = None
             if 'start' not in request and command != 'doctor':
-                starts = self.methods.last_dates(source, codes) if starts is None else starts
-                if catalogue is not None:
-                    starts.update({code: catalogue[code] for code in codes
-                                   if code not in starts and catalogue.get(code)})
                 request['end'] = today
+                if command != 'check' and (source.get('data_type') == 'daily'
+                                           or source.get('method') == 'daily'):
+                    # Ask the store what is absent instead of inferring it from
+                    # the last stored day. The difference knows about sessions
+                    # the watermark cannot see, and it is one query.
+                    missing = self.methods.missing_days(source, request['codes'], end=today)
+                if missing is None:
+                    # No calendar to difference against: resume from the
+                    # watermark, which is all that is left to go on.
+                    starts = self.methods.last_dates(source, codes) if starts is None else starts
+                    if catalogue is not None:
+                        starts.update({code: catalogue[code] for code in codes
+                                       if code not in starts and catalogue.get(code)})
+                    if command != 'check':
+                        request['start'] = min(starts.values()) if starts else today
+                else:
+                    absent = [day for days in missing.values() for day in days]
+                    request['start'] = min(absent) if absent else today
             if command == 'doctor':
                 jobs.append(self.methods.doctor(source, request))
                 continue
@@ -285,11 +307,10 @@ class Collect:
                     plans.append({'data': kind, 'request': unit,
                                   'coverage': self.methods.inspect(source, unit)['coverage']})
                 continue
-            if starts is not None:
-                request['start'] = min(starts.values()) if starts else today
-            requests.append((source, self.methods.prepare_request(source, request), starts))
-        for source, request, starts in requests:
-            jobs.append(self._run(source, request, starts=starts, size=spec.get('batch_size', 25)))
+            requests.append((source, self.methods.prepare_request(source, request), starts, missing))
+        for source, request, starts, missing in requests:
+            jobs.append(self._run(source, request, starts=starts, missing=missing,
+                                  size=spec.get('batch_size', 25)))
         if command == 'check':
             return {'market': market['scope'], 'status': 'complete' if all(
                 plan['coverage']['complete'] for plan in plans) else 'incomplete', 'plans': plans}
