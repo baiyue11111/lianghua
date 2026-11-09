@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, replace
 from datetime import date
 from functools import partial
@@ -37,7 +38,7 @@ from protocol import (
     SQLQuery,
     validate_execution,
 )
-from typing import Any, Literal, Mapping, Protocol as TypingProtocol
+from typing import Any, Literal, Protocol as TypingProtocol
 from uuid import uuid4
 
 @dataclass(frozen=True)

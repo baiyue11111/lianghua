@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import math
 import re
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
@@ -11,7 +12,7 @@ from enum import StrEnum
 from math import isfinite
 from pathlib import Path
 from types import MappingProxyType
-from typing import Literal, Mapping, Protocol as TypingProtocol, TypeAlias
+from typing import Literal, Protocol as TypingProtocol, TypeAlias
 from uuid import uuid4
 
 JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
@@ -151,6 +152,11 @@ def _name(value: str, name: str) -> None:
         raise ValueError(f"{name} is required")
 
 
+def _readonly(values: Mapping) -> Mapping:
+    """Expose a mapping without copying it or stacking proxy layers."""
+    return values if isinstance(values, MappingProxyType) else MappingProxyType(values)
+
+
 def _decimal(value: Decimal, name: str, *, positive: bool = False) -> None:
     if not isinstance(value, Decimal) or not value.is_finite() or (positive and value <= 0):
         raise ValueError(f"{name} must be a finite Decimal{' greater than zero' if positive else ''}")
@@ -258,29 +264,22 @@ class MarketFrame:
     history: Mapping[str, tuple[HistoryBar, ...]] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        """Hold the producer's data by reference; the pipe stays dumb.
+
+        Shape, value and ordering invariants belong to the schema at the module
+        boundary (the reader assembling the windows, Adapter.validate for
+        untrusted input). A backtest derives thousands of frames per day, so
+        re-checking O(symbols x history) on every construction multiplied the
+        contract cost by the number of pipeline stages.
+        """
         _aware(self.at, "market timestamp")
         _name(self.venue, "venue")
-        copied = {}
-        for instrument, values in self.fields.items():
-            _name(instrument, "instrument")
-            if not isinstance(values, Mapping):
-                raise TypeError("instrument fields must be a mapping")
-            copied[instrument] = MappingProxyType(dict(values))
-        object.__setattr__(self, "fields", MappingProxyType(copied))
-        object.__setattr__(self, "context", MappingProxyType(dict(self.context)))
-        history = {}
-        for instrument, rows in self.history.items():
-            _name(instrument, "history instrument")
-            rows = tuple(rows)
-            previous = None
-            for row in rows:
-                if not isinstance(row, HistoryBar):
-                    raise TypeError("history rows must be HistoryBar")
-                if row.at > self.at or previous is not None and row.at <= previous:
-                    raise ValueError("history must be ordered, unique and not future")
-                previous = row.at
-            history[instrument] = rows
-        object.__setattr__(self, "history", MappingProxyType(history))
+        if (not isinstance(self.fields, Mapping) or not isinstance(self.context, Mapping)
+                or not isinstance(self.history, Mapping)):
+            raise TypeError("frame fields, context and history must be mappings")
+        object.__setattr__(self, "fields", _readonly(self.fields))
+        object.__setattr__(self, "context", _readonly(self.context))
+        object.__setattr__(self, "history", _readonly(self.history))
 
 
 @dataclass(frozen=True)

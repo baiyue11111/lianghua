@@ -1,13 +1,13 @@
 """The relational data bus. No runtime access to legacy directories."""
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from datetime import date
 from decimal import Decimal
 from hashlib import sha256
 import json
 from pathlib import Path
-from typing import Mapping
 from urllib.parse import quote
 
 import pyarrow as pa
