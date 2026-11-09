@@ -13,7 +13,7 @@ from decimal import Decimal
 import pyarrow as pa
 import pyarrow.parquet as pq
 import duckdb
-from protocol import DataError, Filter, TableDef, TableQuery, TableWrite, SQLQuery
+from protocol import DataError, Filter, TableDef, TableQuery, TableSelect, TableWrite, SQLQuery
 from storage import DataStore
 
 
@@ -37,8 +37,38 @@ class DataStoreTest(unittest.TestCase):
         self.store = DataStore(Path(self.folder.name))
         self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(), [self.row])
         self.assertEqual(self.store.scan(TableQuery('prices')).table.column_names, list(self.table.columns))
-        self.assertTrue(list((Path(self.folder.name) / 'data/parquet').rglob('*.parquet')))
+        # State stays in the database file; bulk data is Parquet and registered.
+        self.assertTrue((Path(self.folder.name) / 'data/catalog.duckdb').exists())
+        self.assertFalse(list((Path(self.folder.name) / 'data/parquet').rglob('*.parquet')))
         self.assertFalse(hasattr(self.store, 'path'))
+
+    def test_parquet_layer_appends_files_and_replaces_them_on_delete(self):
+        self.store.define(TableDef('bars', self.table.columns, self.table.keys,
+                                   self.table.updates, storage='parquet'))
+        self.store.write(TableWrite('bars', pa.Table.from_pylist([self.row])))
+        files = sorted((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet'))
+        self.assertEqual(len(files), 1)
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.to_pylist(), [self.row])
+        other = {**self.row, 'day': date(2025, 1, 3)}
+        self.store.write(TableWrite('bars', pa.Table.from_pylist([other])))
+        self.assertEqual(len(list((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet'))), 2)
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.num_rows, 2)
+        self.store.delete(TableQuery('bars', (Filter('day', 'eq', self.row['day']),)))
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.to_pylist(), [other])
+        self.assertEqual(len(list((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet'))), 1)
+        self.store.close()
+        self.store = DataStore(Path(self.folder.name))
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.to_pylist(), [other])
+
+    def test_parquet_layer_publishes_only_committed_files(self):
+        self.store.define(TableDef('bars', self.table.columns, self.table.keys,
+                                   self.table.updates, storage='parquet'))
+        with self.assertRaises(ValueError):
+            with self.store.transaction():
+                self.store.write(TableWrite('bars', pa.Table.from_pylist([self.row])))
+                raise ValueError('stop')
+        self.assertEqual(self.store.scan(TableQuery('bars')).table.num_rows, 0)
+        self.assertFalse(list((Path(self.folder.name) / 'data/parquet/bars').glob('*.parquet')))
 
     def test_idempotency_and_batch_conflict_are_atomic(self):
         self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row, self.row])))
@@ -246,6 +276,40 @@ class DataStoreTest(unittest.TestCase):
                 self.store.write(TableWrite('prices', batch))
             self.assertEqual(caught.exception.code, 'invalid_record')
         self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
+
+    def test_table_select_merges_rows_the_database_already_holds(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        result = self.store.write(TableWrite('prices', TableSelect(
+            'SELECT code, day, price + 1 AS price, shares FROM prices'), True))
+        self.assertEqual(result.rows, 1)
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.to_pylist(),
+                         [{**self.row, 'price': Decimal('13.123456')}])
+        self.store.write(TableWrite('prices', TableSelect(
+            'SELECT code, day, price, shares FROM prices UNION ALL '
+            'SELECT ?, ?, ?, ?', ('sz.000001', self.row['day'], Decimal('1.5'), 5))))
+        self.assertEqual(len(self.store.scan(TableQuery('prices')).table.to_pylist()), 2)
+
+    def test_table_select_rejects_lossy_casts_keys_and_columns(self):
+        cases = {
+            'lossy': 'SELECT \'sh.600000\' AS code, DATE \'2025-01-02\' AS day, CAST(1.5 AS DOUBLE) AS price',
+            'missing key': 'SELECT \'sh.600000\' AS code, 1 AS shares',
+            'null key': 'SELECT CAST(NULL AS VARCHAR) AS code, DATE \'2025-01-02\' AS day, 1 AS shares',
+            'extra column': ('SELECT \'sh.600000\' AS code, DATE \'2025-01-02\' AS day,'
+                             ' CAST(1.0 AS DECIMAL(20,6)) AS price, 1 AS shares, 2 AS extra'),
+        }
+        for label, sql in cases.items():
+            with self.subTest(case=label), self.assertRaises(DataError) as caught:
+                self.store.write(TableWrite('prices', TableSelect(sql)))
+            self.assertEqual(caught.exception.code, 'invalid_record')
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
+
+    def test_table_select_reports_one_key_written_twice(self):
+        with self.assertRaises(DataError) as caught:
+            self.store.write(TableWrite('prices', TableSelect(
+                'SELECT code, day, CAST(price AS DECIMAL(20,6)) AS price, shares FROM (VALUES'
+                ' (\'sh.600000\', DATE \'2025-01-02\', 1.0, 1),'
+                ' (\'sh.600000\', DATE \'2025-01-02\', 2.0, 2)) AS t(code, day, price, shares)')))
+        self.assertEqual(caught.exception.code, 'data_conflict')
 
     def test_additive_schema_preserves_columns_values_and_reopen(self):
         self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))

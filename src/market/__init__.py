@@ -12,7 +12,7 @@ from urllib.parse import quote
 
 import pyarrow as pa
 from protocol import (DataError, DataQuery, Dataset, Filter, TableDef, TableQuery,
-                      TableWrite, validate_facts, _calendar_facts)
+                      TableSelect, TableWrite, validate_facts, _calendar_facts)
 
 
 def table_name(value):
@@ -24,6 +24,11 @@ FACT_NUMERIC = {'adjust': ('forward', 'backward'),
                 'dividend': ('cash_per_share', 'stock_dividend_per_share',
                              'reserve_to_stock_per_share'),
                 'security': ()}
+
+# Source factor and dividend values carry up to 20 fractional digits. At scale
+# 18 pyarrow refuses to rescale them ("Rescaling Decimal128 value would cause
+# data loss"); 24 keeps every source digit and still leaves 14 integer digits.
+FACT_DECIMAL = 'DECIMAL(38,24)'
 
 
 def fact_ref(kind, code, start=None, end=None, year=None):
@@ -93,8 +98,12 @@ class DataBus:
             raise DataError('missing', f'source is not registered: {identity}/{kind}')
         return rows[0]['reference']
 
-    def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False):
-        """Write only provided fields; SQL owns casts, merge and atomicity."""
+    def put_rows(self, name, rows, *, keys, updates=None, types=None, refresh=False, storage=None):
+        """Write only provided fields; SQL owns casts, merge and atomicity.
+
+        ``rows`` is a record sequence, an Arrow table, or a ``TableSelect``: a
+        query whose result the database hands straight to the merge.
+        """
         keys = tuple(keys)
         updates = None if updates is None else tuple(updates)
         with self.transaction():
@@ -104,10 +113,16 @@ class DataBus:
                 if error.code != 'missing_table':
                     raise
                 existing = None
+            layers = existing.storage if existing is not None else (storage or 'table')
             columns = dict(existing.columns) if existing is not None else {}
             declared = dict(types or {})
             known_types = {**columns, **declared}
-            if isinstance(rows, (pa.Table, pa.RecordBatch)):
+            if isinstance(rows, TableSelect):
+                # The rows already live in the database, so the shape comes from
+                # the query and the rows never pass through this process.
+                table = pa.Table.from_batches([], schema=self._store.select_schema(rows))
+                groups = [rows]
+            elif isinstance(rows, (pa.Table, pa.RecordBatch)):
                 table = pa.Table.from_batches([rows]) if isinstance(rows, pa.RecordBatch) else rows
                 groups = [table]
             else:
@@ -156,7 +171,7 @@ class DataBus:
             for column, sql in declared.items():
                 columns.setdefault(column, sql)
             policy = existing.updates if updates is None and existing is not None else tuple(updates or ())
-            self.define(TableDef(name, columns, keys, policy))
+            self.define(TableDef(name, columns, keys, policy, storage=layers))
             result = None
             for group in groups:
                 result = self.write(TableWrite(name, group, refresh))
@@ -286,7 +301,8 @@ class DataBus:
                                                              [reference for reference, _ in chunk]),)))
                     rows, types = self._fact_rows(chunk, columns)
                     if rows:
-                        self.put_rows(name, rows, keys=('reference', 'position'), types=types)
+                        self.put_rows(name, rows, keys=('reference', 'position'), types=types,
+                                      storage='parquet')
         return tuple(reference for reference, _ in items)
 
     @staticmethod
@@ -301,7 +317,7 @@ class DataBus:
         types['position'] = 'BIGINT'
         if numeric:
             types['_numeric_types'] = 'JSON'
-            types.update({column: 'DECIMAL(38,18)' for column in numeric})
+            types.update({column: FACT_DECIMAL for column in numeric})
             for row in rows:
                 row['_numeric_types'] = {column: type(row[column]).__name__ for column in numeric
                                          if row[column] is not None}
