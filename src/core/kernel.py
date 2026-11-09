@@ -169,9 +169,15 @@ class Kernel:
             requirements = prepared.requirements
             dataset = prepared.dataset
             policies = dataset.policies
+            # Terminal delisting evidence is data, not configuration: the settlement
+            # must never infer it from a missing bar (suspension and delisting differ).
+            settlement_parameters = dict(request.settlement_parameters)
+            dataset_inputs = getattr(self._settlement_type, "dataset_parameters", None)
+            if callable(dataset_inputs):
+                settlement_parameters.update(dataset_inputs(dataset))
             settlement = self._settlement_type(
                 request.initial_cash, policies["fees"], policies["tax_policy"],
-                **dict(request.settlement_parameters),
+                **settlement_parameters,
             )
             records = dataset.records
             calendar = dataset.calendar

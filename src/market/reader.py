@@ -28,6 +28,7 @@ from protocol import (
     validate_facts,
     Filter,
     SQLQuery,
+    TableQuery,
 )
 from typing import Callable
 
@@ -478,6 +479,50 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
         connection.close()
 
 
+def _delisting_evidence(data, symbols):
+    """Declared delisting dates for the queried identities, keyed by both spellings.
+
+    The fact is a post-hoc, recorded event (``delisting_date`` from the exchange
+    listing/delisting catalogue).  Settlement uses it only as a terminal state;
+    it is deliberately not offered to strategies, where it would be a look-ahead.
+    """
+    from protocol import normalize_security_id
+
+    declared = {}
+    for symbol in symbols:
+        try:
+            declared.setdefault(normalize_security_id(symbol), []).append(symbol)
+        except ValueError:
+            continue
+    if not declared:
+        return {}
+    try:
+        rows = data.scan(TableQuery('fact_security')).table.to_pylist()
+    except DataError as error:
+        # A dataset without a security catalogue has no delisting evidence; every
+        # identity is simply treated as still listed.
+        if error.code == 'missing_table':
+            return {}
+        raise
+    delistings = {}
+    for row in rows:
+        reference = row.get('reference')
+        if not isinstance(reference, str) or not reference.startswith('fact:security:'):
+            continue
+        value = row.get('delisting_date')
+        if not value:
+            continue
+        try:
+            identity = normalize_security_id(reference[len('fact:security:'):].split(':', 1)[0])
+        except ValueError:
+            continue
+        for symbol in declared.get(identity, ()):
+            delistings[symbol] = str(value)
+        if identity in declared:
+            delistings[identity] = str(value)
+    return delistings
+
+
 def _load_dataset(data, query):
     from core.calculation import (normalize_dividend_records, reconcile_corporate_actions,
                                   TaxLedger, FeePolicy, TaxPolicy)
@@ -889,13 +934,13 @@ def _load_dataset(data, query):
             raise ValueError('point-in-time query requires factor availability evidence')
     data_hash=canonical_hash({'accounting':query.accounting,'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],
         'tax':query.tax,'inputs':inputs,'price_basis':'backward-factor-signal-index','fields':manifest.get('fields',{})})
+    scope['delistings']=_delisting_evidence(data, panel.symbols)
     return (panel, calendar, {day: tuple(actions) for day, actions in day_inputs.items()},
             hashes, data_hash, {'policy': policy, 'source_hash': policy_hash},
             canonical_hash({'files': account_files, 'facts': [
                 (identity, tuple(None if value is None else str(value) for value in terms), sources)
                 for identity, (terms, sources) in sorted(facts.items())]}),
             field_data, scope, plugins)
-
 
 def _prepare_raw_dataset(data, query):
     import pyarrow as pa
@@ -1023,6 +1068,7 @@ def _prepare_raw_dataset(data, query):
             (), {},
         ))
     scope["symbols"] = symbols
+    scope['delistings'] = _delisting_evidence(data, symbols)
     scope["calendar_start"] = sessions[0].isoformat()
     scope["calendar_end"] = sessions[-2].isoformat()
     return Dataset(

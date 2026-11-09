@@ -871,7 +871,7 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
     try:
         allowed = {"run_id", "module", "params", "dataset_id", "start", "end", "initial_cash",
                    "fields", "history", "price_basis", "as_of", "market", "limits", "evaluation", "benchmark_id",
-                   "execution", "search", "accounting"}
+                   "execution", "search", "accounting", "delisting_haircut"}
         unknown = set(data) - allowed
         if unknown:
             raise ValueError(f"unsupported request fields: {', '.join(sorted(unknown))}")
@@ -880,6 +880,14 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
             if data['accounting'] not in {'account','research'}:
                 raise ValueError('unsupported accounting model')
             settlement_parameters['accounting'] = data['accounting']
+        if data.get("delisting_haircut") is not None:
+            try:
+                haircut = Decimal(str(data["delisting_haircut"]))
+            except (ArithmeticError, TypeError, ValueError) as error:
+                raise ValueError("delisting_haircut must be a finite fraction") from error
+            if not haircut.is_finite() or not 0 <= haircut <= 1:
+                raise ValueError("delisting_haircut must be within [0, 1]")
+            settlement_parameters["delisting_haircut"] = haircut
         if data.get("limits") is not None:
             settlement_parameters["limits"] = _limits(data["limits"])
         if data.get("execution") is not None:

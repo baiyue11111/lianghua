@@ -823,6 +823,56 @@ class Adapter:
         return tuple(output)
 
 
+DELISTING_HAIRCUT = Decimal(0)
+
+
+def _delisting_haircut(value):
+    """Fraction of the last observed mark recovered at delisting; zero writes off."""
+    if value is None:
+        return DELISTING_HAIRCUT
+    try:
+        haircut = Decimal(str(value))
+    except (ArithmeticError, TypeError, ValueError) as error:
+        raise ValueError("delisting_haircut must be a finite fraction") from error
+    if not haircut.is_finite() or not Decimal(0) <= haircut <= Decimal(1):
+        raise ValueError("delisting_haircut must be within [0, 1]")
+    return haircut
+
+
+def _delisting_dates(value):
+    """Recorded delisting dates keyed by dataset identity; absence is not a suspension."""
+    if value is None:
+        return {}
+    if not isinstance(value, Mapping):
+        raise ValueError("delistings must be a mapping of identity to date")
+    dates = {}
+    for symbol, day in value.items():
+        if not isinstance(symbol, str) or not symbol:
+            raise ValueError("delisting identity must be a non-empty string")
+        if isinstance(day, datetime):
+            day = day.date()
+        elif not isinstance(day, date):
+            try:
+                day = date.fromisoformat(str(day))
+            except (TypeError, ValueError) as error:
+                raise ValueError(f"invalid delisting date: {symbol}") from error
+        dates[symbol] = day
+    return dates
+
+
+@dataclass(frozen=True)
+class WriteOff:
+    """Terminal settlement of a position that can no longer trade."""
+
+    day: date
+    symbol: str
+    units: Decimal
+    mark: Decimal
+    haircut: Decimal
+    proceeds: Decimal
+    basis: Decimal
+
+
 class Settlement:
     """Stateful account settlement extracted from the historical runner."""
 
@@ -870,7 +920,10 @@ class Settlement:
 
     @classmethod
     def describe(cls, overrides):
-        limits, execution = cls.resolve(**dict(overrides))
+        values = dict(overrides)
+        haircut = _delisting_haircut(values.pop('delisting_haircut', None))
+        values.pop('delistings', None)
+        limits, execution = cls.resolve(**values)
         return {
             "module": f"{cls.__module__}:{cls.__name__}",
             "params": {
@@ -878,19 +931,25 @@ class Settlement:
                             "stock_weight": limits.stock_weight,
                             "adv_fraction": limits.adv_fraction},
                 "execution": execution,
+                "delisting_haircut": format(haircut, 'f'),
                 **({'accounting':'research'} if overrides.get('accounting') == 'research' else {}),
             },
         }
 
-    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, execution=None, accounting='account'):
+    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, execution=None,
+                 accounting='account', delisting_haircut=None, delistings=None):
         from core.calculation import (AccountExecutionSession, AccountLedger,
                                       AccountDistributionLedger, AllocationLimits, TradeRules)
 
         limits, execution = self.resolve(limits=limits, execution=execution,accounting=accounting)
 
         self.limits = limits
+        self.delisting_haircut = _delisting_haircut(delisting_haircut)
+        self.delistings = _delisting_dates(delistings)
         self.trade_rules = TradeRules(execution, fees, tax_policy)
-        self._research = ResearchBook(initial_cash,self.trade_rules,limits) if accounting == 'research' else None
+        self._research = ResearchBook(initial_cash,self.trade_rules,limits,
+                                      delistings=self.delistings,
+                                      haircut=self.delisting_haircut) if accounting == 'research' else None
         self.account = AccountLedger(initial_cash)
         self.execution = AccountExecutionSession(self.account, self.trade_rules)
         self.distributions = AccountDistributionLedger(self.account)
@@ -910,10 +969,19 @@ class Settlement:
         self._failure = None
         self._sealed = False
 
+    @classmethod
+    def dataset_parameters(cls, dataset):
+        """Settlement inputs that come from data rather than configuration."""
+        scope = getattr(dataset, "scope", None) or {}
+        return {"delistings": scope.get("delistings") or {}}
+
     @staticmethod
-    def validate_dataset(dataset, request, *, limits=None, execution=None, accounting='account'):
+    def validate_dataset(dataset, request, *, limits=None, execution=None, accounting='account',
+                         delisting_haircut=None, delistings=None):
         from core.calculation import TradeRules
 
+        _delisting_haircut(delisting_haircut)
+        _delisting_dates(delistings)
         limits, execution = Settlement.resolve(limits=limits, execution=execution,accounting=accounting)
         if dataset.provenance.get('accounting','account') != accounting:
             raise ValueError('dataset accounting model does not match settlement')
@@ -1008,6 +1076,13 @@ class Settlement:
             raise ValueError("following session must be chronological")
         self._validate_day(record, record.trade_date)
         day = record.trade_date
+        dead = [lot.symbol for lot in self.account.lots
+                if self.delistings.get(lot.symbol) is not None
+                and day > self.delistings[lot.symbol]]
+        if dead:
+            raise ValueError(
+                "account accounting cannot settle a delisted holding "
+                f"({dead[0]}): the position has no tradable observation and no write-off posting")
         due_dates = {p.due for p in self.taxes.pending.values() if p.due <= day}
         due_dates.update(self.distributions.due_dates(day))
         for when in sorted(due_dates | {day}):
@@ -1148,9 +1223,12 @@ class ResearchPosition:
 class ResearchBook:
     """Adjusted investment units, next-open raw execution and costs; no dividend ledger."""
 
-    def __init__(self,cash,rules,limits):
+    def __init__(self,cash,rules,limits,*,delistings=None,haircut=DELISTING_HAIRCUT):
         self.cash=self.initial=cash
         self.rules,self.limits=rules,limits
+        self.delistings=_delisting_dates(delistings)
+        self.haircut=_delisting_haircut(haircut)
+        self.writeoffs=[]
         self.units,self.basis,self.marks,self.raw,self.factors,self.liquidity={},{},{},{},{},{}
         self.target=self.current=None
         self.pending_symbols=set()
@@ -1173,6 +1251,7 @@ class ResearchBook:
         self.liquidity.update(record.opening_amount20)
         self.raw.update(record.opening_marks)
         self.marks.update({s:p*factors[s] for s,p in record.opening_marks.items()})
+        self._write_off(record.trade_date)
         if self.target is not None:
             equity=self.cash+sum((u*self.marks[s] for s,u in self.units.items()),Decimal(0))
             shares={s:(u*self.factors[s]).quantize(Decimal('1e-12')) for s,u in self.units.items()}
@@ -1259,6 +1338,36 @@ class ResearchBook:
         self.holdings.append((record.trade_date,tuple(ResearchPosition(s,u)
             for s,u in self.units.items() if u>0)))
         return frame,AccountSnapshot(frame.at,self.cash,point.equity,self.units,self.units)
+
+    def _delisted_on(self,symbol):
+        day=self.delistings.get(symbol)
+        if day is None:
+            from protocol import normalize_security_id
+            try: day=self.delistings.get(normalize_security_id(symbol))
+            except ValueError: day=None
+        return day
+
+    def _write_off(self,day):
+        """Terminal state for holdings whose exchange listing has ended.
+
+        A delisted identity never produces another bar, so a sell order can never
+        fill.  Without this step the position would be marked at its last observed
+        close forever, keeping cash out of the book while inflating equity.
+        """
+        for symbol in sorted(self.units):
+            delisted=self._delisted_on(symbol)
+            if delisted is None or day<=delisted: continue
+            units=self.units.pop(symbol)
+            basis=self.basis.pop(symbol,Decimal(0))
+            mark=self.marks.pop(symbol,Decimal(0))
+            self.raw.pop(symbol,None)
+            self.pending_symbols.discard(symbol)
+            proceeds=units*mark*self.haircut
+            self.cash+=proceeds
+            self.realized+=proceeds-basis
+            self.writeoffs.append(WriteOff(day,symbol,units,mark,self.haircut,proceeds,basis))
+        if self.target is not None and not self.pending_symbols:
+            self.target=None
 
     def plan(self,target,strategy_id):
         from protocol import TargetSet
