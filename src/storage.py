@@ -103,6 +103,10 @@ class DataStore:
             self._lock = threading.RLock()
             self._local = threading.local()
             self._pid = os.getpid()
+            # A table definition changes only when ``define`` writes it, but a
+            # single dataset load asks for the same one thousands of times (every
+            # scan resolves its schema first).  The cache is dropped on define.
+            self._schemas = {}
             config = {'autoinstall_known_extensions': 'false',
                       'autoload_known_extensions': 'false'}
             directory = extension_directory or os.environ.get('LIANGHUA_EXTENSION_DIRECTORY')
@@ -154,18 +158,23 @@ class DataStore:
         return value
 
     def _schema(self, name):
+        cached = self._schemas.get(name)
+        if cached is not None:
+            return cached
         rows = self._connection.execute(
             'SELECT definition FROM lake.main._tables WHERE name=?', [name]).fetchall()
         if len(rows) != 1:
             raise DataError('missing_table', 'table is not registered: ' + str(name))
-        return self._decode(rows[0][0])
+        definition = self._schemas[name] = self._decode(rows[0][0])
+        return definition
 
     def definition(self, name):
         with self._lock:
             self._check()
             value = self._schema(name)
-            value['columns'] = dict(value['columns'])
-            return TableDef(**value)
+            # ``TableDef`` owns the column order it was built from; the cached
+            # record stays untouched so the next reader sees the same object.
+            return TableDef(**{**value, 'columns': dict(value['columns'])})
 
     def define(self, table: TableDef):
         if not isinstance(table, TableDef):
@@ -189,6 +198,7 @@ class DataStore:
                     self._add_column(table.name, old['storage'], name, kind)
                 self._connection.execute('UPDATE lake.main._tables SET definition=? WHERE name=?',
                                          [payload, table.name])
+                self._schemas.pop(table.name, None)
                 if old['storage'] == 'parquet':
                     self._render(table.name, dict(new['columns']))
                 return
@@ -203,6 +213,7 @@ class DataStore:
                     f'CREATE TABLE lake.main.{quote(table.name)} ({columns}, PRIMARY KEY ({keys}))')
             self._connection.execute('INSERT INTO lake.main._tables VALUES (?, ?)',
                                      [table.name, payload])
+            self._schemas.pop(table.name, None)
 
     def _add_column(self, name, storage, column, kind):
         if storage == 'parquet':
@@ -383,6 +394,9 @@ class DataStore:
                     try:
                         self._connection.execute('ROLLBACK')
                     finally:
+                        # A definition read inside the transaction may describe a
+                        # table whose registration the rollback just removed.
+                        self._schemas.clear()
                         self._reset(self._local.written)
                 raise
             else:
@@ -394,6 +408,7 @@ class DataStore:
                         try:
                             self._connection.execute('ROLLBACK')
                         finally:
+                            self._schemas.clear()
                             self._reset(self._local.written)
                         raise
                     self._reset(self._local.removed)

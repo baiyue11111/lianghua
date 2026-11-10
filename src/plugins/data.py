@@ -261,14 +261,8 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
         return fact_value_index(field, code, day, cutoff)
 
     def for_time(day, cutoff):
-        candidates = set(codes if codes is not None else symbols)
-        pattern = registry.get("code_pattern")
-        if pattern is not None:
-            candidates = {code for code in candidates if re.fullmatch(pattern, code)}
-        if index is not None:
-            candidates &= active_members(day, cutoff, index)
+        candidates = static_members if index is None else static_members & active_members(day, cutoff, index)
         result = []
-        ordered = codes if codes is not None else symbols
         for code in ordered:
             if code not in candidates:
                 continue
@@ -277,6 +271,16 @@ def _resolve_eligible(market, registry, days, symbols, daily_values,
                    for condition in conditions):
                 result.append(code)
         return tuple(result)
+
+    # Only the index membership is a function of the session. The code pattern
+    # tests the code itself, so its verdict is a property of the dataset, not of
+    # the day; resolving it inside the loop re-ran one match per symbol per
+    # session (twice: opening and closing) for an answer that never changed.
+    ordered = codes if codes is not None else symbols
+    pattern = registry.get("code_pattern")
+    static_members = set(ordered)
+    if pattern is not None:
+        static_members = {code for code in static_members if re.fullmatch(pattern, code)}
 
     closing, opening = {}, {}
     for day in days:

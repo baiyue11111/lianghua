@@ -43,6 +43,19 @@ def _sha256_json(value: object) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _session_values(array, column):
+    """One session of a value matrix as Python floats, absent values as ``None``.
+
+    Indexing a matrix per symbol returns a numpy scalar, and testing it with
+    ``np.isfinite`` pays a ufunc round trip for every cell. Summed over the
+    cross-section that was tens of thousands of calls per session; one vector
+    pass per field answers the same question with one call.
+    """
+    values = array[:, column]
+    return [None if value != value else value
+            for value in np.where(np.isfinite(values), values, np.nan).tolist()]
+
+
 def _load_factor_cache(path: str, symbol: str, start: date,
                        end: date, read: Callable[[str], dict]) -> tuple[tuple[FactorEvent, ...], SourceHash]:
     from core.calculation import FactorEvent, SourceHash
@@ -875,6 +888,12 @@ def _load_dataset(data, query):
             raise ValueError('securities without observations in requested interval: '+', '.join(absent))
         quality={'missing_prices':[],'outside_period':[],'renamed_aliases':[]}
         changes=read(changes_name)['events'] if absent else []
+        if absent:
+            # Each absent identity needs the same security fact twice: once for
+            # its evidence hash and once for its payload. Reading it per identity
+            # cost two table scans each; one batched read answers both.
+            prefetched_facts.update(data.facts(
+                [securities['template'].format(symbol=identity) for identity in absent]))
         for identity in absent:
             name=securities['template'].format(symbol=identity)
             market_evidence(name)
@@ -1091,47 +1110,57 @@ def _prepare_dataset(data, query):
     volume_liquidity = Calculation.own_day_rolling_mean(panel.volume, LIQUIDITY_WINDOW, panel.traded_bar)
     own_history = {symbol: deque(maxlen=query.history) for symbol in panel.symbols}
     session_history = {symbol: deque(maxlen=query.history) for symbol in panel.symbols}
+    sources = {"open": panel.raw_open, "high": panel.raw_high, "low": panel.raw_low,
+               "close": panel.raw_close, "volume": panel.volume, "amount": panel.amount,
+               "signal_close": panel.signal_close, **field_data}
     last_marks, last_liquidity, last_volume = {}, {}, {}
     prepared = []
     for column, day in enumerate(run_calendar[:-1]):
         at = datetime.combine(day, time(15), tzinfo=ZoneInfo("Asia/Shanghai"))
+        session = {name: _session_values(array, column) for name, array in sources.items()}
+        traded = panel.traded_bar[:, column].tolist()
+        amount_adv = _session_values(amount_liquidity, column)
+        volume_adv = _session_values(volume_liquidity, column)
+        back_factors = (_session_values(panel.back_factor, column)
+                        if query.accounting == "research" else None)
+        # A bar needs every execution field. Asking per symbol walked six
+        # columns through Python once per symbol per session; the same answer
+        # for the whole cross-section is one vector pass per field.
+        complete = np.isfinite(sources[EXECUTION_FIELDS[0]][:, column])
+        for name in EXECUTION_FIELDS[1:]:
+            complete &= np.isfinite(sources[name][:, column])
+        complete = complete.tolist()
         fields, bars, opening, closing = {}, {}, {}, {}
         opening_adv, closing_adv, opening_volume20, closing_volume20 = {}, {}, {}, {}
         for row, symbol in enumerate(panel.symbols):
-            values = {name: float(array[row, column]) if np.isfinite(array[row, column]) else None
-                      for name, array in (
-                          ("open", panel.raw_open), ("high", panel.raw_high),
-                          ("low", panel.raw_low), ("close", panel.raw_close),
-                          ("volume", panel.volume), ("amount", panel.amount),
-                          ("signal_close", panel.signal_close))}
-            values.update({name: float(array[row, column]) if np.isfinite(array[row, column]) else None
-                           for name, array in field_data.items()})
-            selected = {name: values[name] for name in query.fields}
+            selected = {name: session[name][row] for name in query.fields}
             history_bar = HistoryBar(at, selected)
             session_history[symbol].append(history_bar)
-            if panel.traded_bar[row, column]:
+            if traded[row]:
                 own_history[symbol].append(history_bar)
             fields[symbol] = selected
-            if query.accounting == 'research' and not panel.traded_bar[row,column]:
+            if query.accounting == 'research' and not traded[row]:
                 continue
-            if any(values[name] is None for name in EXECUTION_FIELDS):
+            if not complete[row]:
                 continue
-            bars[symbol] = Bar(symbol, day, *(values[name] for name in EXECUTION_FIELDS))
-            opening[symbol] = Decimal(str(values["open"]))
-            closing[symbol] = Decimal(str(values["close"]))
+            execution = [session[name][row] for name in EXECUTION_FIELDS]
+            bars[symbol] = Bar(symbol, day, *execution)
+            opening[symbol] = Decimal(str(session["open"][row]))
+            closing[symbol] = Decimal(str(session["close"][row]))
             if symbol in last_liquidity:
                 opening_adv[symbol] = last_liquidity[symbol]
             if symbol in last_volume:
                 opening_volume20[symbol] = last_volume[symbol]
-            if np.isfinite(amount_liquidity[row, column]):
-                closing_adv[symbol] = Decimal(str(amount_liquidity[row, column]))
-            if np.isfinite(volume_liquidity[row, column]):
-                closing_volume20[symbol] = Decimal(str(volume_liquidity[row, column]))
+            if amount_adv[row] is not None:
+                closing_adv[symbol] = Decimal(str(amount_adv[row]))
+            if volume_adv[row] is not None:
+                closing_volume20[symbol] = Decimal(str(volume_adv[row]))
         frame = MarketFrame(
             at, "CN_EQUITY", fields,
             {"next_session": run_calendar[column + 1].isoformat(),
-             **({'back_factors':{s:str(panel.back_factor[r,column]) for r,s in enumerate(panel.symbols)
-                                if np.isfinite(panel.back_factor[r,column])}}
+             **({'back_factors':{symbol:str(back_factors[row])
+                                 for row,symbol in enumerate(panel.symbols)
+                                 if back_factors[row] is not None}}
                 if query.accounting == 'research' else {})},
             {symbol: tuple(session_history[symbol]) for symbol in panel.symbols},
         )
