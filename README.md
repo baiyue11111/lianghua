@@ -4,7 +4,17 @@
 
 ## 启动
 
-安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在 `frontend/display` 执行 `npm run build`，从当前源码生成 CLI。打包 Python 项目前也需先完成此构建。在项目根目录运行 `uv run lianghua-dev`，同时启动 Python 后端和 React。打开 `http://127.0.0.1:3000/`，按 Ctrl+C 一起关闭。端口 3000 和 8000 必须空闲。Web 目录的 `npm run dev` 只启动 React。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。后端从 `data/source/registry/sources.json` 登记来源、数据集和基准，再交给固定 Kernel 执行。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
+安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在 `frontend/display` 执行 `npm run build`，从当前源码生成 CLI。打包 Python 项目前也需先完成此构建。
+
+macOS 上首次安装常驻后端：
+
+```sh
+mkdir -p ~/Library/LaunchAgents
+.venv/bin/python tools/launchagent.py ~/Library/LaunchAgents/org.lianghua.backend.plist
+launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.lianghua.backend.plist
+```
+
+后端在用户登录时启动，使用端口 8000；日志在 `data/service.log`。在项目根目录运行 `uv run lianghua-dev` 启动 React，打开 `http://127.0.0.1:3000/`。按 Ctrl+C 关闭前端，后端继续运行。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
 
 ## 命令行入口
 
@@ -59,6 +69,16 @@ lianghua --collect '沪深:[2026-09-11,2026-10-30]' --data daily_sina --codes sz
 
 `latest` 按各证券实际已存日期分别续采；没有历史的证券需先指定区间。`--refresh` 只更新本次返回的非空字段，保留本次未返回的旧字段和旧日期。普通日线不请求停牌源；完整性另用 `check` 检查，回测仍检查本次策略与成交所需的数据。证券选择、增量日期和失败处理由采集模块负责，CLI 共享交互核心只提交意图和显示结果。
 
+常驻后端可以按市场自动续采：
+
+```sh
+lianghua --collect '沪深:auto-on'
+lianghua --collect '沪深:status'
+lianghua --collect '沪深:auto-off'
+```
+
+开启后，采集模块按交易日历在收盘 30 分钟后运行市场默认的 `latest` 采集。服务重启后会恢复设置，并补采最近已收盘的交易日；交易日历由登记的来源更新。关闭开关不终止已经运行的任务。`status` 显示开关、调度器、下次时间和任务状态。采集任务完成不代表数据完整。
+
 纳斯达克综合指数使用已登记的 FRED 收盘序列，经同一 collect 入口发布到标准日线存储：
 
 ```bash
@@ -77,6 +97,39 @@ BaoStock 日线适配器在同一进程内按请求间隔采集。来源配置�
 回测省略 `market` 时默认请求 `CN_A` 全市场。`scope` 的市场定义来自 registry；`codes`、`index` 和 `filters` 可组合，按 AND 取交集。普通市场按 registry 中唯一的 `code_pattern` 从标准证券全集筛选，收集与回测共用该规则，不再维护市场成员名单。指数筛选只读取 registry 的 `members` 绑定所指向的标准成分记录，按生效日期和公开时间解析调入、调出；注册表和回测配置都不保存成分股名单。财务条件需要带可知时间的事实数据。市场未登记或所需数据缺失时会明确拒绝，不会静默缩成可用子集。实际可用范围由 registry 与数据覆盖决定；此配置约定不表示当前数据已覆盖全 A，也不表示 HK 已可回测。
 
 CLI 返回指标、净值、参数和运行 ID；完整成交与执行轨迹按 ID 保存在 `data/result/<run_id>/`，网页查询仍读取完整结果。错误写入标准错误，并用非零退出码表示失败。策略、数据集和基准由 registry 与现有插件登记，不复制旧的万能配置结构。
+
+## 生成下一交易日操作
+
+```sh
+lianghua --predict config.json --account account.json
+```
+
+`config.json` 使用 `--backtest` 的固定策略配置。预测使用账户文件中的 `start` 和 `end`，不使用配置里的回测区间。`end` 是信号日，必须是已有完整收盘数据的交易日。`start` 是这次重放中策略开始交易的日期。预测要求 `accounting` 为 `account`；研究模式的复权份额不能当作真实股数。行情、策略所需字段、复权因子和交易日历从数据库读取，必须覆盖所需日期及下一个交易日。
+
+账户文件的结构如下。这里的日期和数据只用于展示格式，不能直接作为当前交易计划运行：
+
+```json
+{
+  "start": "2024-01-02",
+  "end": "2024-01-03",
+  "pending": [],
+  "days": [
+    {
+      "at": "2024-01-03T15:00:00+08:00",
+      "cash": "6000.00",
+      "equity": "10000.00",
+      "positions": {"sh.600000": 400},
+      "sellable": {"sh.600000": 400}
+    }
+  ]
+}
+```
+
+`days` 必须包含数据查询返回的每个交易日，包括 `start` 之前的预热日。每条是该日收盘时真实账户的可用现金、总权益、持仓股数和当时可卖股数。金额用十进制字符串，股数用整数；空仓用空对象。`pending` 必须明确为空列表；有未成交委托时先处理并确认账户状态。策略从本次查询的第一天开始创建并逐日运行。若它在此之前已有内部状态，必须从能完整重建状态的起点重放；每日账户快照本身不能恢复缺失的旧状态。
+
+结果中的 `target` 是策略目标权重，`allocation.orders` 是按信号日收盘参考价估算的买卖股数，卖单排在买单前；`prices` 是使用的原始收盘价。`buy_value` 是参考买入总额，`cash_gap` 是与当前现金的差额，两者都不含费用，也没有假设卖单已经成交。`target` 为 `null` 表示策略当天没有新决定，不会自动补回此前被拒绝或撤销的订单；空权重 `{}` 表示清仓。
+
+输出是参考计划，不会连接券商或提交订单。实际下单前仍需核对资金、可卖数量、证券交易规则、价格、涨跌停和成交情况。下一交易日开盘集合竞价结束后，旧的开盘计划会被拒绝。历史回放使用当前数据库快照；基本面按每条记录的可知时间对齐。
 
 ## 基本面计算
 

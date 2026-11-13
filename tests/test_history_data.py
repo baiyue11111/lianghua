@@ -135,6 +135,8 @@ class HistoricalDataTests(unittest.TestCase):
                         patch.object(data, 'evidence', wraps=data.evidence) as evidence:
                     dataset = data.query(DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
                         fields, 3, 'adjusted', symbols=('600004', '600003')))
+                dated = data.query(DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
+                    fields, 3, 'adjusted', as_of=date(2020, 2, 5), symbols=('600004', '600003')))
                 reads = [call for call in read.call_args_list
                          if isinstance(call.args[0], SQLQuery) and reference[5:] in call.args[0].sql]
                 self.assertNotIn(reference, [call.args[0] for call in evidence.call_args_list])
@@ -146,6 +148,9 @@ class HistoricalDataTests(unittest.TestCase):
             self.assertEqual(set(reads[0].args[0].values[0]),
                              {'sh.600003', 'sh.600004', '600003', '600004'})
             by_day = {record.trade_date: record for record in dataset.records}
+            self.assertEqual(dated.provenance['query_semantics'], 'snapshot_replay')
+            self.assertEqual([row.frame.fields for row in dated.records],
+                             [row.frame.fields for row in dataset.records])
             self.assertIsNone(by_day[date(2020, 1, 30)].frame.fields['600003']['roe'])
             self.assertEqual(by_day[date(2020, 1, 31)].frame.fields['600003']['roe'], .1)
             self.assertEqual(by_day[date(2020, 1, 31)].frame.fields['600004']['roe'], .3)

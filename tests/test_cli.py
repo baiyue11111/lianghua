@@ -20,7 +20,7 @@ class CliTest(unittest.TestCase):
 
     def test_all_commands_become_actions_without_calling_business_services(self):
         parser=cli.build_parser()
-        commands=[(['--backtest','x.json'],'cli.backtest',{'config':'x.json'}),
+        commands=[(['--backtest','x.json'],'cli.backtest',{'config':str(Path('x.json').resolve())}),
                   (['--collect','沪深:latest','--data','daily'],'cli.collect',None)]
         for values,operation,expected in commands:
             action=cli.to_action(parser.parse_args(values))
@@ -28,6 +28,25 @@ class CliTest(unittest.TestCase):
             self.assertEqual(action.operation,operation)
             if expected is not None: self.assertEqual(action.data,expected)
             protocol.parse_wire('UiAction',action.to_dict())
+
+    def test_predict_action_includes_config_and_account(self):
+        args = cli.build_parser().parse_args(['--predict', 'config.json', '--account', 'account.json'])
+        action = cli.to_action(args)
+        self.assertEqual(action.operation, 'cli.predict')
+        self.assertEqual(action.data, {'config': str(Path('config.json').resolve()), 'account': str(Path('account.json').resolve())})
+        protocol.parse_wire('UiAction', action.to_dict())
+
+    def test_predict_requires_account_and_commands_are_exclusive(self):
+        for args in (
+            ['--predict', 'config.json'],
+            ['--account', 'account.json'],
+            ['--backtest', 'config.json', '--account', 'account.json'],
+            ['--predict', 'config.json', '--account', 'account.json', '--backtest', 'config.json'],
+            ['--predict', 'config.json', '--account', 'account.json', '--collect', '沪深:latest'],
+        ):
+            with self.subTest(args=args), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit):
+                    cli.main(args)
 
     def test_unimplemented_report_command_is_not_advertised(self):
         parser = cli.build_parser()

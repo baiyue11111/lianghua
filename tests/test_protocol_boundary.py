@@ -174,7 +174,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "backtest.strategies", "backtest.prepare", "backtest.run",
-            "cli.backtest", "collection.doctor", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
+            "cli.backtest", "cli.predict", "service.info", "collection.doctor", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
             "research.benchmark", "data.research_inputs", "collection.sources", "collection.sync",
             "collection.schedule", "collection.job", "collection.snapshot",
             "collection.evidence",
@@ -205,6 +205,12 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(messages[0].correlation_id, "request-1")
         self.assertEqual(messages[0].data, value)
         self.assertEqual(source.calls, [("collection.sources", {})])
+
+    def test_service_info_reports_the_backend_project(self):
+        from backend import CommandPort
+        with TemporaryDirectory() as root:
+            result = CommandPort(Path(root), Port({}), None).handle("service.info", {})
+            self.assertEqual(result.data, {"root": str(Path(root).resolve())})
 
     def test_cli_backtest_uses_the_same_backtest_module_without_request_wrapper(self):
         from backend import CommandPort
@@ -238,6 +244,48 @@ class ProtocolBoundaryTests(unittest.TestCase):
             "dataset_id": "history", "start": "2020-01-01", "end": "2020-12-31",
             "initial_cash": "100000.00",
         })])
+
+    def test_cli_predict_uses_account_dates_and_backtest_strategy_config(self):
+        from backend import CommandPort
+
+        backtests = Port({"signal_date": "2024-01-03", "orders": []})
+        config = {"module": "plugins.strategies.moving_average_cross", "params": {},
+                  "dataset_id": "history", "initial_cash": "100000",
+                  "intervals": [{"start": "2020-01-01", "end": "2020-12-31"}]}
+        account = {"start": "2024-01-02", "end": "2024-01-03", "pending": [], "days": []}
+        with TemporaryDirectory() as root:
+            config_path = Path(root) / "config.json"
+            account_path = Path(root) / "account.json"
+            config_path.write_text(json.dumps(config))
+            account_path.write_text(json.dumps(account))
+            value = CommandPort(Path(root), backtests, None).handle(
+                "cli.predict", {"config": str(config_path), "account": str(account_path)})
+        self.assertEqual(value.data, {"signal_date": "2024-01-03", "orders": []})
+        request = backtests.calls[0][1]["request"]
+        self.assertEqual(backtests.calls[0][0], "predict.run")
+        self.assertNotIn("intervals", request)
+        self.assertEqual((request["start"], request["end"]), ("2024-01-02", "2024-01-03"))
+        self.assertNotIn("as_of", request)
+        self.assertEqual(backtests.calls[0][1]["account"], account)
+
+    def test_prediction_account_preserves_exact_values_and_rejects_bad_shares(self):
+        from backend import _prediction_accounts
+
+        day = {"at": "2024-01-03T15:00:00+08:00", "cash": "10000.01",
+               "equity": "12000.01", "positions": {"sh.600000": 200},
+               "sellable": {"sh.600000": 100}}
+        data = {"start": "2024-01-03", "end": "2024-01-03", "pending": [], "days": [day]}
+        accounts, pending = _prediction_accounts(data)
+        snapshot = next(iter(accounts.values()))
+        self.assertEqual(str(snapshot.cash), "10000.01")
+        self.assertEqual(snapshot.positions["sh.600000"], 200)
+        self.assertEqual(pending, [])
+        for invalid in (True, -1, 1.5, "100"):
+            bad = {**day, "positions": {"sh.600000": invalid}}
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                _prediction_accounts({**data, "days": [bad]})
+        with self.assertRaises(ValueError):
+            _prediction_accounts({**data, "days": [day, day]})
 
     def test_cli_intervals_keep_input_order_labels_and_single_range_payloads(self):
         from backend import CommandPort, PortResult

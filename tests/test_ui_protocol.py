@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import json
 import unittest
+from dataclasses import asdict
 from pathlib import Path
 from unittest.mock import patch
 
@@ -11,20 +12,13 @@ protocol = importlib.import_module("frontend.ui-protocol")
 
 
 class UiProtocolTest(unittest.TestCase):
-    def test_exchange_closes_backend_when_node_cannot_start(self):
-        class Backend:
-            def __init__(self):
-                self.closed = False
-            def close(self):
-                self.closed = True
-
-        backend = Backend()
+    def test_exchange_reports_when_node_cannot_start(self):
         action = protocol.UiAction("a1", "invoke", "cli", {}, "example.read")
-        with patch("backend.build_backend", return_value=backend), \
-             patch.object(protocol.subprocess, "Popen", side_effect=OSError("node missing")):
+        with patch.object(protocol.subprocess, "Popen", side_effect=OSError("node missing")), \
+             patch.object(protocol, "_send_backend") as send:
             with self.assertRaises(OSError):
                 protocol.exchange(action)
-        self.assertTrue(backend.closed)
+        send.assert_not_called()
 
     def test_exchange_refreshes_transport_deadline_after_backend_processing(self):
         class Clock:
@@ -57,7 +51,11 @@ class UiProtocolTest(unittest.TestCase):
         request = protocol.UiRequest(
             "r1", "example.read", "urn:example:input", {},
         )
+        identity = protocol.UiState(targets={"service": protocol.UiSlot(messages=(
+            protocol.UiMessage("m", "resource", "urn:service", "urn:service", {"root": str(Path.cwd())}),
+        ))})
         lines = [
+            json.dumps({"kind": "state", "state": asdict(identity)}) + "\n",
             json.dumps({"kind": "request", "request": request.to_dict(), "messages": []}) + "\n",
             json.dumps({"kind": "state", "state": {
                 "revision": 0,
@@ -70,13 +68,6 @@ class UiProtocolTest(unittest.TestCase):
             "stdin": Stream(), "stdout": stdout, "stderr": Stream(),
             "wait": lambda self, timeout=None: None,
         })()
-        class Backend:
-            async def send(self, request):
-                return []
-            def close(self):
-                return None
-
-        backend = Backend()
         class Selector:
             timeouts = []
             def __enter__(self): return self
@@ -87,21 +78,19 @@ class UiProtocolTest(unittest.TestCase):
                 return [(stdout, 1)]
 
         action = protocol.UiAction("a1", "invoke", "cli", {}, "example.read")
-        def run_backend(awaitable):
-            awaitable.close()
+        def run_backend(request):
             Clock.value = 31
             return []
 
-        with patch("backend.build_backend", return_value=backend), \
-             patch.object(protocol.subprocess, "Popen", return_value=process), \
+        with patch.object(protocol.subprocess, "Popen", return_value=process), \
              patch.object(protocol.selectors, "DefaultSelector", Selector), \
-             patch.object(protocol.asyncio, "run", side_effect=run_backend), \
+             patch.object(protocol, "_send_backend", side_effect=run_backend), \
              patch.object(protocol.os, "read", side_effect=lambda fd, size: stdout.readline().encode()), \
              patch.object(protocol.time, "monotonic", side_effect=lambda: Clock.value):
             result = protocol.exchange(action)
 
         self.assertEqual(result, state)
-        self.assertGreater(Selector.timeouts[1], 0)
+        self.assertGreater(Selector.timeouts[-1], 0)
 
     def test_exchange_kills_a_core_process_that_ignores_terminate(self):
         class Process:

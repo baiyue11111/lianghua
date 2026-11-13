@@ -9035,54 +9035,32 @@ var collect = async (raw, { call, progress, signal }) => {
   const [name, intent] = parts;
   const range = /^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent ?? "");
   const command = range ? "range" : intent;
-  if (parts.length !== 2 || !["latest", "range", "auto", "check", "doctor", "status"].includes(command)) throw Error("\u9700\u8981 <market>:[start,end] \u6216 latest\u3001range\u3001auto\u3001check\u3001doctor\u3001status");
+  if (parts.length !== 2 || !name || !["latest", "range", "auto-on", "auto-off", "check", "doctor", "status"].includes(command)) throw Error("\u9700\u8981 <market>:[start,end] \u6216 latest\u3001range\u3001auto-on\u3001auto-off\u3001check\u3001doctor\u3001status");
   if (range) {
     if (values.start !== void 0 || values.end !== void 0) throw Error("\u533A\u95F4\u4E0D\u80FD\u4E0E start\u3001end \u91CD\u590D\u586B\u5199");
     values.start = range[1].length === 4 ? range[1] + "-01-01" : range[1];
     values.end = range[2].length === 4 ? range[2] + "-12-31" : range[2];
   }
   if (values.refresh && !["range", "doctor"].includes(command)) throw Error("refresh \u4EC5\u7528\u4E8E range \u6216 doctor");
-  if (command !== "auto" && values.interval !== void 0) throw Error("interval \u4EC5\u7528\u4E8E auto");
-  if (command === "status" && Object.keys(values).some((key) => key !== "selector")) throw Error("status \u4E0D\u63A5\u53D7\u6536\u96C6\u53C2\u6570");
-  if (["latest", "auto"].includes(command) && (values.start !== void 0 || values.end !== void 0)) throw Error("latest \u548C auto \u81EA\u52A8\u786E\u5B9A\u65E5\u671F\uFF0C\u8BF7\u7528 range \u6307\u5B9A\u533A\u95F4");
+  if (["auto-on", "auto-off", "status"].includes(command) && Object.keys(values).some((key) => key !== "selector")) throw Error(`${command} \u4E0D\u63A5\u53D7\u6536\u96C6\u53C2\u6570`);
+  if (command === "latest" && values.start !== void 0) throw Error("latest \u81EA\u52A8\u786E\u5B9A\u8D77\u59CB\u65E5\u671F");
   if (command === "range" && (!values.start || !values.end)) throw Error("range \u9700\u8981 start \u548C end");
-  if (values.start === void 0 !== (values.end === void 0)) throw Error("start \u548C end \u5FC5\u987B\u540C\u65F6\u586B\u5199");
-  const duration = /^([1-9]\d*)(s|m|h|d)$/.exec(values.interval ?? "1d");
-  if (!duration) throw Error("interval \u9700\u8981\u6B63\u6570\u548C\u5355\u4F4D s\u3001m\u3001h \u6216 d");
-  const interval = Number(duration[1]) * { s: 1, m: 60, h: 3600, d: 86400 }[duration[2]] * 1e3;
-  if (!Number.isSafeInteger(interval) || interval > 2147483647) throw Error("interval \u8D85\u51FA\u8303\u56F4");
-  const request = { market: name, command: command === "auto" ? "latest" : command };
+  if (command !== "latest" && values.start === void 0 !== (values.end === void 0)) throw Error("start \u548C end \u5FC5\u987B\u540C\u65F6\u586B\u5199");
+  if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
+  if (command === "status") return await call("collection.automatic", { market: name });
+  if (command === "auto-on" || command === "auto-off") return await call("collection.set_automatic", { market: name, enabled: command === "auto-on" });
+  const request = { market: name, command };
   for (const field of ["data", "codes", "fields"]) if (values[field] !== void 0) request[field] = items(values[field]);
   for (const field of ["start", "end", "refresh"]) if (values[field] !== void 0) request[field] = values[field];
-  if (values.start) {
-    day(values.start);
-    day(values.end);
-    if (values.start > values.end) throw Error("\u65E5\u671F\u5E94\u6709\u5E8F");
+  if (values.start) day(values.start);
+  if (values.end) day(values.end);
+  if (values.start && values.end && values.start > values.end) throw Error("\u65E5\u671F\u5E94\u6709\u5E8F");
+  const result = await call("collection.run", request);
+  if (result.outcome === "failed") {
+    progress(result);
+    throw Error(result.error ?? "\u6536\u96C6\u5931\u8D25");
   }
-  const cycle = async () => {
-    if (signal.aborted) throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
-    const result = await call("collection.run", request);
-    if (command === "auto" || result.outcome === "failed") progress(result);
-    if (result.outcome === "failed") throw Error(result.error ?? "\u6536\u96C6\u5931\u8D25");
-    return result;
-  };
-  do {
-    const result = await cycle();
-    if (command !== "auto") return result;
-    await new Promise((resolve, reject) => {
-      const abort = () => {
-        clearTimeout(timer);
-        reject(Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62"));
-      };
-      const timer = setTimeout(() => {
-        signal.removeEventListener("abort", abort);
-        resolve();
-      }, interval);
-      signal.addEventListener("abort", abort, { once: true });
-      if (signal.aborted) abort();
-    });
-  } while (!signal.aborted);
-  throw Error("\u4F1A\u8BDD\u5DF2\u505C\u6B62");
+  return result;
 };
 
 // src/research/strategy-model.ts
@@ -9143,19 +9121,21 @@ var defs = {
   "collection.start": { input: { type: "object" }, mode: "write" },
   "collection.current": { input: object2(), poll: 1e3 },
   "collection.stop": { input: object2(), mode: "write" },
-  "collection.automatic": { input: object2(), poll: 1e3 },
-  "collection.set_automatic": { input: object2({ enabled: boolean }), mode: "write" },
+  "collection.automatic": { input: object2({ market: text }), poll: 1e3 },
+  "collection.set_automatic": { input: object2({ market: text, enabled: boolean }), mode: "write" },
+  "service.info": { input: object2() },
   "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },
   "collection.merge_job": { input: object2(), poll: 1e3 },
   "data.check": { input: object2(), poll: 3e3 },
   "collection.repair": { input: object2({ id: text }), mode: "write" },
   "collection.repair_job": { input: object2(), poll: 1e3 },
   "cli.backtest": { input: object2({ config: text }), mode: "write" },
+  "cli.predict": { input: object2({ config: text, account: text }) },
   "collection.describe": { input: object2() },
   "collection.inspect": { input: object2({ source_id: text, codes: { type: "array", items: text }, start: text, end: text, fields: { type: "array", items: text } }, ["source_id"]) },
   "collection.doctor": { input: object2({ source_id: text, codes: { type: "array", items: text, minItems: 1 }, start: text, end: text, refresh: boolean }, ["source_id", "codes"]), mode: "write" },
   "collection.run": { input: { oneOf: [object2({ market: text, command: { enum: ["range", "latest", "check", "doctor", "status"] }, data: { type: "array", items: text }, codes: { type: "array", items: text }, fields: { type: "array", items: text }, start: text, end: text, refresh: boolean }, ["market", "command"]), { type: "object", required: ["source_id"], properties: { source_id: text }, not: { required: ["market"] }, additionalProperties: true }] }, mode: "write" },
-  "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, interval: text, refresh: boolean }, ["selector"]), mode: "write" }
+  "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, refresh: boolean }, ["selector"]), mode: "write" }
 };
 var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;
 var outputSchema = (operation) => `urn:lianghua:ui:output:${operation}:v1`;

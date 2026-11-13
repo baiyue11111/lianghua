@@ -22,16 +22,18 @@ const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Opera
  'data.status':{input:object({rescan:boolean}),poll:3000},'data.search':{input:object({q:text})},
  'data.bars':{input:object({code:text,freq:text,adj:text,start:text,end:text},['code','freq','adj'])},
  'collection.start':{input:{type:'object'},mode:'write'},'collection.current':{input:object(),poll:1000},
- 'collection.stop':{input:object(),mode:'write'},'collection.automatic':{input:object(),poll:1000},
- 'collection.set_automatic':{input:object({enabled:boolean}),mode:'write'},
+ 'collection.stop':{input:object(),mode:'write'},'collection.automatic':{input:object({market:text}),poll:1000},
+ 'collection.set_automatic':{input:object({market:text,enabled:boolean}),mode:'write'},
+ 'service.info':{input:object()},
  'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object(),poll:1000},
  'data.check':{input:object(),poll:3000},'collection.repair':{input:object({id:text}),mode:'write'},'collection.repair_job':{input:object(),poll:1000},
  'cli.backtest':{input:object({config:text}),mode:'write'},
+ 'cli.predict':{input:object({config:text,account:text})},
  'collection.describe':{input:object()},
  'collection.inspect':{input:object({source_id:text,codes:{type:'array',items:text},start:text,end:text,fields:{type:'array',items:text}},['source_id'])},
  'collection.doctor':{input:object({source_id:text,codes:{type:'array',items:text,minItems:1},start:text,end:text,refresh:boolean},['source_id','codes']),mode:'write'},
  'collection.run':{input:{oneOf:[object({market:text,command:{enum:['range','latest','check','doctor','status']},data:{type:'array',items:text},codes:{type:'array',items:text},fields:{type:'array',items:text},start:text,end:text,refresh:boolean},['market','command']),{type:'object',required:['source_id'],properties:{source_id:text},not:{required:['market']},additionalProperties:true}]},mode:'write'},
- 'cli.collect':{input:object({selector:text,data:text,codes:text,fields:text,start:text,end:text,interval:text,refresh:boolean},['selector']),mode:'write'},
+ 'cli.collect':{input:object({selector:text,data:text,codes:text,fields:text,start:text,end:text,refresh:boolean},['selector']),mode:'write'},
 };
 export const inputSchema=(operation:string)=>`urn:lianghua:ui:input:${operation}:v1`;
 export const outputSchema=(operation:string)=>`urn:lianghua:ui:output:${operation}:v1`;

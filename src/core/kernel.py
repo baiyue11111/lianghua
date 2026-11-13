@@ -4,11 +4,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
+from datetime import date, datetime, time, timezone
+from decimal import Decimal
 from math import isfinite
 from threading import Lock
+from zoneinfo import ZoneInfo
 
-from protocol import BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Trial, _config_value, _strategy_params, build_effective_config, build_execution_hash
-from .calculation import Calculation, _candidate_parameters
+from protocol import AccountSnapshot, BacktestError, BacktestRequest, BacktestResponse, SearchResponse, Side, TargetSet, Trial, _config_value, _strategy_params, build_effective_config, build_execution_hash
+from .calculation import AllocationPlan, Calculation, TradeRules, _candidate_parameters
 
 
 @dataclass(frozen=True)
@@ -20,6 +23,22 @@ class Preparation:
     dataset: object
     effective_config: dict
     config_hash: str
+
+
+@dataclass(frozen=True)
+class Prediction:
+    signal_date: date
+    next_session: date
+    target: TargetSet | None
+    allocation: AllocationPlan
+    account: AccountSnapshot
+    prices: Mapping
+    buy_value: Decimal
+    cash_gap: Decimal
+    provenance: Mapping
+    effective_config: dict
+    config_hash: str
+    status: str = 'reference_orders'
 
 
 class Kernel:
@@ -40,6 +59,105 @@ class Kernel:
             return self._run(request)
         finally:
             self._lock.release()
+
+    def predict(self, request: BacktestRequest, accounts, *, pending) -> Prediction:
+        """Replay actual daily account snapshots and size the final close's target.
+
+        This produces estimates, not fills or submitted orders. All snapshots,
+        including warm-up days, must be supplied by the caller.
+        """
+        if not isinstance(pending, (list, tuple)) or pending:
+            raise ValueError('an explicit empty pending order list is required')
+        if not isinstance(accounts, Mapping):
+            raise ValueError('daily account snapshots are required')
+        if request.settlement_parameters.get('accounting', 'account') != 'account':
+            raise ValueError('prediction requires account accounting and real shares')
+        self._claim()
+        try:
+            prepared = self.prepare(request)
+            dataset = prepared.dataset
+            records = dataset.records
+            calendar = dataset.calendar
+            if (not records or len(calendar) != len(records) + 1
+                    or records[-1].trade_date != request.end.date()):
+                raise ValueError('data must end on the requested decision day and include the next session')
+            now = datetime.now(timezone.utc)
+            if records[-1].frame.at > now:
+                raise ValueError('decision close is in the future')
+            days = tuple(record.trade_date for record in records)
+            if tuple(calendar[:-1]) != days or any(a >= b for a, b in zip(calendar, calendar[1:])):
+                raise ValueError('records and calendar must be chronological and aligned')
+            if any(type(day) is not date for day in accounts):
+                raise ValueError('account snapshot keys must be dates')
+            missing = sorted(set(days) - set(accounts))
+            extra = sorted(set(accounts) - set(days))
+            if missing or extra:
+                raise ValueError('account snapshot dates differ: '
+                    f"missing={[day.isoformat() for day in missing]}, "
+                    f"extra={[day.isoformat() for day in extra]}")
+            params = dict(request.settlement_parameters)
+            limits, execution = self._settlement_type.resolve(**{
+                key: params[key] for key in ('limits', 'execution', 'accounting') if key in params
+            })
+            if execution['check']['model'] != 'cn_a_share':
+                raise ValueError('prediction requires a known market opening time')
+            opening = datetime.combine(calendar[-1], time(9, 25), tzinfo=ZoneInfo('Asia/Shanghai'))
+            if now >= opening:
+                raise ValueError('the next-session open has passed')
+            rules = TradeRules(execution, dataset.policies['fees'], dataset.policies['tax_policy'])
+            target = None
+            for index, record in enumerate(records):
+                account = accounts[record.trade_date]
+                self._check_prediction_account(account, record)
+                following = calendar[index + 1]
+                frame = replace(record.frame, context={**record.frame.context,
+                    'next_session': following.isoformat(),
+                    'trading': record.trade_date >= request.start.date()})
+                target = prepared.strategy.generate(frame, account)
+                if target is not None and (not isinstance(target, TargetSet)
+                        or target.as_of != frame.at or target.source_id != prepared.strategy.strategy_id):
+                    raise ValueError('strategy target identity/time do not match decision')
+            record = records[-1]
+            account = accounts[record.trade_date]
+            if target is None:
+                allocation = AllocationPlan((), ())
+            else:
+                allocation = rules.allocate(target, next_session=calendar[-1],
+                    equity=account.equity,
+                    holdings={symbol: int(shares) for symbol, shares in account.positions.items()},
+                    raw_closes=record.closing_marks, amount20=record.closing_amount20,
+                    limits=limits)
+                if any(order.side == Side.SELL and order.requested_shares > account.sellable[order.symbol]
+                       for order in allocation.orders):
+                    raise ValueError('sell order exceeds the account sellable shares')
+            symbols = set(account.positions) | (set(target.weights) if target is not None else set())
+            prices = {symbol: record.closing_marks[symbol] for symbol in sorted(symbols)}
+            buy_value = sum((prices[order.symbol] * order.requested_shares
+                             for order in allocation.orders if order.side == Side.BUY), Decimal(0))
+            cash_gap = max(Decimal(0), buy_value - account.cash)
+            if datetime.now(timezone.utc) >= opening:
+                raise ValueError('the next-session opening auction has passed')
+            return Prediction(record.trade_date, calendar[-1], target, allocation, account,
+                              prices, buy_value, cash_gap, dataset.provenance,
+                              prepared.effective_config, prepared.config_hash)
+        finally:
+            self._lock.release()
+
+    @staticmethod
+    def _check_prediction_account(account, record):
+        if not isinstance(account, AccountSnapshot) or account.as_of != record.frame.at:
+            raise ValueError('account snapshot must match the market close timestamp')
+        if account.cash < 0 or account.equity <= 0:
+            raise ValueError('account cash must be nonnegative and equity positive')
+        if set(account.positions) != set(account.sellable):
+            raise ValueError('sellable shares are required for each holding')
+        for symbol, shares in account.positions.items():
+            sellable = account.sellable[symbol]
+            if (shares <= 0 or shares != shares.to_integral_value()
+                    or sellable < 0 or sellable != sellable.to_integral_value() or sellable > shares):
+                raise ValueError('invalid account position or sellable shares')
+            if symbol not in record.closing_marks or record.closing_marks[symbol] <= 0:
+                raise ValueError(f'missing close price for holding: {symbol}')
 
     def prepare(self, request: BacktestRequest) -> Preparation:
         self._check_request(request)

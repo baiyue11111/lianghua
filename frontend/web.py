@@ -6,6 +6,8 @@ and forwards it to the injected ``BackendPort``.
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
 from importlib import import_module
 
 from fastapi import FastAPI
@@ -16,7 +18,15 @@ ui = import_module("frontend.ui-protocol")
 
 
 def create_app(backend: ui.BackendPort) -> FastAPI:
-    app = FastAPI(title="Lianghua Protocol Transport")
+    @asynccontextmanager
+    async def lifespan(_app):
+        try:
+            backend.start()
+            yield
+        finally:
+            backend.close()
+
+    app = FastAPI(title="Lianghua Protocol Transport", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -27,7 +37,7 @@ def create_app(backend: ui.BackendPort) -> FastAPI:
     @app.post("/api/protocol")
     async def exchange(value: dict) -> list[dict]:
         request = ui.parse_wire("UiRequest", value)
-        messages = await backend.send(request)
+        messages = await asyncio.to_thread(lambda: asyncio.run(backend.send(request)))
         return [message.to_dict() for message in messages]
 
     return app

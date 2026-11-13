@@ -10,7 +10,7 @@ import re
 from copy import deepcopy
 from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
-from protocol import Filter, TableDef, TableQuery
+from protocol import DataError, Filter, TableDef, TableQuery, _calendar_facts, _calendar_covers
 
 # A job has three states and one outcome. "How it ended" is not a state: nothing
 # leaves ``finished``, so folding six outcomes into the state set would only add
@@ -38,6 +38,10 @@ LEGAL = {
 LEASE_SECONDS = 300
 
 
+class CalendarCoverageError(ValueError):
+    pass
+
+
 class Collect:
     """One execution engine for manual and scheduled source collection."""
 
@@ -60,6 +64,8 @@ class Collect:
         self._fetch_thread = None
         self._merge_thread = None
         self._scheduler_error = None
+        self._schedule_lock = threading.Lock()
+        self._market_running = {}
         self._recover_tasks()
         self._closed = False
         self._stop = threading.Event()
@@ -197,10 +203,19 @@ class Collect:
                'snapshot_id': None, 'records': 0, 'failures': [], 'empty_codes': []}
         self._jobs[job['job_id']] = job
         self._job_sources[job['job_id']] = deepcopy(source)
-        self._current_job_id = job['job_id']
         try:
-            self._renew(job)
-            self._transition(job, 'submit', phase='fetch')
+            with self._lock:
+                with self.data.transaction():
+                    self._renew(job)
+                    self._transition(job, 'submit', phase='fetch')
+                    for market, running in self._market_running.items():
+                        if running['thread'] == threading.get_ident():
+                            key = 'market:' + market
+                            plan = self._state('collection_schedules', key)
+                            if plan is not None:
+                                plan['last_job_id'] = job['job_id']
+                                self._state('collection_schedules', key, plan)
+                            running['job_id'] = job['job_id']
             codes = request.get('codes') or [None]
             for offset in range(0, len(codes), size):
                 packets = []
@@ -220,6 +235,8 @@ class Collect:
                             if not starts.get(code):
                                 raise ValueError('collection start is unknown; provide a range or a registered listing date')
                             unit['start'] = starts[code]
+                            if unit['start'] > unit['end']:
+                                continue
                         packet = self.methods.fetch(source, unit)
                         self.methods.validate(packet)
                         packets.append(packet)
@@ -292,26 +309,32 @@ class Collect:
                     self._cancelled.discard(job['job_id'])
         return dict(job)
 
-    def _market(self, value):
-        """Resolve registered market intentions inside the collection module."""
+    def _market_config(self, name):
         registry = self.sources.describe()
         markets = [item for item in registry.get('markets', ())
-                   if value['market'] in (item['scope'], item.get('name'), *item.get('aliases', ()))]
+                   if name in (item['scope'], item.get('name'), *item.get('aliases', ()))]
         if len(markets) != 1:
-            raise ValueError('market must be registered uniquely: ' + str(value['market']))
-        market = markets[0]
+            raise ValueError('market must be registered uniquely: ' + str(name))
+        return markets[0]
+
+    def _market(self, value):
+        """Resolve registered market intentions inside the collection module."""
+        market = self._market_config(value['market'])
         command = value.get('command')
         if command not in {'range', 'latest', 'check', 'doctor', 'status'}:
             raise ValueError('invalid collection command')
         if command == 'status':
             return {'market': market['scope'], 'sources': self.handle('collection.sources', {})}
         today = datetime.now(ZoneInfo(market['timezone'])).date().isoformat()
-        if ('start' in value) != ('end' in value):
+        if command != 'latest' and ('start' in value) != ('end' in value):
             raise ValueError('start and end are required together')
         if command == 'range' and 'start' not in value:
             raise ValueError('range requires start and end')
         if command == 'latest' and 'start' in value:
             raise ValueError('latest determines dates from stored observations')
+        if 'end' in value:
+            if date.fromisoformat(value['end']) > date.fromisoformat(today):
+                raise ValueError('dates must not be in the future')
         if 'start' in value:
             if (date.fromisoformat(value['start']) > date.fromisoformat(value['end'])
                     or value['end'] > today):
@@ -366,13 +389,14 @@ class Collect:
             request.update(source_id=source['id'], codes=sorted(set(codes)))
             missing = None
             if 'start' not in request and command != 'doctor':
-                request['end'] = today
+                end = request.get('end', today)
+                request['end'] = end
                 if command != 'check' and (source.get('data_type') == 'daily'
                                            or source.get('method') == 'daily'):
                     # Ask the store what is absent instead of inferring it from
                     # the last stored day. The difference knows about sessions
                     # the watermark cannot see, and it is one query.
-                    missing = self.methods.missing_days(source, request['codes'], end=today)
+                    missing = self.methods.missing_days(source, request['codes'], end=end)
                 if missing is None:
                     # No calendar to difference against: resume from the
                     # watermark, which is all that is left to go on.
@@ -381,10 +405,11 @@ class Collect:
                         starts.update({code: catalogue[code] for code in codes
                                        if code not in starts and catalogue.get(code)})
                     if command != 'check':
-                        request['start'] = min(starts.values()) if starts else today
+                        due_starts = [day for day in starts.values() if day <= end]
+                        request['start'] = min(due_starts) if due_starts else end
                 else:
                     absent = [day for days in missing.values() for day in days]
-                    request['start'] = min(absent) if absent else today
+                    request['start'] = min(absent) if absent else end
             if command == 'doctor':
                 jobs.append(self.methods.doctor(source, request))
                 continue
@@ -408,7 +433,8 @@ class Collect:
         failures = [item for job in jobs for item in job.get('failures', ())]
         failures.extend({'code': None, 'error': job.get('error')} for job in jobs
                         if job.get('outcome') in ('failed', 'interrupted') and not job.get('failures'))
-        return {'market': market['scope'], 'outcome': 'failed' if failures else 'succeeded',
+        outcome = ('partial' if any(job.get('records', 0) for job in jobs) else 'failed') if failures else 'succeeded'
+        return {'market': market['scope'], 'outcome': outcome,
                 'jobs': jobs, 'failures': failures,
                 'error': '; '.join(f"{item['code']}: {item['error']}" for item in failures) or None}
 
@@ -575,6 +601,188 @@ class Collect:
         self._state('collection_schedules', source_id, value)
         return value
 
+    @staticmethod
+    def _session_at(market, plan, day):
+        zone = ZoneInfo(market['timezone'])
+        close = datetime.strptime(market['session_close'], '%H:%M').time()
+        return (datetime.combine(day, close, tzinfo=zone) + timedelta(seconds=plan['delay_seconds'])).timestamp()
+
+    def _market_calendar(self, market):
+        try:
+            return _calendar_facts(self.data.object(market['calendar']))
+        except (DataError, TypeError, ValueError) as error:
+            raise CalendarCoverageError(f'calendar unavailable: {error}') from error
+
+    def _market_next(self, market, plan, now):
+        zone = ZoneInfo(market['timezone'])
+        sessions, coverage = self._market_calendar(market)
+        local = datetime.fromtimestamp(now, zone)
+        today = local.date()
+        last = date.fromisoformat(plan['last_session']) if plan.get('last_session') else None
+        previous = [left for left, _ in coverage if left <= today]
+        start = min(last + timedelta(days=1), today) if last else min(previous, default=today)
+        if not _calendar_covers(coverage, start, today):
+            raise CalendarCoverageError('calendar does not cover the collection period')
+        due = [day for day in sessions if day <= today and self._session_at(market, plan, day) <= now and
+               (last is None or day > last)]
+        if due:
+            retry = plan.get('retry_at')
+            start = self._session_at(market, plan, due[-1])
+            return max(start, retry) if retry is not None else start
+        future = [day for day in sessions if self._session_at(market, plan, day) > now]
+        if not future or not _calendar_covers(coverage, today, future[0]):
+            raise CalendarCoverageError('calendar does not cover the next session')
+        return self._session_at(market, plan, future[0])
+
+    def _market_plan(self, name, enabled):
+        if type(enabled) is not bool:
+            raise ValueError('enabled must be boolean')
+        market = self._market_config(name)
+        key = 'market:' + market['scope']
+        now = time.time()
+        with self._lock:
+            plan = self._state('collection_schedules', key) or {
+                'kind': 'market', 'market': market['scope'], 'last_session': None,
+                'last_run_at': None, 'last_outcome': None, 'error': None,
+                'last_job_id': None, 'retry_at': None, 'delay_seconds': 1800,
+            }
+            plan['enabled'] = enabled
+            if enabled:
+                try:
+                    plan['next_at'] = self._market_next(market, plan, now)
+                    plan['error'] = None
+                except Exception as error:
+                    plan['error'] = f'{type(error).__name__}: {error}'
+                    plan['next_at'] = now if isinstance(error, CalendarCoverageError) and market.get('calendar_source') else now + 300
+            else:
+                plan['next_at'] = None
+            self._state('collection_schedules', key, plan)
+        return self._market_status(market['scope'])
+
+    def _market_status(self, name):
+        market = self._market_config(name)
+        key = 'market:' + market['scope']
+        with self._lock:
+            plan = self._state('collection_schedules', key) or {}
+            active = self._market_running.get(market['scope'])
+            running = active is not None
+            job_id = active['job_id'] if active else plan.get('last_job_id')
+            saved = self.status(job_id) if job_id else None
+            job = ({key: saved.get(key) for key in ('job_id', 'source_id', 'status', 'outcome',
+                    'phase', 'records', 'empty_codes', 'failures', 'started_at', 'finished_at', 'error')}
+                   if saved is not None else None)
+        return {'market': market['scope'], 'enabled': plan.get('enabled', False),
+                'running': running, 'scheduler_running': self._thread is not None and self._thread.is_alive(),
+                'next_run_at': plan.get('next_at'),
+                'last_run_at': plan.get('last_run_at'), 'last_outcome': plan.get('last_outcome'),
+                'schedule_error': plan.get('error'), 'scheduler_error': self._scheduler_error, 'job': job}
+
+    def _renew_calendar(self, market, plan, now):
+        source_id = market.get('calendar_source')
+        if not source_id:
+            raise CalendarCoverageError('calendar source is not registered')
+        source = self.sources.get(source_id)
+        if (source.get('data_type') != 'calendar' or not source.get('dataset_id')
+                or market.get('calendar') != 'calendar:' + source['dataset_id']):
+            raise CalendarCoverageError('calendar source does not match the market calendar')
+        today = datetime.fromtimestamp(now, ZoneInfo(market['timezone'])).date()
+        try:
+            _, coverage = self._market_calendar(market)
+        except CalendarCoverageError:
+            coverage = ()
+        previous = [left for left, _ in coverage if left <= today]
+        last = date.fromisoformat(plan['last_session']) if plan.get('last_session') else None
+        start = min(last + timedelta(days=1), today) if last else min(previous, default=today - timedelta(days=31))
+        for left, right in coverage:
+            if left > start:
+                break
+            if right >= start:
+                start = right + timedelta(days=1)
+        end = max(start, today) + timedelta(days=31)
+        following = [left for left, _ in coverage if left > start]
+        if following:
+            end = min(end, min(following) - timedelta(days=1))
+        job = self.run({'source_id': source_id, 'start': start.isoformat(), 'end': end.isoformat()})
+        if job.get('outcome') != 'succeeded':
+            raise CalendarCoverageError('calendar collection failed: ' + str(job.get('error') or job.get('outcome')))
+
+    def _tick_market(self, plan, now):
+        key = 'market:' + plan['market']
+        started = time.monotonic()
+        attempted = False
+        active = False
+        try:
+            market = self._market_config(plan['market'])
+            with self._lock:
+                current = self._state('collection_schedules', key)
+                if not current or not current.get('enabled'):
+                    return
+                self._market_running[market['scope']] = {'thread': threading.get_ident(), 'job_id': None}
+                active = True
+            try:
+                next_at = self._market_next(market, plan, now)
+            except CalendarCoverageError:
+                attempted = True
+                self._renew_calendar(market, plan, now)
+                next_at = self._market_next(market, plan, now)
+            if next_at is None or next_at > now:
+                with self._lock:
+                    current = self._state('collection_schedules', key)
+                    if current and current.get('enabled'):
+                        current.update(next_at=next_at, error=None)
+                        self._state('collection_schedules', key, current)
+                return
+            local = datetime.fromtimestamp(now, ZoneInfo(market['timezone']))
+            sessions, _ = _calendar_facts(self.data.object(market['calendar']))
+            due = [day for day in sessions if self._session_at(market, plan, day) <= now]
+            if not due:
+                raise ValueError('calendar has no completed session')
+            with self._lock:
+                current = self._state('collection_schedules', key)
+                if not current or not current.get('enabled'):
+                    return
+                attempted = True
+            result = self.run({'market': market['scope'], 'command': 'latest', 'end': due[-1].isoformat()})
+            outcome = result.get('outcome')
+            if outcome not in {'succeeded', 'partial', 'failed', 'interrupted'}:
+                raise ValueError('market collection returned an invalid outcome')
+            error = result.get('error')
+            jobs = result.get('jobs', [])
+            job_id = jobs[-1].get('job_id') if jobs else None
+            with self._lock:
+                current = self._state('collection_schedules', key)
+                if current is None:
+                    return
+                current.update(last_run_at=local.isoformat(), last_outcome=outcome, error=error)
+                if job_id is not None:
+                    current['last_job_id'] = job_id
+                if outcome == 'succeeded':
+                    current.update(last_session=due[-1].isoformat(), retry_at=None)
+                else:
+                    current['retry_at'] = now + int(time.monotonic() - started) + 300
+                if current.get('enabled'):
+                    try:
+                        current['next_at'] = self._market_next(market, current, now)
+                    except Exception as error:
+                        current.update(error=f'{type(error).__name__}: {error}',
+                                       next_at=now + int(time.monotonic() - started) + 300)
+                self._state('collection_schedules', key, current)
+        except Exception as error:
+            with self._lock:
+                current = self._state('collection_schedules', key)
+                if current:
+                    current['error'] = f'{type(error).__name__}: {error}'
+                    if attempted:
+                        current.update(last_outcome='failed', last_run_at=datetime.fromtimestamp(
+                            now, ZoneInfo(market['timezone'])).isoformat())
+                    if current.get('enabled'):
+                        current['next_at'] = now + int(time.monotonic() - started) + 300
+                    self._state('collection_schedules', key, current)
+        finally:
+            if active:
+                with self._lock:
+                    self._market_running.pop(plan['market'], None)
+
     def cancel(self, job_id):
         """A job waiting to publish stops at once; a running one stops at its
         next batch boundary, because that is the only safe place to break."""
@@ -637,10 +845,21 @@ class Collect:
 
     def tick(self, at=None):
         now = time.time() if at is None else at
+        if not self._schedule_lock.acquire(blocking=False):
+            return
+        try:
+            self._tick(now)
+        finally:
+            self._schedule_lock.release()
+
+    def _tick(self, now):
         for schedule in self._states('collection_schedules'):
             next_at = schedule.get("next_at")
             if (not schedule.get("enabled") or next_at is None or
                     next_at > now):
+                continue
+            if schedule.get('kind') == 'market':
+                self._tick_market(schedule, now)
                 continue
             request = dict(schedule.get("request", {}))
             if schedule.get("window_days", 0) and "start" in request and "end" in request:
@@ -710,13 +929,9 @@ class Collect:
                 return {"ok": False, "message": "collection task is not running", **self._fetch_view(job)}
             return {"ok": True, **self._fetch_view(self.cancel(self._current_job_id))}
         if operation == "collection.automatic":
-            return self._continuous_fetch()
+            return self._market_status(value['market'])
         if operation == "collection.set_automatic":
-            source = self._source({"mode": "auto"})
-            self.schedule(source["id"], {"enabled": value["enabled"],
-                                          "interval_seconds": value.get("interval_seconds", 86400),
-                                          "input": source.get("defaults", {})})
-            return self._continuous_fetch()
+            return self._market_plan(value['market'], value['enabled'])
         if operation == "collection.merge":
             return self._merge_current(value["dryRun"])
         if operation == "collection.merge_job":
@@ -750,24 +965,6 @@ class Collect:
 
 
 
-    def _continuous_fetch(self):
-        schedules = self._schedule_list()["items"]
-        if len(schedules) > 1:
-            raise ValueError("continuous fetch requires one explicit default source")
-        schedule = schedules[0] if schedules else {
-            "enabled": False, "interval_seconds": 86400, "next_at": None,
-            "error": None,
-        }
-        return {
-            "enabled": schedule.get("enabled", False),
-            "interval_seconds": schedule.get("interval_seconds", 86400),
-            "last_run_at": schedule.get("last_run_at"),
-            "next_run_at": schedule.get("next_at"),
-            "latest_data_date": None, "latest_data_stock_count": None,
-            "tracked_stock_count": None, "median_stock_date": None,
-            "schedule_error": schedule.get("error"), "latest_data_error": None,
-        }
-
     def _doctor_job(self):
         job = self.status(self._current_job_id) if self._current_job_id else None
         if job is None:
@@ -781,9 +978,6 @@ class Collect:
                 "verdicts": {}, "merge_output": "", "log": [],
                 "finished_at": job.get('finished_at'), "fetch": self._fetch_view(job)}
 
-
-    def _schedule_list(self):
-        return {"items": self._states('collection_schedules')}
 
 
     def _source_view(self, source):

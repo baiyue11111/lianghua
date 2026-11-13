@@ -17,42 +17,30 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
  const [name,intent]=parts;
  const range=/^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent??'');
  const command=range?'range':intent;
- if(parts.length!==2||!['latest','range','auto','check','doctor','status'].includes(command))throw Error('需要 <market>:[start,end] 或 latest、range、auto、check、doctor、status');
+ if(parts.length!==2||!name||!['latest','range','auto-on','auto-off','check','doctor','status'].includes(command))throw Error('需要 <market>:[start,end] 或 latest、range、auto-on、auto-off、check、doctor、status');
  if(range){
   if(values.start!==undefined||values.end!==undefined)throw Error('区间不能与 start、end 重复填写');
   values.start=range[1].length===4?range[1]+'-01-01':range[1];
   values.end=range[2].length===4?range[2]+'-12-31':range[2];
  }
  if(values.refresh&&!['range','doctor'].includes(command))throw Error('refresh 仅用于 range 或 doctor');
- if(command!=='auto'&&values.interval!==undefined)throw Error('interval 仅用于 auto');
- if(command==='status'&&Object.keys(values).some(key=>key!=='selector'))throw Error('status 不接受收集参数');
- if(['latest','auto'].includes(command)&&(values.start!==undefined||values.end!==undefined))throw Error('latest 和 auto 自动确定日期，请用 range 指定区间');
+ if(['auto-on','auto-off','status'].includes(command)&&Object.keys(values).some(key=>key!=='selector'))throw Error(`${command} 不接受收集参数`);
+ if(command==='latest'&&values.start!==undefined)throw Error('latest 自动确定起始日期');
  if(command==='range'&&(!values.start||!values.end))throw Error('range 需要 start 和 end');
- if((values.start===undefined)!==(values.end===undefined))throw Error('start 和 end 必须同时填写');
- const duration=/^([1-9]\d*)(s|m|h|d)$/.exec(values.interval??'1d');
- if(!duration)throw Error('interval 需要正数和单位 s、m、h 或 d');
- const interval=Number(duration[1])*({s:1,m:60,h:3600,d:86400}[duration[2]]!)*1000;
- if(!Number.isSafeInteger(interval)||interval>2147483647)throw Error('interval 超出范围');
- const request:Row={market:name,command:command==='auto'?'latest':command};
+ if(command!=='latest'&&(values.start===undefined)!==(values.end===undefined))throw Error('start 和 end 必须同时填写');
+ if(signal.aborted)throw Error('会话已停止');
+ if(command==='status')return await call('collection.automatic',{market:name});
+ if(command==='auto-on'||command==='auto-off')return await call('collection.set_automatic',{market:name,enabled:command==='auto-on'});
+ const request:Row={market:name,command};
  for(const field of ['data','codes','fields'])if(values[field]!==undefined)request[field]=items(values[field]);
  for(const field of ['start','end','refresh'])if(values[field]!==undefined)request[field]=values[field];
- if(values.start){day(values.start);day(values.end);if(values.start>values.end)throw Error('日期应有序');}
- const cycle=async():Promise<JsonValue>=>{
-  if(signal.aborted)throw Error('会话已停止');
-  const result=await call('collection.run',request) as Row;
-  if(command==='auto'||result.outcome==='failed')progress(result);
-  if(result.outcome==='failed')throw Error(result.error??'收集失败');
-  return result;
- };
- do {
-  const result=await cycle();
-  if(command!=='auto')return result;
-  await new Promise<void>((resolve,reject)=>{
-   const abort=()=>{clearTimeout(timer);reject(Error('会话已停止'));};
-   const timer=setTimeout(()=>{signal.removeEventListener('abort',abort);resolve();},interval);
-   signal.addEventListener('abort',abort,{once:true});
-   if(signal.aborted)abort();
-  });
- }while(!signal.aborted);
- throw Error('会话已停止');
+ if(values.start)day(values.start);
+ if(values.end)day(values.end);
+ if(values.start&&values.end&&values.start>values.end)throw Error('日期应有序');
+ const result=await call('collection.run',request) as Row;
+ if(result.outcome==='failed'){
+  progress(result);
+  throw Error(result.error??'收集失败');
+ }
+ return result as JsonValue;
 };

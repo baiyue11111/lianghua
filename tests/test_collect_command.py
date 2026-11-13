@@ -1,5 +1,6 @@
 """Market collection commands use the registered market and existing collector."""
 import contextlib
+import asyncio
 import importlib
 import io
 import json
@@ -19,6 +20,16 @@ from storage import DataStore
 from frontend import cli
 
 ui = importlib.import_module('frontend.ui-protocol')
+
+
+def bridge(backend):
+    def send(request):
+        if request.operation == 'service.info':
+            return [ui.UiMessage('service', 'resource', 'urn:service',
+                'urn:lianghua:ui:output:service.info:v1', {'root': str(Path.cwd())},
+                correlation_id=request.request_id)]
+        return asyncio.run(backend.send(request))
+    return send
 
 
 class CollectionCommandTests(unittest.TestCase):
@@ -93,7 +104,7 @@ class CollectionCommandTests(unittest.TestCase):
                           'start': '2026-10-01', 'end': '2026-10-14'})
         self.calls.clear()
         result = self.collect.run({'market': 'TEST', 'command': 'latest'})
-        self.assertEqual(result['outcome'], 'failed')
+        self.assertEqual(result['outcome'], 'partial')
         self.assertEqual([item['code'] for item in result['failures']], ['Y'])
         self.assertEqual([request['codes'] for request in self.calls], [['X']])
 
@@ -323,7 +334,7 @@ class CollectionCommandTests(unittest.TestCase):
             return await original(request)
         backend.send = send
         action = ui.UiAction('test', 'invoke', 'cli', {'selector': selector, **values}, 'cli.collect')
-        with patch('backend.build_backend', return_value=backend):
+        with patch.object(ui, '_send_backend', side_effect=bridge(backend)):
             state = ui.exchange(action)
         self.assertNotIn('cli.collect', [request.operation for request in seen])
         self.assertTrue(all('selector' not in request.data for request in seen))
@@ -435,23 +446,10 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(result['plans'][0]['coverage']['fields'],['close'])
         self.assertEqual(self.calls,[])
 
-    def test_auto_runs_two_cycles_in_core_and_ctrl_c_stops_session(self):
-        from backend import CollectionPort
-        self.collect.run({'source_id':'prices','codes':['X','Y'],'start':'2026-10-01','end':'2026-10-14'})
-        self.calls.clear()
-        class Port:
-            def handle(self,operation,data):return {}
-        port=Port()
-        backend=Protocol(Modules(port,port,CollectionPort(self.collect),self.collect,port))
-        states=[]
-        def progress(state):
-            states.append(state)
-            if len(states)==2:raise KeyboardInterrupt
-        action=ui.UiAction('auto','invoke','cli',{'selector':'TEST:auto','interval':'1s'},'cli.collect')
-        with patch('backend.build_backend',return_value=backend):
-            with self.assertRaises(KeyboardInterrupt):ui.exchange(action,on_state=progress)
-        self.assertEqual(len(self.calls),4)
-        self.assertEqual(len(states),2)
+    def test_retired_frontend_auto_loop_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.invoke('TEST:auto')
+        self.assertEqual(self.calls, [])
 
     def test_today_request_queries_calendar_beyond_end(self):
         from collect.methods import BaostockDaily
@@ -737,11 +735,13 @@ class BridgeBatchTests(unittest.TestCase):
         burst='\n'.join(json.dumps(f) for f in [
             {'kind':'state','state':asdict(pending)}, {'kind':'request','request':request.to_dict()}])+'\n'
         final=json.dumps({'kind':'state','state':asdict(done)})+'\n'
-        script='import os,sys\nsys.stdin.readline()\nos.write(1,'+repr(burst.encode())+')\nsys.stdin.readline()\nos.write(1,'+repr(final.encode())+')\nsys.stdin.readline()\n'
+        identity=ui.UiState(targets={'service':ui.UiSlot(messages=(ui.UiMessage(
+            'service','resource','urn:service','urn:service',{'root':str(Path.cwd())}),))})
+        identity_frame=json.dumps({'kind':'state','state':asdict(identity)})+'\n'
+        script='import os,sys\nsys.stdin.readline()\nos.write(1,'+repr(identity_frame.encode())+')\nsys.stdin.readline()\nos.write(1,'+repr(burst.encode())+')\nsys.stdin.readline()\nos.write(1,'+repr(final.encode())+')\nsys.stdin.readline()\n'
         real_popen=subprocess.Popen;real_selector=selectors.DefaultSelector
         seen=[]
-        async def send(request):seen.append(request);return []
-        backend=SimpleNamespace(send=send,close=lambda:None)
+        def send(request):seen.append(request);return []
         class Ready:
             def __init__(self):self.inner=real_selector()
             def __enter__(self):return self
@@ -755,8 +755,8 @@ class BridgeBatchTests(unittest.TestCase):
         selectors_created=[]
         def selector():
             selectors_created.append(True)
-            return Ready() if len(selectors_created)==1 else real_selector()
-        with patch('backend.build_backend',return_value=backend),patch.object(ui.subprocess,'Popen',side_effect=popen), \
+            return Ready()
+        with patch.object(ui,'_send_backend',side_effect=send),patch.object(ui.subprocess,'Popen',side_effect=popen), \
                 patch.object(ui.selectors,'DefaultSelector',side_effect=selector):
             state=ui.exchange(ui.UiAction('batch','invoke','cli',{'selector':'TEST:[2003,2012]'},'cli.collect'),on_state=lambda s:None)
         self.assertEqual(len(seen),1)

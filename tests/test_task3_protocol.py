@@ -268,30 +268,6 @@ class Task3ProtocolTests(unittest.TestCase):
             ('open', 'high', 'low', 'close', 'volume', 'amount', 'signal_close'),
         )
 
-    def test_pit_requires_calendar_file_binding_not_only_calendar_source(self):
-        import json
-        from market import DataBus
-        from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
-
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            config = make_snapshot(root)
-            manifest_path = root / "data" / "source" / "fixture" / "manifest.json"
-            manifest = json.loads(manifest_path.read_text())
-            manifest["source_availability"] = [
-                {"file": item["file"], "sha256": item["sha256"], "available_at": "2020-02-05"}
-                for item in manifest["files"] if item["file"] != "calendar.json"
-            ]
-            manifest["files"] = [item for item in manifest["files"] if item["file"] != "calendar.json"]
-            manifest_path.write_text(json.dumps(manifest))
-            bus = DataBus(DataStore(root))
-            with self.assertRaisesRegex(Exception, "unbound historical evidence|availability"):
-                bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                                    ("open", "high", "low", "close", "volume", "amount", "signal_close"),
-                                    20, "adjusted", date(2020, 2, 5), universe="CN_A_SHARE"))
-
     def test_settlement_failure_is_sealed_and_keeps_partial_result(self):
         from protocol import BacktestError
         from core.kernel import Kernel

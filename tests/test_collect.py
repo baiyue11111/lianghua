@@ -1720,7 +1720,6 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual(manifest['fields']['revenue']['unit'], 'cny')
             self.assertEqual(manifest['fields']['revenue']['file'],
                              'source/fundamentals/records.parquet')
-            self.assertNotIn('source_availability', manifest)
             self.assertEqual({ref.name for ref in bus.list('sources', 'fundamentals')},
                              {'records.json', 'records.parquet'})
 

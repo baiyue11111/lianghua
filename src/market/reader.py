@@ -1,4 +1,4 @@
-"""Read standard source facts into point-in-time datasets."""
+"""Read standard source facts into aligned datasets."""
 from __future__ import annotations
 
 import duckdb
@@ -284,17 +284,11 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
         source += " WHERE identity IN (SELECT * FROM UNNEST(?))"
         query_params.append([normalize_security_id(symbol) for symbol in symbols])
     source += ")"
-    code_filter = ""
-    date_filter = " AND " if code_filter else " WHERE "
-    if date_start is not None:
-        date_filter += "CAST(date AS DATE) >= ?"
-        query_params.append(date_start)
-    if date_end is not None:
-        date_filter += (" AND " if date_start is not None else "") + "CAST(date AS DATE) <= ?"
-        query_params.append(date_end)
-    if date_start is None and date_end is None:
-        date_filter = ""
-    row_filter = code_filter + date_filter
+    # ``data.table`` already pushed the date window into the catalog view. The
+    # SQL below only normalises codes and aggregates, so filtering the same
+    # rows again on CAST(date AS DATE) walked the source twice and bound two
+    # extra parameters to each of the three queries.
+    row_filter = ""
     try:
         bounds = connection.execute(
             "SELECT code, min(date), max(date), count(*), count(DISTINCT date), "
@@ -575,7 +569,6 @@ def _load_dataset(data, query):
     if not isinstance(refs,list) or not refs: raise ValueError('historical evidence files are required')
     bound_names=set()
     hashes={}
-    names_by_path={}
     market_files={}
     account_files={}
     for ref in refs:
@@ -592,7 +585,6 @@ def _load_dataset(data, query):
         path, _, _ = source_ref(name)
         if str(path) not in hashes:
             hashes[str(path)]=_digest(prefetched_facts[name]) if name in prefetched_facts else data.evidence(name)
-            names_by_path[str(path)]=name
         account_files[str(path)]=hashes[str(path)]
         return path
     def market_evidence(name):
@@ -610,7 +602,6 @@ def _load_dataset(data, query):
     calendar_end=coverage[-1][1]
     bars_dir=inputs['bars']
     adjustments=inputs['adjustments']
-    factor_dir='fact:adjust:'
     securities=inputs['securities']
     stock_dir='fact:security:'
     changes_name=inputs['code_changes']
@@ -672,7 +663,6 @@ def _load_dataset(data, query):
         read=read)
     for item in panel.source_hashes:
         hashes[item.path]=item.sha256
-        names_by_path[item.path]=item.path
         market_files[item.path]=item.sha256
     scope = dict(scope)
     scope['calendar_start'] = calendar_start.isoformat()
@@ -686,7 +676,7 @@ def _load_dataset(data, query):
     if as_of is not None and as_of < actual_end:
         raise ValueError('data as_of precedes query end')
     if as_of is not None and factor_end != as_of:
-        raise ValueError('point-in-time factor snapshot must end exactly at query cutoff')
+        raise ValueError('factor snapshot must end exactly at query cutoff')
     calendar = tuple(calendar[read_start_index:end_index+2])
     # Each requested code/year cache is explicit evidence, including successful empty results.
     coverage_template=inputs['distributions']['template']
@@ -843,7 +833,6 @@ def _load_dataset(data, query):
                 table=data.scan(SQLQuery(f'SELECT {projected} FROM {relation} WHERE {conditions} ORDER BY {projected}',
                                          tuple(aliases for _ in code_columns))).table
                 hashes[file_name] = _digest(table)
-                names_by_path[file_name] = file_name
                 market_files[file_name] = account_files[file_name] = hashes[file_name]
                 for name in names:
                     kind=table.schema.field(facts_extra[name]['column']).type
@@ -928,29 +917,6 @@ def _load_dataset(data, query):
             listing_anchors=tuple(replace(anchor,code=output_by_id[normalize_security_id(anchor.code)])
                                   for anchor in panel.listing_anchors))
         field_data={name:reorder(values) for name,values in field_data.items()}
-    if as_of is not None:
-        availability=manifest.get('source_availability')
-        if not isinstance(availability,list) or not availability:
-            raise ValueError('point-in-time query requires unified source availability evidence')
-        by_file={}
-        for item in availability:
-            if (not isinstance(item,dict) or set(item)!={'file','sha256','available_at'}
-                    or item['file'] in by_file):
-                raise ValueError('invalid unified source availability evidence')
-            by_file[item['file']]=item
-        for absolute,digest in hashes.items():
-            name=names_by_path[absolute]
-            item=by_file.get(name)
-            if item is None or item['sha256']!=digest:
-                raise ValueError(f'point-in-time source availability is not bound: {name}')
-            try:
-                available_day=date.fromisoformat(item['available_at'])
-            except (TypeError,ValueError) as error:
-                raise ValueError(f'invalid source availability date: {name}') from error
-            if available_day>as_of:
-                raise ValueError(f'source evidence became available after query cutoff: {name}')
-        if not any(factor_dir in name for name in names_by_path.values()):
-            raise ValueError('point-in-time query requires factor availability evidence')
     data_hash=canonical_hash({'accounting':query.accounting,'files':market_files,'symbols':panel.symbols,'universe':scope['universe'],
         'tax':query.tax,'inputs':inputs,'price_basis':'backward-factor-signal-index','fields':manifest.get('fields',{})})
     scope['delistings']=_delisting_evidence(data, panel.symbols)
@@ -1186,7 +1152,7 @@ def _prepare_dataset(data, query):
             "receivable_until_listing" if query.tax == "none" else "sourced_credit",
         "account_hash": account_hash, "state_start": calendar[0].isoformat(),
         "as_of": None if query.as_of is None else query.as_of.isoformat(),
-        "query_semantics": "point_in_time" if query.as_of is not None else "snapshot_replay",
+        "query_semantics": "snapshot_replay",
     }
     if plugin_provenance is not None:
         provenance["signal_plugins"] = plugin_provenance

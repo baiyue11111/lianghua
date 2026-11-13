@@ -4,13 +4,15 @@ from __future__ import annotations
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
-from datetime import date
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
 from functools import partial
 from importlib import import_module
 from inspect import getattr_static, signature
 from market import build_data
 from pathlib import Path
 from protocol import (
+    AccountSnapshot,
     BacktestError,
     BacktestRequest,
     BacktestResponse,
@@ -84,6 +86,8 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("backtest.prepare", "read", "preflight", "preflight", "document", "backtests"),
     OperationSpec("backtest.run", "write", "backtest", "backtest-result", "resource", "backtests"),
     OperationSpec("cli.backtest", "write", "cli-backtest", "cli-backtest", "operation", "commands"),
+    OperationSpec("cli.predict", "read", "cli-predict", "cli-predict", "resource", "commands"),
+    OperationSpec("service.info", "read", "service-info", "service-info", "resource", "commands"),
     OperationSpec("collection.describe", "read", "collection-describe", "collection-describe", "document", "sources"),
     OperationSpec("collection.doctor", "write", "collection-doctor", "collection-doctor", "document", "sources"),
     OperationSpec("collection.inspect", "read", "collection-inspect", "collection-inspect", "document", "sources"),
@@ -521,6 +525,13 @@ class KernelBacktestPort:
         self._research = research if research is not None else Research(data)
 
     def handle(self, operation: str, data: JsonValue) -> PortResult | JsonValue:
+        if operation == "predict.run":
+            if not isinstance(data, dict) or set(data) != {"request", "account"}:
+                raise ValueError("prediction requires request and account")
+            account = data["account"]
+            accounts, pending = _prediction_accounts(account)
+            prediction = self._kernel.predict(parse_backtest_request(data["request"]), accounts, pending=pending)
+            return _json_value(prediction)
         if operation == "backtest.strategies":
             from strategy import catalog
             items = catalog()
@@ -664,6 +675,48 @@ class KernelBacktestPort:
         return value
 
 
+def _prediction_accounts(value):
+    if not isinstance(value, dict) or set(value) != {"start", "end", "pending", "days"}:
+        raise ValueError("account requires start, end, pending and days")
+    if not isinstance(value["pending"], list) or not isinstance(value["days"], list):
+        raise ValueError("pending and days must be lists")
+
+    def number(raw, name):
+        if not isinstance(raw, str):
+            raise ValueError(f"{name} must be a decimal string")
+        try:
+            result = Decimal(raw)
+        except InvalidOperation as error:
+            raise ValueError(f"invalid {name}") from error
+        if not result.is_finite() or result < 0:
+            raise ValueError(f"{name} must be finite and nonnegative")
+        return result
+
+    def positions(raw, name):
+        if not isinstance(raw, dict):
+            raise ValueError(f"{name} must be an object")
+        result = {}
+        for symbol, quantity in raw.items():
+            if not isinstance(symbol, str) or not symbol or type(quantity) is not int or quantity < 0:
+                raise ValueError(f"{name} requires nonnegative whole shares")
+            result[symbol] = Decimal(quantity)
+        return result
+
+    accounts = {}
+    for day in value["days"]:
+        if not isinstance(day, dict) or set(day) != {"at", "cash", "equity", "positions", "sellable"}:
+            raise ValueError("each account day requires at, cash, equity, positions and sellable")
+        if not isinstance(day["at"], str):
+            raise ValueError("account timestamp must be ISO text")
+        at = datetime.fromisoformat(day["at"])
+        snapshot = AccountSnapshot(at, number(day["cash"], "cash"), number(day["equity"], "equity"),
+                                   positions(day["positions"], "positions"), positions(day["sellable"], "sellable"))
+        if at.date() in accounts:
+            raise ValueError("duplicate account day")
+        accounts[at.date()] = snapshot
+    return accounts, value["pending"]
+
+
 class CommandPort:
     """CLI transport operations; no command owns a business execution path."""
 
@@ -675,6 +728,24 @@ class CommandPort:
     def handle(self, operation: str, data: JsonValue) -> JsonValue:
         if not isinstance(data, dict):
             raise TypeError("operation data must be an object")
+        if operation == "service.info":
+            return PortResult("resource", "lianghua:service-info",
+                              "urn:lianghua:ui:output:service.info:v1", {"root": str(self._root)})
+        if operation == "cli.predict":
+            config = _decode_backtest_config(Path(_text(data, "config")).read_bytes())
+            account = json.loads(Path(_text(data, "account")).read_text())
+            if not isinstance(config, dict) or {"request", "search", "start", "end"} & set(config):
+                raise ValueError("prediction requires a fixed backtest configuration with intervals")
+            if not isinstance(config.get("intervals"), list) or not config["intervals"]:
+                raise ValueError("prediction requires backtest intervals")
+            if not isinstance(account, dict) or set(account) != {"start", "end", "pending", "days"}:
+                raise ValueError("account requires start, end, pending and days")
+            request = {key: value for key, value in config.items() if key != "intervals"}
+            request.update(start=account["start"], end=account["end"])
+            parse_backtest_request(request)
+            value = self._backtests.handle("predict.run", {"request": request, "account": account})
+            return PortResult("resource", "lianghua:cli-predict",
+                              "urn:lianghua:ui:output:cli.predict:v1", value)
         if operation == "cli.backtest":
             config = _decode_backtest_config(Path(_text(data, "config")).read_bytes())
             if not isinstance(config, dict) or "request" in config:

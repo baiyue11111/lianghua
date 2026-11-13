@@ -10,6 +10,7 @@ await build({entryPoints:[new URL('../../web/src/interaction/action.ts',import.m
 const {action}=await import('../dist/web-action.mjs');
 test('Python CLI and Web actions use the same core, requests and state sequence',async()=>{
  const pythonAction=JSON.parse(execFileSync(root+'.venv/bin/python',['-c',"from frontend.cli import build_parser,to_action; import json; print(json.dumps(to_action(build_parser().parse_args(['--backtest','x.json'])).to_dict()))"],{cwd:root}));
+ const predictAction=JSON.parse(execFileSync(root+'.venv/bin/python',['-c',"from frontend.cli import build_parser,to_action; import json; print(json.dumps(to_action(build_parser().parse_args(['--predict','x.json','--account','account.json'])).to_dict()))"],{cwd:root}));
  const data=pythonAction.data;
  const requests=[];
  const reply=r=>[{protocol:'lianghua.ui',version:1,message_id:r.request_id+'-m',kind:'resource',type:'urn:test',schema:outputSchema(r.operation),correlation_id:r.request_id,data:{amount:'9007199254740993.10',input:r.data}}];
@@ -17,12 +18,13 @@ test('Python CLI and Web actions use the same core, requests and state sequence'
  const child=spawn('node',[root+'frontend/display/runtime/cli.mjs','--connected'],{stdio:['pipe','pipe','pipe']});
  const lines=createInterface({input:child.stdout})[Symbol.asyncIterator]();
  const send=frame=>child.stdin.write(JSON.stringify(frame)+'\n');
- const expectedActions=[action('edit','cli',{note:'测试'}),action('invoke','cli',data,'cli.backtest'),action('reset','cli',{})];
- const incomingActions=[{...expectedActions[0],action_id:'cli-edit'},pythonAction,{...expectedActions[2],action_id:'cli-reset'}];
+ const expectedActions=[action('edit','cli',{note:'测试'}),action('invoke','cli',data,'cli.backtest'),action('invoke','cli',predictAction.data,'cli.predict'),action('reset','cli',{})];
+ const incomingActions=[{...expectedActions[0],action_id:'cli-edit'},pythonAction,predictAction,{...expectedActions[3],action_id:'cli-reset'}];
  try {
   for(let i=0;i<expectedActions.length;i++){
    const expected=await web.dispatch(expectedActions[i]);send({kind:'action',action:incomingActions[i]});
    let frame=JSON.parse((await lines.next()).value);
+   if(i===2) assert.equal(frame.kind,'request');
    if(frame.kind==='request'){assert.deepEqual(frame.request,requests.at(-1));send({kind:'response',request:frame.request,messages:reply(frame.request)});frame=JSON.parse((await lines.next()).value);}
    assert.equal(frame.kind,'state');assert.deepEqual(frame.state,expected);
   }

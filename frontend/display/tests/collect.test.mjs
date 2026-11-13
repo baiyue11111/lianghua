@@ -22,3 +22,29 @@ test('collection cancellation prevents submitting another intent',async()=>{
  await assert.rejects(collect(input,{signal:controller.signal,progress:()=>{},call:async()=>{calls++;}}),/会话已停止/);
  assert.equal(calls,0);
 });
+test('automatic controls submit one intent and return without a timer',async()=>{
+ for(const [command,operation,data] of [
+  ['auto-on','collection.set_automatic',{market:'TEST',enabled:true}],
+  ['auto-off','collection.set_automatic',{market:'TEST',enabled:false}],
+  ['status','collection.automatic',{market:'TEST'}],
+ ]) {
+  const calls=[];
+  const result=await collect({selector:'TEST:'+command},{signal:new AbortController().signal,progress:()=>{},call:async(op,input)=>{
+   calls.push({op,input});return {enabled:command==='auto-on',status:'idle'};
+  }});
+  assert.deepEqual(calls,[{op:operation,input:data}]);
+  assert.equal(result.status,'idle');
+ }
+});
+test('latest can use a completed-session cutoff',async()=>{
+ const calls=[];
+ await collect({selector:'TEST:latest',end:'2026-11-10'}, {signal:new AbortController().signal,progress:()=>{},call:async(operation,data)=>{
+  calls.push({operation,data});return {outcome:'succeeded'};
+ }});
+ assert.deepEqual(calls,[{operation:'collection.run',data:{market:'TEST',command:'latest',end:'2026-11-10'}}]);
+});
+test('old foreground auto and interval options are rejected',async()=>{
+ for(const values of [{selector:'TEST:auto'},{selector:'TEST:auto-on',interval:'1d'}]){
+  await assert.rejects(collect(values,{signal:new AbortController().signal,progress:()=>{},call:async()=>{throw Error('must not call');}}));
+ }
+});

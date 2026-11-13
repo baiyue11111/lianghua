@@ -226,6 +226,24 @@ class AdjustedPanelTests(unittest.TestCase):
         self.assertEqual(panel.symbols,('000001',))
         np.testing.assert_array_equal(panel.raw_close,[[10]])
 
+    def test_future_factor_event_does_not_change_earlier_signal_prices(self):
+        self.write_bars([
+            _bar('2020-01-30', close=10, open_=10, high=10, low=10),
+            _bar('2020-01-31', close=11, open_=11, high=11, low=11),
+            _bar('2020-02-03', close=6, open_=6, high=6, low=6),
+        ])
+        base = [['sh.600000', '2019-01-01', '1', '1', '1']]
+        self.write_cache(base)
+        before = self.load(date_end=date(2020, 1, 31))
+
+        self.write_cache(base + [['sh.600000', '2020-02-03', '1', '2', '2']])
+        after = self.load(date_end=date(2020, 1, 31))
+        next_day = self.load(date_end=date(2020, 2, 3))
+
+        np.testing.assert_allclose(before.signal_close, [[10, 11]])
+        np.testing.assert_allclose(after.signal_close, before.signal_close)
+        np.testing.assert_allclose(next_day.signal_close, [[10, 11, 12]])
+
     def test_factor_is_effective_on_event_day_for_signals_only(self):
         # Regressions caught: future factor leaks into yesterday, or execution
         # cash prices are silently replaced with adjusted signal prices.

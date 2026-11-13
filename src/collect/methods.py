@@ -7,7 +7,7 @@ import math
 from decimal import Decimal
 from math import isfinite
 import warnings
-from protocol import (DataError, SQLQuery, TableDef, TableQuery, normalize_security_id, validate_facts,
+from protocol import (DataError, Filter, SQLQuery, TableDef, TableQuery, normalize_security_id, validate_facts,
                       _calendar_facts, _calendar_covers, _fact_date as fact_date)
 import re
 import calendar
@@ -21,10 +21,12 @@ from copy import deepcopy
 from collections.abc import Mapping
 from uuid import uuid4
 from typing import Callable
+from threading import Lock
 from urllib.parse import urlencode, urljoin
 from urllib.request import Request as URLRequest, urlopen
 
 DEFAULT_TIMEOUT = 30
+_BAOSTOCK_LOCK = Lock()
 
 FIELDSETS = {
     "basic": ("open", "high", "low", "close", "volume", "amount",
@@ -970,17 +972,18 @@ class SinaFactors:
 
 def raw_response(request, timeout):
     import baostock as bs
-    login_with_timeout(bs, timeout)
-    try:
-        with _timeout(timeout):
-            response = bs.query_history_k_data_plus(
-                request["code"], request["fields"], start_date=request["start_date"],
-                end_date=request["end_date"], frequency="d", adjustflag="3")
-        fields, rows = _response_rows(response, timeout)
-        return {"error_code": response.error_code, "error_msg": response.error_msg,
-                "fields": fields, "rows": rows}
-    finally:
-        bs.logout()
+    with _BAOSTOCK_LOCK:
+        login_with_timeout(bs, timeout)
+        try:
+            with _timeout(timeout):
+                response = bs.query_history_k_data_plus(
+                    request["code"], request["fields"], start_date=request["start_date"],
+                    end_date=request["end_date"], frequency="d", adjustflag="3")
+            fields, rows = _response_rows(response, timeout)
+            return {"error_code": response.error_code, "error_msg": response.error_msg,
+                    "fields": fields, "rows": rows}
+        finally:
+            bs.logout()
 
 
 class Methods:
@@ -1199,9 +1202,11 @@ class Methods:
         with self.data.transaction(readonly=True):
             if reference.startswith('lake:'):
                 return self.data.table(reference).to_pylist()
-            if reference.startswith('changes:'):
-                return self.data.object(reference)['events']
-        raise DataError('invalid_ref', 'code changes require a native table reference')
+            value = self.data.object(reference)
+        if not isinstance(value, dict) or not isinstance(value.get('events'), list) or any(
+                not isinstance(event, dict) for event in value['events']):
+            raise DataError('invalid_data', 'code-change events must be a list of objects')
+        return value['events']
 
     def doctor(self, source, request):
         if source.get('data_type') != 'daily' and source.get('method') != 'daily':
@@ -1642,6 +1647,8 @@ class Methods:
         try:
             ref = result['ref']
             version = None if ref is None else (self.records(source, 0, 0)['snapshot_id'] if daily else ref.sha256)
+            if source.get('data_type') == 'calendar':
+                version = self.records(source, 0, 0)['snapshot_id']
             event = {'source_id': source['id'], 'snapshot_id': version,
                       'raw': packet['raw'], 'request': packet.get('request', {}),
                       'scope': packet.get('scope', {}), 'failures': result['failures'],
@@ -1665,6 +1672,8 @@ class Methods:
                 validate_record(row)
         if source.get('method') == 'daily' or source.get("data_type") == "daily":
             return self._publish_daily(self._identity(source), source.get("dataset_id"), packet, dry_run=dry_run)
+        if source.get('data_type') == 'calendar':
+            return self._publish_calendar(source, packet, dry_run=dry_run)
         if source.get("data_type") == "facts":
             if (not isinstance(getattr(handler, "value_columns", None), Mapping)
                     or not getattr(handler, "text_columns", None)
@@ -1779,12 +1788,59 @@ class Methods:
             value[name] = right if left is None else left
         return value
 
+    def _publish_calendar(self, source, packet, *, dry_run):
+        dataset = source.get('dataset_id')
+        if not isinstance(dataset, str) or not dataset or packet.get('dataset_id') != dataset:
+            raise DataError('invalid_packet', 'calendar dataset must match its registered source')
+        self._validate_calendar(packet)
+        request = packet['request']
+        start, end = request['start'], request['end']
+        incoming = {row['date']: row['is_trading_day'] for row in packet['records']}
+        with self.data.transaction(readonly=dry_run):
+            filters = (Filter('dataset', 'eq', dataset),)
+            coverage = self.data.scan(TableQuery('calendar_coverage', filters, ('start', 'end'))).table
+            if coverage.num_rows:
+                current = self.data.calendar(dataset)
+            else:
+                sessions = self.data.scan(TableQuery('calendar_sessions', filters, ('session',))).table
+                if sessions.num_rows:
+                    raise DataError('invalid_calendar', 'calendar sessions exist without coverage')
+                current = {'sessions': [], 'coverage': []}
+            known = set(current['sessions'])
+            for day, trading in incoming.items():
+                if any(span['start'] <= day <= span['end'] for span in current['coverage']):
+                    if (day in known) != trading:
+                        raise DataError('calendar_conflict', 'calendar conflict at ' + day)
+            value = {'sessions': sorted(known | {day for day, trading in incoming.items() if trading}),
+                     'coverage': _calendar_coverage([*current['coverage'], {'start': start, 'end': end}])}
+            if not dry_run:
+                self.data.save_calendar(dataset, value)
+        return {'records': len(incoming), 'incoming': len(incoming), 'failures': []} if dry_run else {
+            'ref': None, 'records': len(incoming), 'failures': []}
+
     def records(self, source: Mapping, offset=0, limit=50, **scope):
         if type(offset) is not int or offset < 0 or type(limit) is not int or not 0 <= limit <= 1000:
             raise ValueError("invalid records page")
         if source.get('method') == 'daily' or source.get("data_type") == "daily":
             return self.daily_collection_page(source, source["dataset_id"], offset=offset,
                                               limit=limit, **scope)
+        if source.get('data_type') == 'calendar':
+            with self.data.transaction(readonly=True):
+                calendar = self.data.calendar(source['dataset_id'])
+            from market import digest as table_digest
+            days = [row for span in calendar['coverage']
+                    for row in (date.fromisoformat(span['start']) + timedelta(days=offset)
+                                for offset in range((date.fromisoformat(span['end']) -
+                                                     date.fromisoformat(span['start'])).days + 1))]
+            sessions = set(calendar['sessions'])
+            rows = [{'date': day.isoformat(), 'is_trading_day': day.isoformat() in sessions}
+                    for day in days if (scope.get('start') is None or day.isoformat() >= scope['start'])
+                    and (scope.get('end') is None or day.isoformat() <= scope['end'])]
+            return {'snapshot_id': table_digest(calendar), 'source_id': source['id'],
+                    'collected_at': None, 'request': {}, 'data_as_of': max(sessions) if sessions else None,
+                    'scope': {'dataset_id': source['dataset_id']}, 'records': rows[offset:offset+limit],
+                    'raw': [], 'reviews': [], 'records_count': len(rows), 'offset': offset,
+                    'limit': limit, 'total': len(rows)}
         with self.data.transaction(readonly=True):
             reference = self.data.source(self._identity(source), 'records')
             content = self.data.table(reference)
@@ -2102,6 +2158,35 @@ class Methods:
         if packet.get('data_type') == 'daily':
             Methods._validate_canonical_daily(packet)
             Methods.daily_rows(packet)
+        if packet.get('data_type') == 'calendar':
+            Methods._validate_calendar(packet)
+
+    @staticmethod
+    def _validate_calendar(packet):
+        request = packet.get('request')
+        if not isinstance(request, Mapping):
+            raise ValueError('calendar request is required')
+        try:
+            start, end = (date.fromisoformat(request[key]) for key in ('start', 'end'))
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError('calendar start and end must be ISO dates') from error
+        if start > end or start.isoformat() != request['start'] or end.isoformat() != request['end']:
+            raise ValueError('calendar request dates are invalid')
+        expected = [(start + timedelta(days=offset)).isoformat()
+                    for offset in range((end - start).days + 1)]
+        records, raw = packet['records'], packet['raw']
+        if not raw or len(records) != len(expected):
+            raise ValueError('calendar response must cover every requested date')
+        seen = {}
+        for row in records:
+            if (not isinstance(row, Mapping) or set(row) != {'date', 'is_trading_day', 'raw_page'}
+                    or type(row['is_trading_day']) is not bool
+                    or type(row['raw_page']) is not int or not 0 <= row['raw_page'] < len(raw)
+                    or not isinstance(row['date'], str) or row['date'] in seen):
+                raise ValueError('calendar observation is invalid')
+            seen[row['date']] = row['is_trading_day']
+        if sorted(seen) != expected:
+            raise ValueError('calendar response must cover every requested date')
 
     def log(self, event: Mapping):
         if not isinstance(event, Mapping):
@@ -2586,76 +2671,77 @@ class BaostockDaily:
     def collect(self, request):
         import baostock as bs
         codes, frequency, adjustment, names = self._validate_request(request)
-        login = self._call(bs.login)
-        if login.error_code != "0":
-            raise RuntimeError(f"login {login.error_code}: {login.error_msg}")
-        records, raw = [], []
-        try:
-            calendar = {"sessions": [], "coverage": []}
-            if frequency == "d":
-                calendar_end = request.get("calendar_end") or (date.fromisoformat(request['end']) + timedelta(days=31)).isoformat()
-                all_sessions, calendar_raw = self.trade_calendar(
-                    bs, request["start"], calendar_end,
-                    call=lambda **kw: self._call(bs.query_trade_dates, **kw))
-                calendar = {"sessions": [day.isoformat() for day in all_sessions],
-                            "coverage": [{"start": request["start"], "end": calendar_end}]}
-                raw.append(calendar_raw)
-            for code in codes:
-                if code.split('.')[0] == 'bj':
-                    packet = EastmoneyDaily(self.config).collect({**request,'codes':[code]})
-                    offset = len(raw)
-                    records.extend({**row,'raw_page':row['raw_page']+offset} for row in packet['records'])
-                    raw.extend(packet['raw'])
-                    continue
-                fields = ",".join(names)
-                response = self._call(bs.query_history_k_data_plus,
-                    code, fields, start_date=request["start"], end_date=request["end"],
-                    frequency=frequency, adjustflag=adjustment)
-                if response.error_code != "0":
-                    raise RuntimeError(response.error_msg)
-                rows = []
-                while response.next():
-                    rows.append(response.get_row_data())
-                if response.fields != fields.split(","):
-                    raise ValueError("daily field contract changed")
-                raw.append({"provider": "baostock", "request": {**request, "code": code,
-                            "fields": fields, "adjustflag": adjustment},
-                            "response": {"fields": response.fields, "rows": rows,
-                                         "error_code": response.error_code}})
-                for row in rows:
-                    if len(row) != len(response.fields):
-                        raise ValueError("daily row length mismatch")
-                    item = dict(zip(response.fields, row))
-                    if item["code"] != code or not request["start"] <= item["date"] <= request["end"]:
-                        raise ValueError("daily request/response mismatch")
-                    if item.get('tradestatus') == '0':
-                        for name in ('volume','amount'):
-                            if name in item and (item[name] is None or not str(item[name]).strip()):
-                                item[name] = 0.0
-                    for name in self._numeric_fields & item.keys():
-                        raw_value = item[name]
-                        if raw_value is None or (
-                            isinstance(raw_value, str) and not raw_value.strip()
-                        ):
-                            if name in self._required_daily_fields:
-                                raise ValueError(f"required daily field is empty: {name} ({code} {item['date']}, volume={item.get('volume')}, tradestatus={item.get('tradestatus')})")
-                            item[name] = None
-                            continue
-                        try:
-                            value = float(raw_value)
-                        except (TypeError, ValueError) as error:
-                            raise ValueError(f"daily field is invalid: {name}") from error
-                        if not math.isfinite(value):
-                            raise ValueError(f"daily field is invalid: {name}")
-                        item[name] = value
-                    item["raw_page"] = len(raw) - 1
-                    records.append(item)
-        except CollectionError as error:
-            raise CollectionError(str(error), [*raw, *error.evidence]) from error
-        except Exception as error:
-            raise CollectionError(str(error), raw) from error
-        finally:
-            bs.logout()
+        with _BAOSTOCK_LOCK:
+            login = self._call(bs.login)
+            if login.error_code != "0":
+                raise RuntimeError(f"login {login.error_code}: {login.error_msg}")
+            records, raw = [], []
+            try:
+                calendar = {"sessions": [], "coverage": []}
+                if frequency == "d":
+                    calendar_end = request.get("calendar_end") or (date.fromisoformat(request['end']) + timedelta(days=31)).isoformat()
+                    all_sessions, calendar_raw = self.trade_calendar(
+                        bs, request["start"], calendar_end,
+                        call=lambda **kw: self._call(bs.query_trade_dates, **kw))
+                    calendar = {"sessions": [day.isoformat() for day in all_sessions],
+                                "coverage": [{"start": request["start"], "end": calendar_end}]}
+                    raw.append(calendar_raw)
+                for code in codes:
+                    if code.split('.')[0] == 'bj':
+                        packet = EastmoneyDaily(self.config).collect({**request,'codes':[code]})
+                        offset = len(raw)
+                        records.extend({**row,'raw_page':row['raw_page']+offset} for row in packet['records'])
+                        raw.extend(packet['raw'])
+                        continue
+                    fields = ",".join(names)
+                    response = self._call(bs.query_history_k_data_plus,
+                        code, fields, start_date=request["start"], end_date=request["end"],
+                        frequency=frequency, adjustflag=adjustment)
+                    if response.error_code != "0":
+                        raise RuntimeError(response.error_msg)
+                    rows = []
+                    while response.next():
+                        rows.append(response.get_row_data())
+                    if response.fields != fields.split(","):
+                        raise ValueError("daily field contract changed")
+                    raw.append({"provider": "baostock", "request": {**request, "code": code,
+                                "fields": fields, "adjustflag": adjustment},
+                                "response": {"fields": response.fields, "rows": rows,
+                                             "error_code": response.error_code}})
+                    for row in rows:
+                        if len(row) != len(response.fields):
+                            raise ValueError("daily row length mismatch")
+                        item = dict(zip(response.fields, row))
+                        if item["code"] != code or not request["start"] <= item["date"] <= request["end"]:
+                            raise ValueError("daily request/response mismatch")
+                        if item.get('tradestatus') == '0':
+                            for name in ('volume','amount'):
+                                if name in item and (item[name] is None or not str(item[name]).strip()):
+                                    item[name] = 0.0
+                        for name in self._numeric_fields & item.keys():
+                            raw_value = item[name]
+                            if raw_value is None or (
+                                isinstance(raw_value, str) and not raw_value.strip()
+                            ):
+                                if name in self._required_daily_fields:
+                                    raise ValueError(f"required daily field is empty: {name} ({code} {item['date']}, volume={item.get('volume')}, tradestatus={item.get('tradestatus')})")
+                                item[name] = None
+                                continue
+                            try:
+                                value = float(raw_value)
+                            except (TypeError, ValueError) as error:
+                                raise ValueError(f"daily field is invalid: {name}") from error
+                            if not math.isfinite(value):
+                                raise ValueError(f"daily field is invalid: {name}")
+                            item[name] = value
+                        item["raw_page"] = len(raw) - 1
+                        records.append(item)
+            except CollectionError as error:
+                raise CollectionError(str(error), [*raw, *error.evidence]) from error
+            except Exception as error:
+                raise CollectionError(str(error), raw) from error
+            finally:
+                bs.logout()
         if len({(row["code"], row["date"], row.get("time")) for row in records}) != len(records):
             raise ValueError("duplicate bar keys")
         return {"records": records, "raw": raw,
@@ -3421,12 +3507,40 @@ class Catalogue:
             raise CollectionError(str(error), raw) from error
 
 
+class BaostockCalendar:
+    """Fetch calendar days as ordinary observations from a registered source."""
+
+    def __init__(self, config):
+        self.daily = BaostockDaily(config)
+
+    def collect(self, request):
+        import baostock as bs
+        start, end = request['start'], request['end']
+        with _BAOSTOCK_LOCK:
+            login = self.daily._call(bs.login)
+            if str(login.error_code) != '0':
+                raise ProviderError(f'login {login.error_code}: {login.error_msg}', str(login.error_code))
+            try:
+                sessions, raw = self.daily.trade_calendar(
+                    bs, start, end, call=lambda **kw: self.daily._call(bs.query_trade_dates, **kw))
+            finally:
+                bs.logout()
+        known = set(sessions)
+        first, last = date.fromisoformat(start), date.fromisoformat(end)
+        records = [{'date': (first + timedelta(days=offset)).isoformat(),
+                    'is_trading_day': first + timedelta(days=offset) in known, 'raw_page': 0}
+                   for offset in range((last - first).days + 1)]
+        return {'records': records, 'raw': [raw], 'scope': {'start': start, 'end': end},
+                'data_as_of': end}
+
+
 DEFAULT_METHODS = {
     "catalogue": Catalogue,
     "news": News,
     "quotes": EastmoneyQuotes,
     "eastmoney_fundamentals": EastmoneyFundamentals,
     "daily": BaostockDaily,
+    "baostock_calendar": BaostockCalendar,
     "sina_daily": SinaDaily,
     "fred_series": FredSeries,
     "announcements": CninfoAnnouncements,
