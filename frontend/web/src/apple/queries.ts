@@ -3,7 +3,12 @@ import type {Run} from '@display/research/port';
 // Every screen that lists strategies reads the same window of the archive, and
 // it has to be the *same* request: two screens asking with different limits
 // would hold two different answers to the same question.
-export const ARCHIVE_WINDOW = 1000;
+//
+// The window is the size of the archive, not a round number: an attempt count
+// and a median taken over the first thousand of twelve hundred attempts are
+// statements about a prefix, and nobody asked about a prefix. When the archive
+// outgrows this, `truncated()` says so on screen instead of quietly lying.
+export const ARCHIVE_WINDOW = 2000;
 
 export const ARCHIVE_QUERY = {limit: ARCHIVE_WINDOW};
 

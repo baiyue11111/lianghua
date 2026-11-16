@@ -488,6 +488,31 @@ class DataStore:
             table = self._connection.execute(sql, values).to_arrow_table()
             return TableResult(table, 'lake:' + query.table)
 
+    def scan_files(self, sql: str, values=()) -> TableResult:
+        """One read-only SELECT that is allowed to name files on disk.
+
+        ``scan(SQLQuery)`` refuses table functions, and that refusal is right: a
+        query string able to name its own paths turns a query interface into a
+        reader of any file this process can open. This entry exists for the one
+        call that reads external documents whose layout is a fact of this
+        repository, and it says so in its name instead of in a flag. It is
+        deliberately absent from ``DataPort``: the only way in is to hold the
+        store itself, so no module and no transport request can reach it.
+
+        Values are bound, never formatted in, so the paths a caller supplies are
+        data. The caller is still responsible for making a path out of a name
+        that came off the wire — ``parse_identity`` is the one rule for that.
+        """
+        with self.transaction(readonly=True):
+            try:
+                statements = self._connection.extract_statements(sql)
+                if len(statements) != 1 or statements[0].type != duckdb.StatementType.SELECT:
+                    raise DataError('invalid_query', 'file scan accepts one read-only SELECT statement')
+                table = self._connection.execute(sql, list(values)).to_arrow_table()
+            except duckdb.Error as error:
+                raise DataError('invalid_query', str(error)) from error
+        return TableResult(table, 'lake:files')
+
     def fingerprint(self, name):
         with self._lock:
             definition = self.definition(name)

@@ -69,6 +69,21 @@ class DataBus:
     def scan(self, query):
         return self._store.scan(query)
 
+    @property
+    def root(self):
+        """Where this project's data lives. Files sit beside the tables."""
+        return self._store.root
+
+    def scan_files(self, sql, values=()):
+        """The store's document reader. Not a `DataPort` operation.
+
+        The archive has to read attempts that were saved as documents before the
+        lake existed. That is a capability of the store — the thing that knows
+        what is on disk — and it is deliberately kept out of `DataPort` so the
+        contract a module asks for never includes reading arbitrary files.
+        """
+        return self._store.scan_files(sql, values)
+
     def write(self, value):
         return self._store.write(value)
 

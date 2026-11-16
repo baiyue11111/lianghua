@@ -23,7 +23,9 @@
 
 `features.ts` 不为任何 operation 声明 `poll`，`data.status` 也不再带后端未实现的 `rescan` 参数。交互核心仍保留轮询能力（`core.ts` 的 `spec.poll` 及其测试），本项目注册项改为「挂载加载一次 + 用户触发刷新」：行情页「刷新状态」重取 `collection.automatic / collection.current / data.status / data.check`，数据中心「刷新数据」重取该页全部读操作。壳层不再常驻挂载 `research.runs`，侧栏统计只保留本地信息与策略目录。
 
-这样改的原因是部分读操作会触发全量事实扫描，`research.runs` 会逐条读取 163 份存档；当单次耗时大于轮询周期时，1s / 3s 自动轮询会让请求在后端 `asyncio.to_thread` 线程池里无限堆积，连 `service.info` 这种零 IO 请求都要排队。状态报告里的全表指纹已彻底删除：`Views._fingerprint()`、`source_facts()` 的 `fingerprint` 开关、`partition_sha256` 返回字段，以及只验证该指纹的测试全部移除，不留按需取证入口。`src/storage.py` 的单表证据摘要是另一套能力，供 `DataPort.evidence()` 与采集链路使用，保持不变。
+这样改的原因是部分读操作会触发全量事实扫描，`research.runs` 会为每一份存档组装一个表头；当单次耗时大于轮询周期时，1s / 3s 自动轮询会让请求在后端 `asyncio.to_thread` 线程池里无限堆积，连 `service.info` 这种零 IO 请求都要排队。状态报告里的全表指纹已彻底删除：`Views._fingerprint()`、`source_facts()` 的 `fingerprint` 开关、`partition_sha256` 返回字段，以及只验证该指纹的测试全部移除，不留按需取证入口。`src/storage.py` 的单表证据摘要是另一套能力，供 `DataPort.evidence()` 与采集链路使用，保持不变。
+
+`research.runs` 现在是「全部尝试」的索引，不是某一张表的转储：湖里的 163 次与 `data/result/` 下按目录保存的 1039 次并成一张，按 `id` 排序后再切页。那 1039 次没有被导入也没有被转换，`manifest.json` + `metrics.json` 就是它们的表结构，查询时由 DuckDB 就地读取；只有打开某一次回测时才整份读 `result.json`（最大 508 MB），因此列表永远不碰它。API contract 没有为此增加任何字段。
 
 默认取数区间同样做了收敛：K 线默认只取最近约 250 个已登记交易日，不再从 2003 年全历史开始，避免早期停牌/未上市日产生 NaN 被数据校验拒绝；基准对比的起止日期若落在周末或超出日历末端，由后端 `Benchmarks.series()` 对齐到最近的已登记交易日，底层数据质量校验不放宽。
 

@@ -413,6 +413,32 @@ class Benchmarks:
         raise ValueError('基准必须登记标准dataset_id')
 
 
+# The research kernel wrote one directory per attempt before runs were recorded
+# through the lake: `manifest.json`, `metrics.json`, `result.json`, `trace.json`.
+# Those directories are not imported and not converted. The documents are the
+# schema, and DuckDB reads them where they lie, which is why 1039 attempts that
+# no table ever described can appear in a list without a loader running first.
+#
+# Two documents are small enough to read by the thousand (manifest and metrics
+# give every header field), and `result.json` is not: it reaches 485 MB, and one
+# JSON object is one row, so selecting any column from it means deserialising
+# the whole object. The list therefore never touches it. The run a reader opens
+# is read whole, alone, by the name in the address.
+LEGACY_DIR = 'result'
+LEGACY_MANIFEST_LIMIT = 1 << 25
+LEGACY_METRICS_LIMIT = 1 << 20
+LEGACY_METRICS = ('annualized_volatility', 'cagr', 'final_equity', 'initial_equity',
+                  'max_drawdown', 'observations', 'sharpe', 'total_return')
+# What an index row needs from a manifest, and nothing else: the configuration is
+# kept as a document so that one path is read out of it instead of a struct of
+# five thousand hashes being built for every attempt in the list.
+LEGACY_MANIFEST_COLUMNS = ("{'run_id':'VARCHAR','strategy_id':'VARCHAR','status':'VARCHAR',"
+                           "'config_hash':'VARCHAR','data_hash':'VARCHAR','execution_hash':'VARCHAR',"
+                           "'note':'VARCHAR','limitations':'VARCHAR[]','parameters':'JSON',"
+                           "'effective_config':'JSON'}")
+LEGACY_NOTE = '运行结果未经历史资格认定。'
+
+
 class Research:
     tables = (
         TableDef('runs', {
@@ -473,6 +499,143 @@ class Research:
 
     def _ids(self):
         return tuple(row['run_id'] for row in self.rows('runs'))
+
+    # -- the historical output directory ------------------------------------
+
+    def _legacy(self):
+        """The directory the research kernel wrote to before the lake, if any.
+
+        Reading it is a capability of the store, not of the port: a protocol
+        consumer can ask for runs, and runs are runs whichever document holds
+        them, but only the store can be asked to open a file.
+        """
+        root = getattr(self.data, 'root', None)
+        if root is None or not callable(getattr(self.data, 'scan_files', None)):
+            return None
+        folder = Path(root) / LEGACY_DIR
+        return folder if folder.is_dir() else None
+
+    def _legacy_headers(self):
+        """Every attempt in the output directory, as the same header a lake run has.
+
+        One scan, joined on the directory name. `manifest.json` is the only
+        document carrying strategy, status and the provenance hashes, and
+        `metrics.json` is the only one small enough to read a thousand times;
+        `result.json` holds neither and is left alone here.
+
+        The manifest schema is declared instead of inferred, for two reasons. A
+        declared shape is what makes a key that an older document does not have
+        an absent value rather than a query that fails for the whole directory,
+        and it lets the reader extract by path — a field at a time — instead of
+        building a struct out of every nested object, of which a manifest holds
+        five thousand. Same documents, same answers, a tenth of the time.
+        """
+        folder = self._legacy()
+        if folder is None:
+            return []
+        fields = ', '.join(f'{name} := {name}' for name in LEGACY_METRICS)
+        rows = self.data.scan_files(
+            f"""
+            WITH manifest AS (
+                SELECT regexp_extract(filename, '([^/]+)/manifest\\.json$', 1) AS id,
+                       json_extract_string(effective_config, '$.module') AS module,
+                       run_id, strategy_id, status, config_hash, data_hash, execution_hash,
+                       note, limitations, parameters
+                FROM read_json(?, columns={LEGACY_MANIFEST_COLUMNS},
+                               maximum_object_size={LEGACY_MANIFEST_LIMIT})),
+            metrics AS (
+                SELECT regexp_extract(filename, '([^/]+)/metrics\\.json$', 1) AS id,
+                       struct_pack({fields}) AS metrics
+                FROM read_json(?, maximum_object_size={LEGACY_METRICS_LIMIT}))
+            SELECT manifest.*, metrics.metrics FROM manifest JOIN metrics USING (id)
+            ORDER BY manifest.id
+            """,
+            (str(folder / '*' / 'manifest.json'), str(folder / '*' / 'metrics.json'))).table.to_pylist()
+        return [{
+            "id": row['id'], "run_id": row['run_id'] or row['id'],
+            "strategy_id": row['strategy_id'], "status": row['status'],
+            "qualification": "unverified",
+            "limitations": row['limitations'] or [LEGACY_NOTE],
+            "metrics": row['metrics'] or {},
+            # A directory has a path, not a lake reference, and the digest of a
+            # document is read when someone opens that document: hashing a
+            # thousand manifests to fill a column nobody sorts by is a scan
+            # bought for nothing.
+            "manifest_file": f"file:{LEGACY_DIR}/{row['id']}/manifest.json",
+            "manifest_sha256": None, "metrics_sha256": None,
+            "module": row['module'], "config_hash": row['config_hash'],
+            "note": row['note'] or LEGACY_NOTE,
+            # The parameters an attempt ran with, exactly as its document wrote
+            # them: a key it declared without a value is still a key it declared.
+            "parameters": json.loads(row['parameters']) if row['parameters'] else {},
+            "code_hash": None, "data_hash": row['data_hash'],
+            "execution_hash": row['execution_hash'],
+        } for row in rows]
+
+    def _legacy_documents(self, identity, names):
+        """Read the named documents of one attempt, with the digest of each.
+
+        The digest comes back from the same read that produced the text: an
+        evidence list that names a file has to be about the bytes that were
+        actually used, not about a second look at them.
+        """
+        folder = self._legacy() / identity
+        rows = self.data.scan_files(
+            """SELECT regexp_extract(filename, '([^/]+)$', 1) AS name,
+                      sha256(content) AS digest, content
+               FROM read_text(?)""",
+            ([str(folder / name) for name in names],)).table.to_pylist()
+        return ({row['name']: row['digest'] for row in rows},
+                {row['name']: row['content'] for row in rows})
+
+    def _legacy_detail(self, identity, offset, limit):
+        """One attempt as a run detail, read from the documents it was saved as.
+
+        The address is a name from a request, so it is parsed before it becomes
+        a path: `parse_identity` is the single rule for what a run may be called,
+        and a name that cannot be spelled in a directory is not in this directory
+        either.
+        """
+        identity = parse_identity(identity, 'id')
+        folder = self._legacy()
+        if folder is None or not (folder / identity / 'manifest.json').is_file():
+            raise KeyError(identity)
+        names = ('manifest.json', 'metrics.json', 'result.json')
+        digests, documents = self._legacy_documents(identity, names)
+        manifest = json.loads(documents['manifest.json'])
+        result = json.loads(documents['result.json'])
+        effective = manifest.get('effective_config', {})
+        trades = result.get('trades') or []
+        points = result.get('equity') or []
+        # The same rule the lake path applies: eight hundred points is what a
+        # chart can show, and the last one is always among them.
+        count = len(points)
+        stride = max(1, (count + 799) // 800)
+        kept = [point for index, point in enumerate(points) if index % stride == 0]
+        if count and kept[-1] != points[-1]:
+            kept.append(points[-1])
+        return {
+            "id": identity, "run_id": manifest.get('run_id', identity),
+            "strategy_id": manifest.get('strategy_id') or result.get('strategy_id'),
+            "status": manifest.get('status', 'succeeded'), "qualification": "unverified",
+            "limitations": manifest.get('limitations') or [LEGACY_NOTE],
+            "metrics": result.get('metrics') or {},
+            "manifest_file": f"file:{LEGACY_DIR}/{identity}/manifest.json",
+            "manifest_sha256": digests.get('manifest.json'),
+            "metrics_sha256": digests.get('metrics.json'),
+            "module": effective.get('module'), "config_hash": manifest.get('config_hash'),
+            "note": manifest.get('note') or LEGACY_NOTE,
+            "parameters": result.get('parameters') or manifest.get('parameters') or {},
+            "code_hash": manifest.get('code_hash'), "data_hash": manifest.get('data_hash'),
+            "execution_hash": manifest.get('execution_hash'),
+            "source_hashes": manifest.get('source_hashes', {}),
+            "effective_config": effective, "manifest": manifest,
+            "trades": trades[offset:offset + limit], "trades_total": len(trades),
+            "equity": kept, "equity_sampling": {"total": count, "stride": stride},
+            "evidence": [{"file": f"file:{LEGACY_DIR}/{identity}/{name}", "sha256": digests[name]}
+                         for name in names if name in digests],
+            "offset": offset, "limit": limit,
+        }
 
     def result(self, identity):
         rows = self.rows('runs', identity)
@@ -551,16 +714,29 @@ class Research:
         # `offset` are meaningless without one: an unordered scan may return the
         # same row on two pages and skip another entirely.
         rows = self.rows('runs', order=('run_id',))
-        return {"items": [self._summary(row) for row in rows[offset:offset + limit]],
-                "total": len(rows), "offset": offset, "limit": limit}
+        # The lake and the output directory are two records of the same thing —
+        # attempts — so an index of attempts is their union, ordered by identity
+        # before either is asked to skip a page. Two sources read separately and
+        # then merged is what makes the order true; asking each for a slice and
+        # concatenating would put the same row on two pages or lose it.
+        items = [self._summary(row) for row in rows] + self._legacy_headers()
+        items.sort(key=lambda item: item['id'])
+        return {"items": items[offset:offset + limit],
+                "total": len(items), "offset": offset, "limit": limit}
 
     def detail(self, identity, offset=0, limit=50):
         if type(offset) is not int or type(limit) is not int or offset < 0 or limit < 0:
             raise ValueError('offset and limit must be non-negative integers')
         with self.data.transaction(readonly=True):
+            rows = self.rows('runs', identity)
+            if not rows:
+                # Not in the lake, so the attempt is one of the older ones, and
+                # the older ones were saved as documents. It is looked up by the
+                # name in the address and read from the directory of that name.
+                return self._legacy_detail(identity, offset, limit)
             value = self._read(identity, include_result=False)
             value.pop('result')
-            row = self.rows('runs', identity)[0]
+            row = rows[0]
             manifest = row['manifest']
             filters = (Filter('run_id', 'eq', identity),)
             trades = self.data.scan(TableQuery('run_trades', filters, order=('position',),

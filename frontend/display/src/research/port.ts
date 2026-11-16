@@ -3,7 +3,10 @@ export type RecordData = Record<string, unknown>;
 export interface Run {
   id:string; run_id:string; strategy_id:string; status:string; qualification:string;
   limitations:string[]; metrics:Record<string,number|null>; manifest_file:string;
-  manifest_sha256:string; metrics_sha256:string;
+  // Null when the attempt is stored as a directory instead of in the lake: the
+  // digest of a document is read when that document is opened, not computed for
+  // every row of an index. The run a reader opens always carries both.
+  manifest_sha256:string|null; metrics_sha256:string|null;
   // Provenance and the full configuration are per-run payloads: a list of runs
   // carries headers, and only the run a reader opens carries its evidence.
   source_hashes?:Record<string,string>; module?:string;

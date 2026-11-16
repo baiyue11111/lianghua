@@ -87,6 +87,115 @@ class ResearchStorageTests(unittest.TestCase):
                 store.close()
 
 
+class LegacyArchiveTests(unittest.TestCase):
+    """Attempts saved as documents, before runs were recorded through the lake.
+
+    The directory holds `manifest.json`, `metrics.json` and `result.json` per
+    attempt. Nothing imports them: the index and the detail are read from the
+    documents as they lie, so the tests write the documents and nothing else.
+    """
+
+    def place(self, store, identity, *, strategy='plugins.strategies.one', status='succeeded',
+              module=None, total_return=0.25, points=5, trades=3):
+        folder = Path(store.root) / 'result' / identity
+        folder.mkdir(parents=True)
+        manifest = {'schema': 1, 'run_id': identity, 'strategy_id': strategy, 'status': status,
+                    'dataset_id': 'cn_a', 'config_hash': 'c', 'data_hash': 'd',
+                    'execution_hash': 'e', 'parameters': {'positions': 5, 'unused': None},
+                    'effective_config': {'module': module or strategy, 'params': {'positions': 5}},
+                    'limitations': ['运行结果未经历史资格认定。']}
+        metrics = {'total_return': total_return, 'cagr': 0.1, 'max_drawdown': -0.2,
+                   'sharpe': 1.0, 'observations': points, 'initial_equity': 1000.0,
+                   'final_equity': 1250.0, 'annualized_volatility': 0.2}
+        result = {'id': identity, 'run_id': identity, 'strategy_id': strategy,
+                  'metrics': metrics, 'parameters': {'positions': 5},
+                  'trades': [{'order_id': f'o{index}', 'symbol': '600000', 'trade_date': '2025-01-03',
+                              'side': 'buy', 'status': 'filled', 'shares': 10, 'price': 10.0,
+                              'gross_amount': 100.0, 'commission': 0.0, 'stamp_duty': 0.0,
+                              'transfer_fee': 0.0, 'reason': None} for index in range(trades)],
+                  'equity': [{'at': f'2025-01-{index + 1:02d}', 'equity': 1000.0 + index}
+                             for index in range(points)]}
+        for name, value in (('manifest.json', manifest), ('metrics.json', metrics),
+                            ('result.json', result)):
+            (folder / name).write_text(json.dumps(value, ensure_ascii=False), encoding='utf-8')
+        return folder
+
+    def test_attempts_saved_as_documents_join_the_index_in_one_order(self):
+        from backend import Research
+        from storage import DataStore
+        with TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            try:
+                self.place(store, 'b-legacy')
+                research = Research(store)
+                page = research.list(limit=10)
+                self.assertEqual(page['total'], 1)
+                header = page['items'][0]
+                self.assertEqual(header['id'], 'b-legacy')
+                self.assertEqual(header['metrics']['total_return'], 0.25)
+                self.assertEqual(header['module'], 'plugins.strategies.one')
+                # The parameters are the ones the document records, unchanged:
+                # a key it declares with no value is still a key it declared.
+                self.assertEqual(header['parameters'], {'positions': 5, 'unused': None})
+                self.assertEqual(header['manifest_file'], 'file:result/b-legacy/manifest.json')
+
+                # A directory that gains an attempt is read again, not believed.
+                self.place(store, 'a-legacy')
+                self.assertEqual([item['id'] for item in research.list(limit=10)['items']],
+                                 ['a-legacy', 'b-legacy'])
+
+                # Two pages of one index, not two slices of two sources.
+                first = research.list(limit=1, offset=0)['items']
+                second = research.list(limit=1, offset=1)['items']
+                self.assertEqual([item['id'] for item in first + second],
+                                 ['a-legacy', 'b-legacy'])
+            finally:
+                store.close()
+
+    def test_a_run_saved_as_documents_opens_by_the_name_in_the_address(self):
+        from backend import Research
+        from storage import DataStore
+        with TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            try:
+                self.place(store, 'legacy-run', points=2000, trades=5)
+                research = Research(store)
+                value = research.detail('legacy-run', offset=1, limit=2)
+                self.assertEqual(value['id'], 'legacy-run')
+                self.assertEqual(value['manifest']['run_id'], 'legacy-run')
+                self.assertEqual([trade['order_id'] for trade in value['trades']], ['o1', 'o2'])
+                self.assertEqual(value['trades_total'], 5)
+                # Eight hundred points is what a chart shows, and the last
+                # observation is always one of them.
+                self.assertEqual(value['equity_sampling'], {'total': 2000, 'stride': 3})
+                self.assertEqual(value['equity'][-1]['equity'], 2999.0)
+                self.assertEqual(len(value['equity']), 668)
+                self.assertEqual({item['file'] for item in value['evidence']},
+                                 {f'file:result/legacy-run/{name}' for name in
+                                  ('manifest.json', 'metrics.json', 'result.json')})
+                self.assertTrue(all(len(item['sha256']) == 64 for item in value['evidence']))
+                json.dumps(value)  # the transport can encode it as it stands
+            finally:
+                store.close()
+
+    def test_a_name_that_cannot_be_a_directory_is_not_looked_up(self):
+        from backend import Research
+        from storage import DataStore
+        with TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            try:
+                self.place(store, 'legacy-run')
+                research = Research(store)
+                for name in ('../etc', 'a/b', '.hidden', ''):
+                    with self.assertRaises((ValueError, KeyError)):
+                        research.detail(name)
+                with self.assertRaises(KeyError):
+                    research.detail('absent')
+                self.assertEqual(Research(store).list(limit=5)['total'], 1)
+            finally:
+                store.close()
+
+
 class ProtocolTests(unittest.TestCase):
     def test_extra_limits_are_unlimited_and_lot_size_comes_from_execution(self):
         from core.calculation import AllocationLimits
