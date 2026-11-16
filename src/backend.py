@@ -547,7 +547,10 @@ class Research:
     def list(self, *, limit: int = 200, offset: int = 0):
         if type(limit) is not int or type(offset) is not int or limit < 1 or offset < 0:
             raise ValueError('limit must be a positive integer and offset non-negative')
-        rows = self.rows('runs')                  # one scan; no query per run
+        # One scan, no query per run. The order is stated because `limit` and
+        # `offset` are meaningless without one: an unordered scan may return the
+        # same row on two pages and skip another entirely.
+        rows = self.rows('runs', order=('run_id',))
         return {"items": [self._summary(row) for row in rows[offset:offset + limit]],
                 "total": len(rows), "offset": offset, "limit": limit}
 

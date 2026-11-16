@@ -62,15 +62,89 @@ test('CLI submits exactly one server path, renders every interval result, refres
  try{await failed.edit('cli-form',{config:'/server/bad.json'});const tree=failed.render('Backtest',props);await tree.nodes.find(n=>n.type==='form').props.onSubmit({preventDefault(){}});await settle();assert.match(failed.render('Backtest',props).html,/区间回测失败/);assert.equal(refreshed,2)}finally{failed.core.dispose()}
 });
 
-test('workspace exposes the five redesigned destinations',()=>{
+test('the sidebar lists destinations, and creating or opening a run is not one',()=>{
  const f=fixture();try{
   const tree=f.render('Workspace');
   const nav=tree.nodes.filter(n=>n.props['data-od-id']?.startsWith('nav-'));
-  assert.deepEqual(nav.map(n=>n.props['data-od-id']),['nav-market','nav-strategies','nav-result','nav-data','nav-run']);
+  // A destination is a place you can be without first choosing an object.
+  // "新建回测" is an action and "回测结果" is whatever you last opened, so
+  // neither can be a peer of 行情 — they live at #/runs/new and #/runs/<id>.
+  assert.deepEqual(nav.map(n=>n.props['data-od-id']),['nav-market','nav-strategies','nav-data']);
   assert.match(tree.html,/行情/);assert.match(tree.html,/数据中心/);
   assert.doesNotMatch(tree.html,/数据审核|数据同步|营销/);
   assert.equal(f.calls.length,0);
  }finally{f.core.dispose()}
+});
+
+test('every screen has an address, and a bad address resolves to something real',async()=>{
+ const {parse,href,DEFAULT_LIST}=await import(pathToFileURL(out)).then(m=>m.router??m);
+ const list={...DEFAULT_LIST};
+ assert.deepEqual(parse('#/strategies'),{name:'strategies',list});
+ assert.deepEqual(parse('#/strategies/plugins.example?'),{name:'strategy',key:'plugins.example'});
+ assert.deepEqual(parse('#/runs/attempt-1'),{name:'run',id:'attempt-1'});
+ assert.deepEqual(parse('#/runs/new?module=plugins.example'),{name:'newRun',module:'plugins.example'});
+ // Round trip: what a page writes is what a page can read back.
+ for(const route of [{name:'market'},{name:'strategies',list:{...list,q:'均线',page:3}},{name:'strategy',key:'a b'},{name:'run',id:'x/y'},{name:'newRun',module:'m'},{name:'data'}]){
+  assert.deepEqual(parse(href(route)),route);
+ }
+ // An unknown or truncated address is not a blank screen.
+ assert.deepEqual(parse('#/nonsense'),{name:'market'});
+ assert.deepEqual(parse('#/strategies/'),{name:'strategies',list});
+ assert.equal(parse('#/runs/').name,'market');
+});
+
+test('the strategy list is sorted, searchable and paged by facts the archive can prove',async()=>{
+ const router=await import(pathToFileURL(out));
+ const spec=(id,name)=>({strategy_id:id,module:'plugins.'+id,name,description:'规则',defaults:{},parameters:[]});
+ const catalog={items:[spec('alpha','甲策略'),spec('beta','乙策略')]};
+ const runs=[run('a1','alpha'),run('a2','alpha'),run('a3','alpha'),run('b1','beta')];
+ const f=fixture({'research.runs':{items:runs,total:4},'backtest.strategies':catalog});
+ try{
+  await f.read('apple:archives','research.runs',{limit:1000});await f.read('apple:catalog','backtest.strategies');
+  // Default order is attempt count, descending: the strategy you actually use
+  // is the one at the top, and the order is a stated fact, not an accident.
+  router.go({name:'strategies',list:{...router.DEFAULT_LIST}},true);
+  let tree=f.render('Workspace');
+  assert.ok(tree.html.indexOf('甲策略')<tree.html.indexOf('乙策略'),'more attempts first');
+  assert.match(tree.html,/点一行进入策略详情/);
+  assert.doesNotMatch(tree.html,/最近一次/,'no column claims a recency the archive cannot prove');
+
+  // Searching by name narrows the list without losing the other strategy's data.
+  router.go({name:'strategies',list:{...router.DEFAULT_LIST,q:'乙'}},true);
+  tree=f.render('Workspace');
+  assert.doesNotMatch(tree.html,/甲策略/);assert.match(tree.html,/乙策略/);
+  assert.match(tree.html,/1 个策略/);
+
+  // An address that matches nothing says so instead of showing everything.
+  router.go({name:'strategies',list:{...router.DEFAULT_LIST,q:'不存在的策略'}},true);
+  assert.match(f.render('Workspace').html,/没有符合筛选条件的策略/);
+  router.go({name:'market'},true);
+ }finally{router.go({name:'market'},true);f.core.dispose()}
+});
+
+test('a screen addressed at an object that is not there says so, and shows nothing else',async()=>{
+ const router=await import(pathToFileURL(out));
+ const spec={strategy_id:'alpha',module:'plugins.alpha',name:'甲策略',description:'规则',defaults:{},parameters:[]};
+ const f=fixture({'research.runs':{items:[run('a1','alpha')],total:1},'backtest.strategies':{items:[spec]}});
+ try{
+  await f.read('apple:archives','research.runs',{limit:1000});await f.read('apple:catalog','backtest.strategies');
+  // A stale or wrong strategy address must not resolve to "the first strategy":
+  // that would put another object's numbers under this address.
+  router.go({name:'strategy',key:'gone'},true);
+  let html=f.render('Workspace').html;
+  assert.match(html,/策略不在存档中/);assert.doesNotMatch(html,/甲策略/);
+  assert.match(html,/返回策略列表/);
+
+  router.go({name:'run',id:'gone'},true);
+  html=f.render('Workspace').html;
+  assert.match(html,/这次回测不在存档中/);assert.doesNotMatch(html,/甲策略/);
+
+  // The real object still opens, at its own address.
+  router.go({name:'strategy',key:'alpha'},true);
+  html=f.render('Workspace').html;
+  assert.match(html,/甲策略/);assert.match(html,/配置尝试/);
+  router.go({name:'market'},true);
+ }finally{router.go({name:'market'},true);f.core.dispose()}
 });
 
 test('strategy detail exposes readable historical configuration while preserving stored identity',async()=>{
@@ -167,7 +241,7 @@ test('responsive contract: readable sizes and non-wrapping values, mobile cards 
  assert.doesNotMatch(css,/font-size:\s*(?:[0-9]|1[0-5])px|\.small\b/);assert.match(css,/\.value\{white-space:nowrap/);assert.match(css,/@media\(max-width:700px\)/);assert.match(css,/\.trades thead\{display:none\}/);assert.match(css,/\.fields dd\.value\{min-width:max-content\}/);
  const f=fixture();try{const tree=f.render('Workspace');
   // One navigation model: each page is linked exactly once.
-  for(const id of ['market','strategies','result','data','run'])assert.equal((tree.html.match(new RegExp(`data-od-id="nav-${id}"`,'g'))||[]).length,1);
+  for(const id of ['market','strategies','data'])assert.equal((tree.html.match(new RegExp(`data-od-id="nav-${id}"`,'g'))||[]).length,1);
   // The reading page owns one detail pane and no operating controls; collection
   // starts and schedules belong to the data page.
   assert.ok(tree.html.indexOf('data-od-id="market-detail"')>0);

@@ -82,18 +82,51 @@ export function KV({items}: {items: {name: string; value: ReactNode}[]}) {
   </div>)}</dl>;
 }
 
-export type Column<R> = {label: string; render: (row: R) => ReactNode; align?: 'right'};
+export type Column<R> = {
+  label: string; render: (row: R) => ReactNode; align?: 'right';
+  // A sortable column names the order it produces. A column without a key is a
+  // value you read, not one you sort by — offering a sort that silently does
+  // nothing is worse than offering none.
+  sort?: string;
+};
 
-export function DataTable<R>({columns, rows, empty = '暂无数据'}: {
+export function DataTable<R>({columns, rows, empty = '暂无数据', sort, order, onSort, onRow}: {
   columns: Column<R>[]; rows: R[]; empty?: string;
+  sort?: string; order?: 'asc' | 'desc'; onSort?: (key: string) => void;
+  onRow?: (row: R) => void;
 }) {
   if (!rows.length) return <div className="empty">{empty}</div>;
   return <div className="tablewrap"><table className="tbl">
-    <thead><tr>{columns.map((column, index) => <th key={index} className={column.align === 'right' ? 'right' : undefined}>{column.label}</th>)}</tr></thead>
-    <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex}>
+    <thead><tr>{columns.map((column, index) => {
+      const active = !!column.sort && column.sort === sort;
+      const aria = active ? (order === 'asc' ? 'ascending' as const : 'descending' as const) : undefined;
+      return <th key={index} className={column.align === 'right' ? 'right' : undefined} aria-sort={aria}>
+        {column.sort && onSort
+          ? <button type="button" className={`th-sort${active ? ' on' : ''}`}
+              onClick={() => onSort(column.sort as string)}>
+              {column.label}<span className="mark" aria-hidden="true">{active ? (order === 'asc' ? '↑' : '↓') : '↕'}</span>
+            </button>
+          : column.label}
+      </th>;
+    })}</tr></thead>
+    <tbody>{rows.map((row, rowIndex) => <tr key={rowIndex} className={onRow ? 'clickable' : undefined}
+      onClick={onRow ? () => onRow(row) : undefined}>
       {columns.map((column, index) => <td key={index} className={column.align === 'right' ? 'right' : undefined}>{column.render(row)}</td>)}
     </tr>)}</tbody>
   </table></div>;
+}
+
+export function Pager({page, pages, total, unit, onPage}: {
+  page: number; pages: number; total: number; unit: string; onPage: (page: number) => void;
+}) {
+  if (pages <= 1) return <div className="pager"><span className="faint">{total} {unit}</span></div>;
+  return <div className="pager">
+    <span className="faint">{total} {unit} · 第 {page}/{pages} 页</span>
+    <div className="inline">
+      <button className="btn sm" type="button" disabled={page <= 1} onClick={() => onPage(page - 1)}>上一页</button>
+      <button className="btn sm" type="button" disabled={page >= pages} onClick={() => onPage(page + 1)}>下一页</button>
+    </div>
+  </div>;
 }
 
 export function Empty({children, busy}: {children: ReactNode; busy?: boolean}) {

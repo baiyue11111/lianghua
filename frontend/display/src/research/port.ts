@@ -7,6 +7,9 @@ export interface Run {
   // Provenance and the full configuration are per-run payloads: a list of runs
   // carries headers, and only the run a reader opens carries its evidence.
   source_hashes?:Record<string,string>; module?:string;
+  // The parameters an attempt actually ran with are part of the header: reading
+  // them is how you tell two attempts of the same strategy apart.
+  parameters?:Record<string,ParamValue>;
   config_hash:string|null; note:string;
 }
 export interface RunDetail extends Run {

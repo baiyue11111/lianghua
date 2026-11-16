@@ -18,6 +18,7 @@ export * from '../src/research/model';
 export * from '../src/shared/format';
 export {strategyGroups as originalGroups} from '../../display/src/research/research-model';
 export {strategyGroups,runConfig} from '../src/research/groups';
+export * from '../src/app/router';
 export function fixture(responses={}){
   const calls=[];
   const core=createDisplay({...features(),backend:{send:async request=>{

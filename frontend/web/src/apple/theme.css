@@ -150,6 +150,18 @@
 .apple .tablewrap { overflow-x: auto; }
 .apple .rowbtn { border: 0; background: transparent; padding: 0; color: var(--fg); font-weight: 600; text-align: left; }
 .apple .rowbtn:hover { color: var(--accent); }
+/* A sortable header states its own order: the arrow is the offer, the lit arrow
+   is the fact. Without it a table looks sorted by nothing in particular. */
+.apple .th-sort { border: 0; background: transparent; padding: 0; font: inherit; color: inherit;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.apple .th-sort .mark { font-size: 9px; opacity: .35; }
+.apple .th-sort.on { color: var(--fg); }
+.apple .th-sort.on .mark { opacity: 1; color: var(--accent); }
+.apple .th-sort:hover { color: var(--fg); }
+.apple table.tbl tbody tr.clickable { cursor: pointer; }
+.apple .pager { display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 12px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.apple .pager .faint { font-size: 11px; }
 
 .apple .input, .apple select.input { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 9px; padding: 8px 11px; min-height: 36px; font-size: 13px; }
 .apple .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,.12); }

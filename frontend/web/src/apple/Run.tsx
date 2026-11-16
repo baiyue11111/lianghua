@@ -1,19 +1,23 @@
-import {useMemo} from 'react';
 import type {FormEvent} from 'react';
 import type {Preflight, BacktestResult, StrategyCatalog, StrategySpec} from '@display/research/port';
 import {comparisonIssue, parameterValues} from '@display/research/strategy-model';
 import type {Completed} from '@display/research/strategy-model';
 import {useOperation, useSlot, useValue} from '../interaction/model';
 import {day, errorMessage, number, percent, text} from '../shared/format';
+import {go, DEFAULT_LIST} from '../app/router';
+import {ARCHIVE_QUERY} from './queries';
 import {Card, Empty, KV, Metric, Notice, PageHead, Tag} from './ui';
 import {firstError, summary} from './summary';
-import type {ViewId} from './ui';
 
 const TARGET = 'apple:run:backtest';
 const dateBack = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 
-export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
-  const [module, setModule] = useValue('apple:run', 'module', '');
+export default function Run({module: picked}: {module: string}) {
+  const [stored, setModule] = useValue('apple:run', 'module', '');
+  // Arriving from a strategy's own page carries it in the address. The address
+  // is the source of truth, so choosing another strategy rewrites it instead of
+  // leaving the field and the URL saying different things.
+  const module = picked || stored;
   const [capital, setCapital] = useValue('apple:run', 'capital', '1000000');
   const [start, setStart] = useValue('apple:run', 'start', dateBack(365));
   const [end, setEnd] = useValue('apple:run', 'end', dateBack(0));
@@ -26,13 +30,15 @@ export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
   const [accountPath, setAccountPath] = useValue('apple:run', 'accountPath', '');
 
   const catalog = useOperation<StrategyCatalog>('apple:catalog', 'backtest.strategies', {}, true, true, {fresh: 60_000});
-  const archives = useOperation<{items: unknown[]; total?: number}>('apple:archives', 'research.runs', {}, true, true, {fresh: 30_000});
+  const archives = useOperation<{items: unknown[]; total?: number}>('apple:archives', 'research.runs', ARCHIVE_QUERY, true, true, {fresh: 30_000});
   const cliBacktest = useOperation<unknown>('apple:run:cli', 'cli.backtest', {}, true, false);
   const cliPredict = useOperation<unknown>('apple:run:predict', 'cli.predict', {}, true, false);
   const specs = catalog.value?.items ?? [];
   const spec: StrategySpec | undefined = specs.find(item => item.module === module) ?? specs[0];
   const datasets = catalog.value?.availability?.datasets ?? [];
-  const values = useMemo(() => spec ? {...parameterValues(spec), ...overrides} : {}, [spec, overrides]);
+  // Merging the defaults with what was typed is a spread of two small objects;
+  // memoizing it bought nothing and made the compiler give up on the component.
+  const values = spec ? {...parameterValues(spec), ...overrides} : {};
   const form = {spec, values, capital, start, end, dataset: dataset || datasets[0]?.id || ''};
   const ready = !!spec && !!form.dataset && !!capital.trim() && !!start && !!end && start <= end;
 
@@ -60,6 +66,8 @@ export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
   function submitRun(event: FormEvent) {
     event.preventDefault();
     if (!canRun) return;
+    // The run stays on this page so the comparison with the previous attempt is
+    // still readable; its result has its own address, one click away.
     void execute.invoke(form).then(() => { void archives.invoke(); });
   }
   function submitConfig(event: FormEvent) {
@@ -75,9 +83,12 @@ export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
 
   return <>
     <PageHead eyebrow="Run" title="新建回测"
-      subtitle="从策略目录选取参数，先预检再运行；配置与结果都走交互核心"
+      subtitle={picked ? `为 ${text(specs.find(item => item.module === picked)?.name) ?? picked} 配置一次回测` : '从策略目录选取参数，先预检再运行；配置与结果都走交互核心'}
       actions={<>
-        <button className="btn" type="button" onClick={() => navigate('strategies')}>返回策略列表</button>
+        <button className="btn" type="button"
+          onClick={() => go(module ? {name: 'strategy', key: strategyId(module, specs)} : {name: 'strategies', list: DEFAULT_LIST})}>
+          {module ? '返回策略详情' : '返回策略列表'}
+        </button>
         <Tag tone={catalog.value?.availability?.ready ? 'green' : 'amber'}>
           {catalog.value?.availability?.ready ? '目录就绪' : '目录状态待确认'}</Tag>
       </>} />
@@ -94,7 +105,11 @@ export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
           <div className="form-grid">
             <label className="field"><span className="lbl">策略</span>
               <select className="input" aria-label="策略" value={spec?.module ?? ''}
-                onChange={event => { setModule(event.target.value); setOverrides({}); }}>
+                onChange={event => {
+                  setModule(event.target.value);
+                  setOverrides({});
+                  go({name: 'newRun', module: event.target.value}, true);
+                }}>
                 {specs.map(item => <option key={item.module} value={item.module}>{text(item.name) ?? '策略名称未提供'}</option>)}
               </select>
             </label>
@@ -199,7 +214,8 @@ export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
             {issue ? <Notice tone="error">{issue}</Notice>
               : <div className="muted" style={{fontSize: 12}}>{baseline ? '两次运行的数据与执行身份一致，结果可比。' : '首次运行，暂无对比基线。'}</div>}
             <div className="inline" style={{marginTop: 14}}>
-              <button className="btn sm" type="button" onClick={() => navigate('result')}>查看完整结果</button>
+              <button className="btn sm primary" type="button"
+                onClick={() => go({name: 'run', id: execute.value?.id ?? ''})}>打开这次回测</button>
               <button className="btn sm" type="button" onClick={() => void archives.invoke()}>刷新存档</button>
             </div>
           </>}
@@ -254,4 +270,10 @@ export default function Run({navigate}: {navigate: (view: ViewId) => void}) {
       </div>
     </div>
   </>;
+}
+
+// A route names a strategy by the identity its archives are stored under, not
+// by the module the catalogue happens to file it under.
+function strategyId(module: string, specs: StrategySpec[]): string {
+  return specs.find(item => item.module === module)?.strategy_id ?? module;
 }
