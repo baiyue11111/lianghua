@@ -94,7 +94,8 @@ class ProtocolBoundaryTests(unittest.TestCase):
             scope = {
                 "type": "http", "asgi": {"version": "3.0"}, "method": "POST",
                 "path": "/api/protocol", "raw_path": b"/api/protocol",
-                "query_string": b"", "headers": [(b"content-type", b"application/json")],
+                "query_string": b"", "headers": [(b"content-type", b"application/json"),
+                                                 (b"host", b"127.0.0.1:8000")],
                 "scheme": "http", "server": ("test", 80), "client": ("test", 1),
                 "root_path": "",
             }
@@ -174,7 +175,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "backtest.strategies", "backtest.prepare", "backtest.run",
-            "cli.backtest", "cli.predict", "service.info", "collection.doctor", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
+            "cli.backtest", "cli.predict", "service.info", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
             "research.benchmark", "data.research_inputs", "collection.sources", "collection.sync",
             "collection.schedule", "collection.job", "collection.snapshot",
             "collection.evidence",
@@ -381,7 +382,9 @@ class ProtocolBoundaryTests(unittest.TestCase):
 
         self.assertEqual(backtests.calls, [])
 
-    def test_cli_prevalidates_batch_and_interval_run_ids_with_data_path(self):
+    def test_cli_prevalidates_batch_and_interval_run_ids_before_running(self):
+        # A batch id is parsed once, before the first interval starts, so a name
+        # the lake cannot hold fails fast instead of half-way through a batch.
         from backend import CommandPort
 
         backtests = Port({"run_id": "unused"})
@@ -393,17 +396,37 @@ class ProtocolBoundaryTests(unittest.TestCase):
                 "intervals": [{"start": "2020-01-01", "end": "2020-01-02"}],
             }
             command = CommandPort(Path(root), backtests, __import__("storage").DataStore(Path(root)))
-            for run_id in ("../escape", ".hidden", "x" * 300):
+            for run_id in ("../escape", ".hidden", "x" * 300, "  padded  "):
                 with self.subTest(run_id=run_id):
                     path.write_text(json.dumps({**base, "run_id": run_id}))
-                    with self.assertRaises((ValueError, OSError)):
+                    with self.assertRaises(ValueError):
                         command.handle("cli.backtest", {"config": str(path)})
 
         self.assertEqual(backtests.calls, [])
 
+    def test_both_entry_points_parse_a_run_identity_the_same_way(self):
+        # The UI runs a backtest through backtest.run, not through the CLI. One
+        # rule at the boundary is what keeps the two from drifting apart.
+        from protocol import parse_backtest_request
+
+        request = {
+            "module": "plugins.strategies.moving_average_cross", "params": {},
+            "dataset_id": "history", "initial_cash": "100000",
+            "start": "2020-01-01", "end": "2020-01-02",
+        }
+        for run_id in ("../escape", ".hidden", "x" * 300, "  padded  ",
+                       "\u202eevil", "\uff52\uff55\uff4e"):
+            with self.subTest(run_id=run_id):
+                with self.assertRaises(ValueError):
+                    parse_backtest_request({**request, "run_id": run_id})
+        for run_id in ("batch-failure-interval-0002", "中文跑批", "run.01"):
+            with self.subTest(run_id=run_id):
+                self.assertEqual(
+                    parse_backtest_request({**request, "run_id": run_id}).run_id, run_id)
+
     def test_cli_stops_after_failure_and_saves_completed_results_with_failure_context(self):
         from protocol import BacktestError
-        from backend import CommandPort, PortResult
+        from backend import CommandPort, PortResult, Research
         from storage import DataStore
 
         class FailingPort:
@@ -433,7 +456,8 @@ class ProtocolBoundaryTests(unittest.TestCase):
             with self.assertRaises(BacktestError) as caught:
                 CommandPort(root, backtests, data).handle("cli.backtest", {"config": str(path)})
 
-            saved = json.loads(data.read("runs", "batch-failure", "failed.json"))
+            # The failure record lives in the lake, not in a file next to the config.
+            saved = Research(data).rows("run_failures", "batch-failure")[0]
 
         self.assertEqual(len(backtests.calls), 2)
         self.assertEqual(caught.exception.code, "interval_failed")
@@ -449,7 +473,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
 
     def test_cli_busy_preserves_retryable_error_and_does_not_save_failed_record(self):
         from protocol import BacktestError
-        from backend import CommandPort
+        from backend import CommandPort, Research
         from storage import DataStore
 
         class BusyPort:
@@ -476,14 +500,14 @@ class ProtocolBoundaryTests(unittest.TestCase):
             with self.assertRaises(BacktestError) as caught:
                 CommandPort(root, backtests, data).handle("cli.backtest", {"config": str(path)})
 
-            failed_path = data.path("runs", "batch-busy", "failed.json")
+            # A retryable refusal is not a run outcome, so nothing is recorded.
+            self.assertEqual(Research(data).rows("run_failures", "batch-busy"), [])
 
         self.assertEqual(caught.exception.code, "busy")
         self.assertIn("interval 1", str(caught.exception))
         self.assertIn("甲", str(caught.exception))
         self.assertIn("batch-busy-interval-0001", str(caught.exception))
         self.assertEqual(len(backtests.calls), 1)
-        self.assertFalse(failed_path.exists())
 
     def test_backtest_port_is_the_only_protocol_owned_kernel_adapter(self):
         from backend import KernelBacktestPort, Modules, Protocol

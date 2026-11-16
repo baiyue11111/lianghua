@@ -184,8 +184,8 @@ class DuckLakeViewsTests(unittest.TestCase):
         self.data.put_rows('daily_prices', rows, keys=('code', 'date'), types={'close_hfq': 'DOUBLE'})
         self.data.bind('daily', 'bars', 'lake:daily_prices')
         self.data.put_rows('stock_records', [{
-            'code': '600003', 'name': '招商银行', 'exchange': 'SH', 'status': 'listed',
-            'first_date': date(2002, 4, 9), 'last_date': None}], keys=('code',), types={'last_date': 'DATE'})
+            'code': '600003', 'code_name': '招商银行', 'ipoDate': '2002-04-09',
+            'outDate': '', 'type': '1', 'status': '1'}], keys=('code',))
         self.data.bind('stocks', 'records', 'lake:stock_records')
         for identity in ('valuation', 'fundamentals'):
             self.data.put_rows(identity, [{'code': '600003', 'quarter': date(2019, 9, 30),
@@ -214,23 +214,8 @@ class DuckLakeViewsTests(unittest.TestCase):
         self.assertEqual(report['summary'], {
             'first_date': '2020-01-02', 'last_date': '2020-01-02', 'rows': 1, 'symbols': 1,
             'adjusted_close_rows': 1, 'invalid_price_rows': 0})
-        digest = report['partition_sha256']['lake:daily_prices']
-        self.assertRegex(digest, r'^[0-9a-f]{64}$')
-        self.assertEqual(view.source_facts()['partition_sha256']['lake:daily_prices'], digest)
         self.assertEqual(report['ranking_status'], 'NOT_RELEASED')
         self.assertEqual(view.handle('data.check', {}), {'items': []})
-
-    def test_views_evidence_digest_is_order_independent_and_changes_with_data(self):
-        row = {'code': '600003', 'date': date(2020, 1, 2), 'open': 10.0, 'high': 11.0,
-               'low': 9.0, 'close': 10.0, 'volume': 100.0, 'amount': 1000.0, 'tradestatus': 1}
-        rows = [row, {**row, 'date': date(2020, 1, 3)}]
-        view = self.view(rows)
-        before = view.source_facts()['partition_sha256']
-        self.data.delete(TableQuery('daily_prices'))
-        self.data.put_rows('daily_prices', list(reversed(rows)), keys=('code', 'date'))
-        self.assertEqual(view.source_facts()['partition_sha256'], before)
-        self.data.put_rows('daily_prices', [{**row, 'date': date(2020, 1, 6)}], keys=('code', 'date'))
-        self.assertNotEqual(view.source_facts()['partition_sha256'], before)
 
     def test_views_reports_expose_price_and_turnover_errors(self):
         row = {'code': '600003', 'date': date(2020, 1, 2), 'open': 10.0, 'high': 11.0,
@@ -252,8 +237,8 @@ class DuckLakeViewsTests(unittest.TestCase):
         view = self.view([row, {**row, 'date': date(2020, 1, 3), 'close': 12.0}])
         result = view.handle('data.search', {'q': '招商'})
         self.assertEqual(result['items'], [{
-            '代码': '600003', '名称': '招商银行', '交易所': 'SH', '状态': '现存',
-            '首日': date(2002, 4, 9), '末日': None, '最新收盘': 12.0,
+            '代码': '600003', '名称': '招商银行', '交易所': None, '状态': '现存',
+            '首日': '2002-04-09', '末日': None, '最新收盘': 12.0,
             '涨跌幅': 1.25, '成交额亿': 1.0, '行情日期': '2020-01-03'}])
         self.assertEqual(view.search('不存在'), {'items': []})
         with self.assertRaises(TypeError):
@@ -366,8 +351,8 @@ class DuckLakeViewsTests(unittest.TestCase):
                'low': 9.0, 'close': 10.0, 'volume': 100.0, 'amount': 100000000.0,
                'tradestatus': 1, 'pctChg': 1.25}
         view = self.view([row])
-        stocks = [{'code': str(600100 + i), 'name': '招商' + str(i), 'exchange': 'SH',
-                   'status': 'listed', 'first_date': date(2000, 1, 1), 'last_date': None}
+        stocks = [{'code': str(600100 + i), 'code_name': '招商' + str(i),
+                   'ipoDate': '2000-01-01', 'outDate': '', 'type': '1', 'status': '1'}
                   for i in range(30)]
         self.data.put_rows('stock_records', stocks, keys=('code',))
         from datetime import timedelta

@@ -27,6 +27,8 @@ from urllib.request import Request as URLRequest, urlopen
 
 DEFAULT_TIMEOUT = 30
 _BAOSTOCK_LOCK = Lock()
+# Relative slack on the daily open/close-in-range test; see Methods.daily_rows.
+_OHLC_SLACK = 1e-4
 
 FIELDSETS = {
     "basic": ("open", "high", "low", "close", "volume", "amount",
@@ -609,7 +611,7 @@ class DividendHistory:
                     'query':packet,'url':url,'sha256':hashlib.sha256(response.content).hexdigest(),
                     'pdf':b64encode(response.content).decode('ascii'),'text':text}}
             return notices[announced]
-        facts = {}
+        facts, failures = {}, []
         parsed = DividendHistory.parse(str(tables[0]))
         for year in years:
             base = {'schema':1,'kind':'dividend','code':code,'start':None,'end':None,
@@ -617,8 +619,9 @@ class DividendHistory:
             try:
                 facts[str(year)] = DividendHistory.normalize(base, str(tables[0]), end=end, load=load, resolve=resolve, pay=pay, parsed=parsed)
             except Exception as error:
-                raise CollectionError(f'year {year}: {error}') from error
-        return {'url':url,'html':html,'details':details,'notices':notices}, facts
+                failures.append({'code': code, 'year': str(year),
+                                 'error': f'{type(error).__name__}: {error}'})
+        return {'url':url,'html':html,'details':details,'notices':notices}, facts, failures
 
 
 def _validate_cache(request: Request, payload: dict) -> None:
@@ -994,6 +997,8 @@ class Methods:
     def __init__(self, data, handlers: Mapping[str, object] | None = None):
         self.data = data
         self.handlers = dict(handlers or {})
+        self.handlers.setdefault('market_facts', self._collect_market_facts)
+        self.handlers.setdefault('code_changes', self._collect_code_changes)
         self._evidence = {}
         self.data.define(TableDef('collection_audit', {'id': 'VARCHAR', 'settings': 'JSON'}, ('id',)))
         import requests
@@ -1188,6 +1193,106 @@ class Methods:
                 raise CollectionError(str(error), result['raw']) from error
         return result
 
+    def _collect_code_changes(self, source, request):
+        from base64 import b64encode
+        from io import BytesIO
+        from pypdf import PdfReader
+
+        registry = self.data.registry()
+        identities = {m['collect']['securities']['source'] for m in registry['markets']
+                      if m.get('dataset_id') == source['dataset_id'] and m.get('code_pattern')}
+        rows = [row for identity in identities for row in self._source_rows(identity)]
+        by_code = {row['code']: row for row in rows}
+        existing = self._changes(self.data.manifest(source['dataset_id']))
+        known = {(item['exchange'], item['old_code'], item['effective_date']): item
+                 for item in existing}
+        query = CninfoAnnouncements({}).collect({'start': request['start'], 'end': request['end'],
+                                                 'keyword': '证券代码'})
+        records, failures, raw = [], [], [query]
+        for item in query['records']:
+            if '实施' not in item['title'] or '变更' not in item['title']:
+                continue
+            matches = [code for code in by_code if code.split('.')[-1] == item['code']]
+            if not matches:
+                failures.append({'code': item['code'], 'error': 'security is not in the registered catalogue'})
+                continue
+            try:
+                if len(matches) != 1:
+                    raise ValueError('announcement security identity is ambiguous')
+                response = self._http.get(item['url'], timeout=DEFAULT_TIMEOUT)
+                response.raise_for_status()
+                if not response.content.startswith(b'%PDF-'):
+                    raise ValueError('code-change evidence must be an official PDF')
+                text = '\n'.join(page.extract_text() for page in PdfReader(BytesIO(response.content)).pages)
+                evidence = {'url': item['url'], 'pdf': b64encode(response.content).decode(),
+                            'sha256': hashlib.sha256(response.content).hexdigest(), 'text': text}
+                page = len(raw)
+                raw.append(evidence)
+                exchange = matches[0].split('.')[0]
+                events = Catalogue.rename(exchange.upper(), item['url'].split('/')[-2], item['url'], text)
+                for event in events:
+                    old = exchange + '.' + event['old_code']
+                    new = exchange + '.' + event['new_code']
+                    identity = (event['exchange'], event['old_code'], event['effective_date'])
+                    if identity in known:
+                        if known[identity]['new_code'] != event['new_code']:
+                            raise ValueError('official code-change conflicts with stored event')
+                        continue
+                    if (old not in by_code or new not in by_code
+                            or by_code[old]['ipoDate'] != by_code[new]['ipoDate']
+                            or by_code[old]['outDate'] != event['effective_date']):
+                        raise ValueError('official code-change notice conflicts with security dates')
+                    event = {**event, 'evidence_sha256': _sha256(evidence), 'raw_page': page}
+                    records.append(event)
+                    known[identity] = event
+            except Exception as error:
+                failures.append({'code': matches[0], 'error': f'{type(error).__name__}: {error}'})
+        return {'records': records, 'raw': raw, 'scope': {'start': request['start'],
+                'end': request['end']}, 'failures': failures}
+
+    def _collect_market_facts(self, source, request):
+        """Collect one security's registered facts in the ordinary packet."""
+        codes = request.get('codes', ())
+        if len(codes) != 1:
+            raise ValueError('market fact collection requires one security')
+        code = normalize_security_id(codes[0])
+        kind = source.get('params', {}).get('kind')
+        records, raw, failures = [], [], []
+        if kind == 'security':
+            registry = self.data.registry()
+            identities = {m['collect']['securities']['source'] for m in registry['markets']
+                          if m.get('dataset_id') == source['dataset_id'] and m.get('code_pattern')
+                          and re.fullmatch(m['code_pattern'], code)}
+            with self.data.transaction(readonly=True):
+                rows = [row for identity in identities
+                        for row in self.data.table(self.data.source(identity, 'records'),
+                            filters=(Filter('code', 'eq', code),)).to_pylist()]
+            if len(rows) != 1:
+                raise ValueError('one registered security catalogue record is required: ' + code)
+            raw.append(rows[0])
+            records.append(Catalogue.security(code, rows[0]))
+        elif kind == 'adjust':
+            manifest = self.data.manifest(source['dataset_id'])
+            security = self.data.fact(self._fact_ref(Request('security', code, None, None, None)))
+            task = Request(kind, code, manifest['inputs']['adjustments']['start'], request['end'], None)
+            evidence, fact = SinaFactors.collect(task, security, get=self._http.get,
+                                                  changes=self._changes(manifest))
+            raw.append(evidence)
+            records.append(fact)
+        elif kind == 'dividend':
+            start, end = date.fromisoformat(request['start']), date.fromisoformat(request['end'])
+            years = [str(year) for year in range(start.year, end.year + 1)]
+            evidence, facts, failures = DividendHistory.collect(code, years, end=request['end'],
+                                                                 get=self._http.get)
+            raw.append(evidence)
+            records.extend(facts[year] for year in years if year in facts)
+        else:
+            raise ValueError('unknown market fact kind')
+        if any(fact.get('code') != code or fact.get('kind') != kind for fact in records):
+            raise ValueError('market fact identity differs from request')
+        records = [{**fact, 'raw_page': 0} for fact in records]
+        return {'records': records, 'raw': raw, 'scope': {'code': code}, 'failures': failures}
+
     @staticmethod
     def _fact_ref(task):
         from market import fact_ref
@@ -1208,212 +1313,32 @@ class Methods:
             raise DataError('invalid_data', 'code-change events must be a list of objects')
         return value['events']
 
-    def doctor(self, source, request):
-        if source.get('data_type') != 'daily' and source.get('method') != 'daily':
-            raise ValueError('doctor requires a registered daily source')
-        request = self.prepare_request(source, request)
-        dataset = source['dataset_id']
-        manifest = self.data.manifest(dataset)
-        calendar = self.data.calendar(dataset)
-        request.setdefault('start', min(span['start'] for span in calendar['coverage']))
-        request.setdefault('end', manifest['inputs']['adjustments']['end'])
-        if not request.get('codes'):
-            raise ValueError('doctor requires securities')
-        registry = self.data.registry()
-        markets = [m for m in registry.get('markets', ())
-                   if m.get('dataset_id') == dataset and m.get('code_pattern')]
-        if any(not any(re.fullmatch(m['code_pattern'], normalize_security_id(code)) for m in markets)
-               for code in request['codes']):
-            raise ValueError('doctor requires registered stock codes')
-        changes_ref = manifest.get('inputs', {}).get('code_changes')
-        changes = self._changes(manifest) if changes_ref else []
-        rows, archived = [], set()
-        source_ids = {m.get('collect', {}).get('securities', {}).get('source')
-                      for m in markets} - {None}
-        for source_id in source_ids:
-            records = self._source_rows(source_id)
-            from market import digest as table_digest
-            event = self._evidence.get(table_digest(self.data.table(self.data.source(source_id, 'records'))))
-            if event is None:
-                continue
-            incoming = {item['record_hash'] for item in event.get('incoming', [])}
-            values = [row for row in records if any(re.fullmatch(m['code_pattern'], row['code']) for m in markets)]
-            rows.extend(values)
-            archived.update(row['code'] for row in values if _sha256(row) not in incoming)
-        if changes_ref:
-            raw, found = Catalogue.code_changes({'events': changes}, rows,
-                archived & {normalize_security_id(code) for code in request['codes']},
-                request['start'], request['end'])
-        else:
-            raw, found = None, {'events': []}
-        pending = self.plan_facts(dataset, manifest, request, changes=found['events'])
-        groups = {}
-        for name, task in pending:
-            groups.setdefault((task.code, task.kind), []).append((name, task))
-        if changes_ref and found != {'events': changes}:
-            self.log({'dataset': dataset, 'event': 'code_changes_checked', 'raw': raw})
-            types = {'exchange': 'VARCHAR', 'effective_date': 'VARCHAR', 'old_code': 'VARCHAR',
-                     'new_code': 'VARCHAR', 'announcement_date': 'VARCHAR', 'source_url': 'VARCHAR',
-                     'evidence_sha256': 'VARCHAR', 'holder_share_ratio': 'BIGINT',
-                     'holding_period_continues': 'BOOLEAN',
-                     'factor_basis_continuity_verified': 'BOOLEAN'}
-            types = {key: kind for key, kind in types.items()
-                     if key in set().union(*(row.keys() for row in found['events']))}
-            self._replace_source_rows(dataset, 'code_changes', found['events'],
-                ('exchange', 'effective_date', 'old_code', 'new_code'), types)
-            manifest['inputs']['code_changes'] = self.data.source(dataset, 'code_changes')
-            self.data.save_manifest(dataset, manifest)
-        errors = []
-        original_end = manifest['inputs']['adjustments']['end']
-        for (code, kind), tasks in groups.items():
-            try:
-                current = self.data.manifest(dataset)
-                updated = self.complete_facts(dataset, current,
-                    {**request, 'codes': [code]}, pending=tasks)
-                updated['inputs']['adjustments']['end'] = original_end
-                self.data.save_manifest(dataset, updated)
-            except CollectionError as error:
-                errors.append(str(error))
-        if errors:
-            raise CollectionError('; '.join(errors))
-        updated = self.data.manifest(dataset)
-        updated['inputs']['adjustments']['end'] = max(original_end, request['end'])
-        self.data.save_manifest(dataset, updated)
-        return {'dataset': dataset, 'status': 'complete', 'facts_complete': True,
-                'codes': request['codes'], 'start': request['start'], 'end': request['end']}
-
-    def plan_facts(self, dataset, manifest, request, *, changes=None):
-        if not manifest.get('inputs'):
-            return []
-        inputs = manifest['inputs']
-        registry = self.data.registry()
-        patterns = [m['code_pattern'] for m in registry.get('markets', ())
-                    if m.get('dataset_id') == dataset and m.get('code_pattern')]
-        if not patterns:
-            raise DataError('market_not_registered', 'stock fact collection requires a registered code rule')
-        selected = {normalize_security_id(code) for code in request.get('codes', ())
-                    if any(re.fullmatch(pattern, normalize_security_id(code)) for pattern in patterns)}
-        if not selected:
-            return []
-        start = inputs['adjustments']['start']
-        end = max(inputs['adjustments']['end'], request['end'])
-        codes = sorted(selected if end == inputs['adjustments']['end'] else selected | {
-            normalize_security_id(code) for code in manifest['scope']['symbols']
-            if any(re.fullmatch(pattern, normalize_security_id(code)) for pattern in patterns)})
-        calendar = self.data.calendar(dataset)
-        first = min([request['start'], *(span['start'] for span in calendar['coverage'])])
-        changes = self._changes(manifest) if changes is None else changes
-        pending = []
-        for code in codes:
-            closed = None
-            tasks = ([Request('security', code, None, None, None)] if code in selected else [])
-            tasks.append(Request('adjust', code, start, end, None))
-            if code in selected:
-                tasks.extend(Request('dividend', code, None, None, str(year))
-                             for year in range(int(first[:4]), int(end[:4]) + 1))
-            for task in tasks:
-                try:
-                    with self.data.transaction(readonly=True):
-                        fact = self.data.fact(self._fact_ref(task))
-                    _validate_cache(task, fact)
-                except DataError as error:
-                    if error.code != 'missing':
-                        raise
-                    pending.append((self._fact_ref(task), task))
-                    continue
-                except (CacheIntegrityError, ValueError, KeyError, TypeError):
-                    pending.append((self._fact_ref(task), task))
-                    continue
-                if task.kind == 'security':
-                    closed = fact['records'][0]['delisting_date']
-                advanced = (end > inputs['adjustments']['end'] and task.kind == 'dividend'
-                            and task.year >= inputs['adjustments']['end'][:4]
-                            and (closed is None or closed > inputs['adjustments']['end']))
-                if advanced:
-                    receipt = _optional(self.data, 'coverage', task.key)
-                    if receipt is not None:
-                        advanced = not (_fact_date(receipt['end']) >= end
-                                        and receipt['sha256'] == _sha256(fact))
-                refresh = advanced or bool(code in selected and request.get('refresh') and
-                    (task.kind != 'dividend' or task.year >= request['start'][:4]))
-                seams = {item['effective_date'] for item in changes
-                         if item.get('exchange', '').lower() + '.' + item.get('new_code', '') == code
-                         and start <= item['effective_date'] <= end}
-                incomplete = (task.kind == 'adjust' and
-                    (not fact['records'] or not seams <= {row['date'] for row in fact['records']}))
-                incomplete |= task.kind == 'dividend' and any(
-                    row[field] is None for row in fact['records']
-                    for field in ('cash_per_share', 'stock_dividend_per_share', 'reserve_to_stock_per_share'))
-                if refresh or incomplete:
-                    pending.append((self._fact_ref(task), task))
-        return pending
-
-    def complete_facts(self, dataset, manifest, request, *, check=False, pending=None):
-        if not manifest.get('inputs'):
-            return True if check else manifest
-        inputs = manifest['inputs']
-        end = max(inputs['adjustments']['end'], request['end'])
-        pending = self.plan_facts(dataset, manifest, request) if pending is None else pending
-        if check:
-            return not pending
-        registry = self.data.registry()
-        changes = self._changes(manifest)
-        outputs, securities, dividends = [], {}, {}
-        for reference, task in pending:
-            try:
-                if task.kind == 'security':
-                    source_ids = {m['collect']['securities']['source'] for m in registry['markets']
-                                  if m.get('dataset_id') == dataset and m.get('code_pattern')
-                                  and re.fullmatch(m['code_pattern'], task.code)}
-                    rows = [row for source_id in source_ids for row in self._source_rows(source_id)
-                            if row.get('code') == task.code]
-                    if len(rows) != 1:
-                        raise ValueError('one registered security catalogue record is required: ' + task.code)
-                    raw = rows[0]
-                    fact = securities[task.code] = Catalogue.security(task.code, raw)
-                elif task.kind == 'adjust':
-                    if task.code not in securities:
-                        securities[task.code] = self.data.fact(self._fact_ref(
-                            Request('security', task.code, None, None, None)))
-                    security = securities[task.code]
-                    _validate_cache(Request('security', task.code, None, None, None), security)
-                    raw, fact = SinaFactors.collect(task, security, get=self._http.get, changes=changes)
-                else:
-                    if task.code not in dividends:
-                        years = [item.year for _, item in pending
-                                 if item.kind == 'dividend' and item.code == task.code]
-                        dividends[task.code] = DividendHistory.collect(
-                            task.code, years, end=end, get=self._http.get)
-                    raw, facts = dividends[task.code]
-                    fact = facts[task.year]
-                _validate_cache(task, fact)
-                if task.kind == 'adjust' and not fact['records']:
-                    raise CacheIntegrityError(f'no adjustment anchor for {task.code}')
-            except Exception as error:
-                raise CollectionError(f'{task.code} {task.kind}: {error}') from error
-            outputs.append((reference, raw, fact, task))
-        self.save_facts(dataset, manifest, outputs, end=end)
-        updated = deepcopy(manifest)
-        updated['inputs']['adjustments']['end'] = end
-        return updated
-
-    def save_facts(self, dataset, manifest, outputs, *, end=None):
-        updated = deepcopy(manifest)
-        updated.pop('files', None)
-        payloads = []
-        for reference, raw, fact, task in outputs:
-            payloads.append(fact)
-            self.log({'dataset': dataset, 'fact': reference, 'raw': raw})
-            if task.kind == 'dividend':
-                _put_config(self.data, 'coverage', task.key,
-                            {'end': end, 'sha256': _sha256(fact)})
-        # One grouped write: a transaction and a parquet file per payload is what
-        # made a full-market fact collection take hours.
-        self.data.save_facts(payloads)
-        self.data.save_manifest(dataset, updated)
-        return updated
-
     def coverage(self, source: Mapping, request: Mapping):
+        if source.get('data_type') == 'market_facts':
+            kind = source.get('params', {}).get('kind')
+            codes = [normalize_security_id(code) for code in request.get('codes', ())]
+            start, end = request['start'], request['end']
+            with self.data.transaction(readonly=True):
+                rows = self.data.scan(TableQuery('fact_coverage', (
+                    Filter('kind', 'eq', kind), Filter('code', 'in', codes)))).table.to_pylist()
+                refs = [row['reference'] for row in rows if kind != 'adjust' or
+                        row['start'] <= start and row['end'] >= end]
+                facts = self.data.facts(refs)
+            found = set()
+            for fact in facts.values():
+                try:
+                    validate_facts(fact, **{key: fact[key] for key in ('kind', 'code', 'start', 'end', 'year')})
+                except (ValueError, TypeError, KeyError):
+                    continue
+                if fact['records'] or kind == 'dividend':
+                    found.add(fact['code'])
+            missing = [code for code in codes if code not in found]
+            # A yearly dividend fact has no observation end; existence alone
+            # cannot establish that the requested interval is complete.
+            unknown = [code for code in codes if code in found] if kind == 'dividend' else []
+            return {'dataset': source['dataset_id'], 'start': start, 'end': end,
+                    'complete': bool(codes) and not missing and not unknown,
+                    'missing': missing, 'unknown': unknown}
         if (source.get("data_type") != "daily" and source.get('method') != 'daily') or request.get("force") is True:
             return None
         symbols = tuple(request.get('codes', ()))
@@ -1644,6 +1569,7 @@ class Methods:
         rejected = {item['code'] for item in result['failures']}
         rows = [row for row in packet['records'] if not rejected
                 or (normalize_security_id(row['code']) if daily else row.get('code')) not in rejected]
+        rows = result.get('audit_rows', rows)
         try:
             ref = result['ref']
             version = None if ref is None else (self.records(source, 0, 0)['snapshot_id'] if daily else ref.sha256)
@@ -1652,8 +1578,11 @@ class Methods:
             event = {'source_id': source['id'], 'snapshot_id': version,
                       'raw': packet['raw'], 'request': packet.get('request', {}),
                       'scope': packet.get('scope', {}), 'failures': result['failures'],
-                      'incoming': [{'record_hash': _sha256({key: value for key, value in row.items() if key != 'raw_page'}),
-                                    'raw_page': row.get('raw_page')} for row in rows],
+                      'incoming': [{'record_hash': _sha256({key: value for key, value in row.items()
+                                                            if key not in ('raw_page', '_previous_hash')}),
+                                    'raw_page': row.get('raw_page'),
+                                    **({'previous_record_hash': row['_previous_hash']}
+                                       if row.get('_previous_hash') else {})} for row in rows],
                       'collected_at': datetime.now(timezone.utc).isoformat()}
             self.log(event)
             if version is not None:
@@ -1674,6 +1603,64 @@ class Methods:
             return self._publish_daily(self._identity(source), source.get("dataset_id"), packet, dry_run=dry_run)
         if source.get('data_type') == 'calendar':
             return self._publish_calendar(source, packet, dry_run=dry_run)
+        if source.get('data_type') == 'market_facts':
+            records = [{key: value for key, value in item.items() if key != 'raw_page'}
+                       for item in packet['records']]
+            for record in records:
+                if record.get('kind') != source.get('params', {}).get('kind'):
+                    raise DataError('invalid_packet', 'fact kind differs from registered source')
+                validate_facts(record, **{key: record[key] for key in ('kind', 'code', 'start', 'end', 'year')})
+            with self.data.transaction(readonly=dry_run):
+                failures = []
+                accepted = []
+                audit_rows = []
+                for record, original in zip(records, packet['records']):
+                    previous_hash = None
+                    unchanged = False
+                    reference = self._fact_ref(Request(record['kind'], record['code'],
+                        record['start'], record['end'], record['year']))
+                    previous = self.data.facts((reference,)).get(reference)
+                    if previous is not None:
+                        try:
+                            if record['kind'] == 'security':
+                                old, incoming = previous['records'][0], dict(record['records'][0])
+                                if old['status'] != incoming['status']:
+                                    if (old['status'] == '1' and incoming['status'] == '0'
+                                            and incoming['delisting_date']):
+                                        old = {**old, 'status': '0'}
+                                    else:
+                                        raise DataError('data_conflict', 'security status conflicts with stored fact')
+                                rows = [self._merge_record(old, incoming, record['code'])]
+                            else:
+                                keys = {'dividend': ('registration_date', 'operation_date'),
+                                        'adjust': ('date',)}[record['kind']]
+                                if (record['kind'] == 'adjust' and previous['records'] and record['records']
+                                        and not {row['date'] for row in previous['records']} &
+                                                {row['date'] for row in record['records']}):
+                                    raise DataError('data_conflict', 'adjustment facts have no common anchor')
+                                merged = {}
+                                for row in [*previous['records'], *record['records']]:
+                                    key = tuple(row[field] for field in keys)
+                                    if None in key:
+                                        raise DataError('invalid_packet', 'fact identity dates are required')
+                                    merged[key] = self._merge_record(merged.get(key, {}), row, key)
+                                rows = [merged[key] for key in sorted(merged)]
+                            previous_hash = _sha256(previous)
+                            unchanged = rows == previous['records']
+                            record = ({**record, 'records': rows,
+                                'source_hash': _sha256({'previous': previous['source_hash'],
+                                                        'incoming': record['source_hash']})}
+                                if not unchanged else previous)
+                        except DataError as error:
+                            failures.append({'code': record['code'], 'year': record['year'], 'error': str(error)})
+                            continue
+                    accepted.append(record)
+                    if not unchanged:
+                        audit_rows.append({**record, 'raw_page': original.get('raw_page'),
+                                           '_previous_hash': previous_hash})
+                if not dry_run:
+                    self.data.save_facts(accepted)
+            return {'ref': None, 'records': len(accepted), 'failures': failures, 'audit_rows': audit_rows}
         if source.get("data_type") == "facts":
             if (not isinstance(getattr(handler, "value_columns", None), Mapping)
                     or not getattr(handler, "text_columns", None)
@@ -1705,6 +1692,13 @@ class Methods:
         if records:
             declared_types = {**getattr(handler, 'types', {}),
                               **source.get('params', {}).get('types', {})}
+            try:
+                reference = self.data.source(self._identity(source), 'records')
+            except DataError as error:
+                if error.code != 'missing':
+                    raise
+            else:
+                declared_types = {**self.data.definition(reference[5:]).columns, **declared_types}
             types = self._types(records, declared_types)
             self._replace_source_rows(self._identity(source), 'records', records, keys, types)
         rejected = {item['code'] for item in failures}
@@ -1821,6 +1815,20 @@ class Methods:
     def records(self, source: Mapping, offset=0, limit=50, **scope):
         if type(offset) is not int or offset < 0 or type(limit) is not int or not 0 <= limit <= 1000:
             raise ValueError("invalid records page")
+        if source.get('data_type') == 'market_facts':
+            kind = source.get('params', {}).get('kind')
+            with self.data.transaction(readonly=True):
+                rows = self.data.scan(TableQuery('fact_coverage', (Filter('kind', 'eq', kind),),
+                                                 order=('reference',))).table.to_pylist()
+                refs = [row['reference'] for row in rows[offset:offset + limit]]
+                facts = self.data.facts(refs, strict=True)
+            page = [facts[ref] for ref in refs]
+            raw = self.record_evidence(page[0]) if len(page) == 1 else []
+            from market import digest as table_digest
+            return {'snapshot_id': table_digest(rows), 'source_id': source['id'],
+                    'collected_at': None, 'request': {}, 'data_as_of': None, 'scope': {},
+                    'records': page, 'raw': raw, 'reviews': [],
+                    'records_count': len(rows), 'offset': offset, 'limit': limit, 'total': len(rows)}
         if source.get('method') == 'daily' or source.get("data_type") == "daily":
             return self.daily_collection_page(source, source["dataset_id"], offset=offset,
                                               limit=limit, **scope)
@@ -1875,21 +1883,23 @@ class Methods:
                 "records_count": len(rows), "offset": offset, "limit": limit, "total": len(rows)}
 
     def record_evidence(self, record):
-        digest = _sha256(record)
-        for event in reversed(tuple(self._evidence.values())):
-            for binding in event.get('incoming', []):
-                index = binding.get('raw_page')
-                if binding.get('record_hash') == digest and type(index) is int and 0 <= index < len(event.get('raw', [])):
-                    return [event['raw'][index]]
         with self.data.transaction(readonly=True):
-            for row in self.data.scan(TableQuery('collection_audit')).table.to_pylist():
-                event = json.loads(row['settings']) if isinstance(row['settings'], str) else row['settings']
-                for binding in event.get('incoming', []):
-                    index = binding.get('raw_page')
-                    if (binding.get('record_hash') == digest and type(index) is int
-                            and 0 <= index < len(event.get('raw', []))):
-                        return [event['raw'][index]]
-        return []
+            rows = self.data.scan(TableQuery('collection_audit')).table.to_pylist()
+        bindings = {}
+        for row in rows:
+            event = json.loads(row['settings']) if isinstance(row['settings'], str) else row['settings']
+            for item in event.get('incoming', []):
+                index = item.get('raw_page')
+                if type(index) is int and 0 <= index < len(event.get('raw', [])):
+                    bindings[item['record_hash']] = (event['raw'][index], item.get('previous_record_hash'))
+        digest, found, seen = _sha256(record), [], set()
+        while digest in bindings and digest not in seen:
+            seen.add(digest)
+            raw, digest = bindings[digest]
+            found.append(raw)
+        if digest is not None and found:
+            found.append({'status': 'missing', 'record_hash': digest})
+        return found
 
     def evidence(self, version):
         if version in self._evidence:
@@ -1934,8 +1944,16 @@ class Methods:
                 low, high = value.get('low'), value.get('high')
                 if low is not None and high is not None and low > high:
                     raise ValueError('daily OHLC values conflict')
+                # A provider can report open/close a rounding step outside the
+                # daily range; index levels are aggregated from a basket and
+                # drift further. 1e-4 relative is far below any real price
+                # move, so this absorbs rounding without hiding a change of
+                # price basis (which shows up at percent scale).
+                slack = 0.0 if low is None and high is None else max(
+                    abs(low or 0.0), abs(high or 0.0)) * _OHLC_SLACK
                 for name in ('open', 'close'):
-                    if name in value and (low is not None and value[name] < low or high is not None and value[name] > high):
+                    if name in value and (low is not None and value[name] < low - slack
+                                          or high is not None and value[name] > high + slack):
                         raise ValueError('daily OHLC values conflict')
                 if 'volume' in value and 'amount' in value and (value['volume'] == 0) != (value['amount'] == 0):
                     raise ValueError('daily turnover fields conflict')
@@ -2219,6 +2237,27 @@ class Methods:
 
     def last_dates(self, source: Mapping, codes) -> dict:
         """Return observed watermarks, independently for each requested security."""
+        if source.get('data_type') == 'market_facts':
+            kind = source.get('params', {}).get('kind')
+            keys = {normalize_security_id(code): code for code in codes}
+            with self.data.transaction(readonly=True):
+                if kind == 'adjust':
+                    rows = self.data.scan(TableQuery('fact_coverage',
+                        (Filter('kind', 'eq', kind), Filter('code', 'in', list(keys))),
+                        ('code', 'end'))).table.to_pylist()
+                    dates = {}
+                    for row in rows:
+                        code, day = row['code'], row['end']
+                        if day is not None:
+                            dates[code] = max(dates.get(code, day), day)
+                else:
+                    rows = self.data.scan(TableQuery('fact_coverage',
+                        (Filter('kind', 'eq', 'security'), Filter('code', 'in', list(keys))),
+                        ('code', 'reference'))).table.to_pylist()
+                    facts = self.data.facts([row['reference'] for row in rows])
+                    dates = {row['code']: facts[row['reference']]['records'][0]['listing_date']
+                             for row in rows if row['reference'] in facts}
+            return {keys[code]: day for code, day in dates.items() if code in keys and day}
         if source.get('method') == 'daily' or source.get('data_type') == 'daily':
             reference = self.data.source(source.get('storage_id', source['id']), 'bars')
             aliases = sorted({value for code in codes for value in

@@ -1,4 +1,5 @@
 """Market collection schedules share the normal Collect execution path."""
+import json
 import tempfile
 import sys
 import unittest
@@ -69,6 +70,84 @@ class AutomaticMarketTests(unittest.TestCase):
         state = self.collect.handle('collection.automatic', {'market': 'TEST'})
         self.assertEqual(state['last_outcome'], 'succeeded')
         self.assertEqual(state['next_run_at'], instant(12, 15, 30))
+
+    def test_registered_stock_markets_collect_facts_by_default(self):
+        registry = json.loads((Path(__file__).resolve().parents[1] /
+                               'data/source/registry/sources.json').read_text())
+        sources = {source['id']: source for source in registry['sources']}
+        for market in (item for item in registry['markets'] if item['scope'] in ('CN_A', 'CN_A_SH_SZ')):
+            selected = [sources[market['collect']['data'][name]['source']]
+                        for name in market['collect']['default']]
+            kinds = {source.get('params', {}).get('kind') for source in selected}
+            self.assertTrue({'security', 'adjust', 'dividend'} <= kinds)
+
+    def test_market_status_reports_each_source_job(self):
+        self.enable(instant(11, 15))
+        jobs = [{'job_id': name, 'source_id': name, 'status': 'finished',
+                 'outcome': 'succeeded', 'phase': 'publish', 'records': 1,
+                 'failures': [], 'empty_codes': []} for name in ('prices', 'adjust')]
+        for job in jobs:
+            self.collect._save(job)
+        result = {'market': 'TEST', 'outcome': 'succeeded', 'jobs': jobs,
+                  'failures': [], 'error': None}
+        with patch.object(self.collect, 'run', return_value=result):
+            self.collect.tick(instant(11, 15, 30))
+        state = self.collect.handle('collection.automatic', {'market': 'TEST'})
+        self.assertEqual([job['source_id'] for job in state['jobs']], ['prices', 'adjust'])
+
+    def test_market_scoped_source_runs_once_without_security_codes(self):
+        self.collect.sources.register({'id': 'events', 'name': 'Events', 'method': 'fixture',
+            'frequency': 'daily', 'defaults': {}, 'dataset_id': 'test',
+            'params': {'key_fields': ['id']}})
+        def bind(registry):
+            market = registry['markets'][0]
+            market['collect'] = {'default': ['events'],
+                                 'data': {'events': {'source': 'events', 'scope': 'market'}}}
+            return registry
+        self.bus.update_registry(bind)
+        calls = []
+        def fetch(_source, request):
+            calls.append(request)
+            return {'records': [], 'raw': [], 'scope': {}}
+        self.collect.methods.handlers['fixture'] = fetch
+        result = self.collect.run({'market': 'TEST', 'command': 'latest', 'end': '2026-11-11'})
+        self.assertEqual(result['outcome'], 'succeeded')
+        self.assertEqual(len(calls), 1)
+        self.assertNotIn('codes', calls[0])
+        self.assertEqual((calls[0]['start'], calls[0]['end']), ('2026-11-09', '2026-11-11'))
+
+    def test_market_scoped_source_resumes_from_first_uncovered_interval(self):
+        self.collect.sources.register({'id': 'events', 'name': 'Events', 'method': 'fixture',
+            'frequency': 'daily', 'defaults': {}, 'dataset_id': 'test',
+            'params': {'key_fields': ['id']}})
+        def bind(registry):
+            registry['markets'][0]['collect'] = {'default': ['events'],
+                'data': {'events': {'source': 'events', 'scope': 'market'}}}
+            return registry
+        self.bus.update_registry(bind)
+        for identity, start, end in [('a', '2026-11-09', '2026-11-10'),
+                                     ('b', '2026-11-12', '2026-11-13')]:
+            self.collect._save({'job_id': identity, 'source_id': 'events', 'status': 'finished',
+                                'outcome': 'succeeded', 'request': {'start': start, 'end': end}})
+        calls = []
+        self.collect.methods.handlers['fixture'] = lambda _source, request: (
+            calls.append(request) or {'records': [], 'raw': [], 'scope': {}})
+        self.collect.run({'market': 'TEST', 'command': 'latest', 'end': '2026-11-13'})
+        self.assertEqual(calls[0]['start'], '2026-11-11')
+
+    def test_check_market_scoped_source_reports_unknown_coverage(self):
+        self.collect.sources.register({'id': 'events', 'name': 'Events', 'method': 'fixture',
+            'frequency': 'daily', 'defaults': {}, 'dataset_id': 'test',
+            'params': {'key_fields': ['id']}})
+        def bind(registry):
+            registry['markets'][0]['collect'] = {'default': ['events'],
+                'data': {'events': {'source': 'events', 'scope': 'market'}}}
+            return registry
+        self.bus.update_registry(bind)
+        result = self.collect.run({'market': 'TEST', 'command': 'check',
+                                   'start': '2026-11-09', 'end': '2026-11-13'})
+        self.assertEqual(result['status'], 'incomplete')
+        self.assertEqual(result['plans'][0]['coverage']['status'], 'unknown')
 
     def test_weekend_and_restart_catch_up_once(self):
         self.enable(instant(13, 16))
@@ -238,6 +317,30 @@ class AutomaticMarketTests(unittest.TestCase):
             self.assertIn('calendar', state['schedule_error'].lower())
             self.collect.tick(instant(16, 15, 35))
             run.assert_called_once()
+
+    def test_calendar_renewal_keeps_the_last_market_job(self):
+        self.calendar_source()
+        now = instant(17, 9)
+        self.enable(now, catchup=True)
+        job = {'job_id': 'market-job', 'source_id': 'daily', 'status': 'finished',
+               'outcome': 'succeeded', 'phase': 'publish', 'records': 3,
+               'failures': [], 'empty_codes': []}
+        self.collect._save(job)
+        plan = self.collect._state('collection_schedules', 'market:TEST')
+        plan.update(last_session='2026-11-16', last_job_id='market-job', last_outcome='succeeded')
+        self.collect._state('collection_schedules', 'market:TEST', plan)
+        with patch.dict(sys.modules, {'baostock': Provider()}), \
+             patch.object(BaostockDaily, '_call', lambda _self, fn, *args, **kwargs: fn(*args, **kwargs)):
+            self.collect.tick(now)
+        state = self.collect.handle('collection.automatic', {'market': 'TEST'})
+        self.assertEqual(state['last_outcome'], 'succeeded')
+        self.assertEqual(state['job']['job_id'], 'market-job')
+
+    def test_removed_market_doctor_is_not_a_collection_command(self):
+        self.collect.sources.register({'id': 'daily', 'name': 'Daily', 'method': 'fixture',
+                                       'frequency': 'daily', 'defaults': {}})
+        with self.assertRaisesRegex(ValueError, 'invalid collection command'):
+            self.collect.run({'market': 'TEST', 'command': 'doctor', 'codes': ['A']})
 
     def test_preopen_restart_catches_up_only_the_last_completed_session(self):
         self.enable(instant(10, 16), catchup=True)

@@ -393,3 +393,35 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(message.kind, "resource")
         self.assertEqual(wire["data"]["run_id"], "one")
         self.assertIn("provenance", wire["data"])
+
+    def test_protocol_messages_carry_semantic_presentation(self):
+        from backend import Modules, Protocol
+
+        class SearchPort:
+            def handle(self, operation, data):
+                return {"items": [{"代码": "sh.600000", "名称": "浦发银行", "最新收盘": 10.21}]}
+
+        backend = Protocol(Modules(EmptyPort(), EmptyPort(), EmptyPort(), SearchPort(), EmptyPort()))
+        message = send(backend, ui.UiRequest(
+            "two", "data.search", "urn:lianghua:ui:input:data.search:v1", {"q": "600000"}))
+        wire = json.loads(json.dumps(message.to_dict(), allow_nan=False))
+        presentation = wire["presentation"]
+        self.assertEqual(presentation["title"], "证券检索")
+        self.assertEqual(presentation["role"], "data-search")
+        fields = {item["path"]: item for item in presentation["fields"]}
+        self.assertEqual(fields["/items/0/代码"]["role"], "security")
+        self.assertEqual(fields["/items/0/代码"]["format"], "code")
+        self.assertEqual(fields["/items/0/最新收盘"]["format"], "currency")
+        self.assertEqual(fields["/items/0/最新收盘"]["unit"], "CNY")
+        self.assertEqual(wire["extensions"]["lianghua:operation"], "data.search")
+        self.assertEqual(wire["extensions"]["lianghua:resource"], "data-search")
+
+    def test_problem_messages_are_self_describing(self):
+        from backend import Modules, Protocol
+
+        backend = Protocol(Modules(*[EmptyPort() for _ in range(5)]))
+        message = send(backend, ui.UiRequest("three", "unknown.operation", "urn:test", {}))
+        wire = json.loads(json.dumps(message.to_dict(), allow_nan=False))
+        self.assertEqual(message.kind, "problem")
+        self.assertEqual(wire["presentation"]["role"], "problem")
+        self.assertEqual(wire["extensions"]["lianghua:code"], "unknown_operation")

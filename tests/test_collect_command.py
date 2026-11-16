@@ -343,21 +343,6 @@ class CollectionCommandTests(unittest.TestCase):
             raise ValueError(slot.problems[0].title)
         return slot.messages[0].data
 
-    def test_doctor_uses_method_port_without_daily_collection(self):
-        with patch.object(self.collect.methods, 'doctor', return_value={'status': 'complete'}) as doctor:
-            result = self.invoke('TEST:doctor')
-        self.assertEqual(result['outcome'], 'succeeded')
-        self.assertEqual(doctor.call_args.args[1]['codes'], ['X', 'Y'])
-        self.assertEqual(self.calls, [])
-
-    def test_doctor_plans_the_whole_universe_before_repair(self):
-        self.bus.update_registry(lambda r: {**r,'markets':[{**r['markets'][0],
-            'collect':{**r['markets'][0]['collect'],'batch_size':1}}]})
-        with patch.object(self.collect.methods,'doctor',return_value={'status':'complete'}) as doctor:
-            self.invoke('TEST:doctor')
-        self.assertEqual(doctor.call_count,1)
-        self.assertEqual(doctor.call_args.args[1]['codes'],['X','Y'])
-
     def test_year_range_is_resolved_only_in_the_interaction_core(self):
         result=self.invoke('测试市场:[2003,2012]')
         self.assertEqual(result['outcome'],'succeeded')
@@ -419,15 +404,8 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertNotIn('force', self.calls[-1])
         self.assertTrue(self.calls[-1]['refresh'])
 
-    def test_doctor_refresh_reaches_fact_port_without_daily_force(self):
-        with patch.object(self.collect.methods,'doctor',return_value={'status':'complete'}) as doctor:
-            self.invoke('TEST:doctor',refresh=True)
-        request=doctor.call_args.args[1]
-        self.assertTrue(request['refresh'])
-        self.assertNotIn('force',request)
-
     def test_empty_latest_invalid_market_and_bad_parameters_never_fetch(self):
-        for selector, values in [('TEST:latest',{}),('OTHER:latest',{}),('TEST:other',{}),
+        for selector, values in [('TEST:latest',{}),('OTHER:latest',{}),('TEST:other',{}),('TEST:doctor',{}),
             ('TEST:range',{}),('TEST:latest',{'start':'2026-10-01'}),
             ('TEST:range',{'data':'missing','start':'2026-10-01','end':'2026-10-14'})]:
             with self.assertRaises(ValueError): self.invoke(selector,**values)

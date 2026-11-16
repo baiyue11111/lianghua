@@ -67,7 +67,7 @@ class Views:
                 f'100.0 * avg(CASE WHEN {field} IS NOT NULL THEN 1.0 ELSE 0.0 END) AS c{index}',
                 f'count(DISTINCT CASE WHEN {field} IS NOT NULL THEN {code} END) AS s{index}'))
         if 'status' in columns:
-            expressions.append("count(*) FILTER (WHERE lower(cast(status AS VARCHAR)) IN ('listed','现存','true')) AS listed")
+            expressions.append("count(*) FILTER (WHERE lower(cast(status AS VARCHAR)) IN ('listed','现存','true','1')) AS listed")
         row = self._rows('SELECT ' + ', '.join(expressions) + ' FROM ' + source)[0]
         fact.update(rows=row['rows'], symbols=row['symbols'], columns=columns,
                     first_date=None if row['first_date'] is None else str(row['first_date']),
@@ -138,13 +138,6 @@ class Views:
                                           'last_date': str(row['last_date'])} for row in rows]
         return fact
 
-    def _fingerprint(self, reference):
-        # Hash ordered row digests inside the DBMS; only the final digest leaves it.
-        order = ', '.join(self._name(name) for name in self.data.definition(reference[5:]).keys)
-        source = self._source((reference,))
-        return self._rows(f"""SELECT sha256(coalesce(string_agg(sha256(to_json(r)), '' ORDER BY {order}), '')) AS sha256
-            FROM {source} r""")[0]['sha256']
-
     def source_facts(self):
         with self.data.transaction(readonly=True):
             daily_tables = self._tables('daily')
@@ -209,7 +202,6 @@ class Views:
             if len(coverage) < counts['files']:
                 errors.append(f"标准事实仅抽样检查 {len(coverage)}/{counts['files']} 个")
             return {'daily': daily, **facts, 'errors': errors,
-                    'partition_sha256': {reference: self._fingerprint(reference) for reference in daily_tables},
                     'saved_factor_files': counts['factors'],
                     'facts': {'files': counts['files'], 'checked': len(coverage), 'valid': valid,
                               'invalid': invalid, 'check_scope': 'all' if len(coverage) == counts['files'] else 'sample'},
@@ -223,9 +215,14 @@ class Views:
             if not tables:
                 raise DataError('missing', 'canonical stock_info table is required')
             stocks = self._source(tables)
-            columns = self._columns(stocks)
-            fields = ', '.join(f'{self._column(name, columns)} AS {self._name(name)}'
-                               for name in ('code', 'name', 'exchange', 'status', 'first_date', 'last_date'))
+            fields = f'''{self._name('code')} AS "code",
+                {self._name('code_name')} AS "name",
+                CASE WHEN {self._name('code')} LIKE 'sh.%' THEN 'SH'
+                     WHEN {self._name('code')} LIKE 'sz.%' THEN 'SZ'
+                     WHEN {self._name('code')} LIKE 'bj.%' THEN 'BJ' END AS "exchange",
+                CASE WHEN {self._name('status')} = '1' THEN '现存' ELSE '退市' END AS "status",
+                nullif({self._name('ipoDate')}, '') AS "first_date",
+                nullif({self._name('outDate')}, '') AS "last_date"'''
             sql = f"""WITH stocks AS (SELECT {fields} FROM {stocks}
                 WHERE cast(code AS VARCHAR) LIKE '%' || ? || '%'
                    OR coalesce(cast(name AS VARCHAR), '') LIKE '%' || ? || '%'
@@ -246,13 +243,8 @@ class Views:
             rows = self._rows(sql, (query, query))
             items = []
             for row in rows:
-                status = row['status']
-                if status in ('listed', '现存', True):
-                    status = '现存'
-                elif status is not None:
-                    status = '退市'
                 items.append({'代码': row['code'], '名称': row['name'], '交易所': row['exchange'],
-                              '状态': status, '首日': row['first_date'], '末日': row['last_date'],
+                              '状态': row['status'], '首日': row['first_date'], '末日': row['last_date'],
                               '最新收盘': row['close'], '涨跌幅': row['pctChg'],
                               '成交额亿': None if row['amount'] is None else float(row['amount']) / 100000000,
                               '行情日期': None if row['market_date'] is None else str(row['market_date'])})
@@ -308,7 +300,7 @@ class Views:
                                              else [{"status": facts["code_change_status"]}]),
                 "saved_factor_files": facts["saved_factor_files"],
                 "fact_check": facts["facts"],
-                "partition_sha256": facts["partition_sha256"], "ranking_status": "NOT_RELEASED",
+                "ranking_status": "NOT_RELEASED",
                 "requirements_before_ranking": list(facts["errors"])}
 
     def doctor_report(self):
@@ -383,13 +375,30 @@ class Views:
         sessions = [date.fromisoformat(str(item)) for item in calendar.get("sessions", ())]
         if len(sessions) < 2:
             raise ValueError("daily kline calendar is missing")
+        # 日历表可能登记了尚无行情的未来交易日；默认区间收敛到日线表实际末端，
+        # 且只取近一年交易日，避免早期停牌 / 未上市日补齐出 NaN 被底层校验拒绝。
+        try:
+            reference = self.data.source(dataset, 'bars')
+            newest = self._rows('SELECT max(cast(date AS DATE)) AS latest FROM '
+                                + self._name(reference[5:]))[0]['latest']
+            covered = ([day for day in sessions if day <= date.fromisoformat(str(newest))]
+                       if newest is not None else sessions[:-1])
+        except (AttributeError, DataError, KeyError, ValueError, IndexError, TypeError):
+            covered = sessions[:-1]
+        if len(covered) < 2:
+            raise ValueError("daily kline calendar has no covered session")
+        default_start = covered[max(0, len(covered) - 250)].isoformat()
+        default_end = covered[-1].isoformat()
         value = {**value, "dataset_id": dataset, "symbols": [value["code"]],
-                 "start": value.get("start", sessions[0].isoformat()),
-                 "end": value.get("end", sessions[-2].isoformat())}
+                 "start": value.get("start", default_start),
+                 "end": value.get("end", default_end)}
         value["price_basis"] = "raw" if adj == "不复权" else "adjusted"
         result = self.query(value)
         rows = result["items"]
         rows.sort(key=lambda row: row["date"])
+        # Sessions before listing or after delisting carry no usable bar; a
+        # K-line series starts at its first real observation.
+        rows = [row for row in rows if row.get("close") is not None]
         if freq != "日":
             groups = {}
             for row in rows:

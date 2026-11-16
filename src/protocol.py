@@ -4,13 +4,13 @@ from __future__ import annotations
 import json
 import math
 import re
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field, is_dataclass
 from datetime import date, datetime, time, timezone
 from decimal import Decimal
 from enum import StrEnum
 from math import isfinite
-from pathlib import Path
 from types import MappingProxyType
 from typing import Literal, Protocol as TypingProtocol, TypeAlias
 from uuid import uuid4
@@ -904,7 +904,7 @@ def parse_backtest_request(data: JsonValue) -> BacktestRequest:
                 }, lot_size=check["step"])
             settlement_parameters["limits"] = current
         request = BacktestRequest(
-            run_id=_text(data, "run_id") if "run_id" in data else uuid4().hex,
+            run_id=_identity(data, "run_id") if "run_id" in data else uuid4().hex,
             strategy_id=_text(data, "module"), parameters=_object(data, "params"),
             dataset_id=_text(data, "dataset_id"),
             start=_instant(data, "start", end=False),
@@ -1089,11 +1089,38 @@ def _decode_backtest_config(raw: bytes) -> JsonObject:
     return normalize(decoded)
 
 
-def _identity(data: Mapping[str, JsonValue], name: str) -> str:
-    value = _text(data, name)
-    if Path(value).name != value:
+IDENTITY_LIMIT = 128
+
+
+def parse_identity(value: JsonValue, name: str = "run_id", *,
+                   limit: int = IDENTITY_LIMIT) -> str:
+    """Parse a data identity: one visible name, never a path expression.
+
+    A run identity is a lake key, a URI segment and something a person reads on
+    screen, so the rule is stated once here and applied wherever a request
+    enters — not repeated by each caller that happens to build a name.
+    """
+
+    if not isinstance(value, str) or not value:
         raise ValueError(f"{name} must be a data identity")
+    if value != value.strip():
+        raise ValueError(f"{name} must not carry leading or trailing whitespace")
+    if len(value) > limit:
+        raise ValueError(f"{name} must be at most {limit} characters, got {len(value)}")
+    if value.startswith('.'):
+        raise ValueError(f"{name} must be a visible name, not a relative or hidden path")
+    if not all(char.isalnum() or char in '._-' for char in value):
+        # This also refuses separators, control characters and the bidi
+        # overrides that make one name render as another.
+        raise ValueError(f"{name} must use letters, digits, dot, dash and underscore only")
+    if unicodedata.normalize('NFKC', value) != value:
+        # 'ｒｕｎ' and 'run' would become two keys that look like one.
+        raise ValueError(f"{name} must be spelled without fullwidth or compatible variants")
     return value
+
+
+def _identity(data: Mapping[str, JsonValue], name: str) -> str:
+    return parse_identity(_text(data, name), name)
 
 
 def _instant(data: Mapping[str, JsonValue], name: str, *, end: bool = False) -> datetime:

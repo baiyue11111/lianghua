@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
     commands = parser.add_mutually_exclusive_group()
     commands.add_argument("--backtest", type=Path, help="直接读取一个 backtest JSON 配置")
     commands.add_argument("--predict", type=Path, help="按策略配置和实际账户生成交易计划")
-    commands.add_argument("--collect", metavar="MARKET:COMMAND", help="收集：沪深:[2003,2012]、latest、range、auto-on、auto-off、check、doctor、status")
+    commands.add_argument("--collect", metavar="MARKET:COMMAND", help="收集：沪深:[2003,2012]、latest、range、auto-on、auto-off、check、status")
     parser.add_argument("--account", type=Path, help="预测使用的实际账户 JSON")
     parser.add_argument("--refresh", action="store_true", help="重新获取并替换指定区间的已有记录")
     for name in ("data", "codes", "fields", "start", "end"):

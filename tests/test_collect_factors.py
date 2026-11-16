@@ -12,31 +12,6 @@ from collect import methods as factors
 
 
 class FactorStorageTests(unittest.TestCase):
-    def test_doctor_keeps_dividends_when_security_is_invalid(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); make_snapshot(root, symbols=('600003',))
-            bus = build_data(root); manifest = bus.manifest('fixture')
-            name = manifest['inputs']['securities']['template'].format(symbol='sh.600003')
-            stock = json.loads(bus.read('sources', 'fixture', name))
-            stock['records'][0]['listing_date'] = 'invalid'
-            bus.write('sources', 'fixture', name, json.dumps(stock).encode())
-            for ref in manifest['files']:
-                if ref['file'].startswith(('factors/', 'corp/')):
-                    bus.delete('sources', 'fixture', ref['file'])
-            bus.write('sources', 'catalogue', 'records.json', b'{"records":[]}')
-            registry = json.loads(bus.read('sources', 'registry', 'sources.json'))
-            registry['markets'][0]['collect'] = {'securities': {'source': 'catalogue'}}
-            bus.write('sources', 'registry', 'sources.json', json.dumps(registry).encode())
-            def dividends(code, years, **kwargs):
-                return {}, {year: dict(schema=1, kind='dividend', code=code, start=None,
-                    end=None, year=year, source_hash='a'*64, records=[]) for year in years}
-            with patch.object(factors.DividendHistory, 'collect', side_effect=dividends):
-                with self.assertRaises(factors.CollectionError):
-                    factors.Methods(bus).doctor(dict(id='prices', method='daily', dataset_id='fixture'),
-                                                {'codes': ['sh.600003']})
-            self.assertEqual(json.loads(bus.read('sources', 'fixture',
-                'corp/dividend_sh.600003_2020.json'))['records'], [])
 
     def test_catalogue_publish_keeps_standard_security_facts_in_sync(self):
         from tests.history_fixture import make_snapshot
@@ -72,35 +47,6 @@ class FactorStorageTests(unittest.TestCase):
             self.assertEqual(ref['sha256'], __import__('hashlib').sha256(
                 bus.read('sources', 'fixture', name)).hexdigest())
 
-    def test_doctor_keeps_security_and_dividends_when_adjustment_fails(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root); make_snapshot(root, symbols=('600003',))
-            bus = build_data(root); manifest = bus.manifest('fixture')
-            for ref in manifest['files']:
-                if ref['file'].startswith(('basic/', 'factors/', 'corp/')):
-                    bus.delete('sources', 'fixture', ref['file'])
-            row = dict(code='sh.600003', ipoDate='2019-07-01', outDate='', type='1', status='1')
-            bus.write('sources', 'catalogue', 'records.json', json.dumps({'records': [row]}).encode())
-            registry = json.loads(bus.read('sources', 'registry', 'sources.json'))
-            registry['markets'][0]['collect'] = {'securities': {'source': 'catalogue'}}
-            bus.write('sources', 'registry', 'sources.json', json.dumps(registry).encode())
-            def dividends(code, years, **kwargs):
-                return {}, {year: dict(schema=1, kind='dividend', code=code, start=None,
-                    end=None, year=year, source_hash='a'*64, records=[]) for year in years}
-            methods = factors.Methods(bus)
-            with patch.object(factors.SinaFactors, 'collect', side_effect=factors.ProviderError('unavailable')), \
-                 patch.object(factors.DividendHistory, 'collect', side_effect=dividends):
-                with self.assertRaisesRegex(factors.CollectionError, 'sh.600003 adjust.*unavailable'):
-                    methods.doctor(dict(id='prices', method='daily', dataset_id='fixture'),
-                                   {'codes': ['sh.600003']})
-            self.assertEqual(json.loads(bus.read('sources', 'fixture',
-                'basic/stock_basic_sh.600003.json'))['records'][0]['listing_date'], '2019-07-01')
-            current = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
-            self.assertEqual(methods.plan_facts('fixture', current,
-                {'codes': ['sh.600003'], 'start': '2019-07-01', 'end': '2020-02-05'})[0][1].kind, 'adjust')
-            self.assertEqual(len(methods.plan_facts('fixture', current,
-                {'codes': ['sh.600003'], 'start': '2019-07-01', 'end': '2020-02-05'})), 1)
 
     def test_daily_refresh_preserves_unreturned_dates_and_other_securities(self):
         from tests.history_fixture import make_snapshot
@@ -129,48 +75,27 @@ class FactorStorageTests(unittest.TestCase):
 
     def test_daily_publish_is_independent_of_missing_distribution_facts(self):
         from tests.history_fixture import make_snapshot
+        from market import fact_ref
+        from protocol import Filter, TableQuery
         with tempfile.TemporaryDirectory() as root:
             root=Path(root)
             make_snapshot(root, symbols=('600003',))
             bus=build_data(root)
-            manifest=bus.manifest('fixture')
-            bus.delete('sources','fixture','corp/dividend_sh.600003_2019.json')
-            manifest['files']=[r for r in manifest['files'] if r['file']!='corp/dividend_sh.600003_2019.json']
-            bus.write('sources','fixture','manifest.json',json.dumps(manifest).encode())
+            reference = fact_ref('dividend', 'sh.600003', year='2019')
+            bus.delete(TableQuery('fact_coverage', (Filter('reference', 'eq', reference),)))
             packet=dict(records=[dict(code='sh.600003',date='2020-02-06',open=12.,high=12.,
                 low=12.,close=12.,volume=100.,amount=1200.)],raw=[],scope={},
                 request=dict(codes=['sh.600003'],start='2020-02-06',end='2020-02-06'),
                 calendar=dict(sessions=['2020-02-06','2020-02-07'],
                     coverage=[dict(start='2020-02-06',end='2020-02-07')]))
             methods=factors.Methods(bus)
-            with patch.object(methods,'complete_facts',side_effect=AssertionError('unrelated fact collection')):
-                methods.publish(dict(id='prices',method='daily',dataset_id='fixture',storage_id='fixture'),packet)
+            methods.publish(dict(id='prices',method='daily',dataset_id='fixture',storage_id='fixture'),packet)
             self.assertEqual(bus.manifest('fixture')['inputs']['adjustments']['end'],'2020-02-05')
             self.assertTrue(methods.daily_coverage('fixture',('sh.600003',),date(2020,2,6),
                 date(2020,2,6),('close',))['complete'])
-            self.assertFalse(methods.complete_facts('fixture',bus.manifest('fixture'),packet['request'],check=True))
+            with self.assertRaises(DataError):
+                bus.fact(reference)
 
-    def test_fact_failure_does_not_publish_daily_or_leave_a_partial_transaction(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root, symbols=('600003', '600004'))
-            bus = build_data(root)
-            manifest = bus.read('sources', 'fixture', 'manifest.json')
-            first = {'schema': 1, 'kind': 'adjust', 'code': 'sh.600003',
-                     'start': '1990-01-01', 'end': '2020-02-06', 'year': None,
-                     'source_hash': 'a'*64, 'records': [{'date': '1990-01-01', 'forward': 1., 'backward': 1.}]}
-            def dividends(code, years, *, end, **kwargs):
-                return {}, {year:dict(schema=1,kind='dividend',code=code,start=None,end=None,
-                                     year=year,source_hash='a'*64,records=[]) for year in years}
-            with patch.object(factors.SinaFactors, 'collect', side_effect=[({},first), factors.ProviderError('factor unavailable')]), \
-                 patch.object(factors.DividendHistory, 'collect', side_effect=dividends):
-                with self.assertRaisesRegex(factors.CollectionError, 'sh.600004 adjust.*factor unavailable'):
-                    with bus.transaction('sources'):
-                        factors.Methods(bus).complete_facts('fixture', bus.manifest('fixture'),
-                            {'codes': ['sh.600003'], 'start': '2020-02-04', 'end': '2020-02-06'})
-            self.assertEqual(bus.read('sources', 'fixture', 'manifest.json'), manifest)
-            self.assertFalse(list((root/'data/source/fixture/factors').glob('*2020-02-06.json')))
 
     def test_missing_fact_does_not_refetch_complete_daily_prices(self):
         from tests.history_fixture import make_snapshot
@@ -191,59 +116,7 @@ class FactorStorageTests(unittest.TestCase):
                 path.write_text(json.dumps(value))
                 self.assertTrue(methods.coverage(source, request)['complete'])
 
-    def test_latest_refreshes_the_current_year_but_preserves_older_dividends(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root, symbols=('600003',))
-            bus = build_data(root)
-            manifest = bus.manifest('fixture')
-            collected = []
-            def fetch(request, provider):
-                collected.append(request)
-                name = (f'factors/adjust_{request.code}_{request.start}_{request.end}.json'
-                        if request.kind == 'adjust' else f'corp/dividend_{request.code}_{request.year}.json')
-                return json.loads(bus.read('sources', 'fixture', name))
-            row = {'code':'sh.600003','ipoDate':'2019-07-01','outDate':'','type':'1','status':'1'}
-            bus.write('sources','catalogue','records.json',json.dumps({'records':[row]}).encode())
-            registry = json.loads(bus.read('sources','registry','sources.json'))
-            registry['markets'][0]['collect'] = {'securities':{'source':'catalogue'}}
-            bus.write('sources','registry','sources.json',json.dumps(registry).encode())
-            with patch.object(factors.SinaFactors, 'collect', side_effect=lambda task, security, **kwargs: ({},fetch(task,None))), \
-                 patch.object(factors.DividendHistory, 'collect', side_effect=lambda code, years, end, **kwargs: ({}, {year:fetch(factors.Request('dividend',code,None,None,year),None) for year in years})):
-                with bus.transaction('sources'):
-                    factors.Methods(bus).complete_facts('fixture', manifest, {
-                        'codes': ['sh.600003'], 'start': '2020-02-04', 'end': '2020-02-05', 'refresh': True})
-            self.assertEqual([r.year for r in collected if r.kind == 'dividend'], ['2020'])
 
-    def test_doctor_repairs_missing_and_invalid_facts_without_fetching_bars(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root, symbols=('600003',))
-            bus = build_data(root)
-            methods = factors.Methods(bus)
-            source = dict(id='prices', method='daily', dataset_id='fixture')
-            manifest = bus.manifest('fixture')
-            name = manifest['inputs']['adjustments']['template'].format(
-                symbol='sh.600003', start=manifest['inputs']['adjustments']['start'],
-                end=manifest['inputs']['adjustments']['end'])
-            path = root/'data/source/fixture'/name
-            original = path.read_bytes()
-            fact = json.loads(original)
-            for broken in (None, b'{broken'):
-                if broken is None:
-                    path.unlink()
-                else:
-                    path.write_bytes(broken)
-                with patch.object(factors.SinaFactors, 'collect', return_value=({},fact)) as fetch, \
-                     patch.object(methods, 'fetch', side_effect=AssertionError('daily fetch is forbidden')):
-                    result = methods.doctor(source, {'codes': ['sh.600003']})
-                    self.assertEqual(result['status'], 'complete')
-                    self.assertEqual(fetch.call_count, 1)
-                self.assertEqual(json.loads(path.read_bytes()), fact)
-                with patch.object(factors.SinaFactors, 'collect', side_effect=AssertionError('repeat fetch')):
-                    self.assertEqual(methods.doctor(source, {'codes': ['sh.600003']})['status'], 'complete')
 
     def test_evidence_is_written_and_verified_through_protocol(self):
         request = factors.Request('adjust', '600000', '2020-01-01', '2020-12-31', None)
@@ -356,7 +229,8 @@ class IndependentDividendTests(unittest.TestCase):
                 '</tr></tbody></table>')
         def response(text): return SimpleNamespace(raise_for_status=lambda:None, text=text)
         with patch('requests.get', return_value=response(html)):
-            raw, facts = factors.DividendHistory.collect('sz.000420', ['2019','2020'], end='2020-12-31')
+            raw, facts, failures = factors.DividendHistory.collect('sz.000420', ['2019','2020'], end='2020-12-31')
+        self.assertEqual(failures, [])
         self.assertEqual(set(facts), {'2019','2020'})
         self.assertTrue(all(f['records']==[] for f in facts.values()))
         self.assertEqual(raw['html'], html)
@@ -544,133 +418,17 @@ class FactWorkTests(unittest.TestCase):
               '</tr></tbody></table>')
         response=SimpleNamespace(raise_for_status=lambda:None,text=html)
         with patch('requests.get',return_value=response), patch('pandas.read_html',wraps=pd.read_html) as parse:
-            raw,facts=factors.DividendHistory.collect('sz.000420',['2019','2020','2021'],end='2021-12-31')
+            raw,facts,failures=factors.DividendHistory.collect('sz.000420',['2019','2020','2021'],end='2021-12-31')
+        self.assertEqual(failures, [])
         self.assertEqual(parse.call_count,1)
         self.assertEqual([f['records'] for f in facts.values()],[[],[],[]])
 
-    def test_years_write_one_shared_evidence(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003',))
-            bus=build_data(root);manifest=bus.manifest('fixture')
-            for year in ('2019','2020'):
-                bus.delete('sources','fixture',f'corp/dividend_sh.600003_{year}.json')
-            raw={'html':'shared evidence'*1000,'details':{}}
-            def collect(code,years,*,end,**kwargs):
-                return raw,{year:dict(schema=1,kind='dividend',code=code,start=None,end=None,year=year,
-                                      source_hash='a'*64,records=[]) for year in years}
-            with patch.object(factors.DividendHistory,'collect',side_effect=collect), patch.object(bus,'write',wraps=bus.write) as write:
-                with bus.transaction('sources'):
-                    factors.Methods(bus).complete_facts('fixture',manifest,{'codes':['sh.600003'],'start':'2020-01-31','end':'2020-02-04'})
-            logs=[c for c in write.call_args_list if c.args[:2]==('state','collect') and not c.args[2].startswith('coverage/')]
-            self.assertEqual(len(logs),1)
 
-    def test_doctor_keeps_successful_stocks_and_retries_only_failures(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003','600004','600005'))
-            bus=build_data(root);manifest=bus.manifest('fixture')
-            originals={}
-            for code in ('sh.600003','sh.600004','sh.600005'):
-                name=manifest['inputs']['adjustments']['template'].format(symbol=code,start=manifest['inputs']['adjustments']['start'],end=manifest['inputs']['adjustments']['end'])
-                originals[code]=json.loads(bus.read('sources','fixture',name));bus.delete('sources','fixture',name)
-            calls=[]
-            def collect(task,security,**kwargs):
-                calls.append(task.code)
-                if task.code=='sh.600004':raise factors.ProviderError('unavailable')
-                return {},originals[task.code]
-            methods=factors.Methods(bus);source=dict(id='prices',method='daily',dataset_id='fixture')
-            with patch.object(factors.SinaFactors,'collect',side_effect=collect):
-                with self.assertRaisesRegex(factors.CollectionError,'sh.600004'):
-                    methods.doctor(source,{'codes':list(originals)})
-            self.assertEqual(calls,list(originals))
-            calls.clear()
-            with patch.object(factors.SinaFactors,'collect',side_effect=lambda task,security,**kwargs:(calls.append(task.code) or {},originals[task.code])):
-                self.assertEqual(methods.doctor(source,{'codes':list(originals)})['status'],'complete')
-            self.assertEqual(calls,['sh.600004'])
 
-    def test_discovered_changes_do_not_overwrite_security_file(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003',))
-            bus=build_data(root);manifest=bus.manifest('fixture');code='sh.600003'
-            security_name=manifest['inputs']['securities']['template'].format(symbol=code)
-            security=bus.read('sources','fixture',security_name)
-            name=manifest['inputs']['adjustments']['template'].format(symbol=code,start=manifest['inputs']['adjustments']['start'],end=manifest['inputs']['adjustments']['end'])
-            original=json.loads(bus.read('sources','fixture',name));bus.delete('sources','fixture',name)
-            changes=json.loads(bus.read('sources','fixture','code_changes.json'))
-            changes['scope']='discovered_fixture'
-            with patch.object(factors.Catalogue,'code_changes',return_value=({'query':'evidence'},changes)), patch.object(factors.SinaFactors,'collect',return_value=({},original)):
-                factors.Methods(bus).doctor(dict(id='prices',method='daily',dataset_id='fixture'),{'codes':[code]})
-            self.assertEqual(bus.read('sources','fixture',security_name),security)
-            self.assertEqual(json.loads(bus.read('sources','fixture','code_changes.json')),changes)
 
-    def test_doctor_keeps_other_securities_when_a_range_does_not_intersect(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003','600004'))
-            bus=build_data(root);manifest=bus.manifest('fixture');originals={}
-            for code in ('sh.600003','sh.600004'):
-                name=manifest['inputs']['adjustments']['template'].format(symbol=code,start=manifest['inputs']['adjustments']['start'],end=manifest['inputs']['adjustments']['end'])
-                originals[code]=json.loads(bus.read('sources','fixture',name))
-                bus.delete('sources','fixture',name)
-            name=manifest['inputs']['securities']['template'].format(symbol='sh.600004')
-            future=json.loads(bus.read('sources','fixture',name));future['records'][0]['listing_date']='2020-02-06'
-            bus.write('sources','fixture',name,json.dumps(future).encode())
-            def collect(task, security, **kwargs):
-                if task.code == 'sh.600004':
-                    factors.SinaFactors.normalize(task, security, {'qfq':'', 'hfq':''})
-                return {}, originals[task.code]
-            with patch.object(factors.SinaFactors,'collect',side_effect=collect) as fetch:
-                with self.assertRaisesRegex(factors.CollectionError,'sh.600004.*does not intersect'):
-                    factors.Methods(bus).doctor(dict(id='prices',method='daily',dataset_id='fixture'),{'codes':['sh.600003','sh.600004']})
-            self.assertEqual([call.args[0].code for call in fetch.call_args_list],['sh.600003','sh.600004'])
-            name=manifest['inputs']['adjustments']['template'].format(symbol='sh.600003',start='1990-01-01',end='2020-02-05')
-            self.assertEqual(json.loads(bus.read('sources','fixture',name)),originals['sh.600003'])
 
-    def test_advancing_the_cutoff_rechecks_only_affected_dividend_years(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003','600004'))
-            bus=build_data(root);manifest=bus.manifest('fixture')
-            name=manifest['inputs']['securities']['template'].format(symbol='sh.600004')
-            stock=json.loads(bus.read('sources','fixture',name))
-            stock['records'][0].update(delisting_date='2020-02-01',status='0')
-            bus.write('sources','fixture',name,json.dumps(stock).encode())
-            tasks=factors.Methods(bus).plan_facts('fixture',manifest,{'codes':['sh.600003','sh.600004'],'start':'2020-02-06','end':'2020-02-06'})
-            dividends=[t for _,t in tasks if t.kind=='dividend']
-            self.assertEqual([(t.code,t.year) for t in dividends],[('sh.600003','2020')])
 
-    def test_dividend_cutoff_receipt_avoids_refetch_after_partial_range_failure(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003',))
-            bus=build_data(root);manifest=bus.manifest('fixture');methods=factors.Methods(bus)
-            request={'codes':['sh.600003'],'start':'2020-02-06','end':'2020-02-06'}
-            def dividends(code,years,*,end,**kwargs):
-                return {},{year:dict(schema=1,kind='dividend',code=code,start=None,end=None,year=year,source_hash='a'*64,records=[]) for year in years}
-            task=factors.Request('adjust','sh.600003','1990-01-01','2020-02-06',None)
-            adjustment=dict(schema=1,kind='adjust',code=task.code,start=task.start,end=task.end,year=None,source_hash='a'*64,records=[{'date':'1990-01-01','forward':1.,'backward':1.}])
-            with patch.object(factors.SinaFactors,'collect',return_value=({},adjustment)),patch.object(factors.DividendHistory,'collect',side_effect=dividends):
-                with bus.transaction('sources'):methods.complete_facts('fixture',manifest,request)
-            self.assertEqual(methods.plan_facts('fixture',manifest,request),[])
-            name=manifest['inputs']['distributions']['template'].format(symbol='sh.600003',year='2020')
-            fact=json.loads(bus.read('sources','fixture',name));fact['source_hash']='b'*64
-            bus.write('sources','fixture',name,json.dumps(fact).encode())
-            self.assertEqual([t.kind for _,t in methods.plan_facts('fixture',manifest,request)],['dividend'])
 
-    def test_fact_sources_share_the_methods_http_session(self):
-        from tests.history_fixture import make_snapshot
-        with tempfile.TemporaryDirectory() as root:
-            root=Path(root);make_snapshot(root,symbols=('600003',))
-            bus=build_data(root);manifest=bus.manifest('fixture');methods=factors.Methods(bus)
-            task=factors.Request('adjust','sh.600003','1990-01-01','2020-02-06',None)
-            adjustment=dict(schema=1,kind='adjust',code=task.code,start=task.start,end=task.end,year=None,source_hash='a'*64,records=[{'date':'1990-01-01','forward':1.,'backward':1.}])
-            def dividends(code,years,*,end,get):
-                return {},{year:dict(schema=1,kind='dividend',code=code,start=None,end=None,year=year,source_hash='a'*64,records=[]) for year in years}
-            with patch.object(factors.SinaFactors,'collect',return_value=({},adjustment)) as adjust,patch.object(factors.DividendHistory,'collect',side_effect=dividends) as dividend:
-                with bus.transaction('sources'):methods.complete_facts('fixture',manifest,{'codes':['sh.600003'],'start':'2020-02-06','end':'2020-02-06'})
-            self.assertEqual(adjust.call_args.kwargs['get'],dividend.call_args.kwargs['get'])
 
 class RenameFactorTests(unittest.TestCase):
     def test_archived_code_uses_proven_successor_history_on_one_basis(self):

@@ -8,8 +8,9 @@ import math
 import numpy as np
 import re
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import replace
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from hashlib import sha256
 from protocol import (
@@ -97,9 +98,8 @@ def _load_stock_basic_anchor(path: str, symbol: str, first_bar: date,
             SourceHash(str(path), _digest(file_bytes)))
 
 
-def _load_factor_history(cache_dir: str, symbol: str, start: date, end: date,
-                         changes: tuple[dict, ...], read: Callable[[str], dict],
-                         template: str = 'adjust_{symbol}_{start}_{end}.json'):
+def _load_factor_history(symbol: str, changes: tuple[dict, ...], read: Callable[[str], dict],
+                         refs, conflicts):
     from core.calculation import FactorEvent
     """Use explicit alias intervals, checking unchanged basis at each seam.
 
@@ -116,8 +116,14 @@ def _load_factor_history(cache_dir: str, symbol: str, start: date, end: date,
     def load(code, visited):
         if code in visited:
             raise ValueError('cyclic code-change history')
-        path = template.format(symbol=normalize_security_id(code), start=start, end=end)
-        events, source = _load_factor_cache(path, code, start, end, read)
+        if normalize_security_id(code) in conflicts:
+            raise ValueError('overlapping factor facts conflict: ' + code)
+        item = refs.get(normalize_security_id(code))
+        if item is None:
+            raise DataError('missing', 'factor coverage not found: ' + code)
+        path = item['reference']
+        actual_start, actual_end = date.fromisoformat(item['start']), date.fromisoformat(item['end'])
+        events, source = _load_factor_cache(path, code, actual_start, actual_end, read)
         if code not in incoming:
             return events, (source,)
         change = incoming[code]
@@ -203,13 +209,67 @@ class _BarEvidenceError(ValueError):
         super().__init__(detail)
 
 
+def _outside_coverage(span, day) -> bool:
+    """True when the session predates listing or postdates delisting.
+
+    A series has no row at all outside its own covered span; that absence is
+    the instrument's life, not an unknown trading state. Gaps *inside* the
+    span stay defects.
+    """
+    if span is None:
+        return True
+    text = day.isoformat()
+    return text < span[0] or text > span[1]
+
+
+def _level_series_codes(data) -> frozenset[str]:
+    """Codes registered as benchmarks quote a level, not a tradable price.
+
+    An index row carries the turnover of the whole market it summarises, so
+    ``amount / volume`` is a per-share average price and never the quoted
+    level. Benchmark series therefore opt out of the turnover/price-band test
+    while keeping every other bar check.
+    """
+    try:
+        registry = data.registry()
+    except Exception:  # noqa: BLE001 - registry absence must not break bar reads
+        return frozenset()
+    if not isinstance(registry, Mapping):
+        return frozenset()
+    codes = set()
+    for item in registry.get('benchmarks') or ():
+        if not isinstance(item, Mapping):
+            continue
+        code = item.get('code')
+        if not isinstance(code, str) or not code:
+            continue
+        try:
+            codes.add(normalize_security_id(code))
+        except ValueError:
+            continue
+    return frozenset(codes)
+
+
+def _is_level_series(code: str, level_codes: frozenset[str]) -> bool:
+    if not level_codes:
+        return False
+    try:
+        return normalize_security_id(code) in level_codes
+    except ValueError:
+        return False
+
+
 def _traded_bar(status: object, prices: tuple[float, float, float, float],
-                volume: float, amount: float) -> bool:
+                volume: float, amount: float, *, level_series: bool = False) -> bool:
     """One source-status/turnover predicate for all codes and dates.
 
     A suspended row may carry yesterday's positive close for valuation; it is
     not an observation for MA or returns. An unknown status with no turnover
     is not silently classified as either a trade or a suspension.
+
+    ``level_series`` marks an index or rate series whose quoted value is a
+    level rather than a share price; its turnover columns aggregate the
+    underlying market and cannot be reconciled against the quoted range.
     """
     if status is not None:
         if isinstance(status, bool) or status not in (0, 0.0, 1, 1.0):
@@ -224,10 +284,11 @@ def _traded_bar(status: object, prices: tuple[float, float, float, float],
             raise _BarEvidenceError("invalid_source_price", f"traded OHLC={prices}")
         # RMB turnover / shares must lie inside the raw daily trading range.
         # A 1% tolerance absorbs source rounding, not a change of price basis.
-        vwap = amount / volume
-        if not prices[2] * 0.99 <= vwap <= prices[1] * 1.01:
-            raise _BarEvidenceError("inconsistent_price_basis",
-                                    f"VWAP={vwap}, low={prices[2]}, high={prices[1]}")
+        if not level_series:
+            vwap = amount / volume
+            if not prices[2] * 0.99 <= vwap <= prices[1] * 1.01:
+                raise _BarEvidenceError("inconsistent_price_basis",
+                                        f"VWAP={vwap}, low={prices[2]}, high={prices[1]}")
         return True
     if status == 1:
         raise _BarEvidenceError("contradictory_trade_state",
@@ -242,7 +303,7 @@ def _traded_bar(status: object, prices: tuple[float, float, float, float],
 
 def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_changes_path,
                          stock_basic_dir=True, symbols=None, date_start=None, date_end=None,
-                         factor_template, stock_basic_template, read):
+                         factor_template, stock_basic_template, read, as_of=None):
     from core.calculation import (AdjustedPricePanel, AdjustmentCoverageError, CoverageIssue,
                                   SourceHash)
     """Load the *entire* supplied A-share source with fail-closed factor coverage.
@@ -254,7 +315,6 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
     if not isinstance(factor_start, date) or not isinstance(factor_end, date) or factor_start > factor_end:
         raise ValueError('valid factor_start and factor_end dates are required')
     daily_dir = data.manifest(dataset)['inputs']['bars']
-    cache_dir = None
     filters = []
     definition = data.definition(daily_dir[5:])
     def day_value(value):
@@ -311,14 +371,96 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
         listing_anchor_codes: set[str] = set()
         # One batched evidence read replaces a query per symbol per fact kind.
         candidates = {normalize_security_id(str(row[0])) for row in bounds}
-        candidates.update(change['old_code'] for change in changes)
-        candidates.update(change['new_code'] for change in changes)
-        evidence_names = {factor_template.format(symbol=code, start=factor_start, end=factor_end)
-                          for code in candidates}
+        candidates.update(normalize_security_id(change['old_code']) for change in changes)
+        candidates.update(normalize_security_id(change['new_code']) for change in changes)
+        windows = {}
+        incoming = {normalize_security_id(change['new_code']):
+                    (normalize_security_id(change['old_code']), change['effective_date'])
+                    for change in changes}
+        for row in bounds:
+            code = normalize_security_id(str(row[0]))
+            first, last = date.fromisoformat(str(row[1])), date.fromisoformat(str(row[2]))
+            seen = set()
+            while code not in seen:
+                seen.add(code)
+                if code in incoming:
+                    old, cut = incoming[code]
+                    current_first = cut
+                    last = max(last, cut)
+                else:
+                    current_first = first
+                previous = windows.get(code)
+                windows[code] = (min(current_first, previous[0]), max(last, previous[1])) if previous else (current_first, last)
+                if code not in incoming:
+                    break
+                last = cut - timedelta(days=1)
+                first = min(first, last)
+                code = old
+        filters = [Filter('kind', 'eq', 'adjust'), Filter('code', 'in', sorted(windows)),
+                   Filter('start', 'le', max(end for _, end in windows.values()).isoformat()),
+                   Filter('end', 'ge', min(start for start, _ in windows.values()).isoformat())]
+        # The requested end bounds the fact's covered range, not its publication
+        # time. The fact schema does not establish when a revision became known.
+        if as_of is not None:
+            filters.append(Filter('end', 'le', as_of.isoformat()))
+        coverage = data.scan(TableQuery('fact_coverage', tuple(filters))).table.to_pylist()
+        refs, eligible, overlapping = {}, {}, {}
+        current_codes = {normalize_security_id(str(row[0])) for row in bounds}
+        if as_of is not None:
+            current_codes -= {normalize_security_id(change['old_code']) for change in changes
+                              if change['effective_date'] <= as_of}
+        for item in coverage:
+            window = windows.get(item['code'])
+            if (window is None or not item.get('start') or not item.get('end') or
+                    date.fromisoformat(item['start']) > window[1] or date.fromisoformat(item['end']) < window[0] or
+                    (as_of is not None and item['end'] > as_of.isoformat())):
+                continue
+            overlapping.setdefault(item['code'], []).append(item)
+            if (date.fromisoformat(item['start']) <= window[0] and date.fromisoformat(item['end']) >= window[1]
+                    and (as_of is None or item['code'] not in current_codes or item['end'] == as_of.isoformat())):
+                eligible.setdefault(item['code'], []).append(item)
+        for code, items in eligible.items():
+            refs[code] = max(items, key=lambda item: (item['end'], item['start']))
+        evidence_names = {item['reference'] for code, items in overlapping.items() if code in refs for item in items}
         if stock_basic_dir is not None:
             evidence_names.update(stock_basic_template.format(symbol=code, provider_code=code)
                                   for code in candidates)
         prefetched = data.facts(sorted(evidence_names))
+        conflicts = set()
+        from bisect import bisect_right
+        for security, items in overlapping.items():
+            if len(items) < 2 or security not in refs:
+                continue
+            first, last = windows[security]
+            histories = {}
+            for item in items:
+                try:
+                    events, _ = _load_factor_cache(item['reference'], security,
+                        date.fromisoformat(item['start']), date.fromisoformat(item['end']),
+                        lambda path: prefetched[path])
+                except (KeyError, OSError, ValueError, TypeError):
+                    conflicts.add(security)
+                    break
+                histories[item['reference']] = events
+            selected = refs[security]
+            if selected['reference'] not in histories:
+                continue
+            a = histories[selected['reference']]
+            a_days = [event.effective_date for event in a]
+            for item in items:
+                if item['reference'] == selected['reference'] or item['reference'] not in histories:
+                    continue
+                b = histories[item['reference']]
+                begin = max(first, date.fromisoformat(selected['start']), date.fromisoformat(item['start']))
+                finish = min(last, date.fromisoformat(selected['end']), date.fromisoformat(item['end']))
+                b_days = [event.effective_date for event in b]
+                for day in sorted(set(a_days) | set(b_days) | {begin}):
+                    if day < begin or day > finish:
+                        continue
+                    i, j = bisect_right(a_days, day) - 1, bisect_right(b_days, day) - 1
+                    if i >= 0 and j >= 0 and not math.isclose(a[i].back_factor, b[j].back_factor, rel_tol=1e-10):
+                        conflicts.add(security)
+                        break
         def evidence_read(path):
             if path in prefetched:
                 return prefetched[path]
@@ -337,9 +479,8 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
             except (TypeError, ValueError) as exc:
                 issues.append(CoverageIssue(code, "invalid_source_identity_or_date", str(exc)))
                 continue
-            if first < factor_start or last > factor_end:
-                issues.append(CoverageIssue(code, "outside_factor_query_window",
-                                            f"bars {first}..{last}, query {factor_start}..{factor_end}"))
+            if market_code in conflicts:
+                issues.append(CoverageIssue(code, 'invalid_factor_history', 'overlapping factor facts conflict'))
                 continue
             unresolved = [change for change in changes
                           if not change["factor_basis_continuity_verified"]
@@ -354,9 +495,8 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
             cache_path = factor_template.format(
                 symbol=normalize_security_id(code), start=factor_start, end=factor_end)
             try:
-                events, history_hashes = _load_factor_history(
-                    cache_dir, code, factor_start, factor_end, changes, evidence_read,
-                    factor_template)
+                events, history_hashes = _load_factor_history(code, changes, evidence_read,
+                                                              refs=refs, conflicts=conflicts)
             except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
                 reason = "missing_factor_cache" if isinstance(exc, DataError) and exc.code == 'missing' else "invalid_factor_history"
                 issues.append(CoverageIssue(code, reason, f"{cache_path}: {exc}"))
@@ -405,6 +545,7 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
         bar_issue_counts: dict[tuple[str, str], int] = {}
         bar_issue_examples: dict[tuple[str, str], str] = {}
         checked_bars = 0
+        level_codes = _level_series_codes(data)
         code_index = {code: row for row, code in enumerate(symbol_tuple)}
         date_index = {str(day): column for column, day in enumerate(calendar_strings)}
         reader = connection.execute(
@@ -428,7 +569,8 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
                     )}
                     prices = tuple(numbers[field] for field in
                                    ("open", "high", "low", "close"))
-                    traded = _traded_bar(status, prices, numbers['volume'], numbers['amount'])
+                    traded = _traded_bar(status, prices, numbers['volume'], numbers['amount'],
+                                         level_series=_is_level_series(code, level_codes))
                     if arrays is not None:
                         row, column = code_index[code], date_index[day]
                         for field, number in numbers.items(): arrays[field][row, column] = number
@@ -660,7 +802,7 @@ def _load_dataset(data, query):
         symbols=selected_symbols,date_start=read_start,date_end=read_end,
         factor_template=adjustments['template'],
         stock_basic_template=securities['template'],
-        read=read)
+        read=read, as_of=query.as_of)
     for item in panel.source_hashes:
         hashes[item.path]=item.sha256
         market_files[item.path]=item.sha256
@@ -675,8 +817,6 @@ def _load_dataset(data, query):
     as_of=query.as_of
     if as_of is not None and as_of < actual_end:
         raise ValueError('data as_of precedes query end')
-    if as_of is not None and factor_end != as_of:
-        raise ValueError('factor snapshot must end exactly at query cutoff')
     calendar = tuple(calendar[read_start_index:end_index+2])
     # Each requested code/year cache is explicit evidence, including successful empty results.
     coverage_template=inputs['distributions']['template']
@@ -976,6 +1116,7 @@ def _prepare_raw_dataset(data, query):
     }))
     rows = {}
     source_hashes = {}
+    level_codes = _level_series_codes(data)
     reference = manifest['inputs']['bars']
     definition=data.definition(reference[5:])
     names=set(definition.columns)
@@ -1006,6 +1147,10 @@ def _prepare_raw_dataset(data, query):
             rows[key] = value
     if not source_hashes:
         raise ValueError("daily dataset table is required")
+    observed_span = {}
+    for identity, day_text in rows:
+        first, last = observed_span.get(identity, (day_text, day_text))
+        observed_span[identity] = (min(first, day_text), max(last, day_text))
     history = {symbol: deque(maxlen=query.history) for symbol in symbols}
     prepared = []
     for column, day in enumerate(run_days):
@@ -1014,19 +1159,28 @@ def _prepare_raw_dataset(data, query):
         for symbol, identity in zip(symbols, requested_ids):
             row = rows.get((identity, day.isoformat()), {})
             values = {field: row.get(field) for field in required}
+            # Before listing or after delisting the series simply has no row.
+            # A hole inside its own span is a source defect, so name it here
+            # rather than reporting an empty bar as an unknown trading state.
+            span = observed_span.get(identity)
+            if not row and not compare_only and not _outside_coverage(span, day):
+                raise ValueError(
+                    f"{identity} has no row on {day.isoformat()} inside its covered span "
+                    f"{span[0]}..{span[1]}; the supplied series is incomplete")
             try:
                 numbers = {
                     field: _float_or_nan(value, field, str(row.get("code")),
                                          str(day), positive=False)
                     for field, value in values.items()
                 }
-                if compare_only:
+                if compare_only or not row:
                     traded = False
                 else:
                     prices = tuple(numbers[field] for field in
                                    ("open", "high", "low", "close"))
                     traded = _traded_bar(row.get("tradestatus"), prices,
-                                         numbers["volume"], numbers["amount"])
+                                         numbers["volume"], numbers["amount"],
+                                         level_series=_is_level_series(identity, level_codes))
             except _BarEvidenceError as exc:
                 raise ValueError(f"{exc.reason}: {exc}") from exc
             except (TypeError, ValueError, OverflowError) as exc:

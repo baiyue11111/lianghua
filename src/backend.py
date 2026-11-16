@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from functools import partial
@@ -32,8 +32,10 @@ from protocol import (
     _text,
     normalize_security_id,
     parse_backtest_request,
+    parse_identity,
     required_fields,
     Filter,
+    IDENTITY_LIMIT,
     TableDef,
     TableQuery,
     TableWrite,
@@ -55,12 +57,19 @@ class OperationSpec:
 
 @dataclass(frozen=True)
 class PortResult:
-    """模块端口返回的协议中立结果。"""
+    """模块端口返回的协议中立结果。
+
+    ``presentation`` / ``links`` / ``extensions`` 是可选的语义层信息，
+    端口不提供时由协议入口根据返回数据自动补全。
+    """
 
     kind: str
     type: str
     schema: str
     data: JsonValue
+    presentation: Any | None = None
+    links: tuple[Any, ...] = ()
+    extensions: Mapping[str, JsonValue] = field(default_factory=dict)
 
 
 class ModulePort(TypingProtocol):
@@ -89,7 +98,6 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("cli.predict", "read", "cli-predict", "cli-predict", "resource", "commands"),
     OperationSpec("service.info", "read", "service-info", "service-info", "resource", "commands"),
     OperationSpec("collection.describe", "read", "collection-describe", "collection-describe", "document", "sources"),
-    OperationSpec("collection.doctor", "write", "collection-doctor", "collection-doctor", "document", "sources"),
     OperationSpec("collection.inspect", "read", "collection-inspect", "collection-inspect", "document", "sources"),
     OperationSpec("collection.run", "write", "collection-run", "collection-run", "operation", "sources"),
     OperationSpec("research.runs", "read", "runs", "runs", "collection", "research"),
@@ -120,6 +128,160 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
 
 
 _DIRECTORY = {item.name: item for item in _OPERATIONS}
+
+
+_TITLES: dict[str, str] = {
+    "strategies": "策略目录", "preflight": "回测预检", "backtest-result": "回测结果",
+    "cli-backtest": "配置文件回测", "cli-predict": "下一交易日预测", "service-info": "服务信息",
+    "collection-describe": "来源说明", "collection-inspect": "来源抽查", "collection-run": "采集命令",
+    "runs": "回测存档", "run": "回测详情", "benchmarks": "基准指数目录", "benchmark": "基准序列",
+    "research-inputs": "研究数据集", "sources": "数据源", "data-status": "数据状态",
+    "data-search": "证券检索", "kline": "行情序列", "doctor": "完整性检查",
+    "continuous-fetch": "自动续采", "fetch-job": "采集任务", "snapshot": "来源快照",
+    "evidence": "采集证据", "job": "采集任务", "merge-job": "合并任务", "doctor-job": "修复队列",
+}
+
+_LABELS: dict[str, str] = {
+    "id": "标识", "name": "名称", "code": "代码", "status": "状态", "root": "项目位置",
+    "enabled": "已启用", "running": "运行中", "done": "已完成", "total": "总数", "rows": "新增行",
+    "records": "记录数", "error": "异常", "start": "起始日期", "end": "截止日期",
+    "market": "市场", "source_id": "数据源", "provider": "来源", "currency": "币种",
+    "interval_seconds": "调度间隔（秒）", "next_run_at": "下次运行", "last_run_at": "上次运行",
+    "latest_data_date": "最新行情日期", "tracked_stock_count": "跟踪证券数",
+    "median_stock_date": "行情日期中位数", "latest_data_stock_count": "最新行情证券数",
+    "collected_at": "采集时间", "data_as_of": "数据截至", "total_return": "累计收益",
+    "max_drawdown": "最大回撤", "sharpe": "夏普比率", "observations": "观测数",
+    "offset": "起点", "limit": "条数", "dry_run": "试运行", "ready": "预检通过",
+    "issues": "问题项", "frequency": "频率", "defaults": "默认参数", "datasets": "数据集",
+    "items": "条目", "points": "观测点", "reviews": "审核", "volume": "成交量",
+    "close": "收盘价", "open": "开盘价", "high": "最高价", "low": "最低价",
+    "price": "价格", "equity": "权益", "amount": "金额", "shares": "数量",
+    "trade_date": "成交日期", "date": "日期", "at": "时间",
+}
+
+_CODE_KEYS = frozenset({"代码", "code", "symbol", "ts_code", "security", "security_id"})
+_NAME_KEYS = frozenset({"名称", "name", "code_name", "provider", "strategy_name", "market", "frequency", "currency", "description"})
+_PRICE_KEYS = frozenset({"最新收盘", "close", "open", "high", "low", "price", "equity", "cash", "amount", "gross_amount", "final_equity", "initial_cash", "net_profit", "revenue", "eps", "total_mv", "float_mv", "commission", "stamp_duty", "transfer_fee"})
+_QUANTITY_KEYS = frozenset({"volume", "shares", "rows", "records", "count", "total", "done", "observations", "trades_total", "limit", "offset", "tracked_stock_count", "latest_data_stock_count", "history_bars"})
+_DATE_KEYS = frozenset({"date", "at", "start", "end", "ipodate", "outdate", "report_date", "notice_date", "update_date", "available_at", "collected_at", "data_as_of", "next_run_at", "last_run_at", "trade_date", "latest_data_date", "median_stock_date", "行情日期", "首日", "末日"})
+_RATIO_KEYS = frozenset({"total_return", "return", "returns", "max_drawdown", "roe", "debt_ratio", "turn", "win_rate", "accuracy"})
+_NUMBER_KEYS = frozenset({"pctchg", "pettm", "pbmrq", "psttm", "pcfncfttm", "sharpe", "ratio", "precision"})
+_STATUS_KEYS = frozenset({"status", "state", "enabled", "running", "default", "tradestatus", "isst", "retryable", "available", "ready", "qualification", "side", "frequency", "mode"})
+_ID_KEYS = frozenset({"id", "run_id", "request_id", "message_id", "correlation_id", "sha256", "file", "path", "root", "dataset_id", "source_id", "storage_id", "type", "schema", "module", "config_hash", "data_hash", "code_hash", "order_id", "trace", "evidence_ref", "manifest_file", "metrics_sha256", "source_hashes", "provenance", "raw_page", "adjustflag", "pool"})
+_LIST_KEYS = ("items", "sources", "records", "rows", "points", "intervals", "datasets", "reviews", "trades", "strategies", "benchmarks", "runs", "equity", "days")
+
+
+def _key(value: object) -> str:
+    return str(value).strip().lower()
+
+
+def _hint_for(key: object, value: JsonValue, path: str, order: int, ui: Any) -> Any:
+    lower = _key(key)
+    label = _LABELS.get(lower, str(key).replace("_", " "))
+    role, fmt, unit, precision, visible = "text", "plain", None, None, True
+    if lower in _ID_KEYS:
+        role, fmt, visible = "identifier", "plain", False
+    elif lower in _CODE_KEYS:
+        role, fmt = "security", "code"
+    elif lower in _NAME_KEYS:
+        role, fmt = "text", "plain"
+    elif lower in _PRICE_KEYS:
+        role, fmt, unit, precision = "price", "currency", "CNY", 2
+    elif lower in _QUANTITY_KEYS:
+        role, fmt, precision = "quantity", "integer", 0
+    elif lower in _DATE_KEYS:
+        role, fmt = "date", "date"
+    elif lower in _RATIO_KEYS:
+        role, fmt, precision = "ratio", "percent", 2
+    elif lower in _NUMBER_KEYS:
+        role, fmt, precision = "number", "decimal", 3
+        if lower == "pctchg":
+            unit = "%"
+    elif lower in _STATUS_KEYS:
+        role, fmt = "status", "boolean" if isinstance(value, bool) else "plain"
+    elif isinstance(value, bool):
+        role, fmt = "status", "boolean"
+    elif isinstance(value, (int, float)) and not isinstance(value, bool):
+        role, fmt, precision = "number", "decimal", 2
+    elif isinstance(value, str):
+        role, fmt = "text", "plain"
+    else:
+        role, fmt = "json", "json"
+    return ui.FieldHint(path=path, label=label, role=role, format=fmt,
+                        unit=unit, precision=precision, order=order, visible=visible)
+
+
+def _pointer(*parts: object) -> str:
+    return "/" + "/".join(str(part).replace("~", "~0").replace("/", "~1") for part in parts)
+
+
+def _collection(data: JsonValue) -> tuple[list[JsonValue], tuple[str, ...]]:
+    if isinstance(data, list) and data:
+        return data, ()
+    if isinstance(data, Mapping):
+        for key in _LIST_KEYS:
+            value = data.get(key)
+            if isinstance(value, list) and value:
+                return value, (key,)
+    return [], ()
+
+
+def _field_hints(data: JsonValue, kind: str, ui: Any) -> tuple[Any, ...]:
+    hints: list[Any] = []
+    if kind == "series" and isinstance(data, Mapping):
+        if isinstance(data.get("dates"), list):
+            hints.append(ui.FieldHint(path="/dates", label="日期", role="date", format="date", order=1))
+        if isinstance(data.get("candles"), list):
+            hints.append(ui.FieldHint(path="/candles", label="K 线", role="series", format="ohlc", order=2))
+        if isinstance(data.get("volumes"), list):
+            hints.append(ui.FieldHint(path="/volumes", label="成交量", role="quantity", format="integer", precision=0, order=3))
+        if hints:
+            return tuple(hints)
+    rows, prefix = _collection(data)
+    if rows and isinstance(rows[0], Mapping):
+        for index, (key, value) in enumerate(list(rows[0].items())[:12], 1):
+            hints.append(_hint_for(key, value, _pointer(*prefix, 0, key), index, ui))
+    elif isinstance(data, Mapping):
+        for index, (key, value) in enumerate(list(data.items())[:12], 1):
+            hints.append(_hint_for(key, value, _pointer(key), index, ui))
+    elif isinstance(data, list) and data:
+        hints.append(_hint_for("值", data[0], _pointer(0), 1, ui))
+    return tuple(hints)
+
+
+def _presentation(spec: OperationSpec, result: PortResult, ui: Any) -> Any:
+    if isinstance(result.presentation, ui.Presentation):
+        return result.presentation
+    return ui.Presentation(
+        title=_TITLES.get(spec.output_schema, spec.output_schema.replace("-", " ")),
+        role=spec.output_schema,
+        fields=_field_hints(result.data, result.kind, ui),
+    )
+
+
+def _extensions(spec: OperationSpec, result: PortResult, request_data: JsonValue) -> dict[str, JsonValue]:
+    values: dict[str, JsonValue] = {
+        "lianghua:operation": _json_value(spec.name),
+        "lianghua:resource": _json_value(spec.output_schema),
+    }
+    if isinstance(request_data, Mapping):
+        market = request_data.get("market")
+        if isinstance(market, str) and market:
+            values["lianghua:market"] = _json_value(market)
+    for name, value in (result.extensions or {}).items():
+        if isinstance(name, str) and (":" in name or name.startswith("x-")):
+            values[name] = _json_value(value)
+    return values
+
+
+def _links(ui: Any, values: tuple[Any, ...]) -> tuple[Any, ...]:
+    links: list[Any] = []
+    for item in values:
+        if isinstance(item, ui.UiLink):
+            links.append(item)
+        elif isinstance(item, Mapping) and "rel" in item and "href" in item:
+            links.append(ui.UiLink(rel=str(item["rel"]), href=str(item["href"]), type=item.get("type")))
+    return tuple(links)
 
 
 def export_operations() -> dict[str, JsonObject]:
@@ -167,14 +329,26 @@ class Benchmarks:
             if declared and requested_code not in declared:
                 raise ValueError(f'基准 {identity} 需要 {requested_code} 的行情，'
                                  f'数据集 {dataset_id} 未包含；先导入该基准数据，或改用已导入的基准')
+            calendar = self.store.calendar(dataset_id)
+            sessions = [date.fromisoformat(day) for day in calendar.get('sessions', ())]
+            if len(sessions) < 2:
+                raise ValueError('benchmark calendar is missing')
             first, last = date.fromisoformat(str(start)), date.fromisoformat(str(end))
+            # 展示用的对比区间可能落在周末或超出快照末端；这里只对齐到已登记交易日，
+            # 不放宽底层数据校验。请求末端越界时退回倒数第二个交易日（查询需要后续 session）。
+            beyond = last > sessions[-1]
+            def clamp(day):
+                return sessions[max(0, bisect_right(sessions, day) - 1)]
+            first, last = clamp(first), clamp(last)
+            if beyond:
+                last = min(last, sessions[-2])
+            if first > last:
+                raise ValueError("起始日期不能晚于截止日期")
             if spec.get('alignment') not in (None, 'previous_close'):
                 raise ValueError('unsupported benchmark date alignment')
             aligned = spec.get('alignment') == 'previous_close'
             observed = None
             if aligned:
-                calendar = self.store.calendar(dataset_id)
-                sessions = [date.fromisoformat(day) for day in calendar['sessions']]
                 source_zone, target_zone = ZoneInfo(spec['timezone']), ZoneInfo(spec['comparison_timezone'])
                 source_close, target_close = time.fromisoformat(spec['session_close']), time.fromisoformat(spec['comparison_close'])
                 requested = tuple(dates) if dates is not None else tuple(
@@ -329,30 +503,53 @@ class Research:
             value['search'] = {**value['search'], 'trials': trials}
         return {key: item for key, item in value.items() if key in row['result_fields']}
 
+    def _summary(self, row):
+        """One archived run as a row, without its result.
+
+        A list of runs is a list of headers: equity, trades and events belong to
+        the run a reader opens, not to the index of runs. Returning them here
+        made one request assemble every stored result — tens of millions of
+        rows for one screen.
+        """
+
+        manifest, metrics = row['manifest'], row['metadata']['metrics']
+        effective = manifest.get("effective_config", {})
+        return {
+            "id": row['run_id'], "run_id": manifest["run_id"],
+            "strategy_id": manifest["strategy_id"], "status": manifest["status"],
+            "qualification": "unverified", "limitations": manifest.get("limitations", []),
+            "metrics": metrics, "manifest_file": f"lake:runs/{row['run_id']}",
+            "manifest_sha256": row['hashes']['manifest'],
+            "metrics_sha256": row['hashes']['metrics'],
+            # `module` is what grouping needs; the rest of the configuration and
+            # the per-source hashes stay with the run a reader opens. Shipping
+            # them for every row cost hundreds of kilobytes per run.
+            "module": effective.get("module"),
+            "config_hash": manifest.get("config_hash"),
+            "note": manifest.get("note", "运行结果未经历史资格认定。"),
+            "parameters": manifest.get("parameters", {}),
+            "code_hash": manifest.get("code_hash"), "data_hash": manifest.get("data_hash"),
+            "execution_hash": manifest.get("execution_hash"),
+        }
+
     def _read(self, identity, *, include_result=True):
         rows = self.rows('runs', identity)
         if not rows:
             raise KeyError(identity)
         row = rows[0]
-        manifest, metrics = row['manifest'], row['metadata']['metrics']
-        return {
-            "id": identity, "run_id": manifest["run_id"],
-            "strategy_id": manifest["strategy_id"], "status": manifest["status"],
-            "qualification": "unverified", "limitations": manifest.get("limitations", []),
-            "metrics": metrics, "manifest_file": f"lake:runs/{identity}",
-            "manifest_sha256": row['hashes']['manifest'],
-            "metrics_sha256": row['hashes']['metrics'],
-            "source_hashes": manifest.get("source_hashes", {}),
-            "config_hash": manifest.get("config_hash"),
-            "note": manifest.get("note", "运行结果未经历史资格认定。"),
-            "parameters": manifest.get("parameters", {}),
-            "effective_config": manifest.get("effective_config", {}),
-            "code_hash": manifest.get("code_hash"), "data_hash": manifest.get("data_hash"),
-            "execution_hash": manifest.get("execution_hash"), "result": self.result(identity) if include_result else None,
-        }
+        value = self._summary(row)
+        manifest = row['manifest']
+        value["source_hashes"] = manifest.get("source_hashes", {})
+        value["effective_config"] = manifest.get("effective_config", {})
+        value["result"] = self.result(identity) if include_result else None
+        return value
 
-    def list(self):
-        return [self._read(identity) for identity in self._ids()]
+    def list(self, *, limit: int = 200, offset: int = 0):
+        if type(limit) is not int or type(offset) is not int or limit < 1 or offset < 0:
+            raise ValueError('limit must be a positive integer and offset non-negative')
+        rows = self.rows('runs')                  # one scan; no query per run
+        return {"items": [self._summary(row) for row in rows[offset:offset + limit]],
+                "total": len(rows), "offset": offset, "limit": limit}
 
     def detail(self, identity, offset=0, limit=50):
         if type(offset) is not int or type(limit) is not int or offset < 0 or limit < 0:
@@ -468,8 +665,6 @@ class CollectionPort:
             return self.collect.sources.describe()
         if operation == 'collection.run':
             return self.collect.run(value)
-        if operation == 'collection.doctor':
-            return self.collect.methods.doctor(self.collect.sources.get(value['source_id']), value)
         if operation == 'collection.inspect':
             source = self.collect.sources.get(value['source_id'])
             return self.collect.methods.inspect(source, value)
@@ -565,7 +760,9 @@ class KernelBacktestPort:
                     "config_hash": prepared.config_hash,
                     "effective_config": prepared.effective_config, "issues": []}
         if operation == "research.runs":
-            return {"items": self._research.list()}
+            payload = data if isinstance(data, dict) else {}
+            return self._research.list(limit=payload.get("limit", 200),
+                                       offset=payload.get("offset", 0))
         if operation == "research.run":
             if not isinstance(data, dict):
                 raise TypeError("operation data must be an object")
@@ -717,6 +914,10 @@ def _prediction_accounts(value):
     return accounts, value["pending"]
 
 
+# A batch id has to leave room for the suffix this port appends to each interval.
+INTERVAL_SUFFIX = len("-interval-0001")
+
+
 class CommandPort:
     """CLI transport operations; no command owns a business execution path."""
 
@@ -758,10 +959,10 @@ class CommandPort:
             if not isinstance(intervals, list) or not intervals:
                 raise ValueError("intervals must be a non-empty list")
 
-            batch_id = config.get("run_id", uuid4().hex)
+            batch_id = parse_identity(config.get("run_id", uuid4().hex), "run_id",
+                                      limit=IDENTITY_LIMIT - INTERVAL_SUFFIX)
             prepared = []
             common = {key: value for key, value in config.items() if key != "intervals"}
-            self._check_run_identity(batch_id)
             for index, interval in enumerate(intervals, 1):
                 if not isinstance(interval, dict) or set(interval) - {"name", "start", "end"}:
                     raise ValueError(f"interval {index} must contain only name, start and end")
@@ -769,7 +970,6 @@ class CommandPort:
                 if name is not None and (not isinstance(name, str) or not name.strip()):
                     raise ValueError(f"interval {index} name must be a non-empty string or null")
                 run_id = f"{batch_id}-interval-{index:04d}"
-                self._check_run_identity(run_id)
                 request = {**common, "run_id": run_id,
                            "start": interval.get("start"), "end": interval.get("end")}
                 try:
@@ -812,12 +1012,6 @@ class CommandPort:
             )
         raise ValueError(f"unsupported command operation: {operation}")
 
-    def _check_run_identity(self, value: JsonValue) -> None:
-        if not isinstance(value, str) or not value:
-            raise ValueError("run_id must be a data identity")
-        if value != value.strip() or any(ord(char) < 32 for char in value):
-            raise ValueError("run_id must be a non-empty text identity without control characters")
-
 
 class Protocol:
     """后端唯一入口；每个请求只经过一个已声明的模块端口。"""
@@ -844,6 +1038,9 @@ class Protocol:
             return [ui.UiMessage(
                 message_id=uuid4().hex, correlation_id=request.request_id,
                 kind=result.kind, type=result.type, schema=result.schema, data=result.data,
+                presentation=_presentation(spec, result, ui),
+                links=_links(ui, result.links),
+                extensions=_extensions(spec, result, request.data),
             )]
         except DataError as error:
             return [self._problem(request.request_id, error.code, str(error))]
@@ -889,6 +1086,8 @@ class Protocol:
         return ui.UiMessage(
             message_id=uuid4().hex, correlation_id=correlation_id,
             kind="problem", type=problem.type, schema=PROBLEM_SCHEMA, data=problem.to_dict(),
+            presentation=ui.Presentation(title="协议请求未完成", role="problem"),
+            extensions={"lianghua:code": _json_value(code)},
         )
 
 
