@@ -1,7 +1,8 @@
 import {amount,day,errorMessage,number,percent,security,text} from "../shared/format";
 import {maSeries} from "@display/lib/ma-series";
 import { useMemo, useRef } from "react";
-import ReactECharts from "echarts-for-react";
+import ReactECharts from "../shared/chart";
+import type { ChartHandle } from "../shared/chart";
 import type { ECharts } from "echarts";
 import type {KlineResp,StockItem} from "@display/lib/market";
 import {useValue,useOperation} from "../interaction/model";
@@ -133,7 +134,7 @@ export default function ChartView() {
   const search=useOperation<{items:StockItem[]}>('chart:search','data.search',{q:kw.trim()},!!kw.trim());
   const series=useOperation<KlineResp>('chart:series','data.bars',{code:stock?.代码??'',freq,adj,...(startDate?{start:startDate}:{}),...(endDate?{end:endDate}:{})},!!stock);
   const hits=search.value?.items??[],data=series.value??null,loading=series.status==='pending',error=search.error||series.error;
-  const searchInput=useRef<HTMLInputElement>(null),chartRef=useRef<ReactECharts>(null);
+  const searchInput=useRef<HTMLInputElement>(null),chartRef=useRef<ChartHandle>(null);
   const load=()=>{if(stock)void series.invoke();};
   const option = useMemo(
     () => (data && data.dates.length ? buildOption({ d: data, freq, maOn }) : null),

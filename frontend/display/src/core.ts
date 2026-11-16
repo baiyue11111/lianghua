@@ -2,7 +2,7 @@ import Ajv from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
 import schema from './protocol.schema.json';
 import type {JsonValue,UiAction,UiMessage,UiOperation,UiProblem,UiRequest,UiSlot,UiState,BackendPort} from './protocol';
-export type {JsonValue,UiAction,UiMessage,UiRequest,UiState} from './protocol';
+export type {JsonValue,UiAction,UiMessage,UiRequest,UiState,Presentation,FieldHint,UiLink} from './protocol';
 export type Slot=Required<UiSlot>;
 export type State=Required<UiState> & {targets:Record<string,Slot>};
 export type {FrontendPort,BackendPort} from './protocol';

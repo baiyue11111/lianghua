@@ -19,4 +19,17 @@ export default defineConfig({
       "@display": fileURLToPath(new URL("../display/src", import.meta.url)),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        // One entry file made every page pay for the chart library and made a
+        // business-code change invalidate all of it. Separate the slow-moving
+        // vendor code so it can be cached on its own.
+        manualChunks: {
+          react: ["react", "react-dom"],
+          charts: ["echarts", "echarts-for-react"],
+        },
+      },
+    },
+  },
 });

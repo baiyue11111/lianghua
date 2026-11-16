@@ -1,0 +1,291 @@
+/* Apple-style visual system for the quant terminal. Scoped to .apple. */
+.apple {
+  --bg: #f5f5f7;
+  --surface: #ffffff;
+  --surface-2: #fafafa;
+  --fg: #1d1d1f;
+  --muted: #6e6e73;
+  --faint: #a1a1a6;
+  --border: #e8e8ed;
+  --accent: #0071e3;
+  --accent-soft: #eaf2fe;
+  --up: #d93025;
+  --down: #16875d;
+  --warn: #b25000;
+  --radius: 18px;
+  --radius-sm: 10px;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .03), 0 8px 24px rgba(0, 0, 0, .035);
+  --glass: rgba(255, 255, 255, .74);
+  color: var(--fg);
+  background: var(--bg);
+  min-height: 100vh;
+  font: 14px/1.55 Inter, -apple-system, BlinkMacSystemFont, "PingFang SC", "Noto Sans SC", "Helvetica Neue", sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -.01em;
+}
+.apple *, .apple *::before, .apple *::after { box-sizing: border-box; }
+.apple h1, .apple h2, .apple h3, .apple h4, .apple p { margin: 0; }
+.apple h1, .apple h2, .apple h3, .apple h4 { letter-spacing: -.025em; font-weight: 600; }
+.apple button, .apple input, .apple select { font: inherit; color: inherit; }
+.apple button { cursor: pointer; }
+.apple button:disabled { opacity: .45; cursor: not-allowed; }
+.apple :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.apple .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.apple .muted { color: var(--muted); }
+.apple .faint { color: var(--faint); }
+.apple .up { color: var(--up); }
+.apple .down { color: var(--down); }
+.apple .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace; font-size: 12px; letter-spacing: 0; }
+
+/* ---- shell ---- */
+.apple .topbar {
+  position: sticky; top: 0; z-index: 30; height: 56px;
+  display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 0 28px;
+  background: var(--glass); backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-bottom: 1px solid rgba(0, 0, 0, .06);
+}
+.apple .brand { display: flex; align-items: center; gap: 10px; font-size: 16px; font-weight: 650; letter-spacing: -.03em; white-space: nowrap; }
+.apple .brand-mark { width: 22px; height: 22px; border-radius: 7px; background: linear-gradient(145deg, #1d1d1f, #48484e); position: relative; flex: none; }
+.apple .brand-mark::after { content: ""; position: absolute; inset: 6px; border-radius: 2px; border: 1.5px solid rgba(255,255,255,.9); border-bottom: 0; border-right: 0; transform: rotate(0deg); }
+.apple .topmeta { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); white-space: nowrap; }
+.apple .topmeta .sep { color: var(--faint); }
+.apple .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--down); display: inline-block; flex: none; }
+.apple .dot.off { background: var(--faint); }
+.apple .dot.busy { background: #f0a000; }
+
+.apple .layout { display: grid; grid-template-columns: 208px minmax(0, 1fr); align-items: start; }
+.apple .sidebar {
+  position: sticky; top: 56px; height: calc(100vh - 56px);
+  padding: 24px 12px; display: flex; flex-direction: column; gap: 18px;
+  background: rgba(255,255,255,.62); backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border-right: 1px solid rgba(0,0,0,.055); overflow-y: auto;
+}
+.apple .side-group { display: flex; flex-direction: column; gap: 2px; }
+.apple .side-label { padding: 0 12px; margin: 0 0 6px; font-size: 11px; font-weight: 600; color: var(--faint); letter-spacing: .08em; text-transform: uppercase; }
+.apple .side-item { position: relative; display: flex; align-items: center; gap: 11px; width: 100%; padding: 9px 12px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 13px; text-align: left; }
+.apple .side-item:hover { background: rgba(0,0,0,.04); color: var(--fg); }
+.apple .side-item[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.apple .side-item .ico { width: 18px; height: 18px; flex: none; display: grid; place-items: center; }
+.apple .side-item .ico svg { width: 17px; height: 17px; stroke: currentColor; fill: none; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+.apple .content { min-width: 0; padding: 30px 34px 64px; max-width: 1680px; }
+.apple .pagehead { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; margin-bottom: 26px; }
+.apple .eyebrow { font-size: 11px; font-weight: 650; letter-spacing: .09em; text-transform: uppercase; color: var(--accent); margin-bottom: 7px; }
+.apple .pagehead h1 { font-size: 30px; line-height: 1.15; letter-spacing: -.035em; }
+.apple .pagehead .sub { margin-top: 7px; color: var(--muted); font-size: 13px; }
+.apple .head-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+
+/* ---- primitives ---- */
+.apple .grid { display: grid; gap: 18px; }
+.apple .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.apple .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.apple .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.apple .span2 { grid-column: span 2; }
+.apple .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px 22px; min-width: 0; }
+.apple .card.flush { padding: 0; overflow: hidden; }
+.apple .cardhead { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+.apple .cardhead h2 { font-size: 16px; letter-spacing: -.02em; }
+.apple .cardhead .hint { font-size: 12px; color: var(--muted); }
+.apple .card.flush .cardhead { padding: 20px 22px 0; }
+.apple .section-title { font-size: 12px; font-weight: 650; color: var(--muted); letter-spacing: .02em; margin-bottom: 12px; }.apple .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+.apple .btn { border: 1px solid var(--border); background: var(--surface); color: var(--fg); border-radius: 9px; padding: 7px 14px; font-size: 13px; font-weight: 550; min-height: 34px; white-space: nowrap; }
+.apple .btn:hover:not(:disabled) { background: var(--surface-2); border-color: #d2d2d7; }
+.apple .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.apple .btn.primary:hover:not(:disabled) { background: #0077ed; border-color: #0077ed; }
+.apple .btn.dark { background: var(--fg); border-color: var(--fg); color: #fff; }
+.apple .btn.ghost { border-color: transparent; background: transparent; color: var(--accent); }
+.apple .btn.ghost:hover:not(:disabled) { background: var(--accent-soft); }
+.apple .btn.sm { padding: 5px 10px; min-height: 28px; font-size: 12px; border-radius: 8px; }
+.apple .link { border: 0; background: transparent; padding: 0; color: var(--accent); font-size: 12px; font-weight: 550; }
+.apple .link:hover { text-decoration: underline; }
+
+/* Collapsed advanced surface: diagnostics and internals stay reachable without
+   occupying the primary reading flow. */
+.apple .adv { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); }
+.apple .adv > summary { list-style: none; cursor: pointer; display: flex; align-items: center; gap: 9px;
+  padding: 15px 20px; font-size: 13px; font-weight: 550; color: var(--muted); }
+.apple .adv > summary::-webkit-details-marker { display: none; }
+.apple .adv > summary::before { content: "›"; font-size: 16px; line-height: 1; color: var(--faint);
+  display: inline-block; transition: transform .16s ease; }
+.apple .adv[open] > summary::before { transform: rotate(90deg); }
+.apple .adv > summary:hover { color: var(--fg); }
+.apple .adv .adv-body { padding: 2px 20px 20px; }
+
+.apple .segmented { display: inline-flex; padding: 3px; background: #eeeef1; border-radius: 9px; gap: 2px; }
+.apple .segmented button { border: 0; background: transparent; border-radius: 7px; padding: 5px 11px; font-size: 12px; color: var(--muted); min-height: 28px; }
+.apple .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--fg); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.09); }
+.apple .tabs { display: flex; gap: 22px; border-bottom: 1px solid var(--border); margin-bottom: 20px; }
+.apple .tabs button { border: 0; background: transparent; padding: 0 0 11px; color: var(--muted); font-size: 13px; position: relative; }
+.apple .tabs button[aria-selected="true"] { color: var(--fg); font-weight: 600; }
+.apple .tabs button[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: var(--accent); border-radius: 2px; }
+
+.apple .tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #f0f0f3; color: var(--muted); white-space: nowrap; }
+.apple .tag.blue { background: var(--accent-soft); color: var(--accent); }
+.apple .tag.green { background: #e7f5ee; color: var(--down); }
+.apple .tag.red { background: #fdeceb; color: var(--up); }
+.apple .tag.amber { background: #fff3e2; color: var(--warn); }
+
+.apple .metric { min-width: 0; }
+.apple .metric .label { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+.apple .metric .value { font-size: 29px; line-height: 1.1; font-weight: 650; letter-spacing: -.035em; }
+.apple .metric .value.sm { font-size: 22px; }
+.apple .metric .foot { margin-top: 7px; font-size: 11px; color: var(--faint); }
+
+.apple .kv { display: grid; gap: 0; }
+.apple .kv > div { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.apple .kv > div:last-child { border-bottom: 0; }
+.apple .kv dt, .apple .kv .k { color: var(--muted); flex: none; }
+.apple .kv dd, .apple .kv .v { margin: 0; text-align: right; min-width: 0; overflow-wrap: anywhere; font-weight: 550; }
+
+.apple table.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.apple table.tbl th { text-align: left; font-size: 11px; font-weight: 600; color: var(--muted); padding: 11px 16px; border-bottom: 1px solid var(--border); white-space: nowrap; background: var(--surface-2); }
+.apple table.tbl td { padding: 12px 16px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+.apple table.tbl tr:last-child td { border-bottom: 0; }
+.apple table.tbl tbody tr:hover { background: #fafafc; }
+.apple table.tbl td.right, .apple table.tbl th.right { text-align: right; }
+.apple .tablewrap { overflow-x: auto; }
+.apple .rowbtn { border: 0; background: transparent; padding: 0; color: var(--fg); font-weight: 600; text-align: left; }
+.apple .rowbtn:hover { color: var(--accent); }
+
+.apple .input, .apple select.input { width: 100%; border: 1px solid var(--border); background: var(--surface); border-radius: 9px; padding: 8px 11px; min-height: 36px; font-size: 13px; }
+.apple .input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,.12); }
+.apple .field { display: grid; gap: 7px; min-width: 0; }
+.apple .field > label, .apple .field .lbl { font-size: 12px; color: var(--muted); font-weight: 550; }
+.apple .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.apple .inline { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.apple .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--fg); cursor: pointer; }
+.apple .check input { width: 16px; height: 16px; accent-color: var(--accent); }
+
+.apple .empty { display: grid; place-items: center; min-height: 120px; color: var(--faint); font-size: 13px; text-align: center; padding: 24px; }
+.apple .notice { padding: 11px 14px; border-radius: 10px; background: #fff3e2; color: var(--warn); font-size: 12px; margin-top: 12px; overflow-wrap: anywhere; }
+.apple .notice.error { background: #fdeceb; color: var(--up); }
+.apple .notice.ok { background: #e7f5ee; color: var(--down); }
+.apple .progress { height: 6px; border-radius: 999px; background: #ececf0; overflow: hidden; }
+.apple .progress > span { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s ease; }
+.apple .chart { width: 100%; height: 260px; }
+.apple .chart.tall { height: 340px; }
+.apple .chart.short { height: 150px; }
+.apple .chip-list { display: flex; flex-wrap: wrap; gap: 7px; }
+.apple .chip { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 5px 10px; font-size: 12px; }
+.apple .chip[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); background: var(--accent-soft); }
+
+/* ---- page-specific ---- */
+/* Three fixed slots (Hick's law): one readable row of indices above the fold.
+   The range control sits on the strip header so the interval that produced the
+   percentage is stated once, where the percentage is read. */
+.apple .strip-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 11px; }
+.apple .strip-title { font-size: 12px; font-weight: 650; color: var(--muted); letter-spacing: .02em; }
+.apple .strip-range { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint); }
+.apple .strip-range input { width: 134px; border: 1px solid var(--border); background: var(--surface);
+  border-radius: 8px; padding: 5px 8px; min-height: 30px; font-size: 12px; color: var(--fg); }
+.apple .strip-range input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,.12); }
+.apple .index-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
+.apple .index-card { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow);
+  border: 1px solid transparent; padding: 13px 16px 14px; display: flex; flex-direction: column; gap: 2px;
+  transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
+.apple .index-card:hover { border-color: #d2d2d7; box-shadow: 0 2px 4px rgba(0,0,0,.04), 0 12px 28px rgba(0,0,0,.05); }
+.apple .index-card[data-active="true"] { border-color: var(--accent); background: linear-gradient(180deg, #fff, #f5f9ff); }
+.apple .index-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.apple .index-select { appearance: none; -webkit-appearance: none; border: 0; background: transparent;
+  font: inherit; font-size: 13px; font-weight: 600; color: var(--fg); letter-spacing: -.01em;
+  padding: 2px 18px 2px 0; max-width: 100%; cursor: pointer;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23a1a1a6' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 2px center; text-overflow: ellipsis; }
+.apple .index-select:hover { color: var(--accent); }
+.apple .index-select:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+.apple .index-tag { font-size: 11px; color: var(--faint); white-space: nowrap; flex: none; }
+.apple .index-body { border: 0; background: transparent; padding: 0; text-align: left; cursor: pointer;
+  display: flex; flex-direction: column; gap: 1px; font: inherit; color: inherit; }
+.apple .index-body:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 8px; }
+.apple .index-code { font-size: 11px; color: var(--faint); margin-top: 6px; }
+.apple .index-val { font-size: 26px; font-weight: 650; letter-spacing: -.035em; margin-top: 4px; font-variant-numeric: tabular-nums; }
+.apple .index-delta { font-size: 12px; font-weight: 600; margin-top: 1px; font-variant-numeric: tabular-nums; }
+.apple .index-delta.up { color: var(--up); }
+.apple .index-delta.down { color: var(--down); }
+.apple .index-spark { display: block; height: 38px; margin-top: 8px; }
+.apple .index-spark svg { width: 100%; height: 100%; display: block; }
+/* A slot reserves the value's height while its series loads, so nothing shifts. */
+.apple .index-skel { display: block; height: 30px; margin-top: 6px; width: 62%; border-radius: 7px;
+  background: linear-gradient(90deg, #f0f0f3 25%, #e6e6ea 50%, #f0f0f3 75%);
+  background-size: 200% 100%; animation: apple-shimmer 1.4s ease-in-out infinite; }
+@keyframes apple-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+/* List–detail: a scannable rail on the left, one subject on the right.
+   The detail pane is the only place a subject is described, so there is no
+   second panel repeating the same name, price and date range. */
+.apple .market-layout { display: grid; grid-template-columns: 264px minmax(0, 1fr); gap: 18px; align-items: start; }
+.apple .rail { padding: 14px; display: flex; flex-direction: column; gap: 0; }
+/* The shared search wrapper is a flex item sized for a horizontal toolbar;
+   inside a vertical rail it must not claim 220px of height. */
+.apple .rail .search-wrap { flex: none; }
+.apple .rail-group { display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  margin: 16px 9px 4px; font-size: 11px; font-weight: 650; letter-spacing: .07em; text-transform: uppercase; color: var(--faint); }
+.apple .rail-empty { padding: 4px 9px 6px; font-size: 12px; color: var(--faint); line-height: 1.7; }
+.apple .rail-item { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  width: 100%; padding: 7px 9px; border: 0; border-radius: 9px; background: transparent; text-align: left; }
+.apple .rail-item:hover { background: rgba(0,0,0,.04); }
+.apple .rail-item[data-active="true"] { background: var(--accent-soft); }
+.apple .rail-item[data-active="true"] .nm { color: var(--accent); font-weight: 600; }
+.apple .rail-item .nm { font-size: 13px; font-weight: 550; }
+.apple .rail-item .cd { font-size: 11px; color: var(--faint); margin-top: 1px; }
+.apple .rail-item .px { font-size: 12px; font-weight: 600; }
+.apple .detail { padding: 22px 24px; }
+.apple .detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+.apple .detail-name { font-size: 19px; font-weight: 650; letter-spacing: -.022em; }
+.apple .detail-meta { margin-top: 5px; font-size: 12px; color: var(--muted); }
+.apple .detail-quote { text-align: right; flex: none; }
+.apple .detail-price { font-size: 32px; font-weight: 650; letter-spacing: -.04em; line-height: 1.08; }
+.apple .detail-delta { font-size: 13px; font-weight: 600; margin-top: 4px; }
+.apple .detail-delta.up { color: var(--up); }
+.apple .detail-delta.down { color: var(--down); }
+.apple .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+.apple .toolbar .grow { flex: 1 1 0; min-width: 0; }
+.apple .search-wrap { position: relative; flex: 1 1 220px; min-width: 0; }
+.apple .hits { position: absolute; z-index: 20; left: 0; right: 0; top: calc(100% + 6px); background: var(--surface); border-radius: 12px; box-shadow: 0 12px 34px rgba(0,0,0,.14); border: 1px solid var(--border); overflow: hidden; max-height: 280px; overflow-y: auto; }
+.apple .hits button { display: flex; justify-content: space-between; gap: 12px; width: 100%; border: 0; border-bottom: 1px solid var(--border); background: transparent; padding: 10px 14px; text-align: left; font-size: 13px; }
+.apple .hits button:hover { background: var(--accent-soft); }
+.apple .ops-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px 14px; }
+.apple .op-row { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--border); font-size: 12px; min-width: 0; }
+.apple .op-row:last-child { border-bottom: 0; }
+.apple .op-row .op { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--fg); overflow-wrap: anywhere; }
+.apple .op-row .lb { color: var(--muted); }
+.apple .op-group { margin-bottom: 20px; }
+.apple .op-group h3 { font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+.apple .run-steps { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
+.apple .run-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+.apple .run-step .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #e9e9ee; color: var(--muted); font-size: 11px; font-weight: 650; }
+.apple .run-step.done .n { background: var(--accent); color: #fff; }
+.apple .run-step.done { color: var(--fg); font-weight: 600; }
+.apple .run-arrow { color: var(--faint); }
+
+@media (max-width: 1280px) {
+  .apple .market-layout { grid-template-columns: 224px minmax(0, 1fr); }
+  .apple .g4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 1020px) {
+  .apple .layout { grid-template-columns: 1fr; }
+  .apple .sidebar { position: static; height: auto; flex-direction: row; align-items: center; gap: 16px; padding: 10px 16px; border-right: 0; border-bottom: 1px solid rgba(0,0,0,.06); overflow-x: auto; }
+  .apple .side-group { flex-direction: row; align-items: center; gap: 4px; }
+  .apple .side-label { display: none; }
+  .apple .side-item { width: auto; flex: none; }
+  .apple .content { padding: 24px 20px 48px; }
+  .apple .index-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .apple .g3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .apple .ops-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  .apple .topbar { padding: 0 16px; gap: 12px; }
+  .apple .topmeta { display: none; }
+  .apple .content { padding: 20px 14px 40px; }
+  .apple .pagehead h1 { font-size: 25px; }
+  .apple .market-layout { grid-template-columns: 1fr; }
+  .apple .g2, .apple .g3, .apple .g4, .apple .index-strip, .apple .form-grid { grid-template-columns: 1fr; }
+  .apple .span2 { grid-column: auto; }
+  .apple .card { padding: 17px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .apple .btn, .apple .side-item, .apple .index-card { transition: background .16s, border-color .16s, color .16s; }
+}

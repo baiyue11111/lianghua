@@ -1,6 +1,6 @@
 import {useMemo} from 'react';
 import {useValue,useOperation} from '../interaction/model';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../shared/chart';
 import type {RunDetail,BenchmarkSpec,BenchmarkSeries} from '@display/research/port';
 import {benchmarkCurves} from '@display/research/curves';
 import {day,errorMessage,text} from '../shared/format';

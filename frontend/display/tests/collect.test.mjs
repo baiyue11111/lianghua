@@ -48,3 +48,8 @@ test('old foreground auto and interval options are rejected',async()=>{
   await assert.rejects(collect(values,{signal:new AbortController().signal,progress:()=>{},call:async()=>{throw Error('must not call');}}));
  }
 });
+test('the removed doctor command does not submit a collection',async()=>{
+ let calls=0;
+ await assert.rejects(collect({selector:'TEST:doctor'},{signal:new AbortController().signal,progress:()=>{},call:async()=>{calls++;}}));
+ assert.equal(calls,0);
+});

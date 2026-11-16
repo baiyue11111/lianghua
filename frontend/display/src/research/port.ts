@@ -3,7 +3,10 @@ export type RecordData = Record<string, unknown>;
 export interface Run {
   id:string; run_id:string; strategy_id:string; status:string; qualification:string;
   limitations:string[]; metrics:Record<string,number|null>; manifest_file:string;
-  manifest_sha256:string; metrics_sha256:string; source_hashes:Record<string,string>;
+  manifest_sha256:string; metrics_sha256:string;
+  // Provenance and the full configuration are per-run payloads: a list of runs
+  // carries headers, and only the run a reader opens carries its evidence.
+  source_hashes?:Record<string,string>; module?:string;
   config_hash:string|null; note:string;
 }
 export interface RunDetail extends Run {

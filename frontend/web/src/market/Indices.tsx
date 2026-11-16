@@ -1,5 +1,5 @@
 import {currency,day,errorMessage,text} from '../shared/format';
-import ReactECharts from 'echarts-for-react';
+import ReactECharts from '../shared/chart';
 import {useOperation,useValue} from '../interaction/model';
 import type {BenchmarkSpec,BenchmarkSeries} from '@display/research/port';
 export default function Indices(){

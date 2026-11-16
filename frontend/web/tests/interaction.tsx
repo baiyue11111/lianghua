@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- standalone browser fixture with local components */
 import {createRoot} from 'react-dom/client';
 import {createDisplay} from '@display/core';
 import {DisplayProvider,useOperation,useValue} from '../src/interaction/model';

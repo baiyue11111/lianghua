@@ -97,3 +97,16 @@ test('editing another target does not traverse the loaded archive again',async()
  assert.equal(visits,0);
  assert.equal(archived.values.find[0].rows[0].equity,120);
 });
+
+test('semantic presentation and extensions survive the wire unchanged',async()=>{
+ const presentation={title:'证券检索',role:'data-search',fields:[{path:'/items/0/代码',label:'代码',role:'security',format:'code',order:1,visible:true}]};
+ const extensions={'lianghua:operation':'data.search'};
+ const core=createDisplay({...options,backend:{send:async r=>[{...msg(r,{items:[{代码:'sh.600000',最新收盘:10.21}]},'collection'),presentation,extensions}]}});
+ await core.dispatch(action('invoke','find'));
+ const slot=core.snapshot().targets.form;
+ assert.equal(slot.messages[0].presentation.title,'证券检索');
+ assert.equal(slot.messages[0].presentation.fields[0].path,'/items/0/代码');
+ assert.equal(slot.messages[0].extensions['lianghua:operation'],'data.search');
+ assert.equal(slot.values.find[0].items[0].代码,'sh.600000');
+ core.dispose();
+});

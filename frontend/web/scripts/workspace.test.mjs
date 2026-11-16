@@ -45,7 +45,7 @@ test('collection renders real status; only user events submit write requests',as
  await f.read('market:schedule','collection.automatic');await f.read('market:task','collection.current');tree=f.render('Collection');assert.match(tree.html,/空闲/);
  await find(tree,'自动采集').onChange({target:{checked:true}});await settle();
  await find(f.render('Collection'),'手动采集').onClick();await settle();
- assert.deepEqual(f.calls.filter(c=>['collection.set_automatic','collection.start'].includes(c.operation)),[{operation:'collection.set_automatic',data:{enabled:true}},{operation:'collection.start',data:{mode:'auto'}}]);
+ assert.deepEqual(f.calls.filter(c=>['collection.set_automatic','collection.start'].includes(c.operation)),[{operation:'collection.set_automatic',data:{market:'沪深',enabled:true}},{operation:'collection.start',data:{mode:'auto'}}]);
  }finally{f.core.dispose()}
 });
 
@@ -62,8 +62,15 @@ test('CLI submits exactly one server path, renders every interval result, refres
  try{await failed.edit('cli-form',{config:'/server/bad.json'});const tree=failed.render('Backtest',props);await tree.nodes.find(n=>n.type==='form').props.onSubmit({preventDefault(){}});await settle();assert.match(failed.render('Backtest',props).html,/区间回测失败/);assert.equal(refreshed,2)}finally{failed.core.dispose()}
 });
 
-test('workspace has exactly two primary destinations and no audit or sync navigation',()=>{
- const f=fixture();try{const tree=f.render('Workspace');const nav=tree.nodes.filter(n=>n.props['data-od-id']?.startsWith('nav-'));assert.deepEqual(nav.map(n=>n.children[0]),['行情','策略研究']);assert.doesNotMatch(tree.html,/数据审核|数据同步|营销/);assert.equal(f.calls.length,0)}finally{f.core.dispose()}
+test('workspace exposes the five redesigned destinations',()=>{
+ const f=fixture();try{
+  const tree=f.render('Workspace');
+  const nav=tree.nodes.filter(n=>n.props['data-od-id']?.startsWith('nav-'));
+  assert.deepEqual(nav.map(n=>n.props['data-od-id']),['nav-market','nav-strategies','nav-result','nav-data','nav-run']);
+  assert.match(tree.html,/行情/);assert.match(tree.html,/数据中心/);
+  assert.doesNotMatch(tree.html,/数据审核|数据同步|营销/);
+  assert.equal(f.calls.length,0);
+ }finally{f.core.dispose()}
 });
 
 test('strategy detail exposes readable historical configuration while preserving stored identity',async()=>{
@@ -158,7 +165,14 @@ test('technical errors are classified without leaking original text anywhere',as
 test('responsive contract: readable sizes and non-wrapping values, mobile cards instead of wide core tables',async()=>{
  const {readFile}=await import('node:fs/promises');const css=await readFile(new URL('../src/shared/app.css',import.meta.url),'utf8');
  assert.doesNotMatch(css,/font-size:\s*(?:[0-9]|1[0-5])px|\.small\b/);assert.match(css,/\.value\{white-space:nowrap/);assert.match(css,/@media\(max-width:700px\)/);assert.match(css,/\.trades thead\{display:none\}/);assert.match(css,/\.fields dd\.value\{min-width:max-content\}/);
- const f=fixture();try{const tree=f.render('Workspace');assert.ok(tree.html.indexOf('data-od-id="market-chart"')<tree.html.indexOf('data-od-id="collection"'));}finally{f.core.dispose()}
+ const f=fixture();try{const tree=f.render('Workspace');
+  // One navigation model: each page is linked exactly once.
+  for(const id of ['market','strategies','result','data','run'])assert.equal((tree.html.match(new RegExp(`data-od-id="nav-${id}"`,'g'))||[]).length,1);
+  // The reading page owns one detail pane and no operating controls; collection
+  // starts and schedules belong to the data page.
+  assert.ok(tree.html.indexOf('data-od-id="market-detail"')>0);
+  assert.doesNotMatch(tree.html,/collection\.start|collection\.set_automatic|data-od-id="collection"/);
+ }finally{f.core.dispose()}
 });
 
 test('recorded security selections remain visible in configuration summaries',()=>{
@@ -166,4 +180,35 @@ test('recorded security selections remain visible in configuration summaries',()
  assert.equal(configuration(value)[0].value,'600009、000002');
  const combined=run('both','signal',{market:{codes:['600009']},symbols:['600009','000002']});
  assert.equal(configuration(combined)[0].value,'600009、000002');
+});
+
+test('generic resource renderer dispatches by kind and semantic field hints',()=>{
+ const f=fixture();
+ try{
+  const table=f.render('ResourceView',{message:{
+   message_id:'m-1',kind:'collection',type:'urn:test',schema:'urn:test',correlation_id:null,
+   data:{items:[{代码:'sh.600000',名称:'测试证券',最新收盘:10.21}]},
+   presentation:{title:'证券检索',role:'data-search',fields:[
+    {path:'/items/0/代码',label:'代码',role:'security',format:'code',order:1,visible:true},
+    {path:'/items/0/名称',label:'名称',role:'text',format:'plain',order:2,visible:true},
+    {path:'/items/0/最新收盘',label:'最新收盘',role:'price',format:'currency',unit:'CNY',precision:2,order:3,visible:true},
+   ]},extensions:{'lianghua:market':'沪深'},
+  }});
+  assert.match(table.html,/代码/);assert.match(table.html,/最新收盘/);
+  assert.match(table.html,/sh\.600000/);assert.match(table.html,/¥10\.21/);
+
+  const series=f.render('ResourceView',{message:{
+   message_id:'m-2',kind:'series',type:'urn:test',schema:'urn:test',correlation_id:null,
+   data:{dates:['2024-01-02'],candles:[[10,11,9,12]],volumes:[100]},
+   presentation:{title:'行情序列',role:'kline',fields:[]},
+  }});
+  const option=series.nodes.find(node=>node.props.option).props.option;
+  assert.equal(option.series[0].type,'candlestick');
+
+  const problem=f.render('ResourceView',{message:{
+   message_id:'m-3',kind:'problem',type:'urn:test',schema:'urn:test',correlation_id:null,
+   data:{title:'配置或参数无效',detail:'bad input'},presentation:{title:'协议请求未完成',role:'problem',fields:[]},
+  }});
+  assert.match(problem.html,/配置或参数无效/);
+ }finally{f.core.dispose()}
 });

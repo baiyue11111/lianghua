@@ -9035,13 +9035,13 @@ var collect = async (raw, { call, progress, signal }) => {
   const [name, intent] = parts;
   const range = /^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent ?? "");
   const command = range ? "range" : intent;
-  if (parts.length !== 2 || !name || !["latest", "range", "auto-on", "auto-off", "check", "doctor", "status"].includes(command)) throw Error("\u9700\u8981 <market>:[start,end] \u6216 latest\u3001range\u3001auto-on\u3001auto-off\u3001check\u3001doctor\u3001status");
+  if (parts.length !== 2 || !name || !["latest", "range", "auto-on", "auto-off", "check", "status"].includes(command)) throw Error("\u9700\u8981 <market>:[start,end] \u6216 latest\u3001range\u3001auto-on\u3001auto-off\u3001check\u3001status");
   if (range) {
     if (values.start !== void 0 || values.end !== void 0) throw Error("\u533A\u95F4\u4E0D\u80FD\u4E0E start\u3001end \u91CD\u590D\u586B\u5199");
     values.start = range[1].length === 4 ? range[1] + "-01-01" : range[1];
     values.end = range[2].length === 4 ? range[2] + "-12-31" : range[2];
   }
-  if (values.refresh && !["range", "doctor"].includes(command)) throw Error("refresh \u4EC5\u7528\u4E8E range \u6216 doctor");
+  if (values.refresh && command !== "range") throw Error("refresh \u4EC5\u7528\u4E8E range");
   if (["auto-on", "auto-off", "status"].includes(command) && Object.keys(values).some((key) => key !== "selector")) throw Error(`${command} \u4E0D\u63A5\u53D7\u6536\u96C6\u53C2\u6570`);
   if (command === "latest" && values.start !== void 0) throw Error("latest \u81EA\u52A8\u786E\u5B9A\u8D77\u59CB\u65E5\u671F");
   if (command === "range" && (!values.start || !values.end)) throw Error("range \u9700\u8981 start \u548C end");
@@ -9104,10 +9104,10 @@ var defs = {
   "research.run": { input: object2({ id: text, offset: integer }) },
   "research.benchmarks": { input: object2() },
   "research.benchmark": { input: object2({ id: text, start: text, end: text }) },
-  "collection.sources": { input: object2(), poll: 3e3 },
+  "collection.sources": { input: object2() },
   "collection.sync": { input: object2({ id: text, input: { type: "object" } }), mode: "write" },
   "collection.schedule": { input: object2({ id: text, enabled: boolean, interval_seconds: { type: "integer", minimum: 30 }, input: { type: "object" } }), mode: "write" },
-  "collection.job": { input: object2({ id: text }), poll: 1e3 },
+  "collection.job": { input: object2({ id: text }) },
   "collection.snapshot": { input: object2({ id: text, offset: integer }) },
   "collection.evidence": { input: object2({ id: text, index: integer }), changes: (_state, _target, _request, messages) => {
     const record = messages[0]?.data;
@@ -9115,26 +9115,25 @@ var defs = {
     return { audit: { status: review?.status ?? "pending", note: review?.note ?? "" } };
   } },
   "data.research_inputs": { input: object2() },
-  "data.status": { input: object2({ rescan: boolean }), poll: 3e3 },
+  "data.status": { input: object2() },
   "data.search": { input: object2({ q: text }) },
   "data.bars": { input: object2({ code: text, freq: text, adj: text, start: text, end: text }, ["code", "freq", "adj"]) },
   "collection.start": { input: { type: "object" }, mode: "write" },
-  "collection.current": { input: object2(), poll: 1e3 },
+  "collection.current": { input: object2() },
   "collection.stop": { input: object2(), mode: "write" },
-  "collection.automatic": { input: object2({ market: text }), poll: 1e3 },
+  "collection.automatic": { input: object2({ market: text }) },
   "collection.set_automatic": { input: object2({ market: text, enabled: boolean }), mode: "write" },
   "service.info": { input: object2() },
   "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },
-  "collection.merge_job": { input: object2(), poll: 1e3 },
-  "data.check": { input: object2(), poll: 3e3 },
+  "collection.merge_job": { input: object2() },
+  "data.check": { input: object2() },
   "collection.repair": { input: object2({ id: text }), mode: "write" },
-  "collection.repair_job": { input: object2(), poll: 1e3 },
+  "collection.repair_job": { input: object2() },
   "cli.backtest": { input: object2({ config: text }), mode: "write" },
   "cli.predict": { input: object2({ config: text, account: text }) },
   "collection.describe": { input: object2() },
   "collection.inspect": { input: object2({ source_id: text, codes: { type: "array", items: text }, start: text, end: text, fields: { type: "array", items: text } }, ["source_id"]) },
-  "collection.doctor": { input: object2({ source_id: text, codes: { type: "array", items: text, minItems: 1 }, start: text, end: text, refresh: boolean }, ["source_id", "codes"]), mode: "write" },
-  "collection.run": { input: { oneOf: [object2({ market: text, command: { enum: ["range", "latest", "check", "doctor", "status"] }, data: { type: "array", items: text }, codes: { type: "array", items: text }, fields: { type: "array", items: text }, start: text, end: text, refresh: boolean }, ["market", "command"]), { type: "object", required: ["source_id"], properties: { source_id: text }, not: { required: ["market"] }, additionalProperties: true }] }, mode: "write" },
+  "collection.run": { input: { oneOf: [object2({ market: text, command: { enum: ["range", "latest", "check", "status"] }, data: { type: "array", items: text }, codes: { type: "array", items: text }, fields: { type: "array", items: text }, start: text, end: text, refresh: boolean }, ["market", "command"]), { type: "object", required: ["source_id"], properties: { source_id: text }, not: { required: ["market"] }, additionalProperties: true }] }, mode: "write" },
   "cli.collect": { input: object2({ selector: text, data: text, codes: text, fields: text, start: text, end: text, refresh: boolean }, ["selector"]), mode: "write" }
 };
 var inputSchema = (operation) => `urn:lianghua:ui:input:${operation}:v1`;
@@ -9144,7 +9143,7 @@ function features() {
   const operations = Object.entries(defs).map(([operation, definition]) => {
     schemas[inputSchema(operation)] = definition.input;
     schemas[outputSchema(operation)] = {};
-    return { operation, input_schema: inputSchema(operation), response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"], mode: definition.mode ?? "read", poll: definition.poll, changes: definition.changes, ...operation === "cli.collect" ? { execute: collect } : {} };
+    return { operation, input_schema: inputSchema(operation), response_schemas: [outputSchema(operation), "urn:lianghua:ui:problem:v1"], mode: definition.mode ?? "read", changes: definition.changes, ...operation === "cli.collect" ? { execute: collect } : {} };
   });
   const prepare = (raw) => {
     const data = raw;

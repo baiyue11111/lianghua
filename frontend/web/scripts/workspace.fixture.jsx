@@ -13,6 +13,7 @@ import Research from '../src/research/Research';
 import {RecordTable} from '../src/shared/Records';
 import Fields from '../src/shared/Fields';
 import BenchmarkChart from '../src/research/BenchmarkChart';
+import {ResourceView} from '../src/apple/Resource';
 export * from '../src/research/model';
 export * from '../src/shared/format';
 export {strategyGroups as originalGroups} from '../../display/src/research/research-model';
@@ -23,13 +24,18 @@ export function fixture(responses={}){
     calls.push({operation:request.operation,data:request.data});
     const value=responses[request.operation];
     if(value instanceof Error)throw value;
-    return [{message_id:request.request_id+'-response',kind:'resource',type:'urn:test',schema:outputSchema(request.operation),correlation_id:request.request_id,data:typeof value==='function'?await value(request.data):value??{}}];
+    return [{
+      message_id:request.request_id+'-response',kind:'resource',type:'urn:test',schema:outputSchema(request.operation),
+      correlation_id:request.request_id,data:typeof value==='function'?await value(request.data):value??{},
+      presentation:{title:request.operation,role:request.operation.replace('.','-'),fields:[]},
+      extensions:{'lianghua:operation':request.operation},
+    }];
   }}});
   const edit=(target,data)=>core.dispatch(action('edit',target,data));
   const read=(target,operation,data={})=>core.dispatch(action('invoke',target,data,operation));
   function render(name,props={}){
     nodes.length=0;
-    const Component={Workspace,Chart,Collection,Backtest,Research,Indices,RecordTable,Fields,BenchmarkChart}[name];
+    const Component={Workspace,Chart,Collection,Backtest,Research,Indices,RecordTable,Fields,BenchmarkChart,ResourceView}[name];
     const html=renderToString(<DisplayProvider value={core}><Component {...props}/></DisplayProvider>);
     return {html,nodes:[...nodes]};
   }

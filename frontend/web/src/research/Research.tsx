@@ -21,7 +21,7 @@ export default function Research(){
  const archives=useOperation<{items:Run[]}>('research:archives','research.runs');
  const plugins=useOperation<StrategyCatalog>('research:catalog','backtest.strategies');
  const selected=useOperation<RunDetail>('research:detail','research.run',{id:current,offset},!!current);
- const runs=archives.value?.items??[],catalog=plugins.value;
+ const runs=useMemo(()=>archives.value?.items??[],[archives.value]),catalog=plugins.value;
  const groups=useMemo(()=>strategyGroups(runs,catalog?.items),[runs,catalog]);
  const group=groups.find(item=>item.key===groupId),names=attemptNames(group?.runs??[],savedNames);
  const archivedName=(key:string)=>`已移除策略 ${groups.filter(item=>!item.spec).map(item=>item.key).sort().indexOf(key)+1}`;

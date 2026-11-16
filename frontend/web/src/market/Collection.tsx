@@ -2,7 +2,7 @@ import type {ContinuousFetch,FetchJob} from '@display/lib/market';
 import {useOperation} from '../interaction/model';
 import {errorMessage,number,status} from '../shared/format';
 export default function Collection(){
- const schedule=useOperation<ContinuousFetch>('market:schedule','collection.automatic');
+ const schedule=useOperation<ContinuousFetch>('market:schedule','collection.automatic',{market:'沪深'});
  const task=useOperation<FetchJob>('market:task','collection.current');
  const toggle=useOperation('market:toggle','collection.set_automatic',{},true,false);
  const start=useOperation('market:start','collection.start',{},true,false);
@@ -10,7 +10,7 @@ export default function Collection(){
  const value=schedule.value,job=task.value;
  const busy=toggle.status==='pending'||start.status==='pending'||stop.status==='pending';
  const errors=[schedule.error,task.error,toggle.error,start.error,stop.error,value?.schedule_error,value?.latest_data_error,job?.error].filter(Boolean);
- async function change(enabled:boolean){await toggle.invoke({enabled});await schedule.invoke();}
+ async function change(enabled:boolean){await toggle.invoke({market:'沪深',enabled});await schedule.invoke({market:'沪深'});}
  async function collect(){await start.invoke({mode:'auto'});await task.invoke();}
  return <section className="collection" data-od-id="collection" aria-label="行情采集">
   <div className="collection-controls">

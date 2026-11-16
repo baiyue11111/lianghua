@@ -4,14 +4,14 @@ import {backtestInput} from './research/strategy-model';
 import type {StrategySpec} from './research/port';
 const object=(properties:Record<string,object>={},required=Object.keys(properties))=>({type:'object',properties,required,additionalProperties:false});
 const text={type:'string'},integer={type:'integer',minimum:0},boolean={type:'boolean'};
-const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Operation['changes']}>={
+const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes']}>={
  'backtest.strategies':{input:object()},'research.runs':{input:object()},
  'research.run':{input:object({id:text,offset:integer})},
  'research.benchmarks':{input:object()},'research.benchmark':{input:object({id:text,start:text,end:text})},
- 'collection.sources':{input:object(),poll:3000},
+ 'collection.sources':{input:object()},
  'collection.sync':{input:object({id:text,input:{type:'object'}}),mode:'write'},
  'collection.schedule':{input:object({id:text,enabled:boolean,interval_seconds:{type:'integer',minimum:30},input:{type:'object'}}),mode:'write'},
- 'collection.job':{input:object({id:text}),poll:1000},
+ 'collection.job':{input:object({id:text})},
  'collection.snapshot':{input:object({id:text,offset:integer})},
  'collection.evidence':{input:object({id:text,index:integer}),changes:(_state,_target,_request,messages)=>{
    const record=messages[0]?.data as {reviews?:{status:string;note:string}[]};
@@ -19,20 +19,19 @@ const defs:Record<string,{input:object;mode?:'write';poll?:number;changes?:Opera
    return {audit:{status:review?.status??'pending',note:review?.note??''}};
  }},
  'data.research_inputs':{input:object()},
- 'data.status':{input:object({rescan:boolean}),poll:3000},'data.search':{input:object({q:text})},
+ 'data.status':{input:object()},'data.search':{input:object({q:text})},
  'data.bars':{input:object({code:text,freq:text,adj:text,start:text,end:text},['code','freq','adj'])},
- 'collection.start':{input:{type:'object'},mode:'write'},'collection.current':{input:object(),poll:1000},
- 'collection.stop':{input:object(),mode:'write'},'collection.automatic':{input:object({market:text}),poll:1000},
+ 'collection.start':{input:{type:'object'},mode:'write'},'collection.current':{input:object()},
+ 'collection.stop':{input:object(),mode:'write'},'collection.automatic':{input:object({market:text})},
  'collection.set_automatic':{input:object({market:text,enabled:boolean}),mode:'write'},
  'service.info':{input:object()},
- 'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object(),poll:1000},
- 'data.check':{input:object(),poll:3000},'collection.repair':{input:object({id:text}),mode:'write'},'collection.repair_job':{input:object(),poll:1000},
+ 'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object()},
+ 'data.check':{input:object()},'collection.repair':{input:object({id:text}),mode:'write'},'collection.repair_job':{input:object()},
  'cli.backtest':{input:object({config:text}),mode:'write'},
  'cli.predict':{input:object({config:text,account:text})},
  'collection.describe':{input:object()},
  'collection.inspect':{input:object({source_id:text,codes:{type:'array',items:text},start:text,end:text,fields:{type:'array',items:text}},['source_id'])},
- 'collection.doctor':{input:object({source_id:text,codes:{type:'array',items:text,minItems:1},start:text,end:text,refresh:boolean},['source_id','codes']),mode:'write'},
- 'collection.run':{input:{oneOf:[object({market:text,command:{enum:['range','latest','check','doctor','status']},data:{type:'array',items:text},codes:{type:'array',items:text},fields:{type:'array',items:text},start:text,end:text,refresh:boolean},['market','command']),{type:'object',required:['source_id'],properties:{source_id:text},not:{required:['market']},additionalProperties:true}]},mode:'write'},
+ 'collection.run':{input:{oneOf:[object({market:text,command:{enum:['range','latest','check','status']},data:{type:'array',items:text},codes:{type:'array',items:text},fields:{type:'array',items:text},start:text,end:text,refresh:boolean},['market','command']),{type:'object',required:['source_id'],properties:{source_id:text},not:{required:['market']},additionalProperties:true}]},mode:'write'},
  'cli.collect':{input:object({selector:text,data:text,codes:text,fields:text,start:text,end:text,refresh:boolean},['selector']),mode:'write'},
 };
 export const inputSchema=(operation:string)=>`urn:lianghua:ui:input:${operation}:v1`;
@@ -43,7 +42,7 @@ export function features():Pick<Options,'operations'|'schemas'> {
    schemas[inputSchema(operation)]=definition.input;
    // Existing feature data is JSON; transport/schema migration belongs to the backend adapter.
    schemas[outputSchema(operation)]={};
-   return {operation,input_schema:inputSchema(operation),response_schemas:[outputSchema(operation),'urn:lianghua:ui:problem:v1'],mode:definition.mode??'read',poll:definition.poll,changes:definition.changes,...(operation==='cli.collect'?{execute:collect}:{})};
+   return {operation,input_schema:inputSchema(operation),response_schemas:[outputSchema(operation),'urn:lianghua:ui:problem:v1'],mode:definition.mode??'read',changes:definition.changes,...(operation==='cli.collect'?{execute:collect}:{})};
  });
  const prepare=(raw:JsonValue):JsonValue=>{
    const data=raw as unknown as {spec:StrategySpec;values:Record<string,string|boolean>;capital:string;start:string;end:string;dataset:string};

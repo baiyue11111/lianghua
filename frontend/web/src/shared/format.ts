@@ -4,7 +4,7 @@ export function record(value:unknown):Record<string,unknown>{return value!==null
 export function text(value:unknown):string|undefined{
  if(typeof value!=='string'||!value.trim())return undefined;
  const s=value.trim();
- if(/[a-f\d]{16,}|(?:[A-Za-z_]\w*\.){2,}|\b(?:plugins|frontend|src|core)\.|[\\/]|[{}\[\]]|\b(?:sha256|traceback|order_id|run_id)\b|\d{2}:\d{2}:\d{2}/i.test(s))return undefined;
+ if(/[a-f\d]{16,}|(?:[A-Za-z_]\w*\.){2,}|\b(?:plugins|frontend|src|core)\.|[\\/]|[{}\x5B\]]|\b(?:sha256|traceback|order_id|run_id)\b|\d{2}:\d{2}:\d{2}/i.test(s))return undefined;
  if(/^[A-Za-z\d]+(?:[_-][A-Za-z\d]+)+$/.test(s))return undefined;
  return s;
 }

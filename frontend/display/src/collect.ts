@@ -17,13 +17,13 @@ export const collect:NonNullable<Operation['execute']>=async(raw,{call,progress,
  const [name,intent]=parts;
  const range=/^\[\s*(\d{4}(?:-\d{2}-\d{2})?)\s*,\s*(\d{4}(?:-\d{2}-\d{2})?)\s*\]$/.exec(intent??'');
  const command=range?'range':intent;
- if(parts.length!==2||!name||!['latest','range','auto-on','auto-off','check','doctor','status'].includes(command))throw Error('需要 <market>:[start,end] 或 latest、range、auto-on、auto-off、check、doctor、status');
+ if(parts.length!==2||!name||!['latest','range','auto-on','auto-off','check','status'].includes(command))throw Error('需要 <market>:[start,end] 或 latest、range、auto-on、auto-off、check、status');
  if(range){
   if(values.start!==undefined||values.end!==undefined)throw Error('区间不能与 start、end 重复填写');
   values.start=range[1].length===4?range[1]+'-01-01':range[1];
   values.end=range[2].length===4?range[2]+'-12-31':range[2];
  }
- if(values.refresh&&!['range','doctor'].includes(command))throw Error('refresh 仅用于 range 或 doctor');
+ if(values.refresh&&command!=='range')throw Error('refresh 仅用于 range');
  if(['auto-on','auto-off','status'].includes(command)&&Object.keys(values).some(key=>key!=='selector'))throw Error(`${command} 不接受收集参数`);
  if(command==='latest'&&values.start!==undefined)throw Error('latest 自动确定起始日期');
  if(command==='range'&&(!values.start||!values.end))throw Error('range 需要 start 和 end');
