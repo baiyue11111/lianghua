@@ -286,3 +286,15 @@ test('generic resource renderer dispatches by kind and semantic field hints',()=
   assert.match(problem.html,/配置或参数无效/);
  }finally{f.core.dispose()}
 });
+
+test('an archived run still fetches its own detail on open',async()=>{
+ // The run list carries headers only; equity, trades and the effective config
+ // come from research.run. Gating that request on whether the run is already in
+ // the cached archive page left a known run showing "读取中" forever.
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../src/apple/Result.tsx',import.meta.url),'utf8');
+ const detail=source.split('\n').find(line=>line.includes("'apple:result:detail'")&&line.includes('research.run'));
+ assert.ok(detail,'run detail operation must exist');
+ assert.ok(!/!known|\bknown\b/.test(detail),'detail must not be gated on archive membership: '+detail);
+ assert.match(detail,/,\s*!!runId\s*\)\s*;/, 'only the enabled flag is passed; automatic stays at its default: '+detail);
+});

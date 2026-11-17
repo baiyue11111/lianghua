@@ -96,7 +96,12 @@ export default function Result({runId}: {runId: string}) {
   const known = !!group;
   const loading = archives.status === 'pending' || plugins.status === 'pending';
 
-  const detail = useOperation<RunDetail>('apple:result:detail', 'research.run', {id: runId, offset}, !!runId, !known);
+  // The run detail is the whole point of this page: equity, trades and the
+  // effective config live only here, the archive list carries headers. Always
+  // fetch it when there is an id. Gating on `known` (whether the run happens
+  // to be in the currently cached archive page) left known runs with an empty
+  // detail forever — the archive wasn't a source for these fields.
+  const detail = useOperation<RunDetail>('apple:result:detail', 'research.run', {id: runId, offset}, !!runId);
   const bench = useOperation<BenchmarkSeries>('apple:result:benchmark', 'research.benchmark',
     {id: benchId, start: '2020-01-01', end: new Date().toISOString().slice(0, 10)}, !!benchId);
   const value = detail.value;
