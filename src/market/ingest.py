@@ -258,5 +258,5 @@ def import_legacy(data, project: Path, *, datasets=None, symbols=None, start=Non
                         f'partial import: {len(kept)} of {len(declared)} declared symbols present')
                     manifest['limitations'] = limitations
             data.save_manifest(identity, manifest)
-        data.save_facts(pending_facts)
+        data.save_facts(pending_facts, supersede=True)
         return counts

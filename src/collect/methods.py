@@ -1659,7 +1659,7 @@ class Methods:
                         audit_rows.append({**record, 'raw_page': original.get('raw_page'),
                                            '_previous_hash': previous_hash})
                 if not dry_run:
-                    self.data.save_facts(accepted)
+                    self.data.save_facts(accepted, supersede=True)
             return {'ref': None, 'records': len(accepted), 'failures': failures, 'audit_rows': audit_rows}
         if source.get("data_type") == "facts":
             if (not isinstance(getattr(handler, "value_columns", None), Mapping)

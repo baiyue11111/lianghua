@@ -276,13 +276,22 @@ class DataBus:
     def save_fact(self, payload):
         return self.save_facts((payload,))[0]
 
-    def save_facts(self, payloads, *, batch=2000):
+    def save_facts(self, payloads, *, batch=2000, supersede=False):
         """Write many fact payloads in one transaction, one insert per kind.
 
         A full-market import produces tens of thousands of small payloads. One
         transaction and one parquet file per payload is what made the legacy
         import take hours, so payloads are grouped by kind and written in
         batches inside a single commit.
+
+        ``supersede`` makes one revision authoritative per (kind, code, year):
+        stored rows outside the incoming reference set are replaced for those
+        identities. Adjust references carry their coverage end, so without this
+        a re-collection leaves the old (possibly deficient) revision beside the
+        new one and readers correctly reject the conflict. Dividend (per-year)
+        and security (per-code) identities are unaffected because their
+        reference already denotes the full identity. Default is off so explicit
+        multi-revision writes and conflict tests keep their meaning.
         """
         items = []
         for payload in payloads:
@@ -295,6 +304,8 @@ class DataBus:
         for reference, payload in items:
             grouped.setdefault(payload['kind'], []).append((reference, payload['records']))
         with self.transaction():
+            if supersede:
+                self._supersede_facts(items)
             self.put_rows('fact_coverage',
                           [{k: payload[k] for k in ('kind', 'code', 'start', 'end', 'year', 'source_hash')}
                            | {'reference': reference, 'record_count': len(payload['records'])}
@@ -320,6 +331,33 @@ class DataBus:
                         self.put_rows(name, rows, keys=('reference', 'position'), types=types,
                                       storage='parquet')
         return tuple(reference for reference, _ in items)
+
+    def _supersede_facts(self, items):
+        """Delete stored revisions replaced by ``items`` (same identity, other ref).
+
+        Identity is (kind, code, year). Only adjust varies its reference by
+        coverage end within an identity, so this targets re-collected adjustment
+        history; dividend's year and security's code already span the identity.
+        Deletion is scoped to references not present in the incoming set, so a
+        batch that writes several revisions of one identity keeps all of them.
+        """
+        incoming = {reference: payload for reference, payload in items}
+        stale = {}
+        for reference, payload in incoming.items():
+            kind, code, year = payload['kind'], payload['code'], payload['year']
+            rows = self.scan(TableQuery('fact_coverage', (
+                Filter('kind', 'eq', kind), Filter('code', 'eq', code),
+            ))).table.to_pylist()
+            for row in rows:
+                if (row['year'] == year and row['reference'] not in incoming
+                        and row['reference'] not in stale):
+                    stale[row['reference']] = row['kind']
+        if not stale:
+            return
+        self.delete(TableQuery('fact_coverage', (Filter('reference', 'in', tuple(stale)),)))
+        for kind in set(stale.values()):
+            references = tuple(ref for ref, stored_kind in stale.items() if stored_kind == kind)
+            self.delete(TableQuery('fact_' + kind, (Filter('reference', 'in', references),)))
 
     @staticmethod
     def _fact_rows(entries, numeric):

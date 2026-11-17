@@ -34,6 +34,29 @@ class MarketFactTests(unittest.TestCase):
             result = data.fact(fact_ref('adjust', 'sh.600000', '1990-01-01', '2026-11-12'))
             self.assertEqual(result['records'], rows)
 
+    def test_supersede_replaces_old_adjust_revision_but_keeps_other_identities(self):
+        with tempfile.TemporaryDirectory() as folder:
+            data = build_data(Path(folder))
+            self.addCleanup(data.close)
+            rows = [{'date': '2000-01-01', 'forward': 1.0, 'backward': 1.0}]
+            old = {'schema': 1, 'kind': 'adjust', 'code': 'sh.600000', 'start': '1990-01-01',
+                   'end': '2026-11-09', 'year': None, 'source_hash': 'a' * 64, 'records': rows}
+            new = {**old, 'end': '2026-11-12', 'source_hash': 'b' * 64,
+                   'records': rows + [{'date': '2006-05-12', 'forward': 1.2, 'backward': 2.0}]}
+            dividend = {'schema': 1, 'kind': 'dividend', 'code': 'sh.600000', 'start': None,
+                        'end': None, 'year': '2025', 'source_hash': 'c' * 64, 'records': []}
+            data.save_facts([old, dividend])
+            old_ref = fact_ref('adjust', 'sh.600000', '1990-01-01', '2026-11-09')
+            dividend_ref = fact_ref('dividend', 'sh.600000', year='2025')
+            self.assertIn(old_ref, data.facts((old_ref,)))
+
+            data.save_facts([new], supersede=True)
+
+            new_ref = fact_ref('adjust', 'sh.600000', '1990-01-01', '2026-11-12')
+            self.assertNotIn(old_ref, data.facts((old_ref,)))
+            self.assertEqual(len(data.fact(new_ref)['records']), 2)
+            self.assertIn(dividend_ref, data.facts((dividend_ref,)))
+
     def test_adjustment_merge_requires_common_factor_anchor(self):
         with tempfile.TemporaryDirectory() as folder:
             data = build_data(Path(folder))
