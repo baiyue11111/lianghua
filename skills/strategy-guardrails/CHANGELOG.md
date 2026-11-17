@@ -70,3 +70,31 @@ E1 配置 → PASS、E3 配置 → FAIL（`dilute_positions=60 > max_positions=2
 
 **自检**：`quick_validate.py` 通过；`selftest.py` 5/5；报告经无头浏览器截图校验，
 表格与 KPI 一致、无乱码。
+
+---
+
+## v0.2.0 | 2026-11-17 | 新增检查项（minor）
+
+跨领域核实后把两个经典问题变体的成熟方案落进护栏：数据清洗 = Point-in-Time /
+双时态 + shift-left；静态守卫 = 污点分析（source→sink）+ defense in depth。
+
+**新增文件 / 能力**
+
+| 项 | 内容 | 证据 |
+|---|---|---|
+| `references/external-scanners.md` | lookahead-lint LA001–LA007、leakguard-mcp LG001–LG010 完整规则清单；直接复用 vs 需改造对照；四层放置模型 | 两个工具的官方仓库 README + leakguard benchmark（49 片段，precision 90.4% / recall 100%，作者标注语料自编只作回归夹具） |
+| `check_strategy.py` | 新增 AST taint 引擎：追踪 `account.equity/cash` 及 `account` 别名 → 局部变量 → `TargetSet`/权重 sink；新增 `--no-ast` 做 A/B 对照；解析失败报 medium 不静默跳过 | 跨领域 taint analysis / information flow control；`--strict` 与退出码语义保持向后兼容 |
+| `selftest.py` | 5 → 8 项：别名泄漏 AST 必抓、regex-only 漏报（A/B 证明）、isfinite 纯校验不误报 | 8/8 通过 |
+
+**关键设计决策：只加不减**
+
+AST 命中只新增 high，**不把 regex 的 high 降级**。实证反例 `exp_track_a2.py`：
+`account.equity → nav → self.state["returns"] → exposure → weights` 走列表/字典成员，
+taint 引擎不追踪容器而漏报，但 regex 抓到那一行。曾实现「AST 证明清洁则降级」，
+实测发现会把该真违规降为 medium，已删除。凡静态引擎的「未发现」≠「证明安全」。
+
+**边界**：不追踪容器成员、跨函数状态、跨文件继承；AST PASS 不是 G1 合规证明；
+唯一行为级判定仍是 G2 三档不变性。详见 `external-scanners.md` 第 5 节。
+
+**实测**：全策略目录 125 文件，regex+AST 223 high / 85 medium（旧 regex-only 180 high / 74 medium），
+新增 high 均为 `G1-TAINT-*`，抽查 `exp_alpha_b1` / `exp_qf_h8f1` 确为净值派生权重，真阳性。

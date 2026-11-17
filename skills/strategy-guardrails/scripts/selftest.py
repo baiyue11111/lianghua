@@ -64,6 +64,24 @@ class S:
     def generate(self, frame, account):
         return {"600000": 0.05}
 '''
+# Regex sees only `acct.equity` (no literal `account.equity`), so it misses this.
+# The AST engine follows `acct = account` and flags the tainted return.
+ALIAS_LEAK = '''class S:
+    def generate(self, frame, account):
+        acct = account
+        eq = float(acct.equity)
+        return {"600000": eq}
+'''
+# A finiteness guard on equity that never reaches the weights: must stay PASS.
+# The regex engine's is_validation_only() allows same-line `isfinite(`, and the
+# AST engine propagates no taint (validator result is a bool). Both must agree.
+VALIDATION = '''import math
+class S:
+    def generate(self, frame, account):
+        if not math.isfinite(float(account.equity)):
+            return None
+        return {"600000": 0.05}
+'''
 
 
 def run(args: list[str]) -> int:
@@ -79,6 +97,8 @@ def main() -> int:
             (tmp / f"{name}.json").write_text(json.dumps(fake_output(ret, sharpe)), encoding="utf-8")
         (tmp / "dirty.py").write_text(DIRTY, encoding="utf-8")
         (tmp / "clean.py").write_text(CLEAN, encoding="utf-8")
+        (tmp / "alias_leak.py").write_text(ALIAS_LEAK, encoding="utf-8")
+        (tmp / "validation.py").write_text(VALIDATION, encoding="utf-8")
         (tmp / "cfg.json").write_text(json.dumps({
             "initial_cash": "1000000",
             "params": {"principal": 1000000.0, "dilute_positions": 60, "max_positions": 20},
@@ -99,6 +119,12 @@ def main() -> int:
              run([static, str(tmp / "clean.py")]), 0),
             ("static: active dilution in config -> FAIL",
              run([static, "--config", str(tmp / "cfg.json")]), 1),
+            ("ast: aliased account.equity -> FAIL",
+             run([static, str(tmp / "alias_leak.py")]), 1),
+            ("ast: regex-only misses alias -> PASS (A/B proof)",
+             run([static, "--no-ast", str(tmp / "alias_leak.py")]), 0),
+            ("ast: isfinite validation only -> PASS (no false positive)",
+             run([static, str(tmp / "validation.py")]), 0),
         ]
         for label, actual, expected in checks:
             ok = actual == expected

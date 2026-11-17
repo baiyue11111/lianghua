@@ -122,6 +122,7 @@ FAIL 的策略不得进入排名、不得用于给出持仓结论，也不得把
 | `references/case-r29.md` | 需要引用原始证据、九格数据、机制链、配置片段时 |
 | `references/case-r31.md` | 判断「配置层压平能否替代源码改造」、同族策略 G2 分化、双标准验收时 |
 | `references/checklist.md` | 写策略前、提交前、验收时的逐项检查表与 grep 模式 |
+| `references/external-scanners.md` | 跨领域核实的成熟方案：lookahead-lint / leakguard 规则清单、外部扫描器 vs G1/G2 分工、AST 引擎已知边界 |
 | `references/engine-contract.md` | 需要内核 schema、整手规则、事件表口径、复权换算时 |
 | `references/iteration.md` | 追加新案例 / 修订规则 / 升版本时 |
 | `CHANGELOG.md` | 想知道某条规则来自哪次实验、何时加入 |
