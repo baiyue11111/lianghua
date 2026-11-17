@@ -308,3 +308,17 @@ test('benchmark window follows the equity curve instead of a fixed 2020 start',a
  assert.ok(/start:\s*day\(equity\[0\]\.at\)/.test(source),'benchmark start must come from the first equity day');
  assert.ok(/end:\s*day\(equity\[equity\.length - 1\]\.at\)/.test(source),'benchmark end must come from the last equity day');
 });
+
+test('kline drag and wheel pan the window instead of zooming it',async()=>{
+ // A horizontal swipe should walk through time, matching the trading-chart
+ // convention. The inside dataZoom defaults (wheel=zoom, no zoomLock) made the
+ // gesture feel like a resize, so pin the pan-only configuration.
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../src/apple/Market.tsx',import.meta.url),'utf8');
+ const lines=source.split('\n');
+ const start=lines.findIndex(line=>line.includes("type: 'inside'")&&line.includes('xAxisIndex'));
+ assert.ok(start>=0,'inside dataZoom must exist');
+ const block=lines.slice(start,start+3).join('\n');
+ for(const flag of ['zoomLock: true','moveOnMouseMove: true','moveOnMouseWheel: true','zoomOnMouseWheel: false'])
+   assert.ok(block.includes(flag),'missing pan flag: '+flag);
+});

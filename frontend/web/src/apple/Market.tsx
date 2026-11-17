@@ -43,7 +43,13 @@ function klineOption(data: KlineResp, freq: string, maOn: number[]) {
       {scale: true, gridIndex: 1, axisLine: {show: false}, axisTick: {show: false},
         splitLine: {show: false}, axisLabel: {show: false}},
     ],
-    dataZoom: [{type: 'inside' as const, xAxisIndex: [0, 1], startValue: from, endValue: n - 1},
+    // Dragging and wheeling move the window through time; they never zoom.
+    // An inside dataZoom defaults to wheel=zoom and no zoomLock, which makes a
+    // horizontal swipe feel like a resize instead of panning. Locking the span
+    // and routing the wheel to move gives the trading-chart convention: slide
+    // left/right to walk the whole loaded series.
+    dataZoom: [{type: 'inside' as const, xAxisIndex: [0, 1], startValue: from, endValue: n - 1,
+      zoomLock: true, moveOnMouseMove: true, moveOnMouseWheel: true, zoomOnMouseWheel: false},
       {type: 'slider' as const, xAxisIndex: [0, 1], bottom: 2, height: 12, startValue: from, endValue: n - 1,
         borderColor: 'transparent', backgroundColor: '#f5f5f7', fillerColor: 'rgba(0,113,227,.12)',
         handleStyle: {color: '#0071e3'}, textStyle: {color: '#a1a1a6', fontSize: 10}}],
