@@ -9099,8 +9099,13 @@ var text = { type: "string" };
 var integer = { type: "integer", minimum: 0 };
 var boolean = { type: "boolean" };
 var defs = {
+  // research.runs is paged by the backend (Research.list(limit, offset)). The
+  // archive screens ask for the whole window with {limit: 2000}; declaring this
+  // input as an empty object made AJV reject that request before it ever left
+  // the browser, leaving every strategy with zero attempts. Keep the two sides
+  // of the contract identical: limit >= 1, offset >= 0, both optional.
   "backtest.strategies": { input: object2() },
-  "research.runs": { input: object2() },
+  "research.runs": { input: object2({ limit: { type: "integer", minimum: 1 }, offset: integer }, []) },
   "research.run": { input: object2({ id: text, offset: integer }) },
   "research.benchmarks": { input: object2() },
   "research.benchmark": { input: object2({ id: text, start: text, end: text }) },

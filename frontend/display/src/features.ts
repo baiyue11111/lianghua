@@ -5,7 +5,13 @@ import type {StrategySpec} from './research/port';
 const object=(properties:Record<string,object>={},required=Object.keys(properties))=>({type:'object',properties,required,additionalProperties:false});
 const text={type:'string'},integer={type:'integer',minimum:0},boolean={type:'boolean'};
 const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes']}>={
- 'backtest.strategies':{input:object()},'research.runs':{input:object()},
+ // research.runs is paged by the backend (Research.list(limit, offset)). The
+ // archive screens ask for the whole window with {limit: 2000}; declaring this
+ // input as an empty object made AJV reject that request before it ever left
+ // the browser, leaving every strategy with zero attempts. Keep the two sides
+ // of the contract identical: limit >= 1, offset >= 0, both optional.
+ 'backtest.strategies':{input:object()},
+ 'research.runs':{input:object({limit:{type:'integer',minimum:1},offset:integer},[])},
  'research.run':{input:object({id:text,offset:integer})},
  'research.benchmarks':{input:object()},'research.benchmark':{input:object({id:text,start:text,end:text})},
  'collection.sources':{input:object()},

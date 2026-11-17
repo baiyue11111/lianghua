@@ -24,6 +24,26 @@ test('a caller cannot execute changed input by omitting an edit action',async()=
  assert.equal(requests.length,1);
  assert.equal(core.snapshot().targets['strategy:strategies.test'].problems[0].code,'check_required');
 });
+test('research.runs accepts the archive window and still rejects unknown input',async()=>{
+ // The archive screens read {limit: 2000}. When this operation's input schema
+ // was an empty object AJV rejected that request in the browser, so no runs
+ // ever arrived and every strategy showed zero attempts.
+ const requests=[];
+ const core=createDisplay({...features(),backend:{send:async request=>{
+   requests.push(request);
+   return [message(request,{items:[],total:0,offset:0,limit:2000})];
+ }}});
+ await core.dispatch({action_id:'runs-ok',kind:'invoke',target:'research:archives',operation:'research.runs',data:{limit:2000}});
+ assert.equal(requests.length,1);
+ assert.deepEqual(requests[0].data,{limit:2000});
+ assert.equal(core.snapshot().targets['research:archives'].operations['research.runs'].status,'succeeded');
+
+ let calls=0;
+ const blocked=createDisplay({...features(),backend:{send:async()=>{calls++;return[]}}});
+ await blocked.dispatch({action_id:'runs-bad',kind:'invoke',target:'research:archives',operation:'research.runs',data:{bogus:1}});
+ assert.equal(calls,0);
+ assert.equal(blocked.snapshot().targets['research:archives'].problems[0].code,'invalid_input');
+});
 test('opening existing evidence restores its review in the interaction model',async()=>{
  const core=createDisplay({...features(),backend:{send:async r=>[message(r,{reviews:[{status:'correct',note:'already checked'}]})]}});
  await core.dispatch({action_id:'sample',kind:'invoke',target:'audit:evidence',operation:'collection.evidence',data:{id:'snapshot',index:0}});
