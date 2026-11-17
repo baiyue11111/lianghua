@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 from core.calculation import AccountExecutionSession
 from core.calculation import AccountLedger
 from protocol import AccountSnapshot, HistoryBar, MarketFrame
-from strategy import catalog, load_strategy
+from strategy import canonical_strategy_id, catalog, load_strategy
 from tests.fee_fixture import rules
 
 
@@ -30,6 +30,23 @@ class StrategyPortTests(unittest.TestCase):
         item = next(item for item in data["items"] if item["module"] == MODULE)
         parameter = next(item for item in item["parameters"] if item["key"] == "rebalance")
         self.assertEqual(parameter["options"], ["daily", "monthly"])
+
+    def test_catalog_publishes_canonical_id_matching_the_run_identity(self):
+        # The catalogue's strategy_id is the archive/grouping identity, so it
+        # must equal the full module name that runs and TargetSets carry. The
+        # Strategy's own short id remains its target-source id.
+        for item in catalog():
+            self.assertEqual(item['strategy_id'], item['module'])
+        self.assertEqual(load_strategy(MODULE, {'fast_window': 2, 'slow_window': 3}).strategy_id,
+                         'moving_average_cross')
+
+    def test_canonical_strategy_id_reconciles_archive_spellings(self):
+        full = 'plugins.strategies.quality_trend'
+        self.assertEqual(canonical_strategy_id(full, 'quality_trend'), full)
+        self.assertEqual(canonical_strategy_id(None, full), full)
+        self.assertEqual(canonical_strategy_id('quality_trend', None), full)
+        self.assertEqual(canonical_strategy_id('', 'quality_trend'), full)
+        self.assertIsNone(canonical_strategy_id(None, ''))
 
     def test_unpriced_holding_does_not_block_other_symbols(self):
         strategy=load_strategy(MODULE,{'fast_window':2,'slow_window':3})

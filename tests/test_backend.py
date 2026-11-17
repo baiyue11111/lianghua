@@ -152,6 +152,31 @@ class LegacyArchiveTests(unittest.TestCase):
             finally:
                 store.close()
 
+    def test_archive_strategy_ids_publish_one_canonical_identity(self):
+        from backend import Research
+        from storage import DataStore
+        with TemporaryDirectory() as root:
+            store = DataStore(Path(root))
+            try:
+                # Three spellings of archived attempts: full module, a bare
+                # short name, and an empty module with a full strategy_id.
+                self.place(store, 'a-full', strategy='plugins.strategies.quality_trend')
+                self.place(store, 'b-bare', strategy='quality_trend', module='quality_trend')
+                self.place(store, 'c-nomodule', strategy='plugins.strategies.moving_average_cross',
+                           module=None)
+                research = Research(store)
+                headers = {item['id']: item['strategy_id'] for item in research.list(limit=10)['items']}
+                self.assertEqual(headers, {
+                    'a-full': 'plugins.strategies.quality_trend',
+                    'b-bare': 'plugins.strategies.quality_trend',
+                    'c-nomodule': 'plugins.strategies.moving_average_cross',
+                })
+                # The detail view publishes the same identity as the index.
+                detail = research.detail('b-bare')
+                self.assertEqual(detail['strategy_id'], 'plugins.strategies.quality_trend')
+            finally:
+                store.close()
+
     def test_a_run_saved_as_documents_opens_by_the_name_in_the_address(self):
         from backend import Research
         from storage import DataStore

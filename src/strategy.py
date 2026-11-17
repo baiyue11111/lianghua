@@ -16,6 +16,29 @@ from protocol import DataRequest, _json_value
 PACKAGE = 'plugins.strategies'
 
 
+def canonical_strategy_id(*values):
+    """The one identity a strategy is archived and grouped under.
+
+    Attempts have been stored under the full module name (``PACKAGE.name``)
+    while the strategy catalogue publishes the short ``Strategy.strategy_id``
+    (a target-source id, not an archive identity). Archives also carry older
+    spellings: a bare short name, or a missing module with a full strategy_id.
+    All of these name the same thing, so the contract exposes one spelling.
+
+    The first value that is already a full module name wins; otherwise the
+    first usable value is prefixed. ``None``/empty values are skipped so a
+    caller can pass the several fields it has without choosing between them.
+    """
+    usable = [value for value in values if isinstance(value, str) and value.strip()]
+    for value in usable:
+        if value.startswith(PACKAGE + '.'):
+            return value
+    if not usable:
+        return None
+    short = usable[0]
+    return short if short.startswith(PACKAGE + '.') else f'{PACKAGE}.{short}'
+
+
 def canonical_hash(value) -> str:
     return sha256(json.dumps(value,sort_keys=True,separators=(',',':'),ensure_ascii=False,allow_nan=False).encode()).hexdigest()
 
@@ -76,7 +99,13 @@ def catalog() -> list[dict]:
         kinds={int:'integer',float:'number',str:'string',bool:'boolean'}
         types=get_type_hints(module.Params)
         parameters=[{'key':item.name,'type':kinds[types[item.name]],'default':getattr(strategy.params,item.name),**dict(item.metadata)} for item in fields(module.Params)]
-        items.append({'module':module.__name__,'strategy_id':strategy.strategy_id,'name':module.NAME,
+        # Publication identity is the full module name — the same spelling runs
+        # and archives use — so a run groups under its catalogue entry without
+        # the reader translating between a short id and a module path. The
+        # Strategy's own short id stays its target-source id, unchanged.
+        items.append({'module':module.__name__,
+                      'strategy_id':canonical_strategy_id(module.__name__, strategy.strategy_id),
+                      'name':module.NAME,
                       'description':module.__doc__,'parameters':parameters,'defaults':asdict(strategy.params)})
     return _json_value(items)
 

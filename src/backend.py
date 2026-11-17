@@ -551,9 +551,14 @@ class Research:
             ORDER BY manifest.id
             """,
             (str(folder / '*' / 'manifest.json'), str(folder / '*' / 'metrics.json'))).table.to_pylist()
+        from strategy import canonical_strategy_id
         return [{
             "id": row['id'], "run_id": row['run_id'] or row['id'],
-            "strategy_id": row['strategy_id'], "status": row['status'],
+            # Older archives used a bare short name or left module empty while
+            # keeping a full strategy_id. Publish one canonical identity so the
+            # reader groups every spelling of a strategy under the same key.
+            "strategy_id": canonical_strategy_id(row['module'], row['strategy_id']),
+            "status": row['status'],
             "qualification": "unverified",
             "limitations": row['limitations'] or [LEGACY_NOTE],
             "metrics": row['metrics'] or {},
@@ -614,9 +619,12 @@ class Research:
         kept = [point for index, point in enumerate(points) if index % stride == 0]
         if count and kept[-1] != points[-1]:
             kept.append(points[-1])
+        from strategy import canonical_strategy_id
         return {
             "id": identity, "run_id": manifest.get('run_id', identity),
-            "strategy_id": manifest.get('strategy_id') or result.get('strategy_id'),
+            "strategy_id": canonical_strategy_id(effective.get('module'),
+                                                 manifest.get('strategy_id'),
+                                                 result.get('strategy_id')),
             "status": manifest.get('status', 'succeeded'), "qualification": "unverified",
             "limitations": manifest.get('limitations') or [LEGACY_NOTE],
             "metrics": result.get('metrics') or {},
@@ -675,11 +683,14 @@ class Research:
         rows for one screen.
         """
 
+        from strategy import canonical_strategy_id
         manifest, metrics = row['manifest'], row['metadata']['metrics']
         effective = manifest.get("effective_config", {})
         return {
             "id": row['run_id'], "run_id": manifest["run_id"],
-            "strategy_id": manifest["strategy_id"], "status": manifest["status"],
+            "strategy_id": canonical_strategy_id(effective.get("module"),
+                                                 manifest.get("strategy_id")),
+            "status": manifest["status"],
             "qualification": "unverified", "limitations": manifest.get("limitations", []),
             "metrics": metrics, "manifest_file": f"lake:runs/{row['run_id']}",
             "manifest_sha256": row['hashes']['manifest'],
