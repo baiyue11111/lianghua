@@ -102,9 +102,19 @@ export default function Result({runId}: {runId: string}) {
   // to be in the currently cached archive page) left known runs with an empty
   // detail forever — the archive wasn't a source for these fields.
   const detail = useOperation<RunDetail>('apple:result:detail', 'research.run', {id: runId, offset}, !!runId);
-  const bench = useOperation<BenchmarkSeries>('apple:result:benchmark', 'research.benchmark',
-    {id: benchId, start: '2020-01-01', end: new Date().toISOString().slice(0, 10)}, !!benchId);
   const value = detail.value;
+  // The comparison line must span the same calendar as the strategy curve.
+  // A fixed 2020 start silently dropped every earlier session, even though the
+  // index data reaches back to 2014. The equity series keeps its first and last
+  // points through sampling, so its ends are the honest window to ask for;
+  // alignBenchmark rebases from the first day both series actually cover.
+  const benchWindow = useMemo(() => {
+    const equity = value?.equity ?? [];
+    if (equity.length < 2) return null;
+    return {id: benchId, start: day(equity[0].at), end: day(equity[equity.length - 1].at)};
+  }, [value, benchId]);
+  const bench = useOperation<BenchmarkSeries>('apple:result:benchmark', 'research.benchmark',
+    benchWindow ?? {}, !!benchId && !!benchWindow);
   const metrics = value ? resultMetrics(value) : [];
   const error = firstError(archives.error, plugins.error, detail.error, bench.error);
 
