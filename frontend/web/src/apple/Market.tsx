@@ -12,7 +12,6 @@ const FREQS = ['日', '周', '月', '年'] as const;
 const ADJS = ['不复权', '前复权'] as const;
 const MAS = [5, 10, 20, 60];
 const MA_COLORS = ['#6e6e73', '#0071e3', '#c58b12', '#8154a8'];
-const dateBack = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
 // Presentation order for the index picker: broad benchmarks first, then style
 // indices, then the total-return mirror. Anything unlisted follows in registry
 // order, so a newly registered index still appears.
@@ -136,22 +135,20 @@ export default function Market() {
   // Picking a security clears the index and vice versa, so the pane never has
   // two candidates competing for the same heading.
   const [indexId, setIndexId] = useValue('apple:market', 'index', DEFAULT_INDEX);
-  const [start, setStart] = useValue('apple:market', 'benchStart', dateBack(365));
-  const [end, setEnd] = useValue('apple:market', 'benchEnd', dateBack(0));
 
   const slotIds = Array.from({length: SLOT_COUNT}, (_unused, index) =>
     (Array.isArray(slots) && typeof slots[index] === 'string' && slots[index]) || DEFAULT_SLOTS[index]);
-  const rangeReady = !!start && !!end && start <= end;
 
   const catalog = useOperation<BenchmarkSpec[]>('apple:benchmarks', 'research.benchmarks', {}, true, true, {fresh: 60_000});
-  // Every visible slot fetches its own series, so no card can sit on an empty
-  // dash while its neighbours are populated.
+  // Each card shows the index over its own stored span. There is no range
+  // picker: the data already knows how far back it goes, and a date box only
+  // invited a window that could sit outside what was loaded.
   const slotA = useOperation<BenchmarkSeries>('apple:market:slotA', 'research.benchmark',
-    {id: slotIds[0], start, end}, rangeReady);
+    {id: slotIds[0]}, true);
   const slotB = useOperation<BenchmarkSeries>('apple:market:slotB', 'research.benchmark',
-    {id: slotIds[1], start, end}, rangeReady);
+    {id: slotIds[1]}, true);
   const slotC = useOperation<BenchmarkSeries>('apple:market:slotC', 'research.benchmark',
-    {id: slotIds[2], start, end}, rangeReady);
+    {id: slotIds[2]}, true);
   const slotQueries = [slotA, slotB, slotC];
 
   const search = useOperation<{items: StockItem[]}>('apple:market:search', 'data.search', {q: kw.trim()}, !!kw.trim());
@@ -172,7 +169,7 @@ export default function Market() {
   // detail view is the close series it does have, not an error panel.
   const slotForIndex = slotIds.includes(indexId) ? slotQueries[slotIds.indexOf(indexId)] : null;
   const detailLevel = useOperation<BenchmarkSeries>('apple:market:level', 'research.benchmark',
-    {id: indexId, start, end}, !!subjectIndex && !isLevel && !slotForIndex && rangeReady);
+    {id: indexId}, !!subjectIndex && !isLevel && !slotForIndex);
   const levelSeries = slotForIndex?.value ?? detailLevel.value;
 
   const kline = series.value;
@@ -237,12 +234,6 @@ export default function Market() {
 
     <div className="strip-head">
       <span className="strip-title">指数</span>
-      <div className="strip-range">
-        <span>涨跌区间</span>
-        <input type="date" aria-label="指数区间起始" value={start} onChange={event => setStart(event.target.value)} />
-        <span>—</span>
-        <input type="date" aria-label="指数区间截止" value={end} onChange={event => setEnd(event.target.value)} />
-      </div>
     </div>
     <div className="index-strip">
       {slotIds.map((id, index) => {

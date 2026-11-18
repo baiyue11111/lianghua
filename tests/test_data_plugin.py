@@ -380,30 +380,64 @@ class DuckLakeViewsTests(unittest.TestCase):
 
 
 class MarketViewsTests(unittest.TestCase):
-    def test_bars_use_dataset_calendar_and_standard_query(self):
-        data = Mock(spec=['calendar', 'query'])
+    def test_bars_read_full_stored_span_directly_without_backtest_query(self):
+        # A chart displays observed bars over the whole stored history. The
+        # old code asked the backtest query for a one-year window, which filled
+        # suspended sessions and rejected the holes. Unadjusted display now
+        # reads the registered bars table straight, with no query at all.
+        data = Mock(spec=['calendar', 'query', 'source', 'scan'])
         sources = Mock(spec=['select'])
         sources.select.return_value = {'dataset_id': 'fixture', 'calendar': 'calendar:fixture'}
         data.calendar.return_value = {'sessions': ['2020-01-02', '2020-01-03', '2020-01-06']}
-        frames = [MarketFrame(datetime.fromisoformat(day + 'T15:00:00+08:00'), 'TEST', {
-            '600003': {'open': 10.0, 'high': 13.0, 'low': 9.0, 'close': 12.0,
-                       'volume': 100, 'amount': 1200}})
-                  for day in ('2020-01-02', '2020-01-03')]
+        data.source.return_value = 'lake:source_test'
         from types import SimpleNamespace
+        stored = [
+            {'date': '2020-01-02', 'open': 10.0, 'high': 13.0, 'low': 9.0,
+             'close': 12.0, 'volume': 100, 'amount': 1200},
+            {'date': '2020-01-05', 'open': 11.0, 'high': 14.0, 'low': 10.0,
+             'close': 13.0, 'volume': 90, 'amount': 1300},
+        ]
+        bounds = [{'first': '2020-01-02', 'last': '2020-01-05'}]
+        data.scan.side_effect = [
+            SimpleNamespace(table=SimpleNamespace(to_pylist=lambda: bounds)),
+            SimpleNamespace(table=SimpleNamespace(to_pylist=lambda: stored)),
+        ]
+        view = Views(data, sources)
+        daily = view.bars({'code': 'sh.600003'})
+        data.calendar.assert_called_once_with('fixture')
+        data.query.assert_not_called()
+        self.assertEqual(daily, {'dates': ['2020-01-02', '2020-01-05'],
+                                 'candles': [[10.0, 12.0, 9.0, 13.0],
+                                             [11.0, 13.0, 10.0, 14.0]],
+                                 'volumes': [100, 90]})
+        # No one-year slice: the stored bounds are bound into the query.
+        bars_call = data.scan.call_args_list[1].args[0]
+        self.assertIn('2020-01-02', bars_call.values)
+        self.assertIn('2020-01-05', bars_call.values)
+
+    def test_adjusted_bars_still_use_the_factor_query_over_full_span(self):
+        # Adjusted prices are derived from factor facts, so they keep the query
+        # path — but the window is the stored span, not the old 250 sessions.
+        data = Mock(spec=['calendar', 'query', 'source', 'scan'])
+        sources = Mock(spec=['select'])
+        sources.select.return_value = {'dataset_id': 'fixture', 'calendar': 'calendar:fixture'}
+        data.calendar.return_value = {'sessions': ['2020-01-02', '2020-01-03', '2020-01-06']}
+        data.source.return_value = 'lake:source_test'
+        from types import SimpleNamespace
+        data.scan.return_value = SimpleNamespace(
+            table=SimpleNamespace(to_pylist=lambda: [{'first': '2020-01-02', 'last': '2020-01-05'}]))
+        frames = [MarketFrame(datetime.fromisoformat(day + 'T15:00:00+08:00'), 'TEST', {
+            'sh.600003': {'open': 10.0, 'high': 13.0, 'low': 9.0, 'close': 12.0,
+                          'volume': 100, 'amount': 1200}})
+                  for day in ('2020-01-02', '2020-01-03')]
         data.query.return_value = SimpleNamespace(records=[
             SimpleNamespace(trade_date=frame.at.date(), frame=frame) for frame in frames])
         view = Views(data, sources)
-        daily = view.bars({'code': '600003'})
-        data.calendar.assert_called_once_with('fixture')
+        weekly = view.bars({'code': 'sh.600003', 'freq': '周', 'adj': '前复权'})
         request = data.query.call_args.args[0]
         self.assertIsInstance(request, DataQuery)
-        self.assertEqual((request.start, request.end, request.symbols, request.price_basis),
-                         (date(2020, 1, 2), date(2020, 1, 3), ('600003',), 'raw'))
-        self.assertEqual(daily, {'dates': ['2020-01-02', '2020-01-03'],
-                                 'candles': [[10.0, 12.0, 9.0, 13.0]] * 2,
-                                 'volumes': [100, 100]})
-        weekly = view.bars({'code': '600003', 'freq': '周', 'adj': '前复权'})
-        self.assertEqual(data.query.call_args.args[0].price_basis, 'adjusted')
+        self.assertEqual((request.start, request.end, request.price_basis),
+                         (date(2020, 1, 2), date(2020, 1, 5), 'adjusted'))
         self.assertEqual(weekly, {'dates': ['2020-01-03'],
                                   'candles': [[10.0, 12.0, 9.0, 13.0]], 'volumes': [200]})
 

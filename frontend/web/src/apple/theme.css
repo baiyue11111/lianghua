@@ -187,14 +187,9 @@
 
 /* ---- page-specific ---- */
 /* Three fixed slots (Hick's law): one readable row of indices above the fold.
-   The range control sits on the strip header so the interval that produced the
-   percentage is stated once, where the percentage is read. */
+   Each index shows its own stored span; there is no range picker to state. */
 .apple .strip-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 11px; }
 .apple .strip-title { font-size: 12px; font-weight: 650; color: var(--muted); letter-spacing: .02em; }
-.apple .strip-range { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--faint); }
-.apple .strip-range input { width: 134px; border: 1px solid var(--border); background: var(--surface);
-  border-radius: 8px; padding: 5px 8px; min-height: 30px; font-size: 12px; color: var(--fg); }
-.apple .strip-range input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,113,227,.12); }
 .apple .index-strip { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin-bottom: 18px; }
 .apple .index-card { background: var(--surface); border-radius: 18px; box-shadow: var(--shadow);
   border: 1px solid transparent; padding: 13px 16px 14px; display: flex; flex-direction: column; gap: 2px;

@@ -9108,7 +9108,9 @@ var defs = {
   "research.runs": { input: object2({ limit: { type: "integer", minimum: 1 }, offset: integer }, []) },
   "research.run": { input: object2({ id: text, offset: integer }) },
   "research.benchmarks": { input: object2() },
-  "research.benchmark": { input: object2({ id: text, start: text, end: text }) },
+  // start/end are optional: omitted means the benchmark's own stored span, so a
+  // chart never has to guess a window. Existing callers may still pass a range.
+  "research.benchmark": { input: object2({ id: text, start: text, end: text }, ["id"]) },
   "collection.sources": { input: object2() },
   "collection.sync": { input: object2({ id: text, input: { type: "object" } }), mode: "write" },
   "collection.schedule": { input: object2({ id: text, enabled: boolean, interval_seconds: { type: "integer", minimum: 30 }, input: { type: "object" } }), mode: "write" },

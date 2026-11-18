@@ -314,8 +314,6 @@ class Benchmarks:
         from math import isfinite
         if identity not in self.specs:
             raise KeyError(identity)
-        if start > end:
-            raise ValueError("起始日期不能晚于截止日期")
         spec = self.specs[identity]
         dataset_id = spec.get("dataset_id")
         if isinstance(dataset_id, str) and dataset_id:
@@ -333,6 +331,19 @@ class Benchmarks:
             sessions = [date.fromisoformat(day) for day in calendar.get('sessions', ())]
             if len(sessions) < 2:
                 raise ValueError('benchmark calendar is missing')
+            # An omitted bound means "whatever the benchmark actually covers":
+            # a chart should span the stored history, not a window the caller
+            # had to guess. The end stops one session short because the query
+            # needs a following session to complete the last bar. A
+            # previous-close benchmark also needs one session of lead-in, since
+            # its first plotted day is priced off the prior close.
+            aligned = spec.get('alignment') == 'previous_close'
+            if start is None:
+                start = (sessions[1] if aligned and len(sessions) > 2 else sessions[0]).isoformat()
+            if end is None:
+                end = sessions[-2].isoformat()
+            if start > end:
+                raise ValueError("起始日期不能晚于截止日期")
             first, last = date.fromisoformat(str(start)), date.fromisoformat(str(end))
             # 展示用的对比区间可能落在周末或超出快照末端；这里只对齐到已登记交易日，
             # 不放宽底层数据校验。请求末端越界时退回倒数第二个交易日（查询需要后续 session）。
@@ -346,7 +357,6 @@ class Benchmarks:
                 raise ValueError("起始日期不能晚于截止日期")
             if spec.get('alignment') not in (None, 'previous_close'):
                 raise ValueError('unsupported benchmark date alignment')
-            aligned = spec.get('alignment') == 'previous_close'
             observed = None
             if aligned:
                 source_zone, target_zone = ZoneInfo(spec['timezone']), ZoneInfo(spec['comparison_timezone'])
@@ -962,7 +972,7 @@ class KernelBacktestPort:
         if operation == "research.benchmark":
             if not isinstance(data, dict):
                 raise TypeError("operation data must be an object")
-            return self._benchmarks.series(data["id"], data["start"], data["end"])
+            return self._benchmarks.series(data["id"], data.get("start"), data.get("end"))
         if operation != "backtest.run":
             raise BacktestError("unsupported_operation", operation)
         request = parse_backtest_request(data)

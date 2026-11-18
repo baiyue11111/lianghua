@@ -2,7 +2,7 @@
 from collections.abc import Mapping
 from datetime import date, datetime
 
-from protocol import DataError, EXECUTION_FIELDS, SQLQuery
+from protocol import DataError, EXECUTION_FIELDS, SQLQuery, normalize_security_id
 
 
 class Views:
@@ -375,26 +375,66 @@ class Views:
         sessions = [date.fromisoformat(str(item)) for item in calendar.get("sessions", ())]
         if len(sessions) < 2:
             raise ValueError("daily kline calendar is missing")
-        # 日历表可能登记了尚无行情的未来交易日；默认区间收敛到日线表实际末端，
-        # 且只取近一年交易日，避免早期停牌 / 未上市日补齐出 NaN 被底层校验拒绝。
+        # A chart is a read of what the store actually holds, so its window is
+        # the stored span, not an arbitrary one-year slice. The old 250-session
+        # default existed only because the backtest query fills suspended days
+        # and rejects the resulting holes; that is a write-side correctness rule
+        # and does not apply to displaying bars that were actually observed.
+        reference = self.data.source(dataset, 'bars')
+        table = self._name(reference[5:])
+        # The store keys codes market-qualified (sh.600000); callers may pass a
+        # bare six-digit code. Match either so display is as tolerant as the
+        # backtest query path that used to normalize this for us.
+        code = value["code"]
         try:
-            reference = self.data.source(dataset, 'bars')
-            newest = self._rows('SELECT max(cast(date AS DATE)) AS latest FROM '
-                                + self._name(reference[5:]))[0]['latest']
-            covered = ([day for day in sessions if day <= date.fromisoformat(str(newest))]
-                       if newest is not None else sessions[:-1])
-        except (AttributeError, DataError, KeyError, ValueError, IndexError, TypeError):
-            covered = sessions[:-1]
-        if len(covered) < 2:
-            raise ValueError("daily kline calendar has no covered session")
-        default_start = covered[max(0, len(covered) - 250)].isoformat()
-        default_end = covered[-1].isoformat()
-        value = {**value, "dataset_id": dataset, "symbols": [value["code"]],
-                 "start": value.get("start", default_start),
-                 "end": value.get("end", default_end)}
-        value["price_basis"] = "raw" if adj == "不复权" else "adjusted"
-        result = self.query(value)
-        rows = result["items"]
+            qualified = normalize_security_id(code)
+        except ValueError:
+            qualified = code
+        codes = (code, qualified) if qualified != code else (code,)
+        marks = ', '.join('?' for _ in codes)
+        try:
+            bounds = self._rows(f'SELECT min(cast(date AS DATE)) AS first, '
+                                f'max(cast(date AS DATE)) AS last FROM {table} '
+                                f'WHERE code IN ({marks})', codes)[0]
+            first, last = bounds['first'], bounds['last']
+        except (AttributeError, DataError, KeyError, IndexError, TypeError):
+            first = last = None
+        if first is None or last is None:
+            # No stored bar for this code. Keep the empty result below rather
+            # than inventing a window the data cannot support.
+            rows = []
+        elif adj == "不复权":
+            # Observed OHLCVA straight from the registered bars table: no
+            # backtest validation, no synthetic sessions, whole stored history.
+            # code is stored with its exchange prefix (e.g. sh.600000).
+            rows = self._rows(
+                f'SELECT cast(date AS VARCHAR) AS date, open, high, low, close, volume, amount '
+                f'FROM {table} WHERE code IN ({marks}) AND date BETWEEN ? AND ? ORDER BY date',
+                (*codes, str(first), str(last)))
+        else:
+            # Adjusted prices are derived from factor facts, not stored as
+            # bars, so they still go through the query path. Widen its window
+            # to the full stored span instead of the old one-year default.
+            # That path reads a warm-up prefix before `start`, so the earliest
+            # displayable start is the calendar at that offset, not day zero.
+            warmup = 20
+            try:
+                earliest = next(
+                    (day for day in sessions if day.isoformat() >= str(first)), sessions[0])
+                index = max(sessions.index(earliest), warmup)
+                floor = sessions[min(index, len(sessions) - 1)]
+            except (ValueError, IndexError):
+                floor = first
+            # A short calendar cannot both satisfy the warm-up and start inside
+            # the span; fall back to the span start rather than inverting it.
+            if str(floor) > str(last):
+                floor = first
+            requested_start = value.get("start")
+            start = str(floor) if requested_start is None else max(str(floor), str(requested_start))
+            value = {**value, "dataset_id": dataset, "symbols": [value["code"]],
+                     "start": start, "end": value.get("end", str(last))}
+            value["price_basis"] = "adjusted"
+            rows = self.query(value)["items"]
         rows.sort(key=lambda row: row["date"])
         # Sessions before listing or after delisting carry no usable bar; a
         # K-line series starts at its first real observation.

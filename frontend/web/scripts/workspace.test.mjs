@@ -322,3 +322,16 @@ test('kline drag and wheel pan the window instead of zooming it',async()=>{
  for(const flag of ['zoomLock: true','moveOnMouseMove: true','moveOnMouseWheel: true','zoomOnMouseWheel: false'])
    assert.ok(block.includes(flag),'missing pan flag: '+flag);
 });
+
+test('market kline reads the stored span and has no range picker',async()=>{
+ // The chart shows every stored session. The old 250-session default and the
+ // "涨跌区间" date inputs are gone; index cards use each benchmark's own span.
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../src/apple/Market.tsx',import.meta.url),'utf8');
+ assert.ok(!source.includes('benchStart'),'range picker state must be gone');
+ assert.ok(!source.includes('涨跌区间'),'range picker label must be gone');
+ assert.ok(!source.includes('type="date"'),'no date inputs remain on the market page');
+ // data.bars must not be pinned to a window: no start/end in its request.
+ const barsCall=source.split('\n').find(line=>line.includes("'data.bars'"));
+ assert.ok(barsCall&&!barsCall.includes('start')&&!barsCall.includes('end'),'bars request must not pass a window');
+});

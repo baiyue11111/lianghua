@@ -13,7 +13,10 @@ const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes
  'backtest.strategies':{input:object()},
  'research.runs':{input:object({limit:{type:'integer',minimum:1},offset:integer},[])},
  'research.run':{input:object({id:text,offset:integer})},
- 'research.benchmarks':{input:object()},'research.benchmark':{input:object({id:text,start:text,end:text})},
+ 'research.benchmarks':{input:object()},
+ // start/end are optional: omitted means the benchmark's own stored span, so a
+ // chart never has to guess a window. Existing callers may still pass a range.
+ 'research.benchmark':{input:object({id:text,start:text,end:text},['id'])},
  'collection.sources':{input:object()},
  'collection.sync':{input:object({id:text,input:{type:'object'}}),mode:'write'},
  'collection.schedule':{input:object({id:text,enabled:boolean,interval_seconds:{type:'integer',minimum:30},input:{type:'object'}}),mode:'write'},
