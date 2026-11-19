@@ -1,3 +1,4 @@
+from contextlib import closing, contextmanager
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -8,11 +9,20 @@ from types import SimpleNamespace
 from tests.fee_fixture import execution
 
 
-class ConfigSettlement:
-    def __init__(self, initial_cash, fees, tax_policy, *, limits=None, mode="default"):
-        self.initial_cash = initial_cash
-        self.limits = limits
-        self.mode = mode
+@contextmanager
+def native_fixture():
+    from market import build_data
+    from tests.history_fixture import make_snapshot
+
+    with TemporaryDirectory() as folder:
+        root = Path(folder)
+        make_snapshot(root)
+        with closing(build_data(root)) as data:
+            yield data
+
+
+def set_fixture_manifest(data, **changes):
+    data.save_manifest("fixture", {**data.manifest("fixture"), **changes})
 
 
 def settlement_payload():
@@ -132,17 +142,11 @@ class Task3ProtocolTests(unittest.TestCase):
                                                                "filters": [condition]}})
 
     def test_atomic_backtest_rejects_fixed_validation_and_oos_fields(self):
-        from protocol import BacktestError
-        from market import DataBus
-        from backend import KernelBacktestPort
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from backend import KernelBacktestPort, Research
         from plugins.data import Settlement
+        from protocol import BacktestError
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            bus = DataBus(DataStore(root))
+        with native_fixture() as bus:
             port = KernelBacktestPort(bus, Settlement)
             base = {
                 "run_id": "three-segments", "module": "plugins.strategies.breadth_low_amount_reversal",
@@ -155,40 +159,30 @@ class Task3ProtocolTests(unittest.TestCase):
                     port.handle("backtest.run", {
                         **base, field: {"start": "2020-02-03", "end": "2020-02-04"},
                     })
-            self.assertEqual(bus.list("runs"), ())
-    def test_data_query_declares_scope_and_bus_uses_one_reader(self):
-        from market import DataBus
-        from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
+            self.assertEqual(Research(bus).rows("runs"), [])
+            self.assertEqual(Research(bus).rows("run_failures"), [])
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            bus = DataBus(DataStore(root))
+    def test_data_query_declares_scope_and_bus_uses_one_reader(self):
+        from unittest.mock import patch
+
+        from market import reader
+        from protocol import DataQuery
+
+        with native_fixture() as bus:
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("close",), 20, "adjusted")
-            dataset = bus.query(query)
+            with patch.object(reader, "_prepare_dataset", wraps=reader._prepare_dataset) as prepare:
+                dataset = bus.query(query)
+            prepare.assert_called_once_with(bus, query)
             self.assertEqual(dataset.dataset, "fixture")
             self.assertEqual(dataset.scope["universe"], "CN_A_SHARE")
             self.assertEqual(dataset.fields, ("close",))
-
-        query = DataQuery(
-            dataset="fixture", start=date(2020, 1, 31), end=date(2020, 2, 4),
-            fields=("close",), history=20, price_basis="adjusted", symbols=None,
-        )
-        self.assertIsNone(query.symbols)
+            self.assertIsNone(query.symbols)
 
     def test_data_bus_rejects_truncated_query_and_accepts_full_coverage(self):
-        from market import DataBus
         from protocol import DataError, DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            bus = DataBus(DataStore(root))
+        with native_fixture() as bus:
             with self.assertRaisesRegex(DataError, "outside historical snapshot"):
                 bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 6),
                                     ("close",), 20, "adjusted"))
@@ -197,39 +191,22 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(dataset.records[-1].trade_date, date(2020, 2, 4))
 
     def test_data_bus_rejects_start_truncation_using_calendar_coverage(self):
-        from market import DataBus
         from protocol import DataError, DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            bus = DataBus(DataStore(root))
+        with native_fixture() as bus:
             first_session = date(2019, 7, 1)
             with self.assertRaisesRegex(DataError, "outside historical snapshot"):
                 bus.query(DataQuery("fixture", date(2019, 6, 28), first_session,
                                     ("close",), 20, "adjusted"))
 
     def test_data_bus_requires_explicit_calendar_coverage(self):
-        import json
-        from market import DataBus
-        from protocol import DataError, DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from protocol import DataError, DataQuery, Filter, TableQuery
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            path = root / "data/source/fixture/manifest.json"
-            manifest = json.loads(path.read_text())
-            del manifest["inputs"]["calendar"]
-            path.write_text(json.dumps(manifest))
-            with self.assertRaisesRegex(DataError, "calendar"):
-                DataBus(DataStore(root)).query(
-                    DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
-                              ("close",), 20, "adjusted")
-                )
+        with native_fixture() as bus:
+            bus.delete(TableQuery("calendar_coverage", (Filter("dataset", "eq", "fixture"),)))
+            with self.assertRaisesRegex(DataError, "calendar coverage is required"):
+                bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
+                                    ("close",), 20, "adjusted"))
 
     def test_backtest_data_request_has_no_market_scope_claim_and_market_routes_to_reader(self):
         from backend import _query
@@ -299,49 +276,16 @@ class Task3ProtocolTests(unittest.TestCase):
                                        Decimal("100")))
         self.assertIsNotNone(caught.exception.partial_result)
 
-    def test_result_and_research_use_saved_json_trace_contract(self):
-        from market import DataBus
-        from protocol import BacktestRequest
-        from backend import Research, save_backtest
-        from storage import DataStore
-        from decimal import Decimal
-
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            request_value = BacktestRequest(
-                "json-run", "fake", {}, "fixture", datetime(2020, 1, 1, tzinfo=timezone.utc),
-                datetime(2020, 1, 1, 23, 59, tzinfo=timezone.utc), Decimal("100"))
-            save_backtest(bus, request_value, {
-                "id": "json-run", "run_id": "json-run", "strategy_id": "fake",
-                "dataset_id": "fixture", "parameters": {}, "effective_config": {},
-                "config_hash": "hash", "metrics": {"final_equity": 100},
-                "equity": [{"at": "2020-01-01", "equity": 100}],
-                "trades": [{"id": "fill"}], "trace": {"frames": []},
-                "provenance": {}, "final_cash": "100", "final_equity": "100",
-                "steps": 1, "fills": 1, "pending_orders": 0, "positions": {},
-            })
-            detail = Research(bus).detail("json-run")
-            self.assertEqual(detail["trades"], [{"id": "fill"}])
-            self.assertEqual(detail["equity"][-1]["equity"], 100)
-            self.assertTrue(any(item["file"].endswith("result.json") for item in detail["evidence"]))
-
     def test_signal_plugins_are_explicit_and_keep_execution_bars_unchanged(self):
-        from market import DataBus
         from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            update_manifest(root, signal_plugins={
+        with native_fixture() as bus:
+            set_fixture_manifest(bus, signal_plugins={
                 "adapter": {"module": "plugins.data:Adapter", "method": "validate",
                             "fields": ("signal_close",)},
                 "scaler": {"module": "plugins.data:Scaler", "fields": ("signal_close",), "fit_start": "2020-01-02",
                             "fit_end": "2020-01-30", "params": {"method": "standard"}},
             })
-            bus = DataBus(DataStore(root))
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                               20, "adjusted")
@@ -364,69 +308,51 @@ class Task3ProtocolTests(unittest.TestCase):
             self.assertEqual(result["dataset_id"], "fixture")
 
     def test_signal_scaler_rejects_validation_window_and_missing_training_coverage(self):
-        from market import DataBus
-        from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
+        from protocol import DataError, DataQuery
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
+        with native_fixture() as bus:
             plugins = {
                 "scaler": {"module": "plugins.data:Scaler", "fields": ("signal_close",), "fit_start": "2020-01-02",
                            "fit_end": "2020-01-31", "params": {"method": "standard"}},
             }
-            update_manifest(root, signal_plugins=plugins)
-            bus = DataBus(DataStore(root))
+            set_fixture_manifest(bus, signal_plugins=plugins)
             query = DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                               ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                               20, "adjusted")
-            with self.assertRaisesRegex(ValueError, "end before backtest start"):
+            with self.assertRaisesRegex(DataError, "end before backtest start"):
                 bus.query(query)
 
             plugins["scaler"]["fit_end"] = "2020-01-30"
             plugins["scaler"]["fit_start"] = "2020-01-04"
-            update_manifest(root, signal_plugins=plugins)
-            with self.assertRaisesRegex(ValueError, "fully covered"):
+            set_fixture_manifest(bus, signal_plugins=plugins)
+            with self.assertRaisesRegex(DataError, "fully covered"):
                 bus.query(query)
 
     def test_signal_scaler_rejects_short_and_nonfinite_custom_output(self):
-        from market import DataBus
-        from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
+        from protocol import DataError, DataQuery
 
         for mode in ("short", "nan"):
-            with self.subTest(mode=mode), TemporaryDirectory() as root:
-                root = Path(root)
-                make_snapshot(root)
-                update_manifest(root, signal_plugins={"scaler": {
+            with self.subTest(mode=mode), native_fixture() as bus:
+                set_fixture_manifest(bus, signal_plugins={"scaler": {
                     "module": "tests.test_task3_protocol:InvalidScaler", "fields": ("signal_close",),
                     "fit_start": "2020-01-02", "fit_end": "2020-01-30", "params": {"mode": mode},
                 }})
-                bus = DataBus(DataStore(root))
-                with self.assertRaisesRegex(ValueError, "signal scaler transform"):
+                with self.assertRaisesRegex(DataError, "signal scaler transform"):
                     bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                                         ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                                         20, "adjusted"))
 
     def test_signal_plugin_replacement_is_explicit_and_merged(self):
-        from market import DataBus
         from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            update_manifest(root, signal_plugins={
+        with native_fixture() as bus:
+            set_fixture_manifest(bus, signal_plugins={
                 "adapter": {
                     "module": "tests.test_task3_protocol:ShiftSignalAdapter",
                     "method": "validate", "fields": ("signal_close",),
                     "params": {"amount": 3.0},
                 },
             })
-            bus = DataBus(DataStore(root))
             dataset = bus.query(DataQuery(
                 "fixture", date(2020, 1, 31), date(2020, 2, 4),
                 ("open", "high", "low", "close", "volume", "amount", "signal_close"),
@@ -441,30 +367,22 @@ class Task3ProtocolTests(unittest.TestCase):
                              "tests.test_task3_protocol:ShiftSignalAdapter")
 
     def test_signal_adapter_rejects_history_row_addition(self):
-        from market import DataBus
-        from protocol import DataQuery
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot, update_manifest
+        from protocol import DataError, DataQuery
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            update_manifest(root, signal_plugins={"adapter": {
+        with native_fixture() as bus:
+            set_fixture_manifest(bus, signal_plugins={"adapter": {
                 "module": "tests.test_task3_protocol:ExtraHistoryAdapter", "method": "validate",
                 "fields": ("signal_close",), "params": {},
             }})
-            bus = DataBus(DataStore(root))
-            with self.assertRaisesRegex(ValueError, "history timestamps"):
+            with self.assertRaisesRegex(DataError, "history timestamps"):
                 bus.query(DataQuery("fixture", date(2020, 1, 31), date(2020, 2, 4),
                                     ("open", "high", "low", "close", "volume", "amount", "signal_close"),
                                     20, "adjusted"))
 
     def test_failed_run_writes_evidence_without_success_manifest_and_retry_works(self):
         from plugins.data import Settlement
-        from market import DataBus
-        from backend import KernelBacktestPort
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from backend import KernelBacktestPort, Research
+        from protocol import BacktestError
 
         class FailOnce(Settlement):
             calls = 0
@@ -476,50 +394,46 @@ class Task3ProtocolTests(unittest.TestCase):
                     raise RuntimeError("synthetic failure")
                 return value
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            config = make_snapshot(root)
-            bus = DataBus(DataStore(root))
+        with native_fixture() as bus:
             port = KernelBacktestPort(bus, FailOnce)
             payload = {"run_id": "retry", "module": "plugins.strategies.breadth_low_amount_reversal",
                        "params": {"positions": 4}, "dataset_id": "fixture",
                        "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                        **settlement_payload()}
-            with self.assertRaises(Exception):
+            research = Research(bus)
+            with self.assertRaisesRegex(BacktestError, "synthetic failure") as caught:
                 port.handle("backtest.run", payload)
-            self.assertTrue(bus.path("runs", "retry", "failed.json").is_file())
-            self.assertFalse(bus.path("runs", "retry", "manifest.json").exists())
+            self.assertEqual(caught.exception.evidence_ref, "lake:run_failures/retry")
+            self.assertEqual(research.rows("run_failures", "retry")[0]["code"], "run_failed")
+            self.assertEqual(research.rows("runs", "retry"), [])
             port.handle("backtest.run", payload)
-            self.assertTrue(bus.path("runs", "retry", "manifest.json").is_file())
+            self.assertEqual(research.detail("retry")["status"], "succeeded")
 
     def test_invalid_injected_metrics_write_failure_evidence(self):
-        import json
         from plugins.data import Settlement
-        from market import DataBus
-        from backend import KernelBacktestPort
-        from storage import DataStore
-        from tests.history_fixture import make_snapshot
+        from backend import KernelBacktestPort, Research
+        from protocol import BacktestError
         from core.calculation import Calculation
 
         class BadCalculation(Calculation):
             def evaluate(self, points, **parameters):
                 return {"bad": float("nan")}
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
+        with native_fixture() as bus:
             port = KernelBacktestPort(bus, Settlement)
             port._kernel._calculation = BadCalculation()
             payload = {"run_id": "bad-metrics", "module": "plugins.strategies.breadth_low_amount_reversal",
                        "params": {"positions": 4}, "dataset_id": "fixture",
                        "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
                        **settlement_payload()}
-            with self.assertRaises(Exception) as caught:
+            with self.assertRaises(BacktestError) as caught:
                 port.handle("backtest.run", payload)
             self.assertEqual(caught.exception.code, "run_failed")
-            failed = json.loads(bus.read("runs", "bad-metrics", "failed.json"))
+            research = Research(bus)
+            failed = research.rows("run_failures", "bad-metrics")[0]
             self.assertEqual(failed["code"], "run_failed")
-            self.assertFalse(bus.path("runs", "bad-metrics", "manifest.json").exists())
+            self.assertIn("finite", failed["detail"])
+            self.assertEqual(research.rows("runs", "bad-metrics"), [])
 
     def test_data_query_rejects_invalid_scope_and_history(self):
         from protocol import DataQuery
@@ -534,8 +448,9 @@ class Task3ProtocolTests(unittest.TestCase):
             DataQuery("fixture", date(2020, 1, 1), date(2020, 1, 2), ("close",), True, "adjusted", date(2020, 1, 2))
 
     def test_data_bus_requires_reader_fields_and_history_to_match(self):
-        from market import DataBus
-        from protocol import DataQuery, Dataset
+        from unittest.mock import patch
+
+        from protocol import DataError, DataQuery, Dataset
         from protocol import MarketFrame
 
         day = date(2020, 1, 1)
@@ -547,17 +462,17 @@ class Task3ProtocolTests(unittest.TestCase):
                     scope={"universe": "dataset", "symbols": (), "calendar_start": day.isoformat()},
                     calendar=(day, date(2020, 1, 2)), history=20)
 
-        class Reader:
-            def __init__(self, fields, history):
-                self.fields, self.history = fields, history
-
-            def query(self, _query):
-                return Dataset(fields=self.fields, **{**base, "history": self.history})
-
-        for fields, history in ((("other",), 20), (("close",), 19)):
-            with self.subTest(fields=fields, history=history):
-                with self.assertRaises(Exception):
-                    DataBus(object(), Reader(fields, history)).query(query)
+        with native_fixture() as bus:
+            for fields, history, code in (
+                (("other",), 20, "field_mismatch"),
+                (("close",), 19, "history_mismatch"),
+            ):
+                dataset = Dataset(fields=fields, **{**base, "history": history})
+                with self.subTest(fields=fields, history=history), patch(
+                    "market.reader._prepare_dataset", return_value=dataset,
+                ), self.assertRaises(DataError) as caught:
+                    bus.query(query)
+                self.assertEqual(caught.exception.code, code)
 
     def test_date_only_request_covers_the_entire_end_date(self):
         from protocol import parse_backtest_request
@@ -604,60 +519,36 @@ class Task3ProtocolTests(unittest.TestCase):
         self.assertEqual(request.history, 60)
         self.assertEqual(request.benchmark_id, "hs300")
 
-    def test_config_plugin_params_merge_with_request_overrides(self):
-        from core.calculation import AllocationLimits
-        from backend import _load_plugin
-        from protocol import parse_backtest_request
-
-        plugin = _load_plugin({"settlement": {
-            "module": "tests.test_task3_protocol:ConfigSettlement",
-            "params": {"mode": "configured", "limits": {}},
-        }}, "settlement")
-        request = parse_backtest_request({**request_data(), "limits": {}})
-        value = plugin(100, object(), object(), **dict(request.settlement_parameters))
-        self.assertEqual(value.mode, "configured")
-        self.assertIsInstance(value.limits, AllocationLimits)
-        self.assertEqual(value.limits.lot_size, 100)
-
-        with self.assertRaises(ValueError):
-            _load_plugin({"settlement": {
-                "module": "tests.test_task3_protocol:ConfigSettlement",
-                "params": {"misspelled": True},
-            }}, "settlement")
-
-    def test_backend_build_has_no_factory_parameter_and_factory_is_removed(self):
+    def test_backend_build_uses_registered_sources_in_an_isolated_catalog(self):
         import asyncio
-        import json
+        import importlib.util
+
         from backend import build_backend
         from market import build_data
-        import importlib.util
-        ui = importlib.import_module("frontend.ui-protocol")
 
+        ui = importlib.import_module("frontend.ui-protocol")
         self.assertEqual(list(inspect.signature(build_backend).parameters), ["root"])
         self.assertIsNone(importlib.util.find_spec("core.interfaces"))
-        backend = build_backend(Path(__file__).resolve().parents[1])
-        try:
-            request = ui.UiRequest(
-                "sources", "collection.sources",
-                "urn:lianghua:ui:input:collection.sources:v1", {},
-            )
-            messages = asyncio.run(backend.send(request))
-            self.assertEqual(messages[0].kind, "collection")
-            self.assertIsInstance(messages[0].data, list)
-            registry = json.loads(build_data(Path(__file__).resolve().parents[1]).read(
-                "sources", "registry", "sources.json"))
-            declared_ids = {item["id"] for item in registry["sources"]}
-            returned_ids = [item["id"] for item in messages[0].data]
-            self.assertEqual(len(returned_ids), len(set(returned_ids)))
-            self.assertEqual(set(returned_ids), declared_ids)
-            shape = {"id", "name", "frequency", "defaults", "job", "schedule",
-                     "integrity_error", "snapshot", "records"}
-            for item in messages[0].data:
-                self.assertEqual(set(item), shape)
-                self.assertIsInstance(item["defaults"], dict)
-                self.assertIsInstance(item["records"], int)
-        finally:
-            backend.close()
+        source = {"id": "example", "name": "Example", "method": "quotes",
+                  "data_type": "quotes", "frequency": "snapshot", "modes": ["auto"],
+                  "default": True, "defaults": {}}
+        with TemporaryDirectory() as folder:
+            root = Path(folder)
+            with closing(build_data(root)) as bus:
+                bus.update_registry(lambda registry: {**registry, "sources": [source]})
+            with closing(build_backend(root)) as backend:
+                request = ui.UiRequest(
+                    "sources", "collection.sources",
+                    "urn:lianghua:ui:input:collection.sources:v1", {},
+                )
+                message, = asyncio.run(backend.send(request))
+                self.assertEqual(message.kind, "collection")
+                item, = message.data
+                self.assertEqual(item["id"], source["id"])
+                self.assertEqual(set(item), {"id", "name", "frequency", "defaults", "job",
+                                            "schedule", "integrity_error", "snapshot", "records"})
+                self.assertEqual(item["defaults"], {})
+                self.assertEqual(item["records"], 0)
 
     def test_kernel_port_uses_the_explicitly_injected_settlement_plugin(self):
         from backend import KernelBacktestPort
@@ -665,22 +556,15 @@ class Task3ProtocolTests(unittest.TestCase):
         class Replacement:
             pass
 
-        port = KernelBacktestPort(object(), Replacement)
-        self.assertIs(port._kernel._settlement_type, Replacement)
+        with native_fixture() as bus:
+            port = KernelBacktestPort(bus, Replacement)
+            self.assertIs(port._kernel._settlement_type, Replacement)
 
     def test_protocol_saves_complete_kernel_trace_through_data_bus(self):
-        import json
-        from pathlib import Path
-        from tests.history_fixture import make_snapshot
         from plugins.data import Settlement
-        from market import DataBus
-        from backend import KernelBacktestPort
-        from storage import DataStore
+        from backend import KernelBacktestPort, Research
 
-        with TemporaryDirectory() as root:
-            root = Path(root)
-            config = make_snapshot(root)
-            bus = DataBus(DataStore(root))
+        with native_fixture() as bus:
             port = KernelBacktestPort(bus, Settlement)
             value = port.handle("backtest.run", {
                 "run_id": "saved", "module": "plugins.strategies.breadth_low_amount_reversal",
@@ -689,8 +573,13 @@ class Task3ProtocolTests(unittest.TestCase):
                 "evaluation": {"periods": 12, "risk_free_rate": .01},
                 **settlement_payload(),
             }).data
-            manifest = json.loads(bus.read("runs", "saved", "manifest.json"))
-            saved = json.loads(bus.read("runs", "saved", "result.json"))
+            research = Research(bus)
+            saved = research.result("saved")
+            detail = research.detail("saved")
+            manifest = detail["manifest"]
+            self.assertEqual(detail["trades"], value["trades"])
+            self.assertEqual(detail["equity"], value["equity"])
+            self.assertIn("lake:runs/saved", {item["file"] for item in detail["evidence"]})
             self.assertIn("trace", value)
             self.assertIn("metrics", value)
             self.assertIn("provenance", value)

@@ -1,10 +1,12 @@
 """Provider listing evidence must be complete and immutable before use as a factor anchor."""
 
+from contextlib import closing
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
 import json
-from market import build_data
+from market import build_data, fact_ref
+from protocol import TableQuery
 
 from collect.methods import (
     StockBasicEvidenceError,
@@ -47,14 +49,13 @@ class _Provider:
 class StockBasicSnapshotTests(unittest.TestCase):
     def test_collect_raw_is_logged_and_facts_are_stored(self):
         rows = [["sz.301116", "fixture", "2022-01-18", "", "1", "1"]]
-        with TemporaryDirectory() as directory:
-            data = build_data(Path(directory))
+        with TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
             raw = collect_stock_basic(_Provider(rows), timeout=0, code="301116")
             ref = write_stock_basic(data, raw)
-            facts = json.loads(data.read(ref.kind, ref.identity, ref.name))
-            logs = data.list("state", "collect")
-            logged = json.loads(data.read("state", "collect", logs[0].name))
-            self.assertEqual((ref.identity, ref.name), ("facts", "stock_basic_sz.301116.json"))
+            self.assertEqual(ref, fact_ref("security", "sz.301116"))
+            facts = data.fact(ref)
+            row, = data.scan(TableQuery("collection_audit")).table.to_pylist()
+            logged = json.loads(row["settings"])
             self.assertEqual(facts, normalize_facts(raw))
             self.assertEqual(facts["records"], [{"listing_date": "2022-01-18", "delisting_date": None,
                                                   "type": "1", "status": "1"}])
@@ -63,12 +64,10 @@ class StockBasicSnapshotTests(unittest.TestCase):
 
     def test_tamper_duplicate_and_missing_ipo_fail_closed(self):
         rows = [["sz.301116", "fixture", "2022-01-18", "", "1", "1"]]
-        with TemporaryDirectory() as directory:
-            data = build_data(Path(directory))
-            payload = collect_stock_basic(_Provider(rows), timeout=0, code="301116")
-            payload["raw_response"]["rows"][0][2] = "2021-01-18"
-            with self.assertRaisesRegex(StockBasicEvidenceError, "hash"):
-                read_stock_basic(payload)
+        payload = collect_stock_basic(_Provider(rows), timeout=0, code="301116")
+        payload["raw_response"]["rows"][0][2] = "2021-01-18"
+        with self.assertRaisesRegex(StockBasicEvidenceError, "hash"):
+            read_stock_basic(payload)
         for bad_rows in (
             rows + rows,
             [["sz.301116", "fixture", "", "", "1", "1"]],

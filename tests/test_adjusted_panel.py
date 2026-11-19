@@ -263,7 +263,6 @@ class AdjustedPanelTests(unittest.TestCase):
         self.assertEqual(panel.calendar, (date(2020, 1, 2), date(2020, 1, 3), date(2020, 1, 6)))
         np.testing.assert_allclose(panel.back_factor[0], [1, 1, 2])
         np.testing.assert_allclose(panel.signal_close[0], [10, 11, 11])
-        np.testing.assert_allclose(panel.signal_high[0], [11, 12, 12])
         np.testing.assert_allclose(panel.raw_open[0], [9.8, 10.5, 5.2])
         np.testing.assert_allclose(panel.raw_close[0], [10, 11, 5.5])
         np.testing.assert_allclose(panel.amount[0], [100_000_000] * 3)
@@ -388,7 +387,6 @@ class AdjustedPanelTests(unittest.TestCase):
         np.testing.assert_allclose(panel.raw_close[0], [10, 10, 11])
         np.testing.assert_allclose(panel.back_factor[0], [1, 1, 1])
         np.testing.assert_allclose(panel.signal_close[0], [10, np.nan, 11])
-        np.testing.assert_allclose(panel.signal_high[0], [11, np.nan, 12])
 
     def test_trading_status_and_volume_conflict_fails_closed(self):
         # Regressions caught: a provider row says suspended but a positive

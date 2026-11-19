@@ -431,6 +431,49 @@ class HistoricalDataTests(unittest.TestCase):
                 self.assertEqual(dataset.scope['symbols'], ('600003', '600004'))
                 self.assertEqual(tuple(dataset.records[-1].frame.fields), ('600003', '600004'))
 
+    def test_market_selection_only_reads_requested_history(self):
+        from collections.abc import Mapping
+        from dataclasses import replace
+        from plugins.data import Adapter
+
+        class History(Mapping):
+            def __init__(self, rows):
+                self.rows = rows
+                self.reads = []
+
+            def __iter__(self):
+                return iter(self.rows)
+
+            def __len__(self):
+                return len(self.rows)
+
+            def __getitem__(self, symbol):
+                self.reads.append(symbol)
+                return self.rows[symbol]
+
+        with TemporaryDirectory() as temp:
+            root = Path(temp)
+            make_snapshot(root, symbols=('600003', '600004'))
+            with fixture_data(root) as data:
+                request = DataQuery('fixture', date(2020, 1, 31), date(2020, 2, 4),
+                    FIELDS, 2, 'adjusted', symbols=('600003', '600004'))
+                dataset = data.query(request)
+                record = dataset.records[-1]
+                source = History(record.frame.history)
+                dataset = replace(dataset, records=(*dataset.records[:-1],
+                    replace(record, frame=replace(record.frame, history=source))))
+                selection = replace(request, market={'scope': 'CN_A', 'codes': ('600004',)})
+                history = Adapter.market(data, selection, dataset).records[-1].frame.history
+
+                self.assertEqual(tuple(history), ('600004',))
+                self.assertNotIn('600003', history)
+                self.assertEqual(source.reads, [])
+                self.assertEqual(history['600004'], record.frame.history['600004'])
+
+                source.rows = {}
+                with self.assertRaisesRegex(KeyError, '600004'):
+                    Adapter.market(data, selection, dataset)
+
     def test_market_eligibility_uses_effective_and_known_dates_and_and_filters(self):
         from plugins.data import Adapter
 
@@ -917,10 +960,10 @@ class HistoricalDataTests(unittest.TestCase):
 
     def test_preflight_effective_fields_match_resolved_dataset_fields(self):
         from backend import KernelBacktestPort
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
         with TemporaryDirectory() as temp:
             root = Path(temp); make_snapshot(root)
-            port = KernelBacktestPort(DataBus(DataStore(root)), configured_settlement())
+            port = KernelBacktestPort(DataBus(DataStore(root)), Settlement)
             result = port.handle("backtest.prepare", payload(
                 module="plugins.strategies.moving_average_cross",
                 params={"fast_window": 2, "slow_window": 3},
@@ -981,6 +1024,11 @@ class HistoricalDataTests(unittest.TestCase):
             self.assertEqual(len(dataset.records), 23)
             self.assertEqual(dataset.records[0].trade_date, date(2020, 1, 3))
             self.assertLessEqual(max(len(rows) for record in dataset.records for rows in record.frame.history.values()), 20)
+            first = dataset.records[0].frame
+            last = dataset.records[-1].frame
+            self.assertEqual(tuple(row.at for row in last.history['600003']),
+                             tuple(record.frame.at for record in dataset.records[-20:]))
+            self.assertEqual(tuple(row.at for row in first.history['600003']), (first.at,))
 
     def test_market_source_cannot_be_excluded_using_account_role(self):
         with TemporaryDirectory() as temp:

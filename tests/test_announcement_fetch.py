@@ -1,11 +1,16 @@
-import hashlib
+from contextlib import closing
+from hashlib import sha256
 import json
 from pathlib import Path
-import tempfile
+from tempfile import TemporaryDirectory
 import unittest
-from market import build_data
 
 from collect.methods import collect_announcements as collect
+from market import build_data
+from protocol import Filter, TableQuery
+
+
+PREFIX = "collect:announcement_index:"
 
 
 def page(total, identifiers, more):
@@ -15,89 +20,86 @@ def page(total, identifiers, more):
                                          for key in identifiers]}).encode()
 
 
-class AnnouncementFetchTests(unittest.TestCase):
-    def test_failed_month_does_not_skip_other_independent_months_or_release_batch(self):
-        responses={('2013-01-01~2013-01-31','1'):page(3,['a','b'],True),
-                   ('2013-01-01~2013-01-31','2'):page(4,['c','d'],False),
-                   ('2013-02-01~2013-02-02','1'):page(1,['e'],False)}
-        with tempfile.TemporaryDirectory() as directory:
-            root=build_data(Path(directory)).path("sources", "announcement_index", "manifest.json").parent
-            with self.assertRaisesRegex(ValueError,'total changed'):
-                collect(self.query(),build_data(Path(directory)),fetcher=lambda r:responses[(r['seDate'],r['pageNum'])])
-            report=json.loads((root/'manifest.json').read_text())
-            captured=[json.loads(p.read_text()) for p in root.glob('index_*.json')]
-            self.assertIn('2013-02-01~2013-02-02',{p['request']['seDate'] for p in captured})
-            self.assertFalse(report['complete'])
-            self.assertEqual(report['attempted_windows'],2)
-            self.assertEqual(report['windows'],1)
-            self.assertEqual(len(report['failures']),1)
-            self.assertEqual(report['failures'][0]['request']['pageNum'],'2')
-            before=(root/'manifest.json').read_bytes()
-            def forbidden(request): self.fail('independent failure replay must not refetch or refresh')
-            with self.assertRaisesRegex(ValueError,'total changed'): collect(self.query(),build_data(Path(directory)),fetcher=forbidden)
-            self.assertEqual((root/'manifest.json').read_bytes(),before)
+def page_receipts(data):
+    return [json.loads(row["settings"])
+            for row in data.scan(TableQuery("configurations")).table.to_pylist()
+            if row["id"].startswith(PREFIX + "index:")]
 
+
+class AnnouncementFetchTests(unittest.TestCase):
     def query(self):
         return {"pageNum": "1", "pageSize": "2", "seDate": "2013-01-01~2013-02-02",
                 "stock": "", "secid": "", "column": "", "plate": "", "searchkey": "实施"}
 
+    def test_failed_month_does_not_skip_other_independent_months_or_release_batch(self):
+        responses = {
+            ("2013-01-01~2013-01-31", "1"): page(3, ["a", "b"], True),
+            ("2013-01-01~2013-01-31", "2"): page(4, ["c", "d"], False),
+            ("2013-02-01~2013-02-02", "1"): page(1, ["e"], False),
+        }
+        with TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
+            with self.assertRaisesRegex(ValueError, "total changed"):
+                collect(self.query(), data, fetcher=lambda r: responses[(r["seDate"], r["pageNum"])])
+            report = data.config(PREFIX + "manifest")
+            self.assertIn("2013-02-01~2013-02-02",
+                          {receipt["request"]["seDate"] for receipt in page_receipts(data)})
+            self.assertFalse(report["complete"])
+            self.assertEqual(report["attempted_windows"], 2)
+            self.assertEqual(report["windows"], 1)
+            failure, = report["failures"]
+            self.assertEqual(failure["request"]["pageNum"], "2")
+            with self.assertRaisesRegex(ValueError, "total changed"):
+                collect(self.query(), data, fetcher=lambda _: self.fail("replay must not refetch"))
+            self.assertEqual(data.config(PREFIX + "manifest"), report)
+
     def test_every_month_and_page_is_retained_and_cache_replay_is_identical(self):
-        self.assertIsNotNone(collect, "uniform announcement collector is missing")
-        responses = {("2013-01-01~2013-01-31", "1"): page(3, ["a", "b"], True),
-                     ("2013-01-01~2013-01-31", "2"): page(3, ["c"], False),
-                     ("2013-02-01~2013-02-02", "1"): page(1, ["d"], False)}
-        def fetch(request):
-            return responses[(request["seDate"], request["pageNum"])]
-        with tempfile.TemporaryDirectory() as directory:
-            first = collect(self.query(), build_data(Path(directory)), fetcher=fetch)
-            self.assertEqual(first["records"], 4)
-            self.assertEqual(first["pages"], 3)
-            self.assertEqual(first["windows"], 2)
+        responses = {
+            ("2013-01-01~2013-01-31", "1"): page(3, ["a", "b"], True),
+            ("2013-01-01~2013-01-31", "2"): page(3, ["c"], False),
+            ("2013-02-01~2013-02-02", "1"): page(1, ["d"], False),
+        }
+        with TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
+            first = collect(self.query(), data, fetcher=lambda r: responses[(r["seDate"], r["pageNum"])])
+            self.assertEqual((first["records"], first["pages"], first["windows"]), (4, 3, 2))
             self.assertTrue(first["complete"])
             self.assertEqual(first["release_status"], "NOT_RELEASED")
-            before = (build_data(Path(directory)).path("sources", "announcement_index", "manifest.json")).read_bytes()
-            def forbidden(request):
-                self.fail("verified captured inputs must not be fetched again")
-            second = collect(self.query(), build_data(Path(directory)), fetcher=forbidden)
+
+            second = collect(self.query(), data, fetcher=lambda _: self.fail("replay must not refetch"))
             self.assertEqual(first, second)
-            self.assertEqual(before, (build_data(Path(directory)).path("sources", "announcement_index", "manifest.json")).read_bytes())
+            self.assertEqual(data.config(PREFIX + "manifest"), first)
+            for receipt in page_receipts(data):
+                self.assertEqual(receipt["request"]["stock"], "")
             for source in first["sources"]:
-                payload = json.loads((build_data(Path(directory)).path("sources", "announcement_index", source["file"])).read_text())
-                self.assertEqual(payload["request"]["stock"], "")
-                self.assertEqual(hashlib.sha256(payload["raw_response"].encode()).hexdigest(),
-                                 payload["raw_response_sha256"])
+                raw = data.object("attachment:" + source["id"])
+                self.assertEqual(sha256(raw).hexdigest(), source["sha256"])
 
     def test_changed_total_stops_without_declaring_complete_or_dropping_raw_page(self):
-        self.assertIsNotNone(collect, "uniform announcement collector is missing")
-        query = self.query(); query["seDate"] = "2013-01-01~2013-01-31"
+        query = {**self.query(), "seDate": "2013-01-01~2013-01-31"}
         responses = {"1": page(3, ["a", "b"], True), "2": page(4, ["c", "d"], False)}
-        with tempfile.TemporaryDirectory() as directory:
+        with TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
             with self.assertRaisesRegex(ValueError, "total changed"):
-                collect(query, build_data(Path(directory)), fetcher=lambda r: responses[r["pageNum"]])
-            report = json.loads((build_data(Path(directory)).path("sources", "announcement_index", "manifest.json")).read_text())
-            self.assertFalse(report["complete"])
-            self.assertEqual(len(list(build_data(Path(directory)).path("sources", "announcement_index", "manifest.json").parent.glob("index_*.json"))), 2)
+                collect(query, data, fetcher=lambda r: responses[r["pageNum"]])
+            self.assertFalse(data.config(PREFIX + "manifest")["complete"])
+            self.assertEqual(len(page_receipts(data)), 2)
+            self.assertEqual(data.scan(TableQuery("attachments")).table.num_rows, 2)
 
     def test_corrupted_cache_is_rejected_without_refresh_fallback(self):
-        self.assertIsNotNone(collect, "uniform announcement collector is missing")
-        query = self.query(); query["seDate"] = "2013-01-01~2013-01-02"
-        with tempfile.TemporaryDirectory() as directory:
-            root = build_data(Path(directory)).path("sources", "announcement_index", "manifest.json").parent
-            collect(query, build_data(Path(directory)), fetcher=lambda r: page(1, ["a"], False))
-            path = next(root.glob("index_*.json")); payload = json.loads(path.read_text())
-            payload["raw_response"] = payload["raw_response"].replace('"a"', '"b"')
-            path.write_text(json.dumps(payload))
-            def forbidden(request):
-                self.fail("corrupt evidence must not trigger source refresh")
+        query = {**self.query(), "seDate": "2013-01-01~2013-01-02"}
+        with TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
+            first = collect(query, data, fetcher=lambda _: page(1, ["a"], False))
+            source, = first["sources"]
+            stored = TableQuery("attachments", (Filter("id", "eq", source["id"]),))
+            row, = data.scan(stored).table.to_pylist()
+            data.delete(stored)
+            data.put_rows("attachments", [{**row, "content": page(1, ["b"], False)}], keys=("id",))
             with self.assertRaisesRegex(ValueError, "response hash"):
-                collect(query, build_data(Path(directory)), fetcher=forbidden)
+                collect(query, data, fetcher=lambda _: self.fail("corrupt evidence must not refetch"))
 
     def test_security_filter_is_refused(self):
-        self.assertIsNotNone(collect, "uniform announcement collector is missing")
-        query = self.query(); query["stock"] = "individual-security"
-        with tempfile.TemporaryDirectory() as directory:
+        query = {**self.query(), "stock": "individual-security"}
+        with TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
             with self.assertRaisesRegex(ValueError, "unfiltered"):
-                collect(query, build_data(Path(directory)), fetcher=lambda r: page(0, [], False))
+                collect(query, data, fetcher=lambda _: self.fail("validation must precede network work"))
 
 
 if __name__ == "__main__":

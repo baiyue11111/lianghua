@@ -1,9 +1,39 @@
-import subprocess
-import sys
-import os
+import asyncio
+from contextlib import chdir, closing, contextmanager, redirect_stderr, redirect_stdout
+from importlib import import_module
+from io import StringIO
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
+
+from frontend import cli
+
+
+@contextmanager
+def cli_fixture():
+    from backend import build_backend
+    from market import build_data
+    from tests.history_fixture import make_snapshot
+
+    ui = import_module("frontend.ui-protocol")
+    with TemporaryDirectory() as folder:
+        root = Path(folder)
+        make_snapshot(root)
+        with closing(build_data(root)) as data:
+            data.update_registry(lambda registry: {**registry, "datasets": [{"id": "fixture"}]})
+            with closing(build_backend(root)) as backend, chdir(root), patch.object(
+                ui, "_send_backend", side_effect=lambda request: asyncio.run(backend.send(request)),
+            ):
+                yield root, backend, data
+
+
+def run_cli(config):
+    output, errors = StringIO(), StringIO()
+    with redirect_stdout(output), redirect_stderr(errors):
+        code = cli.main(["--backtest", str(config)])
+    return code, output.getvalue(), errors.getvalue()
 
 
 class CliValidationGateTests(unittest.TestCase):
@@ -15,19 +45,7 @@ class CliValidationGateTests(unittest.TestCase):
                 _decode_backtest_config(b'{"market":{"filter":' + token + b"}}")
 
     def test_real_cli_preserves_decimal_capital_from_numeric_json(self):
-        import json
-        from tests.history_fixture import make_snapshot
-        from market import build_data
-
-        project = Path(__file__).resolve().parents[1]
-        with TemporaryDirectory() as folder:
-            root = Path(folder)
-            make_snapshot(root)
-            data = build_data(root)
-            registry_path = root / "data/source/registry/sources.json"
-            registry = json.loads(registry_path.read_text())
-            registry.update(sources=[], datasets=[{"id": "fixture"}], benchmarks=[])
-            data.write("sources", "registry", "sources.json", json.dumps(registry).encode())
+        with cli_fixture() as (root, _, _):
             config = root / "config.json"
             config.write_text(
                 '{"module":"plugins.strategies.moving_average_cross",'
@@ -35,31 +53,14 @@ class CliValidationGateTests(unittest.TestCase):
                 '"intervals":[{"start":"2020-01-31","end":"2020-01-31"}],'
                 '"initial_cash":9007199254740993.10}'
             )
-            env = {**os.environ, "PYTHONPATH": f"{project}/src:{project}"}
-            result = subprocess.run([
-                sys.executable, "-m", "frontend.cli", "--backtest", str(config),
-            ], cwd=root, env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(json.loads(result.stdout)["intervals"][0]["result"]["effective_config"]["initial_cash"],
-                             "9007199254740993.10")
+            code, output, errors = run_cli(config)
+            self.assertEqual(code, 0, errors)
+            result = json.loads(output)["intervals"][0]["result"]
+            self.assertEqual(result["effective_config"]["initial_cash"], "9007199254740993.10")
 
     def test_real_cli_runs_ordered_independent_intervals_with_exact_capital(self):
-        import asyncio
-        import json
-        from tests.history_fixture import make_snapshot
-        from backend import build_backend
-        from market import build_data
-        ui = __import__("frontend.ui-protocol", fromlist=["UiRequest"])
-
-        project = Path(__file__).resolve().parents[1]
-        with TemporaryDirectory() as folder:
-            root = Path(folder)
-            make_snapshot(root)
-            data = build_data(root)
-            registry_path = root / "data/source/registry/sources.json"
-            registry = json.loads(registry_path.read_text())
-            registry.update(sources=[], datasets=[{"id": "fixture"}], benchmarks=[])
-            data.write("sources", "registry", "sources.json", json.dumps(registry).encode())
+        ui = import_module("frontend.ui-protocol")
+        with cli_fixture() as (root, backend, _):
             config = root / "config.json"
             config.write_text(json.dumps({
                 "run_id": "interval-batch",
@@ -72,88 +73,86 @@ class CliValidationGateTests(unittest.TestCase):
                 ],
                 "initial_cash": 1000000,
             }))
-            env = {**os.environ, "PYTHONPATH": f"{project}/src:{project}"}
-            result = subprocess.run([
-                sys.executable, "-m", "frontend.cli", "--backtest", str(config),
-            ], cwd=root, env=env, capture_output=True, text=True)
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertEqual(result.stderr, "")
-            output = json.loads(result.stdout)
-            self.assertEqual(output["run_id"], "interval-batch")
-            self.assertEqual([item["index"] for item in output["intervals"]], [1, 2, 3])
-            self.assertEqual([item["name"] for item in output["intervals"]], ["甲", "甲", None])
-            self.assertEqual([item["run_id"] for item in output["intervals"]], [
-                "interval-batch-interval-0001", "interval-batch-interval-0002",
+            code, output, errors = run_cli(config)
+            self.assertEqual(code, 0, errors)
+            self.assertEqual(errors, "")
+            batch = json.loads(output)
+            self.assertEqual(batch["run_id"], "interval-batch")
+            intervals = batch["intervals"]
+            self.assertEqual([item["index"] for item in intervals], [1, 2, 3])
+            self.assertEqual([item["name"] for item in intervals], ["甲", "甲", None])
+            self.assertEqual([item["run_id"] for item in intervals], [
+                "interval-batch-interval-0001",
+                "interval-batch-interval-0002",
                 "interval-batch-interval-0003",
             ])
-            self.assertEqual([
-                (item["result"]["effective_config"]["start"],
-                 item["result"]["effective_config"]["end"])
-                for item in output["intervals"]
-            ], [
+            effective = [item["result"]["effective_config"] for item in intervals]
+            self.assertEqual([(item["start"], item["end"]) for item in effective], [
                 ("2020-02-04T00:00:00+00:00", "2020-02-04T23:59:59.999999+00:00"),
                 ("2020-01-31T00:00:00+00:00", "2020-02-03T23:59:59.999999+00:00"),
                 ("2020-02-03T00:00:00+00:00", "2020-02-04T23:59:59.999999+00:00"),
             ])
-            self.assertTrue(all(item["result"]["effective_config"]["initial_cash"] == "1000000"
-                                for item in output["intervals"]))
-            self.assertNotIn("9007199254740992", result.stdout)
-            self.assertTrue((root / "data" / "result").exists())
-            backend = build_backend(root)
-            try:
-                messages = [asyncio.run(backend.send(ui.UiRequest(
+            self.assertEqual([item["initial_cash"] for item in effective], ["1000000"] * 3)
+            self.assertEqual([item["result"]["metrics"]["initial_equity"] for item in intervals],
+                             [1000000] * 3)
+            for item in intervals:
+                message, = asyncio.run(backend.send(ui.UiRequest(
                     f"run-query-{item['index']}", "research.run",
                     "urn:lianghua:ui:input:research.run:v1", {"id": item["run_id"]},
-                )))[0] for item in output["intervals"]]
-            finally:
-                backend.close()
-            self.assertTrue(all(message.kind == "resource" for message in messages))
-            self.assertEqual([message.data["id"] for message in messages], [
-                item["run_id"] for item in output["intervals"]
-            ])
+                )))
+                self.assertEqual(message.kind, "resource")
+                self.assertEqual(message.data["id"], item["run_id"])
+                self.assertEqual(message.data["manifest_file"], "lake:runs/" + item["run_id"])
 
     def test_real_cli_rejects_invalid_backtest_configs_with_clear_errors(self):
-        project=Path(__file__).resolve().parents[1]
-        with TemporaryDirectory() as folder:
-            root=Path(folder)
-            cases={
-                'missing': (root/'missing.json', 'module_failed'),
-                'invalid_json': (root/'invalid.json', 'Expecting property name'),
-                'request_wrapper': (root/'wrapped.json', 'request wrapper'),
-                'unknown_field': (root/'unknown.json', 'unsupported request fields'),
+        with cli_fixture() as (root, _, _):
+            cases = {
+                "missing.json": (None, "module_failed"),
+                "invalid.json": ("{", "Expecting property name"),
+                "wrapped.json": ('{"request": {}}', "request wrapper"),
+                "legacy-range.json": (
+                    '{"module":"x","start":"2020-01-01","end":"2020-01-02"}', "intervals",
+                ),
+                "unknown.json": (
+                    '{"module":"x","intervals":[{"start":"2020-01-01","end":"2020-01-02"}],"unexpected":1}',
+                    "unsupported request fields",
+                ),
             }
-            (root/'invalid.json').write_text('{', encoding='utf-8')
-            (root/'wrapped.json').write_text('{"request": {}}', encoding='utf-8')
-            (root/'unknown.json').write_text(
-                '{"module":"x","intervals":[{"start":"2020-01-01","end":"2020-01-02"}],"unexpected":1}',
-                encoding='utf-8')
-            env={**os.environ,'PYTHONPATH':f'{project}/src:{project}'}
-            for name,(config,needle) in cases.items():
+            for name, (content, needle) in cases.items():
                 with self.subTest(name=name):
-                    result=subprocess.run([
-                        sys.executable,'-m','frontend.cli','--backtest',str(config),
-                    ],cwd=project,env=env,capture_output=True,text=True)
-                    self.assertEqual(result.returncode,2)
-                    self.assertEqual(result.stdout,'')
-                    self.assertIn(needle,result.stderr)
-                    self.assertNotIn('未连接',result.stderr)
-                    self.assertNotIn('Traceback',result.stderr)
+                    config = root / name
+                    if content is not None:
+                        config.write_text(content)
+                    code, output, errors = run_cli(config)
+                    self.assertEqual(code, 2)
+                    self.assertEqual(output, "")
+                    self.assertIn(needle, errors)
+                    self.assertNotIn("未连接", errors)
+                    self.assertNotIn("Traceback", errors)
+
+    def test_missing_dataset_is_reported_without_a_successful_run(self):
+        from backend import Research
+
+        with cli_fixture() as (root, _, data):
+            config = root / "config.json"
+            config.write_text(json.dumps({
+                "run_id": "missing-input",
+                "module": "plugins.strategies.moving_average_cross",
+                "params": {"fast_window": 1, "slow_window": 2},
+                "initial_cash": 100000,
+                "dataset_id": "missing-dataset",
+                "intervals": [{"start": "2020-01-31", "end": "2020-01-31"}],
+            }))
+            code, output, errors = run_cli(config)
+            self.assertEqual(code, 2)
+            self.assertEqual(output, "")
+            self.assertIn("market scope is not registered for this dataset", errors)
+            self.assertNotIn("Traceback", errors)
+            research = Research(data)
+            self.assertEqual(research.rows("runs"), [])
+            failure, = research.rows("run_failures", "missing-input")
+            self.assertEqual(failure["code"], "interval_failed")
 
 
-if __name__=='__main__': unittest.main()
-
-class PluginCliTests(unittest.TestCase):
-    def test_configured_empty_history_gate_creates_no_output(self):
-        import json
-        with TemporaryDirectory() as folder:
-            root=Path(folder); config=root/'run.json'; output=root/'data/result'
-            config.write_text(json.dumps({'module':'plugins.strategies.breadth_low_amount_reversal',
-                'params':{'positions':12},'initial_cash':100000,'start':'2020-01-01','end':'2020-12-31','dataset_id':''},
-                ))
-            project=Path(__file__).resolve().parents[1]
-            env={**os.environ,'PYTHONPATH':f'{project}/src:{project}'}
-            result=subprocess.run([sys.executable,'-m','frontend.cli','--backtest',str(config)],cwd=project,env=env,capture_output=True,text=True)
-            self.assertEqual(result.returncode,2)
-            self.assertFalse(output.exists())
-            self.assertIn('intervals',result.stderr)
-            self.assertNotIn('Traceback',result.stderr)
+if __name__ == "__main__":
+    unittest.main()

@@ -1,4 +1,6 @@
-# 策略规格文档 v1.0
+# 策略 v1.0 历史实验记录
+
+本文记录 2026 年 8 月的实验规格。现行策略和回测入口见 [项目说明](README.md)。
 
 > 锁定日期: 2026-08-24
 > 回测区间: 2014-06 ~ 2025-12 (3130 个交易日, 5549 只股票)
@@ -201,12 +203,6 @@
 
 ---
 
-## 8. 文件索引
+## 8. 历史文件
 
-| 文件 | 说明 |
-|------|------|
-| `strategy_v1.md` | 本文档 |
-| `strategy_v1.py` | 独立策略实现 (可直接运行) |
-| `runs/final_strategy/audit/` | 审计数据 (equity, fills, orders, targets, signals) |
-| `runs/final_strategy/risk_overlay_results.json` | 风控规则实测结果 |
-| `runs/final_strategy/risk_finetune_results.json` | 精细调参实测结果 |
+当时的独立实现与产物路径为 `strategy_v1.py` 和 `runs/final_strategy/`。当前项目树中没有这些文件。

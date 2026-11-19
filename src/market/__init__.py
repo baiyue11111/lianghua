@@ -46,6 +46,35 @@ def digest(value):
     return sha256(canonical(value).encode()).hexdigest()
 
 
+class HistoryView(Mapping):
+    """Expose ordered symbols without building their history tuples up front."""
+
+    __slots__ = ('_symbols', '_read')
+
+    def __init__(self, symbols, read):
+        self._symbols = symbols
+        self._read = read
+
+    @classmethod
+    def window(cls, rows, end, size):
+        start = max(0, end - size)
+        return cls(rows, lambda symbol: rows[symbol][start:end])
+
+    def __contains__(self, symbol):
+        return symbol in self._symbols
+
+    def __getitem__(self, symbol):
+        if symbol not in self._symbols:
+            raise KeyError(symbol)
+        return self._read(symbol)
+
+    def __iter__(self):
+        return iter(self._symbols)
+
+    def __len__(self):
+        return len(self._symbols)
+
+
 class DataBus:
     def __init__(self, store):
         self._store = store

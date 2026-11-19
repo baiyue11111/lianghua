@@ -1,11 +1,10 @@
 """Public close-only series use the existing daily store and comparison port."""
-import json
+from contextlib import closing
 import tempfile
 import unittest
-from datetime import date, datetime
+from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
-from zoneinfo import ZoneInfo
 
 from collect import methods
 from market import build_data
@@ -42,30 +41,48 @@ class SeriesTests(unittest.TestCase):
                 self.provider(text).collect(request)
 
     def test_close_only_publication_is_readable_but_not_tradable(self):
-        from tests.history_fixture import make_snapshot
         from protocol import DataQuery
-        with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder);make_snapshot(root,symbols=('600003',));bus=build_data(root)
-            source={'id':'series','method':'fred_series','data_type':'daily','dataset_id':'fixture',
-                    'storage_id':'series','fields':['close'],'defaults':{'codes':['fred.other']}}
-            fetch=methods.Methods(bus,{'fred_series':lambda source,request:self.provider(
-                'observation_date,OTHER\n2020-01-31,100\n2020-02-03,102\n2020-02-04,103\n').collect(request)})
-            request=fetch.prepare_request(source,{'codes':['fred.other'],'start':'2020-01-31','end':'2020-02-04'})
-            packet=fetch.fetch(source,request);fetch.publish(source,packet)
-            view=fetch.records(source,0,10)
-            self.assertEqual(view['records_count'],3)
-            self.assertEqual({k for k,v in view['records'][0].items() if v is not None},{'code','date','close'})
-            query=DataQuery('fixture',date(2020,1,31),date(2020,2,3),('close',),1,'raw',
-                            symbols=('fred.other',),universe='dataset',purpose='compare')
-            result=bus.query(query)
-            self.assertEqual([r.frame.fields['fred.other']['close'] for r in result.records],[100.,102.])
-            with self.assertRaises((ValueError,DataError)):
-                bus.query(DataQuery('fixture',query.start,query.end,('close',),1,'raw',
-                                    symbols=('fred.other',),universe='dataset',purpose='trade'))
-            before=bus.read('sources','fixture','manifest.json')
-            result=fetch.publish({**source,'fields':['open','high','low','close','volume','amount']},packet)
-            self.assertEqual(result['records'],3)
-            self.assertEqual(bus.read('sources','fixture','manifest.json'),before)
+
+        with tempfile.TemporaryDirectory() as folder, closing(build_data(Path(folder))) as bus:
+            days = ["2020-01-31", "2020-02-03", "2020-02-04"]
+            bus.save_calendar("series", {
+                "sessions": [*days, "2020-02-05"],
+                "coverage": [{"start": days[0], "end": "2020-02-05"}],
+            })
+            source = {"id": "series", "method": "fred_series", "data_type": "daily",
+                      "dataset_id": "series", "storage_id": "series", "fields": ["close"],
+                      "defaults": {"codes": ["fred.other"]}}
+            fetch = methods.Methods(bus, {"fred_series": lambda source, request: self.provider(
+                "observation_date,OTHER\n2020-01-31,100\n2020-02-03,102\n2020-02-04,103\n",
+            ).collect(request)})
+            request = fetch.prepare_request(source, {"codes": ["fred.other"],
+                                                    "start": days[0], "end": days[-1]})
+            packet = fetch.fetch(source, request)
+            fetch.publish(source, packet)
+            reference = bus.source("series", "bars")
+            bus.save_manifest("series", {
+                "schema": 3, "calendar": "calendar:series", "fields": {},
+                "inputs": {"bars": reference, "calendar": "calendar:series"},
+                "scope": {"symbols": ["fred.other"], "universe": "benchmark"},
+            })
+            view = fetch.records(source, 0, 10)
+            self.assertEqual(view["records_count"], 3)
+            self.assertEqual({k for k, v in view["records"][0].items() if v is not None},
+                             {"code", "date", "close"})
+
+            query = DataQuery("series", date(2020, 1, 31), date(2020, 2, 3), ("close",), 1, "raw",
+                              symbols=("fred.other",), universe="dataset", purpose="compare")
+            result = bus.query(query)
+            self.assertEqual([r.frame.fields["fred.other"]["close"] for r in result.records],
+                             [100., 102.])
+            with self.assertRaisesRegex(DataError, "unknown_trade_state"):
+                bus.query(DataQuery("series", query.start, query.end, ("close",), 1, "raw",
+                                    symbols=("fred.other",), universe="dataset", purpose="trade"))
+            before = bus.manifest("series")
+            result = fetch.publish({**source, "fields": ["open", "high", "low", "close", "volume", "amount"]},
+                                   packet)
+            self.assertEqual(result["records"], 3)
+            self.assertEqual(bus.manifest("series"), before)
 
 
 class CrossMarketBenchmarkTests(unittest.TestCase):
@@ -73,9 +90,11 @@ class CrossMarketBenchmarkTests(unittest.TestCase):
         from backend import Benchmarks
         days=['2020-01-30','2020-01-31','2020-02-03','2020-02-04']
         class Store:
-            def read(self,kind,identity,name):
-                return json.dumps({'sessions':days,'coverage':[{'start':days[0],'end':days[-1]}]}).encode()
-            def manifest(self,identity):return {'calendar':'calendar.json'}
+            def calendar(self, dataset):
+                return {'sessions': days, 'coverage': [{'start': days[0], 'end': days[-1]}]}
+
+            def manifest(self, dataset):
+                return {'calendar': 'calendar:' + dataset}
             def query(self,query):
                 prices=[100.,110.,120.,130.] if query.dataset=='index' else [7.,7.1,7.2,7.3]
                 return SimpleNamespace(records=[SimpleNamespace(trade_date=date.fromisoformat(day),

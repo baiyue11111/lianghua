@@ -28,12 +28,12 @@ class SearchProtocolTests(unittest.TestCase):
         from backend import KernelBacktestPort, Modules, Protocol
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
 
         root = Path(root)
         config = make_snapshot(root)
         bus = DataBus(DataStore(root))
-        backtests = KernelBacktestPort(bus, configured_settlement())
+        backtests = KernelBacktestPort(bus, Settlement)
         empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
         return bus, Protocol(Modules(backtests, backtests, empty, empty, empty))
 
@@ -123,13 +123,13 @@ class SearchProtocolTests(unittest.TestCase):
         from backend import KernelBacktestPort, Modules, Protocol, _DIRECTORY
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            backtests = KernelBacktestPort(bus, configured_settlement())
+            backtests = KernelBacktestPort(bus, Settlement)
             empty = type("Empty", (), {"handle": lambda self, operation, data: {}})()
             protocol = Protocol(Modules(backtests, backtests, empty, empty, empty))
             request = ui.UiRequest(
@@ -295,14 +295,14 @@ class SearchProtocolTests(unittest.TestCase):
         from backend import KernelBacktestPort
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
         from protocol import BacktestError
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            port = KernelBacktestPort(bus, configured_settlement())
+            port = KernelBacktestPort(bus, Settlement)
             payload = {
                 "run_id": "failed-search", "module": "plugins.strategies.moving_average_cross",
                 "params": {"fast_window": 1, "slow_window": 3}, "dataset_id": "fixture",

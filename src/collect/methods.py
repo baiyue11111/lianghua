@@ -63,13 +63,6 @@ class Request:
     end: str | None
     year: str | None
 
-    @property
-    def key(self) -> str:
-        code = normalize_security_id(self.code)
-        if self.kind == "adjust":
-            return f"adjust_{code}_{self.start}_{self.end}"
-        return f"dividend_{code}_{self.year}"
-
 
 def _bs_code(code: str) -> str:
     if "." in code:
@@ -166,42 +159,6 @@ def _response_rows(response, timeout: int) -> tuple[list[str], list[list[str]]]:
     if any(len(row) != len(fields) for row in rows):
         raise ProviderError("response row length differs from fields")
     return fields, rows
-
-
-def fetch_one(request: Request, bs, timeout: int = DEFAULT_TIMEOUT) -> dict:
-    code = _bs_code(request.code)
-    with _timeout(timeout):
-        if request.kind == "adjust":
-            response = bs.query_adjust_factor(code=code, start_date=request.start, end_date=request.end)
-        elif request.kind == "dividend":
-            response = bs.query_dividend_data(code=code, year=request.year, yearType="operate")
-        else:
-            raise ValueError(f"unsupported provider kind: {request.kind}")
-    if not _success(response):
-        raise ProviderError(f"{request.kind} {code} failed: {response.error_code} {response.error_msg}",
-                            str(response.error_code))
-    fields, rows = _response_rows(response, timeout)
-    if "code" not in fields or any(row[fields.index("code")] != code for row in rows):
-        raise ProviderError("provider row code does not match request")
-    request_payload = {"kind": request.kind, "code": code, "start": request.start,
-                       "end": request.end, "year": request.year}
-    raw = {"error_code": str(response.error_code), "error_msg": str(response.error_msg),
-           "code": str(getattr(response, "code", "")).lower(), "fields": fields, "rows": rows}
-    return {"schema": 2, "status": "ok" if rows else "empty", "request": request_payload,
-            "request_sha256": _sha256(request_payload),
-            "request_fields_sha256": hashlib.sha256(",".join(fields).encode()).hexdigest(),
-            "raw_response": raw, "raw_response_sha256": _sha256(raw),
-            "collected_at": time.strftime("%Y-%m-%dT%H:%M:%S%z")}
-
-
-def fetch_and_cache(request: Request, bs, data, timeout: int = DEFAULT_TIMEOUT):
-    payload = fetch_one(request, bs, timeout)
-    facts = normalize_facts(payload)
-    validate_facts(facts, kind=facts["kind"], code=facts["code"],
-                   start=facts["start"], end=facts["end"], year=facts["year"])
-    data.put_rows('collection_audit', [{'id': uuid4().hex, 'settings': json.dumps(payload, ensure_ascii=False)}],
-                  keys=('id',), types={'id': 'VARCHAR', 'settings': 'JSON'})
-    return data.save_fact(facts)
 
 
 def _fact_date(value):
@@ -630,30 +587,6 @@ def _validate_cache(request: Request, payload: dict) -> None:
                        start=request.start, end=request.end, year=request.year)
     except (ValueError, TypeError) as error:
         raise CacheIntegrityError(str(error)) from error
-
-
-def pending_requests(requests: list[Request], data) -> list[Request]:
-    from protocol import DataError
-    pending = []
-    for request in requests:
-        from market import fact_ref
-        try:
-            with data.transaction(readonly=True):
-                payload = data.fact(fact_ref(request.kind, request.code, request.start, request.end, request.year))
-        except DataError as error:
-            if error.code == "missing":
-                pending.append(request)
-                continue
-            raise CacheIntegrityError(str(error)) from error
-        except (UnicodeDecodeError, json.JSONDecodeError) as error:
-            raise CacheIntegrityError(str(error)) from error
-        _validate_cache(request, payload)
-    return pending
-
-
-def limit_pending(requests: list[Request], data, max_tasks: int) -> list[Request]:
-    pending = pending_requests(requests, data)
-    return pending[:max_tasks] if max_tasks else pending
 
 
 def login_with_timeout(bs, timeout: int):
@@ -2035,17 +1968,6 @@ class Methods:
                 raise DataError("data_conflict", f"daily field conflict: {key[0]} {key[1]} {field}")
             value[field] = right if left is None else left
         return value
-
-    @staticmethod
-    def _merge_symbol_scope(existing, incoming):
-        values = []
-        identities = set()
-        for symbol in [*existing, *incoming]:
-            identity = normalize_security_id(str(symbol))
-            if identity not in identities:
-                identities.add(identity)
-                values.append(str(symbol))
-        return sorted(values)
 
     @staticmethod
     def _validate_canonical_daily(packet: Mapping[str, object]) -> None:

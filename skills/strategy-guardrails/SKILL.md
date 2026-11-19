@@ -108,8 +108,8 @@ FAIL 的策略不得进入排名、不得用于给出持仓结论，也不得把
 4. **判定**：`python skills/strategy-guardrails/scripts/check_scale_invariance.py \
    --case 10w=<bt_10w.json> --case 100w=<bt_100w.json> --case 1000w=<bt_1000w.json>`。
 5. **FAIL 决策树**：
-   - 先 grep G1 违规 → 在**配置层**把 `dilute_positions` 设为 `max_positions`（关反馈）重跑。
-   - 差距消失 → 判定为策略层问题，修策略，不修内核。
+   - 先检查 G1 违规。固定回测输入，只移除源码中已实现净值到目标仓位的反馈，再重跑。
+   - 差距缩小 → 记录本次差值，检查源码是否还有反馈。
    - 差距仍存在 → 查 `run_events.allocations` 的跳过原因，分离取整与容量。
    - 只有 1000 万档显著下滑 → 按 G4 判为容量效应，另做参与率 / 冲击模型。
 6. **归档**：把新案例写入 `references/case-*.md`，按 `references/iteration.md`

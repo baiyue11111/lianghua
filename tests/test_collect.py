@@ -15,6 +15,7 @@ from protocol import DataError
 from protocol import TableDef, TableQuery
 from backend import Modules, Protocol
 from storage import DataStore
+from tests.history_fixture import fixture_data
 from collect.methods import Methods
 
 
@@ -22,6 +23,22 @@ def _calendar(sessions):
     days = sorted(set(sessions))
     return {"sessions": days,
             "coverage": ([{"start": days[0], "end": days[-1]}] if days else [])}
+
+
+def _bind_rows(bus, identity, kind, rows, keys, *, types=None):
+    from market import table_name
+
+    table = table_name(f'{identity}/{kind}')
+    bus.put_rows(table, rows, keys=keys, types=types)
+    reference = 'lake:' + table
+    bus.bind(identity, kind, reference)
+    return reference
+
+
+def _daily_row(day, code='600000', close=10.5):
+    return {'code': code, 'date': day, 'open': close, 'high': close + 1,
+            'low': close - 1, 'close': close, 'volume': 100.0,
+            'amount': 100 * close, 'tradestatus': 1.0}
 
 
 class CollectionTests(unittest.TestCase):
@@ -47,9 +64,8 @@ class CollectionTests(unittest.TestCase):
             bus.put_rows('collection_audit', [{'id': 'audit', 'settings': '{"event":"old"}'}], keys=('id',))
             collect = Collect(sources, Methods(bus))
             self.assertEqual(collect.status("one"), job)
-            self.assertEqual(collect._schedule_list(), {"items": [schedule]})
             collect.tick(at=1)
-            view = collect._source_view(source)
+            view = collect.handle("collection.sources", {})[0]
             self.assertEqual(view["job"], job)
             self.assertEqual(view["schedule"], schedule)
             self.assertEqual(bus.scan(TableQuery('collection_audit')).table.num_rows, 1)
@@ -99,12 +115,11 @@ class CollectionTests(unittest.TestCase):
             view = methods.records(source, 0, 50)
             self.assertEqual(view['total'], 1)
             self.assertEqual(view['records'], packet['records'])
-            before = bus.read('sources', 'custom', 'records.json')
+            reference = bus.source('custom')
+            before = bus.table(reference)
             with self.assertRaises(DataError):
                 methods.publish(source, {**packet, 'records': [{'identity': 'a', 'value': 2}]})
-            self.assertEqual(bus.read('sources', 'custom', 'records.json'), before)
-            self.assertFalse((Path(root) / 'data/source/snapshots').exists())
-            self.assertFalse((Path(root) / 'log/custom/latest.json').exists())
+            self.assertTrue(bus.table(reference).equals(before))
 
     def test_collect_request_normalization_is_shared_and_rejects_before_fetch(self):
         from collect.methods import Methods
@@ -119,7 +134,12 @@ class CollectionTests(unittest.TestCase):
                          "fields": ["date", "code", "close"],
                          "provider_options": {"page_size": 100}},
         }
-        methods = Methods(object())
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root)))
+            self.addCleanup(bus.close)
+            self._check_collect_request_normalization(Methods(bus), source)
+
+    def _check_collect_request_normalization(self, methods, source):
         request = {"codes": " sh.600036, sz.000001, sh.000300, sh.600036 ",
                    "fields": "date, code, close, amount, close",
                    "start": "2026-10-01", "end": "2026-10-13",
@@ -163,8 +183,6 @@ class CollectionTests(unittest.TestCase):
             self.assertIsNone(collect._fetch_thread)
 
     def test_daily_source_summary_and_page_do_not_build_a_backtest_dataset(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
         from collect.core import Collect
         from collect.methods import Methods
         from collect.sources import Sources
@@ -172,15 +190,11 @@ class CollectionTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as root:
             root = Path(root); make_snapshot(root)
-            path = root / "data/source/fixture/daily/bars.parquet"
-            table = pq.read_table(path).append_column(
-                "float_mv", pa.array([None] * pq.read_table(path).num_rows, type=pa.float64()))
-            pq.write_table(table, path)
             bus = DataBus(DataStore(root))
             sources = Sources(bus)
             sources.register({"id": "daily", "name": "Daily", "method": "fixture",
                               "frequency": "daily", "data_type": "daily", "default": True,
-                              "modes": ["query"], "dataset_id": "fixture",
+                              "modes": ["query"], "dataset_id": "fixture", "storage_id": "fixture",
                               "defaults": {}})
             collect = Collect(sources, Methods(bus))
             with patch.object(bus, "query", side_effect=AssertionError("no backtest query")):
@@ -192,7 +206,9 @@ class CollectionTests(unittest.TestCase):
                 })
             self.assertGreater(page["total"], 50)
             self.assertEqual(len(page["records"]), 10)
-            self.assertTrue(all(row["float_mv"] is None for row in page["records"]))
+            self.assertTrue(all(row['date'] >= '2020-01-02' for row in page['records']))
+            self.assertEqual({row['code'] for row in page['records']},
+                             {'sh.600000', 'sh.600001', 'sh.600002', 'sh.600003'})
             self.assertTrue(views[0]["snapshot"]["snapshot_id"])
             self.assertGreater(views[0]["records"], page["total"])
 
@@ -202,12 +218,14 @@ class CollectionTests(unittest.TestCase):
         source = {"id": "daily", "method": "fixture", "data_type": "daily",
                   "frequency": "manual", "fields": ["open", "close"],
                   "defaults": {}}
-        methods = Methods(object(), {"fixture": lambda _source, _request: {
-            "records": [], "raw": [], "scope": {"codes": []}}})
-        with self.assertRaisesRegex(ValueError, "full"):
-            methods.prepare_request(source, {"fields": "full"})
-        packet = methods.fetch(source, methods.prepare_request(
-            source, {"frequency": "d", "adjustment": "3", "fields": "basic"}))
+        with tempfile.TemporaryDirectory() as root:
+            bus = DataBus(DataStore(Path(root)))
+            methods = Methods(bus, {"fixture": lambda _source, _request: {
+                "records": [], "raw": [], "scope": {"codes": []}}})
+            with self.assertRaisesRegex(ValueError, "full"):
+                methods.prepare_request(source, {"fields": "full"})
+            packet = methods.fetch(source, methods.prepare_request(
+                source, {"frequency": "d", "adjustment": "3", "fields": "basic"}))
         self.assertEqual(packet["frequency"], "d")
         self.assertEqual(packet["adjustment"], "3")
         self.assertEqual(packet["data_type"], "daily")
@@ -223,108 +241,67 @@ class CollectionTests(unittest.TestCase):
             bus = DataBus(DataStore(root)); sources = Sources(bus)
             sources.register({"id": "benchmark", "name": "Benchmark", "method": "fixture",
                               "frequency": "daily", "data_type": "daily", "modes": ["query"],
-                              "defaults": {"codes": ["sh.600003"]}, "dataset_id": "fixture"})
+                              "defaults": {"codes": ["sh.600003"]}, "dataset_id": "fixture",
+                              "storage_id": "fixture"})
             with patch.object(bus, "query", side_effect=AssertionError("no backtest query")):
                 view = Collect(sources, Methods(bus)).handle("collection.sources", {})[0]
             self.assertEqual(view["records"], 157)
             self.assertEqual(view["snapshot"]["scope"]["symbols"], ["sh.600003"])
 
     def test_daily_page_matches_only_normalized_security_aliases(self):
-        import hashlib
-        import pyarrow as pa
-        import pyarrow.parquet as pq
         from collect.sources import Sources
-        from tests.history_fixture import make_snapshot
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            make_snapshot(root)
-            path = root / "data/source/fixture/daily/bars.parquet"
-            row = {"date": "2020-01-02", "open": 10.0, "high": 11.0,
-                   "low": 9.0, "close": 10.5, "volume": 100.0,
-                   "amount": 1050.0, "tradestatus": 1.0}
-            pq.write_table(pa.Table.from_pylist([
-                {**row, "code": "000001"},
-                {**row, "code": "sz.000001"},
-                {**row, "code": "sh.000001"},
-            ]), path)
-            manifest_path = root / "data/source/fixture/manifest.json"
-            manifest = json.loads(manifest_path.read_text())
-            manifest["scope"]["symbols"] = ["000001", "sh.000001", "sz.000001"]
-            daily_ref = next(item for item in manifest["files"]
-                             if item["file"] == "daily/bars.parquet")
-            daily_ref["sha256"] = hashlib.sha256(path.read_bytes()).hexdigest()
-            manifest_path.write_text(json.dumps(manifest, ensure_ascii=False))
-
-            bus = DataBus(DataStore(root))
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            symbols = ['000001', 'sh.000001', 'sz.000001']
+            reference = _bind_rows(bus, 'fixture', 'bars',
+                [_daily_row('2020-01-02', code) for code in symbols], ('code', 'date'))
+            bus.save_calendar('fixture', _calendar(['2020-01-02', '2020-01-03']))
+            bus.save_manifest('fixture', {'schema': 3, 'fields': {},
+                'inputs': {'bars': reference}, 'scope': {'symbols': symbols, 'universe': 'market'}})
             sources = Sources(bus)
-            for source_id, code in (("sh_index", "sh.000001"),
-                                    ("bank", "000001")):
-                sources.register({"id": source_id, "name": source_id,
-                                  "method": "fixture", "frequency": "daily",
-                                  "data_type": "daily", "modes": ["query"],
-                                  "dataset_id": "fixture",
-                                  "defaults": {"codes": [code]}})
-
-            index = Methods(bus).daily_collection_summary(sources.get('sh_index'), "fixture")
-            index_page = Methods(bus).records(sources.get('sh_index'),
-                                                   limit=10)
-            bank = Methods(bus).daily_collection_summary(sources.get('bank'), "fixture")
-            bank_page = Methods(bus).records(sources.get('bank'), limit=10)
-            self.assertEqual(index["records_count"], 1)
-            self.assertEqual(index_page["total"], 1)
-            self.assertEqual([row["code"] for row in index_page["records"]],
-                             ["sh.000001"])
-            self.assertEqual(bank["records_count"], 2)
-            self.assertEqual(bank_page["total"], 2)
-            self.assertEqual({row["code"] for row in bank_page["records"]},
-                             {"000001", "sz.000001"})
+            methods = Methods(bus)
+            for source_id, code, expected in (
+                ('index', 'sh.000001', ['sh.000001']),
+                ('bank', '000001', ['000001', 'sz.000001']),
+            ):
+                with self.subTest(source=source_id):
+                    source = sources.register({'id': source_id, 'name': source_id,
+                        'method': 'fixture', 'frequency': 'daily', 'data_type': 'daily',
+                        'dataset_id': 'fixture', 'storage_id': 'fixture', 'defaults': {'codes': [code]}})
+                    summary = methods.daily_collection_summary(source, 'fixture')
+                    page = methods.records(source, limit=10)
+                    self.assertEqual(summary['records_count'], len(expected))
+                    self.assertEqual(page['total'], len(expected))
+                    self.assertEqual([row['code'] for row in page['records']], expected)
 
     def test_daily_source_calendar_is_loaded_and_fix_enters_source(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
         from collect.core import Collect
-        from collect.methods import Methods
         from collect.sources import Sources
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            calendar = _calendar(["2026-01-02", "2026-01-05", "2026-01-06"])
-            calendar_ref = bus.write("sources", "cn_a", "calendar.json",
-                                     json.dumps(calendar).encode())
-            bus.write("sources", "cn_a", "manifest.json", json.dumps({
-                "schema": 2,
-                "files": [{"file": "calendar.json", "sha256": calendar_ref.sha256,
-                           "role": "market"}],
-                "fields": {}, "scope": {"symbols": ["600036"], "universe": "market"},
-                "calendar": "calendar.json",
-            }).encode())
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            calendar = _calendar(['2026-01-02', '2026-01-05', '2026-01-06'])
+            bus.save_calendar('cn_a', calendar)
             sources = Sources(bus)
-            sources.register({"id": "daily", "name": "Daily", "method": "fixture",
-                              "frequency": "daily", "data_type": "daily",
-                              "modes": ["fix"], "default": True,
-                              "storage_id": "cn_a", "dataset_id": "cn_a",
-                              "calendar": "calendar.json", "price_basis": "raw",
-                              "defaults": {}})
-            methods = Methods(bus, {"fixture": lambda source, request: {
-                "records": [{"code": "600036", "date": "2026-01-05",
-                              "open": 10.0, "high": 11.0, "low": 9.0,
-                              "close": 10.5, "volume": 100.0, "amount": 1050.0}],
-                "raw": [], "scope": {"universe": "market"}}})
+            sources.register({'id': 'daily', 'name': 'Daily', 'method': 'fixture',
+                'frequency': 'daily', 'data_type': 'daily', 'modes': ['fix'],
+                'storage_id': 'cn_a', 'dataset_id': 'cn_a', 'calendar': 'calendar:cn_a',
+                'price_basis': 'raw', 'defaults': {}})
+            row = _daily_row('2026-01-05', '600036')
+            methods = Methods(bus, {'fixture': lambda _source, _request: {
+                'records': [row], 'raw': [], 'scope': {'universe': 'market'}}})
             collect = Collect(sources, methods)
-            fetched = collect.handle("collection.start", {
-                "mode": "fix", "codes": ["sh.600036"],
-                "start": "2026-01-05", "end": "2026-01-05",
-            })
-            self.assertTrue(fetched["ok"])
+            self.addCleanup(collect.close)
+            result = collect.handle('collection.start', {
+                'source_id': 'daily', 'mode': 'fix', 'codes': ['sh.600036'],
+                'start': '2026-01-05', 'end': '2026-01-05'})
+            self.assertTrue(result['ok'], result)
             collect._fetch_thread.join(2)
-            self.assertEqual(collect.handle("collection.current", {})["status"], "awaiting_publish")
-            self.assertTrue(collect.handle("collection.merge", {"dryRun": False})["ok"])
+            self.assertEqual(collect.handle('collection.current', {})['status'], 'awaiting_publish')
+            self.assertTrue(collect.handle('collection.merge', {'dryRun': False})['ok'])
             collect._merge_thread.join(2)
-            parquet = pq.read_table(pa.BufferReader(
-                bus.read("sources", "cn_a", "daily/2026.parquet")))
-            self.assertEqual(parquet.to_pylist()[0]["code"], "600036")
+            table = bus.table(bus.source('cn_a', 'bars'), columns=tuple(row))
+            self.assertEqual(table.to_pylist(), [row])
+            self.assertEqual(bus.calendar('cn_a'), calendar)
 
     def test_string_daily_provider_rows_close_the_standard_publish_query_loop(self):
         import sys
@@ -338,15 +315,7 @@ class CollectionTests(unittest.TestCase):
             root = Path(root)
             bus = DataBus(DataStore(root))
             calendar = _calendar(["2026-01-02", "2026-01-05", "2026-01-06"])
-            calendar_ref = bus.write("sources", "cn_a", "calendar.json",
-                                     json.dumps(calendar).encode())
-            bus.write("sources", "cn_a", "manifest.json", json.dumps({
-                "schema": 2,
-                "files": [{"file": "calendar.json", "sha256": calendar_ref.sha256,
-                           "role": "market"}],
-                "fields": {}, "scope": {"symbols": ["600036"], "universe": "market"},
-                "calendar": "calendar.json",
-            }).encode())
+            bus.save_calendar('cn_a', calendar)
             sources = Sources(bus)
             sources.register({"id": "daily", "name": "Daily", "method": "daily",
                               "frequency": "manual", "data_type": "daily",
@@ -413,6 +382,9 @@ class CollectionTests(unittest.TestCase):
                 self.assertTrue(collect.handle("collection.merge", {"dryRun": False})["ok"])
                 collect._merge_thread.join(2)
                 self.assertIsNone(collect.handle("collection.merge_job", {})["error"])
+            bus.save_manifest('cn_a', {'schema': 3, 'fields': {},
+                'calendar': 'calendar:cn_a', 'scope': {'symbols': ['sh.600036'], 'universe': 'market'},
+                'inputs': {'bars': bus.source('cn_a', 'bars')}})
             dataset = bus.query(DataQuery(
                 "cn_a", date(2026, 1, 7), date(2026, 1, 7),
                 ("open", "high", "low", "close", "volume", "amount"), 1, "raw",
@@ -439,82 +411,52 @@ class CollectionTests(unittest.TestCase):
                         "request": request, "scope": {"universe": "market"},
                     })
                 self.assertEqual(caught.exception.code, "canonical_daily")
-            self.assertEqual(bus._store.publish_states(), ())
-            with self.assertRaises(DataError):
-                bus.read("sources", "cn_a", "daily/2026.parquet")
+            with self.assertRaises(DataError) as caught:
+                bus.source('cn_a', 'bars')
+            self.assertEqual(caught.exception.code, 'missing')
 
     def test_source_query_keeps_frontend_security_search_shape(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        from collect.core import Collect
-        from collect.methods import Methods
         from collect.sources import Sources
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            cn_a = root / "data/source/cn_a"
-            cn_a.mkdir(parents=True)
-            pq.write_table(pa.Table.from_pylist([{
-                "code": "600036", "name": "招商银行", "exchange": "SH",
-                "status": "listed", "first_date": "2002-04-09", "last_date": None,
-            }]), cn_a / "stock_info.parquet")
-            pq.write_table(pa.Table.from_pylist([{
-                "code": "600036", "date": "2026-09-11", "close": 42.5,
-                "pctChg": 1.25, "amount": 123456789.0,
-            }]), cn_a / "latest_snapshot.parquet")
-            bus = DataBus(DataStore(root))
-            bus.write("sources", "registry", "sources.json", json.dumps({
-                "sources": [], "datasets": [{"id": "market", "storage_id": "cn_a"}],
-                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            _bind_rows(bus, 'stocks', 'records', [{
+                'code': 'sh.600036', 'code_name': '招商银行', 'status': '1',
+                'ipoDate': '2002-04-09', 'outDate': '',
+            }], ('code',))
+            _bind_rows(bus, 'daily', 'bars', [{
+                **_daily_row('2026-09-11', 'sh.600036', 42.5),
+                'pctChg': 1.25, 'amount': 123456789.0,
+            }], ('code', 'date'))
             sources = Sources(bus)
-            result = Views(bus, sources).handle("data.search", {"q": "招商"})
-            self.assertEqual(result["items"][0]["代码"], "600036")
-            self.assertEqual(result["items"][0]["名称"], "招商银行")
-            self.assertEqual(result["items"][0]["最新收盘"], 42.5)
-            self.assertEqual(result["items"][0]["涨跌幅"], 1.25)
-            self.assertEqual(result["items"][0]["行情日期"], "2026-09-11")
-            self.assertAlmostEqual(result["items"][0]["成交额亿"], 1.23456789)
+            for name, data_type in [('stocks', 'stock_info'), ('daily', 'daily')]:
+                sources.register({'id': name, 'name': name, 'method': 'fixture',
+                                  'frequency': 'daily', 'data_type': data_type, 'defaults': {}})
+            result = Views(bus, sources).handle('data.search', {'q': '招商'})
+            self.assertEqual(result['items'][0]['代码'], 'sh.600036')
+            self.assertEqual(result['items'][0]['名称'], '招商银行')
+            self.assertEqual(result['items'][0]['最新收盘'], 42.5)
+            self.assertEqual(result['items'][0]['涨跌幅'], 1.25)
+            self.assertEqual(result['items'][0]['行情日期'], '2026-09-11')
+            self.assertAlmostEqual(result['items'][0]['成交额亿'], 1.23456789)
 
     def test_source_kline_keeps_frontend_curve_shape(self):
-        from collect.core import Collect
-        from collect.methods import Methods
         from collect.sources import Sources
-        from protocol import Bar, Dataset, HistoryDay, MarketFrame, HistoryBar
-        from datetime import date, datetime, timezone
 
-        with tempfile.TemporaryDirectory() as root:
-            bus = DataBus(DataStore(Path(root)))
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            _bind_rows(bus, 'market', 'bars', [{
+                **_daily_row('2026-01-02', 'sh.600036'),
+                'open': 10.0, 'low': 9.0, 'high': 11.0,
+            }], ('code', 'date'))
+            bus.save_calendar('market', _calendar(['2026-01-02', '2026-01-05']))
             sources = Sources(bus)
-            sources.register({"id": "daily", "name": "Daily", "method": "fixture",
-                              "frequency": "daily", "data_type": "daily",
-                              "modes": ["kline"], "default": True,
-                              "dataset_id": "market", "calendar": "calendar.json",
-                              "defaults": {}})
-            bus.write("sources", "market", "calendar.json",
-                      json.dumps(_calendar(["2026-01-02", "2026-01-03"])).encode())
-            collect = Collect(sources, Methods(bus))
-            at = datetime(2026, 1, 2, 15, tzinfo=timezone.utc)
-            frame = MarketFrame(at, "MARKET",
-                                {"600036": {"open": 10.0, "high": 11.0,
-                                             "low": 9.0, "close": 10.5,
-                                             "volume": 100.0, "amount": 1050.0}},
-                                {}, {"600036": (HistoryBar(at,
-                                                             {"close": 10.5}),)})
-            dataset = Dataset("market", (HistoryDay(
-                trade_date=date(2026, 1, 2), frame=frame,
-                bars={"600036": Bar("600036", date(2026, 1, 2),
-                                    10.0, 11.0, 9.0, 10.5, 100.0, 1050.0)},
-                previous_closes={}, opening_marks={}, closing_marks={},
-                opening_amount20={}, closing_amount20={}, liquidity_as_of=date.min,
-                registrations=(), opening_volume20={}),),
-                               {"kind": "raw"}, {}, {"universe": "market", "symbols": ("600036",)},
-                               (date(2026, 1, 2), date(2026, 1, 3)),
-                               ("open", "high", "low", "close", "volume", "amount"), 1)
-            bus.query = lambda query: dataset
-            result = Views(bus, sources).handle("data.bars", {"code": "600036", "freq": "日",
-                                                     "adj": "不复权"})
-            self.assertEqual(result["dates"], ["2026-01-02"])
-            self.assertEqual(result["candles"], [[10.0, 10.5, 9.0, 11.0]])
+            sources.register({'id': 'daily', 'name': 'Daily', 'method': 'fixture',
+                'frequency': 'daily', 'data_type': 'daily', 'modes': ['kline'],
+                'default': True, 'dataset_id': 'market', 'calendar': 'calendar:market', 'defaults': {}})
+            with patch.object(bus, 'query', side_effect=AssertionError('no backtest query')):
+                result = Views(bus, sources).handle('data.bars', {'code': '600036',
+                    'freq': '日', 'adj': '不复权'})
+            self.assertEqual(result['dates'], ['2026-01-02'])
+            self.assertEqual(result['candles'], [[10.0, 10.5, 9.0, 11.0]])
 
     def test_source_fetch_and_merge_share_current_task_and_dry_run_does_not_publish(self):
         from collect.core import Collect
@@ -600,15 +542,14 @@ class CollectionTests(unittest.TestCase):
             bus = DataBus(DataStore(Path(root)))
             registry = {"sources": [], "datasets": [{"id": "fixture_dataset"}],
                         "benchmarks": [{"id": "hs300"}]}
-            bus.write("sources", "registry", "sources.json",
-                      json.dumps(registry).encode())
+            bus.update_registry(lambda current: {**current, **registry})
             sources = Sources(bus)
             descriptor = {"id": "fixture", "name": "Fixture", "method": "fixture",
                           "frequency": "daily", "defaults": {"codes": ["600001"]}}
             sources.register(descriptor)
             sources.update("fixture", {"lookback_days": 3})
             sources.remove("fixture")
-            saved = json.loads(bus.read("sources", "registry", "sources.json"))
+            saved = bus.registry()
             self.assertEqual(saved["datasets"], registry["datasets"])
             self.assertEqual(saved["benchmarks"], registry["benchmarks"])
             self.assertEqual(saved["sources"], [])
@@ -712,13 +653,13 @@ class CollectionTests(unittest.TestCase):
             packet = methods.fetch(source, {'date': '2026-10-14'})
             published = methods.publish(source, packet)
             logged = methods.log({'source_id': 'fixture', 'event': 'published'})
-            self.assertEqual(published['ref'].kind, 'sources')
-            self.assertEqual(logged.kind, 'state')
+            self.assertEqual(published['records'], 1)
+            self.assertEqual(logged['event'], 'published')
             view = methods.records(source)
             self.assertEqual(view['records'][0]['close'], 10.0)
             self.assertEqual(view['raw'], packet['raw'])
-            self.assertEqual(bus.list('sources', 'snapshots'), ())
-            self.assertEqual(json.loads(bus.read('state', 'collect', logged.name))['event'], 'published')
+            audit = bus.scan(TableQuery('collection_audit')).table.to_pylist()
+            self.assertIn(logged, [json.loads(row['settings']) for row in audit])
 
     def test_methods_publish_accepts_non_security_packets_and_source_id_is_authoritative(self):
         from collect.methods import Methods
@@ -737,7 +678,7 @@ class CollectionTests(unittest.TestCase):
                                   {'date': '2026-10-14'})
             self.assertEqual(packet['source_id'], 'announcements')
             published = methods.publish(source, packet)
-            self.assertEqual(published['ref'].kind, 'sources')
+            self.assertEqual(published['records'], 1)
             self.assertTrue(methods.records(source)['snapshot_id'])
 
     def test_collect_manual_run_uses_registered_source_and_one_methods_path(self):
@@ -811,395 +752,175 @@ class CollectionTests(unittest.TestCase):
                 "start": "2026-01-01", "end": "2026-01-01"})
             self.assertEqual(result["records"], [])
 
-    def test_daily_publish_merges_existing_year_parquet_and_preserves_columns(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        from collect.methods import Methods
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            existing = pa.Table.from_pylist([
-                {"code": "600000", "date": "2025-01-02", "name": "A",
-                 "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5,
-                 "volume": 100.0, "amount": 1050.0},
-            ])
-            output = pa.BufferOutputStream()
-            pq.write_table(existing, output)
-            daily_ref = bus.write("sources", "cn_a", "daily/2025.parquet",
-                                  output.getvalue().to_pybytes())
-            calendar = _calendar(["2025-01-02", "2025-01-03"])
-            calendar_ref = bus.write("sources", "fixture", "calendar.json",
-                                     json.dumps(calendar).encode())
-            manifest = {"schema": 2,
-                        "files": [
-                            {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
-                            {"file": "source/cn_a/daily/2025.parquet",
-                             "sha256": daily_ref.sha256, "role": "market"},
-                        ],
-                        "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
-                        "calendar": "calendar.json"}
-            bus.write("sources", "fixture", "manifest.json", json.dumps(manifest).encode())
-            source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "cn_a", "dataset_id": "fixture",
-                      "calendar": "calendar.json",
-                      "name": "Daily", "frequency": "daily", "defaults": {}}
-            methods = Methods(bus, {"daily": lambda _source, request: {
-                "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
-            methods.publish(source, methods.fetch(source, {"records": [
-                {"code": "600000", "date": "2025-01-02", "name": "A",
-                 "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5,
-                 "volume": 100.0, "amount": 1050.0},
-                {"code": "600000", "date": "2025-01-03", "name": "A",
-                 "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.5,
-                 "volume": 120.0, "amount": 1380.0},
-            ]}))
-            table = pq.read_table(bus.path("sources", "cn_a", "daily/2025.parquet"))
-            self.assertEqual(table.schema.names, existing.schema.names)
-            self.assertEqual(len(table), 2)
-            self.assertEqual(sorted(row["date"] for row in table.to_pylist()),
-                             ["2025-01-02", "2025-01-03"])
-            saved_calendar = json.loads(bus.read("sources", "fixture", "calendar.json"))
-            self.assertEqual(saved_calendar["sessions"], ["2025-01-02", "2025-01-03"])
-            saved_manifest = json.loads(bus.read("sources", "fixture", "manifest.json"))
-            self.assertEqual(saved_manifest["scope"], {
-                "symbols": ["600000"], "universe": "market",
-                "calendar_start": "2025-01-02", "calendar_end": "2025-01-03",
-            })
-            self.assertEqual(saved_manifest["fields"], {})
-
-    def test_daily_conflict_is_rejected_before_any_parquet_write(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        from collect.methods import Methods
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            table = pa.Table.from_pylist([{"code": "600000", "date": "2025-01-02",
-                                           "open": 10.0, "high": 11.0, "low": 9.0,
-                                           "close": 10.0, "volume": 1.0, "amount": 10.0}])
-            output = pa.BufferOutputStream()
-            pq.write_table(table, output)
-            before = bus.write("sources", "cn_a", "daily/2025.parquet",
-                               output.getvalue().to_pybytes())
-            calendar_ref = bus.write("sources", "fixture", "calendar.json",
-                json.dumps(_calendar(["2025-01-02"])).encode())
-            manifest = {"schema": 2, "files": [
-                {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
-                {"file": "source/cn_a/daily/2025.parquet",
-                 "sha256": before.sha256, "role": "market"}],
-                "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
-                "calendar": "calendar.json"}
-            bus.write("sources", "fixture", "manifest.json", json.dumps(manifest).encode())
-            methods = Methods(bus, {"daily": lambda _source, request: {
-                "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
-            source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
-            result = methods.publish(source, methods.fetch(source, {"records": [{
-                "code": "600000", "date": "2025-01-02", "open": 10.0,
-                "high": 100.0, "low": 9.0, "close": 99.0,
-                "volume": 1.0, "amount": 10.0}]}))
-            self.assertEqual(result['records'], 0)
-            self.assertEqual([r['code'] for r in result['failures']], ['sh.600000'])
-            self.assertIn('daily field conflict', result['failures'][0]['error'])
-            self.assertEqual(bus.read_ref(before), bus.read("sources", "cn_a", "daily/2025.parquet"))
-            self.assertEqual(bus._store.publish_states(), ())
-
-    def test_daily_schema_error_writes_nothing_and_leaves_no_publication_marker(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        from collect.methods import Methods
-
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            table = pa.Table.from_pylist([{
-                "code": "600000", "date": "2025-01-02", "name": "A",
-                "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.0,
-                "volume": 1.0, "amount": 10.0,
-            }])
-            output = pa.BufferOutputStream()
-            pq.write_table(table, output)
-            before_daily = bus.write("sources", "cn_a", "daily/2025.parquet",
-                                     output.getvalue().to_pybytes())
-            before_calendar = bus.write(
-                "sources", "fixture", "calendar.json",
-                json.dumps(_calendar(["2025-01-02"])).encode(),
-            )
-            manifest = {"schema": 2, "files": [
-                {"file": "calendar.json", "sha256": before_calendar.sha256, "role": "market"},
-                {"file": "source/cn_a/daily/2025.parquet",
-                 "sha256": before_daily.sha256, "role": "market"}],
-                "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
-                "calendar": "calendar.json"}
-            before_manifest = bus.write(
-                "sources", "fixture", "manifest.json", json.dumps(manifest).encode())
-            methods = Methods(bus, {"daily": lambda _source, request: {
-                "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
-            source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
-            with self.assertRaises((TypeError, ValueError)):
-                methods.publish(source, methods.fetch(source, {"records": [{
-                    "code": "600000", "date": "2025-01-03", "name": {"bad": "schema"},
-                    "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.0,
-                    "volume": 2.0, "amount": 22.0,
-                }]}))
-            self.assertEqual(bus.read_ref(before_daily),
-                             bus.read("sources", "cn_a", "daily/2025.parquet"))
-            self.assertEqual(bus.read_ref(before_calendar),
-                             bus.read("sources", "fixture", "calendar.json"))
-            self.assertEqual(bus.read_ref(before_manifest),
-                             bus.read("sources", "fixture", "manifest.json"))
-            self.assertEqual(bus._store.publish_states(), ())
+    def test_daily_schema_error_preserves_existing_bars_and_calendar(self):
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            source = {'id': 'daily', 'data_type': 'daily', 'dataset_id': 'fixture'}
+            methods = Methods(bus)
+            calendar = _calendar(['2025-01-02', '2025-01-03'])
+            bus.save_calendar('fixture', calendar)
+            packet = {'records': [_daily_row('2025-01-02')], 'calendar': calendar,
+                      'raw': [], 'scope': {}}
+            methods.publish(source, packet)
+            reference = bus.source('daily', 'bars')
+            before = bus.table(reference)
+            corrupt = {**_daily_row('2025-01-03'), 'name': {'bad': 'schema'}}
+            with self.assertRaises((TypeError, ValueError, DataError)):
+                methods.publish(source, {**packet, 'records': [corrupt],
+                    'calendar': _calendar(['2025-01-04', '2025-01-05'])})
+            self.assertTrue(bus.table(reference).equals(before))
+            self.assertEqual(bus.calendar('fixture'), calendar)
 
     def test_daily_publish_is_queryable_raw_across_years_and_idempotent(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        from collect.methods import Methods
-        from protocol import DataQuery
         from datetime import date
+        from protocol import DataQuery
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            def write_year(year, rows):
-                output = pa.BufferOutputStream()
-                pq.write_table(pa.Table.from_pylist(rows), output)
-                return bus.write("sources", "cn_a", f"daily/{year}.parquet",
-                                 output.getvalue().to_pybytes())
-            first = write_year(2024, [{
-                "code": "600000", "date": "2024-12-31", "name": "A",
-                "open": 10.0, "high": 11.0, "low": 9.0, "close": 10.5,
-                "volume": 100.0, "amount": 1050.0,
-            }])
-            second = write_year(2025, [{
-                "code": "600000", "date": "2025-01-02", "name": "A",
-                "open": 11.0, "high": 12.0, "low": 10.0, "close": 11.5,
-                "volume": 120.0, "amount": 1380.0,
-            }])
-            calendar = _calendar(["2024-12-31", "2025-01-02", "2025-01-03", "2025-01-04"])
-            calendar_ref = bus.write("sources", "fixture", "calendar.json",
-                                     json.dumps(calendar).encode())
-            manifest = {"schema": 2, "files": [
-                {"file": "calendar.json", "sha256": calendar_ref.sha256, "role": "market"},
-                {"file": "source/cn_a/daily/2024.parquet", "sha256": first.sha256, "role": "market"},
-                {"file": "source/cn_a/daily/2025.parquet", "sha256": second.sha256, "role": "market"}],
-                "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
-                "calendar": "calendar.json"}
-            bus.write("sources", "fixture", "manifest.json", json.dumps(manifest).encode())
-            methods = Methods(bus, {"daily": lambda _source, request: {
-                "records": request["records"], "raw": [], "scope": {"universe": "market"}}})
-            source = {"id": "daily", "method": "daily", "data_type": "daily",
-                      "storage_id": "cn_a", "dataset_id": "fixture", "calendar": "calendar.json"}
-            packet = {"records": [{
-                "code": "600000", "date": "2025-01-03", "name": "A",
-                "open": 12.0, "high": 13.0, "low": 11.0, "close": 12.5,
-                "volume": 140.0, "amount": 1750.0,
-            }]}
-            methods.publish(source, methods.fetch(source, packet))
-            methods.publish(source, methods.fetch(source, packet))
-            dataset = bus.query(DataQuery(
-                "fixture", date(2024, 12, 31), date(2025, 1, 3),
-                ("open", "high", "low", "close", "volume", "amount"),
-                1, "raw", symbols=("600000",), universe="market"))
-            self.assertEqual([record.trade_date for record in dataset.records], [
-                date(2024, 12, 31), date(2025, 1, 2), date(2025, 1, 3)])
-            self.assertEqual(dataset.records[-1].bars["600000"].close, 12.5)
-            self.assertEqual(len(dataset.records[-1].frame.history["600000"]), 1)
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            methods = Methods(bus)
+            source = {'id': 'daily', 'data_type': 'daily', 'dataset_id': 'fixture'}
+            dates = ['2024-12-31', '2025-01-02', '2025-01-03', '2025-01-06']
+            packet = {'records': [_daily_row(dates[0], close=10.5),
+                                  _daily_row(dates[1], close=11.5)],
+                      'calendar': _calendar(dates[:3]), 'raw': [], 'scope': {}}
+            bus.save_calendar('fixture', packet['calendar'])
+            methods.publish(source, packet)
+            reference = bus.source('daily', 'bars')
+            columns = bus.definition(reference[5:]).columns
+            bus.save_manifest('fixture', {'schema': 3, 'fields': {}, 'calendar': 'calendar:fixture',
+                'scope': {'universe': 'market', 'symbols': ['600000']},
+                'inputs': {'bars': reference}})
+            update = {**packet, 'calendar': _calendar(dates[1:]),
+                      'records': [_daily_row(dates[2], close=12.5)]}
+            methods.publish(source, update)
+            before = bus.table(reference)
+            methods.publish(source, update)
+            self.assertEqual(bus.table(reference), before)
+            self.assertEqual(bus.definition(reference[5:]).columns, columns)
+            self.assertEqual(bus.calendar('fixture'), _calendar(dates))
+            dataset = bus.query(DataQuery('fixture', date.fromisoformat(dates[0]),
+                date.fromisoformat(dates[2]), ('open', 'high', 'low', 'close', 'volume', 'amount'),
+                1, 'raw', symbols=('600000',), universe='market'))
+            self.assertEqual([row.trade_date.isoformat() for row in dataset.records], dates[:-1])
+            self.assertEqual(dataset.records[-1].bars['600000'].close, 12.5)
+            self.assertEqual(len(dataset.records[-1].frame.history['600000']), 1)
 
-    def test_daily_publish_exposes_data_view_without_snapshot_copy(self):
+    def test_daily_publish_exposes_snapshot_page_and_data_view(self):
         from collect.core import Collect
-        from collect.methods import Methods
         from collect.sources import Sources
-        import pyarrow as pa
-        import pyarrow.parquet as pq
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            output = pa.BufferOutputStream()
-            pq.write_table(pa.Table.from_pylist([{
-                "code": "600000", "date": "2026-01-02", "open": 10.0,
-                "high": 11.0, "low": 9.0, "close": 10.5, "volume": 100.0,
-                "amount": 1050.0, "close_hfq": 10.5,
-            }]), output)
-            old = bus.write("sources", "cn_a", "daily/2026.parquet", output.getvalue().to_pybytes())
-            for name, rows in (
-                ("stock_info.parquet", [{"code": "600000", "status": "listed"}]),
-                ("valuation_factors.parquet", [{"code": "600000", "quarter": "2026Q1"}]),
-                ("fundamentals.parquet", [{"code": "600000", "quarter": "2026Q1"}]),
-            ):
-                table_output = pa.BufferOutputStream()
-                pq.write_table(pa.Table.from_pylist(rows), table_output)
-                bus.write("sources", "cn_a", name, table_output.getvalue().to_pybytes())
-            bus.write("sources", "facts", "security_code_changes.json",
-                      json.dumps({"events": []}).encode())
-            calendar = bus.write("sources", "market", "calendar.json",
-                                 json.dumps(_calendar(["2026-01-02", "2026-01-05", "2026-01-06"])).encode())
-            manifest = {"schema": 2, "files": [
-                {"file": "calendar.json", "sha256": calendar.sha256, "role": "market"},
-                {"file": "source/cn_a/daily/2026.parquet", "sha256": old.sha256, "role": "market"}],
-                "fields": {}, "scope": {"symbols": ["600000"], "universe": "market"},
-                "calendar": "calendar.json"}
-            bus.write("sources", "market", "manifest.json", json.dumps(manifest).encode())
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            reference = _bind_rows(bus, 'market', 'bars',
+                [_daily_row('2026-01-02', 'sh.600000')], ('code', 'date'))
+            bus.save_calendar('market', _calendar(['2026-01-02', '2026-01-05', '2026-01-06']))
+            bus.save_manifest('market', {'schema': 3, 'fields': {},
+                'calendar': 'calendar:market', 'scope': {'symbols': ['sh.600000'], 'universe': 'market'},
+                'inputs': {'bars': reference}})
             sources = Sources(bus)
-            sources.register({"id": "market", "name": "Market", "method": "fixture",
-                              "frequency": "daily", "data_type": "daily", "storage_id": "cn_a",
-                              "dataset_id": "market", "calendar": "calendar.json", "defaults": {}})
-            methods = Methods(bus, {"fixture": lambda source, request: {
-                "records": [{"code": "600000", "date": "2026-01-05", "open": 11.0,
-                              "high": 12.0, "low": 10.0, "close": 11.5, "volume": 120.0,
-                              "amount": 1380.0, "close_hfq": 11.5}], "calendar": _calendar(["2026-01-02", "2026-01-05", "2026-01-06"]),
-                "raw": [], "scope": {"symbols": ["600000"]}}})
-            job = Collect(sources, methods).run({"source_id": "market", "force": True})
-            self.assertEqual(job["outcome"], "succeeded")
-            self.assertTrue(job["snapshot_id"])
-            self.assertGreater(job["records"], 0)
+            sources.register({'id': 'market', 'name': 'Market', 'method': 'fixture',
+                'frequency': 'daily', 'data_type': 'daily', 'dataset_id': 'market',
+                'calendar': 'calendar:market', 'defaults': {}})
+            methods = Methods(bus, {'fixture': lambda _source, _request: {
+                'records': [_daily_row('2026-01-05', 'sh.600000', 11.5)],
+                'raw': [], 'scope': {'symbols': ['sh.600000']}}})
             collect = Collect(sources, methods)
-            source_view = collect.handle("collection.sources", {})[0]
-            self.assertGreater(source_view["records"], 0)
-            page = collect.handle("collection.snapshot", {"id": "market", "offset": 0, "limit": 1})
-            self.assertEqual(job["snapshot_id"], page["snapshot_id"])
-            self.assertEqual(page["total"], 2)
-            evidence = collect.handle("collection.evidence", {"id": "market", "index": 0})
-            self.assertEqual(evidence["snapshot_id"], page["snapshot_id"])
-            self.assertIn("close", evidence["record"])
-            self.assertEqual(bus.list("sources", "snapshots"), ())
-            bus.write("sources", "registry", "sources.json", json.dumps({
-                "sources": [], "datasets": [{"id": "market", "storage_id": "cn_a"}],
-                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
-            profile = Views(bus, sources).handle("data.status", {"rescan": True})
-            self.assertEqual(profile["总览"]["日线行情"]["股票数"], 1)
-            inputs = Views(bus, sources).handle("data.research_inputs", {})
-            self.assertEqual(inputs["summary"]["symbols"], 1)
-            self.assertEqual(Views(bus, sources).handle("data.check", {})["items"], [])
+            self.addCleanup(collect.close)
+            job = collect.run({'source_id': 'market'})
+            self.assertEqual(job['outcome'], 'succeeded', job)
+            summary = collect.handle('collection.sources', {})[0]
+            page = collect.handle('collection.snapshot', {'id': 'market', 'offset': 1, 'limit': 1})
+            self.assertEqual(summary['records'], 2)
+            self.assertEqual(summary['snapshot']['snapshot_id'], page['snapshot_id'])
+            self.assertEqual(page['total'], 2)
+            evidence = collect.handle('collection.evidence', {'id': 'market', 'index': 1})
+            self.assertEqual(evidence['snapshot_id'], page['snapshot_id'])
+            self.assertEqual(evidence['record']['close'], 11.5)
+            self.assertEqual(bus.source('market', 'bars'), reference)
+            views = Views(bus, sources)
+            self.assertEqual(views.handle('data.status', {})['总览']['日线行情']['股票数'], 1)
+            self.assertEqual(views.handle('data.research_inputs', {})['summary']['symbols'], 1)
 
     def test_source_reports_use_actual_databus_facts(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
+        from collect.sources import Sources
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            good = _daily_row('2025-01-02', 'sh.600036', 10.5)
+            bad = {**_daily_row('2025-01-03', 'sh.600036'),
+                   'open': None, 'high': 8.0, 'low': 9.0, 'close': -1.0, 'tradestatus': 0.0}
+            index = {**_daily_row('2025-01-02', 'sh.000001'), 'volume': 0.0, 'amount': 0.0}
+            reference = _bind_rows(bus, 'daily', 'bars', [good, bad, index], ('code', 'date'))
+            _bind_rows(bus, 'duplicate', 'bars', [good], ('code', 'date'))
+            _bind_rows(bus, 'stocks', 'records', [
+                {'code': 'sh.600036', 'status': 'listed'},
+                {'code': 'sh.000001', 'status': 'delisted'},
+            ], ('code',))
+            _bind_rows(bus, 'values', 'records', [{'code': 'sh.600036', 'quarter': '2025Q1', 'pe_ttm': 8.0}],
+                       ('code', 'quarter'))
+            _bind_rows(bus, 'facts', 'records', [{'code': 'sh.600036', 'quarter': '2025Q1', 'roe': None}],
+                       ('code', 'quarter'), types={'roe': 'DOUBLE'})
+            changes = bus.save_config('changes', {'events': [
+                {'old_code': '600036', 'new_code': '600037', 'effective_date': '2025-01-03',
+                 'factor_basis_continuity_verified': False}]})
+            bus.save_manifest('market', {'schema': 3, 'fields': {},
+                'scope': {'symbols': ['sh.000001', 'sh.600036'], 'universe': 'market'},
+                'inputs': {'bars': reference, 'code_changes': changes}})
+            from strategy import canonical_hash
+            bus.save_fact({'schema': 1, 'kind': 'adjust', 'code': 'sh.600036',
+                'start': '2025-01-01', 'end': '2025-01-03', 'year': None,
+                'source_hash': canonical_hash([]), 'records': []})
+            sources = Sources(bus)
+            for name, kind in (('daily', 'daily'), ('duplicate', 'daily'),
+                               ('stocks', 'stock_info'), ('values', 'valuation'), ('facts', 'fundamentals')):
+                sources.register({'id': name, 'name': name, 'method': 'fixture', 'data_type': kind,
+                    'frequency': 'daily', 'defaults': {}, **({'default': True, 'modes': ['fix']}
+                                                            if name == 'daily' else {})})
+            bus.update_registry(lambda registry: {**registry, 'datasets': [{'id': 'market'}]})
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-
-            def write_table(name, rows):
-                output = pa.BufferOutputStream()
-                pq.write_table(pa.Table.from_pylist(rows), output)
-                bus.write("sources", "cn_a", name, output.getvalue().to_pybytes())
-
-            write_table("daily/2025.parquet", [
-                {"code": "600036", "date": "2025-01-02", "open": 10.0,
-                 "high": 11.0, "low": 9.0, "close": 10.5, "volume": 10.0,
-                 "amount": 100.0, "tradestatus": 1},
-                {"code": "600036", "date": "2025-01-02", "open": 10.0,
-                 "high": 11.0, "low": 9.0, "close": 10.5, "volume": 10.0,
-                 "amount": 100.0, "tradestatus": 1},
-                {"code": "600036", "date": "2025-01-03", "open": None,
-                 "high": 8.0, "low": 9.0, "close": -1.0, "volume": 5.0,
-                 "amount": 50.0, "tradestatus": 0},
-                {"code": "sh.000001", "date": "2025-01-02", "open": 20.0,
-                 "high": 21.0, "low": 19.0, "close": 20.5, "volume": 0.0,
-                 "amount": 0.0, "tradestatus": 1},
-            ])
-            write_table("stock_info.parquet", [
-                {"code": "600036", "status": "listed"},
-                {"code": "sh.000001", "status": "delisted"},
-            ])
-            write_table("valuation_factors.parquet", [
-                {"code": "600036", "quarter": "2025Q1", "pe_ttm": 8.0},
-            ])
-            write_table("fundamentals.parquet", [
-                {"code": "600036", "quarter": "2025Q1", "roe": None},
-            ])
-            bus.write("sources", "facts", "security_code_changes.json", json.dumps({
-                "events": [{"old_code": "600036", "new_code": "600037",
-                            "effective_date": "2025-01-03",
-                            "factor_basis_continuity_verified": False}]
-            }).encode())
-            bus.write("sources", "facts", "adjust_sh.600036.json", json.dumps({
-                "schema": 2, "status": "ok", "raw_response": {"rows": []}
-            }).encode())
-
-            bus.write("sources", "registry", "sources.json", json.dumps({
-                "sources": [], "datasets": [{"id": "market", "storage_id": "cn_a"}],
-                "markets": [{"dataset_id": "market"}], "benchmarks": []}).encode())
-            facts = bus.source_facts()
-            self.assertEqual(facts["daily"]["rows"], 4)
-            self.assertEqual(facts["daily"]["symbols"], 2)
-            self.assertEqual(facts["daily"]["duplicate_keys"], 1)
-            self.assertEqual(facts["daily"]["invalid_price_rows"], 1)
-            self.assertEqual(facts["daily"]["missing_fields"]["open"], 1)
-            self.assertEqual(facts["daily"]["trade_state_issues"]["trading_without_turnover"], 1)
-            self.assertEqual(facts["stock_info"]["rows"], 2)
-            self.assertEqual(facts["valuation"]["rows"], 1)
-            self.assertEqual(facts["fundamentals"]["rows"], 1)
-            self.assertIn("pe_ttm", facts["valuation"]["field_stats"])
-            self.assertIn("roe", facts["fundamentals"]["field_stats"])
-            profile = bus.profile_report()
-            self.assertIn("pe_ttm", profile["估值因子字段"])
-            self.assertIn("roe", profile["基本面因子字段"])
-            self.assertNotEqual(profile["日线字段"]["open"]["有值率"], 100.0)
-            self.assertNotEqual(profile["总览"]["股票主档"]["行数"], 0)
-            self.assertNotEqual(profile["结论"]["级别"], "✅")
-            self.assertNotIn("close_hfq", " ".join(profile["异常检查"]))
-            inputs = bus.research_report()
-            self.assertEqual(inputs["freshness"]["latest_date"], "2025-01-03")
-            self.assertEqual(inputs["freshness"]["latest_stock_count"], 1)
-            self.assertEqual(inputs["duplicate_keys"], 1)
-            self.assertEqual(len(inputs["price_basis_issues"]), 0)
-            self.assertEqual(len(inputs["unverified_code_changes"]), 1)
-            self.assertEqual(inputs["saved_factor_files"], 1)
-            self.assertEqual(inputs["fact_check"]["check_scope"], "all")
-            bus.write("sources", "registry", "sources.json", json.dumps({"sources": [{
-                "id": "daily_fix", "name": "Daily fix", "method": "fixture",
-                "frequency": "daily", "data_type": "daily", "modes": ["fix"],
-                "default": True, "defaults": {}
-            }]}).encode())
-            bus.update_registry(lambda registry: {**registry,
-                "datasets": [{"id": "market", "storage_id": "cn_a"}],
-                "markets": [{"dataset_id": "market"}]})
-            doctor = bus.doctor_report()
-            self.assertTrue(any(item["可修复"] and item["fix"]["source_id"] == "daily_fix"
-                                for item in doctor["items"]))
+            views = Views(bus, sources)
+            facts = views.source_facts()
+            self.assertEqual(facts['daily']['rows'], 4)
+            self.assertEqual(facts['daily']['symbols'], 2)
+            self.assertEqual(facts['daily']['duplicate_keys'], 1)
+            self.assertEqual(facts['daily']['invalid_price_rows'], 1)
+            self.assertEqual(facts['daily']['missing_fields']['open'], 1)
+            self.assertEqual(facts['daily']['trade_state_issues']['trading_without_turnover'], 1)
+            self.assertEqual(facts['stock_info']['rows'], 2)
+            self.assertEqual(facts['valuation']['rows'], 1)
+            self.assertEqual(facts['fundamentals']['rows'], 1)
+            profile = views.profile_report()
+            self.assertIn('pe_ttm', profile['估值因子字段'])
+            self.assertIn('roe', profile['基本面因子字段'])
+            self.assertNotEqual(profile['日线字段']['open']['有值率'], 100.0)
+            self.assertNotEqual(profile['结论']['级别'], '✅')
+            inputs = views.research_report()
+            self.assertEqual(inputs['freshness']['latest_date'], '2025-01-03')
+            self.assertEqual(inputs['freshness']['latest_stock_count'], 1)
+            self.assertEqual(inputs['duplicate_keys'], 1)
+            self.assertEqual(inputs['price_basis_issues'], [])
+            self.assertEqual(len(inputs['unverified_code_changes']), 1)
+            self.assertEqual(inputs['saved_factor_files'], 1)
+            self.assertTrue(any(item['可修复'] and item['fix']['source_id'] == 'daily'
+                                for item in views.doctor_report()['items']))
 
     def test_daily_identity_normalization_deduplicates_aliases_and_keeps_markets(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
         from datetime import date
         from protocol import DataQuery, normalize_security_id
 
-        self.assertEqual(normalize_security_id("600036"), "sh.600036")
-        self.assertEqual(normalize_security_id("sh.600036"), "sh.600036")
-        self.assertNotEqual(normalize_security_id("sh.000001"), normalize_security_id("sz.000001"))
-        self.assertEqual(normalize_security_id("sh.000001"), "sh.000001")
+        self.assertEqual(normalize_security_id('600036'), 'sh.600036')
+        self.assertNotEqual(normalize_security_id('sh.000001'), normalize_security_id('sz.000001'))
 
-        with tempfile.TemporaryDirectory() as root:
-            root = Path(root)
-            bus = DataBus(DataStore(root))
-            calendar = bus.write("sources", "market", "calendar.json",
-                                 json.dumps(_calendar(["2026-01-02", "2026-01-05"])).encode())
-            bus.write("sources", "market", "manifest.json", json.dumps({
-                "schema": 2, "files": [{"file": "calendar.json", "sha256": calendar.sha256,
-                                         "role": "market"}], "fields": {},
-                "scope": {"symbols": ["600036", "sh.000001", "sz.000001"],
-                          "universe": "market"}, "calendar": "calendar.json"}).encode())
-            row = {"date": "2026-01-02", "open": 10.0, "high": 11.0,
-                   "low": 9.0, "close": 10.5, "volume": 100.0, "amount": 1050.0}
-            packet = {"calendar": _calendar(["2026-01-02", "2026-01-05"]), "records": [
-                {**row, "code": "600036"}, {**row, "code": "sh.600036"},
-                {**row, "code": "sh.000001"}, {**row, "code": "sz.000001"}],
-                "fields": ["open", "high", "low", "close", "volume", "amount"],
-                "scope": {"universe": "market"}}
-            Methods(bus).publish({'id': 'market', 'data_type': 'daily',
-                                  'storage_id': 'cn_a', 'dataset_id': 'market'}, {**packet, 'raw': []})
-            dataset = bus.query(DataQuery(
-                "market", date(2026, 1, 2), date(2026, 1, 2),
-                ("open", "high", "low", "close", "volume", "amount"), 1, "raw",
-                symbols=("sh.600036", "sh.000001", "sz.000001"), universe="market"))
-            self.assertEqual(set(dataset.records[0].bars),
-                             {"sh.600036", "sh.000001", "sz.000001"})
-            self.assertEqual(len(dataset.records[0].bars), 3)
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            symbols = ('sh.000001', 'sh.600036', 'sz.000001')
+            bus.save_calendar('market', _calendar(['2026-01-02', '2026-01-05']))
+            Methods(bus).publish({'id': 'market', 'data_type': 'daily', 'dataset_id': 'market'}, {
+                'records': [_daily_row('2026-01-02', code) for code in ('600036', *symbols)],
+                'raw': [], 'scope': {}})
+            reference = bus.source('market', 'bars')
+            self.assertEqual(bus.table(reference).num_rows, 3)
+            bus.save_manifest('market', {'schema': 3, 'fields': {}, 'calendar': 'calendar:market',
+                'inputs': {'bars': reference}, 'scope': {
+                    'symbols': ['600036', 'sh.000001', 'sz.000001'], 'universe': 'market'}})
+            dataset = bus.query(DataQuery('market', date(2026, 1, 2), date(2026, 1, 2),
+                ('open', 'high', 'low', 'close', 'volume', 'amount'), 1, 'raw',
+                symbols=symbols, universe='market'))
+            self.assertEqual(set(dataset.records[0].bars), set(symbols))
 
     def test_cancel_stops_before_publish_and_close_stops_scheduler(self):
         from collect.core import Collect
@@ -1285,12 +1006,12 @@ class CollectionTests(unittest.TestCase):
             methods = Methods(bus, {"fixture": lambda source, request: {
                 "records": [], "raw": [], "scope": {"kind": "fixture"}}})
             collect = Collect(sources, methods)
-            collect.schedule("fixture", {"enabled": True, "next_at": 0,
-                                          "interval_seconds": 60, "input": {}})
+            schedule = collect.schedule("fixture", {"enabled": True,
+                                                     "interval_seconds": 60, "input": {}})
             collect.tick(at=1)
             jobs = [value for value in collect._jobs.values() if value["source_id"] == "fixture"]
             self.assertEqual(len(jobs), 0)
-            schedule = json.loads(bus.read("state", "collect", "schedules/fixture.json"))
+            self.assertEqual(collect.handle('collection.sources', {})[0]['schedule'], schedule)
             collect.tick(at=schedule["next_at"])
             jobs = [value for value in collect._jobs.values() if value["source_id"] == "fixture"]
             self.assertEqual(len(jobs), 1)
@@ -1441,12 +1162,13 @@ class CollectionTests(unittest.TestCase):
             self.assertEqual([url[-3:-1] for url in calls], ['01', '03', '02'])
             self.assertEqual(methods.records(source)['total'], 3)
             self.assertEqual(methods.records(source)['records'][0]['articles'][0]['content'], '全文')
-            before = bus.read('sources', 'news', 'records.json')
+            reference = bus.source('news')
+            before = bus.table(reference)
             row = methods.records(source)['records'][0]
             row['articles'][0]['content'] = '篡改'
             with self.assertRaises(DataError):
                 methods.publish(source, {'records': [row], 'raw': [], 'scope': {}})
-            self.assertEqual(bus.read('sources', 'news', 'records.json'), before)
+            self.assertTrue(bus.table(reference).equals(before))
             count = len(calls)
             for params in ({'timeout': 0}, {'interval': -1}, {'start': '2026-10-04', 'end': '2026-10-01'}):
                 with self.assertRaises(ValueError):
@@ -1694,50 +1416,37 @@ class CollectionTests(unittest.TestCase):
                 'revenue_growth': 0.02, 'profit_growth': None, 'cash_per_share': -0.3,
             }
 
-        with tempfile.TemporaryDirectory() as root:
-            bus = DataBus(DataStore(Path(root)))
-            bus.write('sources', 'cn_a', 'manifest.json',
-                      json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
             methods = Methods(bus)
             source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals',
-                      'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'cn_a',
-                      'params': {'key_fields': ['code', 'report_date', 'available_at']}}
-            packet = {'records': [record('2026-03-03', gross=None)], 'raw': [{'page': 1}],
+                      'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'cn_a'}
+            packet = {'records': [record('2026-03-03')], 'raw': [{'page': 1}],
                       'scope': {'codes': ['sz.000001']}, 'request': {'refresh': True}}
 
-            prepared = methods.prepare(source, packet)
-            self.assertEqual(prepared['incoming'], 1)
-            self.assertIsNone(methods.records(source))
-            self.assertEqual(bus.list('sources', 'fundamentals'), ())
+            self.assertEqual(methods.prepare(source, packet)['incoming'], 1)
+            with self.assertRaises(DataError) as caught:
+                bus.source('fundamentals')
+            self.assertEqual(caught.exception.code, 'missing')
 
-            ref = methods.publish(source, packet)
-            self.assertEqual(ref['ref'].name, 'records.json')
-            published = methods.records(source)
-            self.assertEqual(published['records_count'], 1)
-            self.assertIsNone(published['records'][0]['gross_margin'])
-            manifest = json.loads(bus.read('sources', 'cn_a', 'manifest.json'))
-            self.assertEqual(manifest['fields']['roe']['unit'], 'ratio')
-            self.assertEqual(manifest['fields']['revenue']['unit'], 'cny')
-            self.assertEqual(manifest['fields']['revenue']['file'],
-                             'source/fundamentals/records.parquet')
-            self.assertEqual({ref.name for ref in bus.list('sources', 'fundamentals')},
-                             {'records.json', 'records.parquet'})
-
-            saved_records = bus.read('sources', 'fundamentals', 'records.json')
-            saved_manifest = bus.read('sources', 'cn_a', 'manifest.json')
+            self.assertEqual(methods.publish(source, packet)['records'], 1)
+            reference = bus.source('fundamentals')
+            definition = bus.definition(reference[5:])
+            self.assertEqual(definition.keys, ('code', 'report_date', 'available_at'))
+            self.assertEqual(definition.columns['revenue'], 'DOUBLE')
+            before = bus.table(reference)
+            self.assertEqual(before.num_rows, 1)
+            self.assertIsNone(before.column('gross_margin')[0].as_py())
             for changed in (record('2026-03-03', gross=0.2),
                             record('2026-03-03', revenue=200)):
                 result = methods.publish(source, {**packet, 'records': [changed]})
                 self.assertEqual(result['records'], 0)
                 self.assertEqual([item['code'] for item in result['failures']], ['sz.000001'])
-            self.assertEqual(bus.read('sources', 'fundamentals', 'records.json'), saved_records)
-            self.assertEqual(bus.read('sources', 'cn_a', 'manifest.json'), saved_manifest)
+            self.assertTrue(bus.table(reference).equals(before))
 
             next_version = record('2026-03-10', revenue=120, gross=0.25)
             methods.publish(source, {**packet, 'records': [next_version]})
-            history = methods.records(source)
-            self.assertEqual(history['records_count'], 2)
-            self.assertEqual([row['revenue'] for row in history['records']], [100, 120])
+            history = bus.table(reference, order=('available_at',)).to_pylist()
+            self.assertEqual([row['revenue'] for row in history], [100, 120])
 
     def test_eastmoney_fundamentals_accepts_only_the_observed_empty_window_code(self):
         from collect.methods import EastmoneyFundamentals, Methods
@@ -1756,24 +1465,22 @@ class CollectionTests(unittest.TestCase):
         self.assertEqual(packet['records'], [])
         self.assertEqual(packet['scope']['observed_records'], 0)
         self.assertEqual(len(packet['raw']), 1)
-        with tempfile.TemporaryDirectory() as root:
-            bus = DataBus(DataStore(Path(root)))
-            methods = Methods(bus)
-            with self.assertRaises(DataError):
-                methods.publish(source, packet)
-            self.assertEqual(bus.list('sources', 'fundamentals'), ())
-            bus.write('sources', 'cn_a', 'manifest.json',
-                      json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
-            methods.publish(source, packet)
-            self.assertEqual(methods.records(source)['records_count'], 0)
-            self.assertEqual({ref.name for ref in bus.list('sources', 'fundamentals')},
-                             {'records.json'})
+        with tempfile.TemporaryDirectory() as root, fixture_data(Path(root)) as bus:
+            result = Methods(bus).publish(source, packet)
+            self.assertEqual(result['records'], 0)
+            with self.assertRaises(DataError) as caught:
+                bus.source('fundamentals')
+            self.assertEqual(caught.exception.code, 'missing')
+            events = bus.scan(TableQuery('collection_audit')).table.to_pylist()
+            self.assertEqual(len(events), 1)
+            self.assertEqual(json.loads(events[0]['settings'])['raw'], packet['raw'])
 
     def test_financial_versions_reach_databus_without_rewriting_history(self):
         from collect.methods import EastmoneyFundamentals
         from core.calculation import Calculation
         from tests.history_fixture import make_snapshot
-        from tests.test_history_data import query, FIELDS
+        from protocol import DataQuery
+        from tests.test_history_data import FIELDS
         from datetime import date, timedelta
 
         def record(code, update, roe):
@@ -1790,17 +1497,28 @@ class CollectionTests(unittest.TestCase):
                       'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'fixture'}
             args = dict(symbols=('600003', '600004'), history=3,
                         start=date(2020, 1, 30), end=date(2020, 2, 4))
-            price_before = query(root, **args)
+            def history(fields=FIELDS):
+                return bus.query(DataQuery('fixture', args['start'], args['end'],
+                    fields, args['history'], 'adjusted', symbols=args['symbols'],
+                    market={'scope': 'CN_A', 'codes': list(args['symbols'])}, tax='none'))
+
+            price_before = history()
             packet = {'records': [record('sh.600003', '2020-01-30', .1),
                                   record('sh.600004', '2020-01-30', .3)],
                       'raw': [], 'scope': {}}
             methods.publish(source, packet)
-            with patch.object(bus, 'write', wraps=bus.write) as writes:
-                methods.publish(source, packet)
-                self.assertFalse(any(call.args[0] == 'sources' for call in writes.call_args_list))
-            before = query(root, fields=(*FIELDS, 'roe'), **args)
+            reference = bus.source('fundamentals')
+            table = bus.table(reference, order=('code', 'available_at'))
+            methods.publish(source, packet)
+            self.assertTrue(bus.table(reference, order=('code', 'available_at')).equals(table))
+            manifest = bus.manifest('fixture')
+            manifest['files'].append({'file': reference, 'role': 'market'})
+            manifest['fields']['roe'] = {'source': 'facts', 'file': reference, 'code': 'code',
+                'effective': 'report_date', 'known': 'available_at', 'column': 'roe', 'unit': 'ratio'}
+            bus.save_manifest('fixture', manifest)
+            before = history((*FIELDS, 'roe'))
             methods.publish(source, {**packet, 'records': [record('sh.600003', '2020-02-03', .5)]})
-            after = query(root, fields=(*FIELDS, 'roe'), **args)
+            after = history((*FIELDS, 'roe'))
             frames = {row.trade_date: row.frame for row in after.records}
             self.assertIsNone(frames[date(2020, 1, 30)].fields['600003']['roe'])
             self.assertEqual(frames[date(2020, 1, 31)].fields['600003']['roe'], .1)
@@ -1815,7 +1533,7 @@ class CollectionTests(unittest.TestCase):
             self.assertAlmostEqual(model.fields['600003']['score'], 1.)
             self.assertAlmostEqual(model.fields['600004']['score'], -1.)
             self.assertEqual([row.frame for row in price_before.records],
-                             [row.frame for row in query(root, **args).records])
+                             [row.frame for row in history().records])
 
     def test_financial_pages_fail_closed_and_keep_source_evidence(self):
         from copy import deepcopy
@@ -1851,32 +1569,27 @@ class CollectionTests(unittest.TestCase):
             with self.assertRaises(CollectionError):
                 bad.collect({**request, **changed})
             get.assert_not_called()
-        with tempfile.TemporaryDirectory() as temp:
-            bus = DataBus(DataStore(Path(temp))); methods = Methods(bus)
+        with tempfile.TemporaryDirectory() as temp, fixture_data(Path(temp)) as bus:
+            methods = Methods(bus)
             source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals',
                       'data_type': 'facts', 'storage_id': 'fundamentals', 'dataset_id': 'fixture'}
-            original = {'schema': 2, 'files': [], 'fields': {'roe': {'source': 'another-source'}}}
-            bus.write('sources', 'fixture', 'manifest.json', json.dumps(original).encode())
-            with patch.object(bus, 'write', wraps=bus.write) as writes, self.assertRaises(DataError):
-                methods.publish(source, packet)
-            writes.assert_not_called()
-            self.assertEqual(json.loads(bus.read('sources', 'fixture', 'manifest.json')), original)
+            self.assertEqual(methods.publish(source, packet)['records'], 2)
+            audit = bus.scan(TableQuery('collection_audit')).table.to_pylist()
+            self.assertEqual(json.loads(audit[0]['settings'])['raw'], packet['raw'])
 
     def test_financial_latest_starts_at_the_oldest_security_watermark(self):
         from collect.methods import Methods
         source = {'id': 'fundamentals', 'method': 'eastmoney_fundamentals', 'data_type': 'facts'}
-        with tempfile.TemporaryDirectory() as temp:
-            bus = DataBus(DataStore(Path(temp))); methods = Methods(bus)
-            bus.write('sources', source['id'], 'records.json', json.dumps({'records': [
+        with tempfile.TemporaryDirectory() as temp, fixture_data(Path(temp)) as bus:
+            methods = Methods(bus)
+            _bind_rows(bus, 'fundamentals', 'records', [
                 {'code': 'sh.600003', 'date': '2026-03-21'},
                 {'code': 'sh.600004', 'date': '2026-03-31'},
-            ]}).encode())
+            ], ('code', 'date'))
             self.assertEqual(methods.last_date(source, ['sh.600003', 'sh.600004']), '2026-03-21')
             self.assertIsNone(methods.last_date(source, ['sh.600003', 'sh.600005']))
 
-    def test_facts_schema_is_declared_and_corruption_is_not_repaired_silently(self):
-        import hashlib
-        import pyarrow.parquet as pq
+    def test_facts_publication_validates_schema_rolls_back_and_checks_existing_rows(self):
         handler = SimpleNamespace(
             text_columns=('code', 'date', 'period', 'visible_at'),
             value_columns={'value': ('VALUE', 'ratio', False)},
@@ -1884,98 +1597,41 @@ class CollectionTests(unittest.TestCase):
             validate_record=lambda row: None)
         source = {'id': 'numeric', 'method': 'custom_numeric', 'data_type': 'facts',
                   'storage_id': 'numeric', 'dataset_id': 'fixture'}
-        packet = {'records': [{'code': 'sh.600003', 'date': '2020-01-30',
-                              'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
-                              'value': .25}], 'raw': [], 'scope': {}}
-        with tempfile.TemporaryDirectory() as temp:
-            bus = DataBus(DataStore(Path(temp))); methods = Methods(bus, handlers={'custom_numeric': handler})
-            bus.write('sources', 'fixture', 'manifest.json', json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
-            methods.publish(source, packet)
-            manifest = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
-            binding = manifest['fields']['value']
-            self.assertEqual((binding['effective'], binding['known']), ('period', 'visible_at'))
-            rows = pq.read_table(bus.path('sources', 'numeric', 'records.parquet')).to_pylist()
-            self.assertEqual(rows, packet['records'])
-            newer = {**packet['records'][0], 'date': '2020-02-02',
-                     'visible_at': '2020-02-03T00:00:00+08:00', 'value': .5}
-            second = {**packet, 'records': [newer]}
-            methods.publish(source, second)
-            original_records = bus.read('sources', 'numeric', 'records.json')
-            manifest = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
-            bus.write('sources', 'numeric', 'records.json', json.dumps({'records': [newer]}).encode())
-            with patch.object(bus, 'write', wraps=bus.write) as writes, self.assertRaises(DataError):
-                methods.publish(source, second)
-            writes.assert_not_called()
-            bus.write('sources', 'numeric', 'records.json', original_records)
-            bus.write('sources', 'numeric', 'records.parquet', b'corrupted')
-            with patch.object(bus, 'write', wraps=bus.write) as writes, self.assertRaises(DataError):
-                methods.publish(source, packet)
-            writes.assert_not_called()
-            self.assertEqual(bus.read('sources', 'numeric', 'records.parquet'), b'corrupted')
-            self.assertEqual(json.loads(bus.read('sources', 'fixture', 'manifest.json')), manifest)
-
-    def test_empty_facts_update_checks_stored_evidence_without_rewriting_it(self):
-        handler = SimpleNamespace(
-            text_columns=('code', 'date', 'period', 'visible_at'),
-            value_columns={'value': ('VALUE', 'ratio', False)},
-            dates=('period', 'visible_at'), keys=('code', 'period', 'visible_at'),
-            validate_record=lambda row: None)
-        source = {'id': 'numeric', 'method': 'custom_numeric', 'data_type': 'facts',
-                  'storage_id': 'numeric', 'dataset_id': 'fixture'}
-        packet = {'records': [{'code': 'sh.600003', 'date': '2020-01-30',
-                              'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
-                              'value': .25}], 'raw': [], 'scope': {}}
-        for damage in (None, 'parquet', 'json', 'manifest'):
-            for dry_run in (True, False):
-                with self.subTest(damage=damage, dry_run=dry_run), tempfile.TemporaryDirectory() as temp:
-                    bus = DataBus(DataStore(Path(temp)))
-                    methods = Methods(bus, handlers={'custom_numeric': handler})
-                    bus.write('sources', 'fixture', 'manifest.json',
-                              json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
-                    methods.publish(source, packet)
-                    if damage == 'parquet':
-                        bus.write('sources', 'numeric', 'records.parquet', b'corrupted')
-                    elif damage == 'json':
-                        bus.write('sources', 'numeric', 'records.json', b'{"records":[]}')
-                    elif damage == 'manifest':
-                        manifest = json.loads(bus.read('sources', 'fixture', 'manifest.json'))
-                        manifest['files'] = []
-                        bus.write('sources', 'fixture', 'manifest.json', json.dumps(manifest).encode())
-                    before = {str(p): p.read_bytes() for p in (Path(temp)/'data'/'source').rglob('*') if p.is_file()}
-                    empty = {**packet, 'records': []}
-                    if damage:
-                        with self.assertRaises(DataError):
-                            methods._deliver(source, empty, dry_run=dry_run)
-                    else:
-                        methods._deliver(source, empty, dry_run=dry_run)
-                    after = {str(p): p.read_bytes() for p in (Path(temp)/'data'/'source').rglob('*') if p.is_file()}
-                    self.assertTrue(before)
-                    self.assertEqual(before, after)
-
-    def test_facts_partial_write_blocks_mixed_snapshot_reads(self):
-        handler = SimpleNamespace(
-            text_columns=('code', 'date', 'period', 'visible_at'),
-            value_columns={'value': ('VALUE', 'ratio', False)},
-            dates=('period', 'visible_at'), keys=('code', 'period', 'visible_at'),
-            validate_record=lambda row: None)
-        source = {'id': 'numeric', 'method': 'custom_numeric', 'data_type': 'facts',
-                  'storage_id': 'numeric', 'dataset_id': 'fixture'}
-        packet = {'records': [{'code': 'sh.600003', 'date': '2020-01-30',
-                              'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
-                              'value': .25}], 'raw': [], 'scope': {}}
-        with tempfile.TemporaryDirectory() as temp:
-            store = DataStore(Path(temp)); bus = DataBus(store)
+        row = {'code': 'sh.600003', 'date': '2020-01-30',
+               'period': '2019-09-30', 'visible_at': '2020-01-31T00:00:00+08:00',
+               'value': .25}
+        packet = {'records': [row], 'raw': [], 'scope': {}}
+        with tempfile.TemporaryDirectory() as temp, fixture_data(Path(temp)) as bus:
             methods = Methods(bus, handlers={'custom_numeric': handler})
-            bus.write('sources', 'fixture', 'manifest.json', json.dumps({'schema': 2, 'fields': {}, 'files': []}).encode())
-            write = store.write
-            def fail(kind, identity, name, value):
-                if name == 'records.parquet':
-                    raise OSError('simulated disk error')
-                return write(kind, identity, name, value)
-            with patch.object(store, 'write', side_effect=fail), self.assertRaises(DataError):
+            handler.text_columns = ('code', 'date', 'period')
+            with self.assertRaisesRegex(DataError, 'time columns'):
                 methods.publish(source, packet)
-            self.assertTrue(store.publish_states())
-            with self.assertRaises(DataError):
-                bus.read('sources', 'numeric', 'records.json')
-            with self.assertRaises(DataError):
-                bus.read('sources', 'fixture', 'manifest.json')
+            handler.text_columns = (*handler.text_columns, 'visible_at')
+            with patch.object(bus, 'bind', side_effect=OSError('simulated binding failure')):
+                with self.assertRaisesRegex(OSError, 'simulated binding failure'):
+                    methods.publish(source, packet)
+            with self.assertRaises(DataError) as caught:
+                bus.source('numeric')
+            self.assertEqual(caught.exception.code, 'missing')
+            from market import table_name
+            with self.assertRaises(DataError) as caught:
+                bus.definition(table_name('numeric/records'))
+            self.assertEqual(caught.exception.code, 'missing_table')
+            methods.publish(source, packet)
+            reference = bus.source('numeric')
+            self.assertEqual(bus.table(reference).to_pylist(), [row])
+            self.assertEqual(bus.definition(reference[5:]).keys, handler.keys)
+            before = bus.table(reference)
+            empty = {**packet, 'records': []}
+            self.assertEqual(methods.prepare(source, empty)['incoming'], 0)
+            self.assertEqual(methods.publish(source, empty)['records'], 0)
+            self.assertTrue(bus.table(reference).equals(before))
+
+            def reject(_row):
+                raise ValueError('stored observation is invalid')
+
+            handler.validate_record = reject
+            for deliver in (methods.prepare, methods.publish):
+                with self.assertRaisesRegex(ValueError, 'stored observation is invalid'):
+                    deliver(source, empty)
+            self.assertTrue(bus.table(reference).equals(before))

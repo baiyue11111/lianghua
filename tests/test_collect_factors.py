@@ -1,57 +1,59 @@
 import json
 import tempfile
 import unittest
+from contextlib import closing
 from pathlib import Path
 from datetime import date
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
-from market import build_data
-from protocol import DataError, DataQuery
+from market import build_data, fact_ref
+from protocol import DataError, Filter, TableQuery
 from collect import methods as factors
+from tests.history_fixture import make_snapshot
+
+
+ADJUST_SOURCE = {'id': 'stock_adjust', 'method': 'market_facts', 'data_type': 'market_facts',
+                 'dataset_id': 'fixture', 'params': {'kind': 'adjust'}}
+ADJUST_REQUEST = {'codes': ['sh.600003'], 'start': '2020-02-05', 'end': '2020-02-06'}
 
 
 class FactorStorageTests(unittest.TestCase):
 
-    def test_catalogue_publish_keeps_standard_security_facts_in_sync(self):
-        from tests.history_fixture import make_snapshot
+    def test_catalogue_publish_keeps_security_facts_current(self):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root); make_snapshot(root, symbols=('600003',))
             bus = build_data(root); methods = factors.Methods(bus)
-            registry = json.loads(bus.read('sources', 'registry', 'sources.json'))
-            registry['markets'][0]['collect'] = {'securities': {'source': 'catalogue'}}
-            bus.write('sources', 'registry', 'sources.json', json.dumps(registry).encode())
-            source = dict(id='catalogue', method='catalogue', data_type='catalogue')
+            source = dict(id='catalogue', method='catalogue', data_type='market_facts',
+                          params={'kind': 'security'})
             rows = [dict(code='sh.600003', ipoDate='2019-07-01', outDate='', type='1', status='1'),
-                    dict(code='sh.600004', ipoDate='2020-02-03', outDate='', type='1', status='1'),
-                    dict(code='sh.000300', ipoDate='2005-04-08', outDate='', type='2', status='1')]
-            result = methods.publish(source, dict(records=rows, raw=[], scope={}))
+                    dict(code='sh.600004', ipoDate='2020-02-03', outDate='', type='1', status='1')]
+
+            def publish():
+                return methods.publish(source, dict(
+                    records=[factors.Catalogue.security(row['code'], row) for row in rows],
+                    raw=[], scope={},
+                ))
+
+            result = publish()
             self.assertEqual(result['failures'], [])
-            fact = json.loads(bus.read('sources', 'fixture', 'basic/stock_basic_sh.600004.json'))
+            reference = fact_ref('security', 'sh.600004')
+            fact = bus.fact(reference)
             self.assertEqual(fact['records'], [{'listing_date': '2020-02-03',
                 'delisting_date': None, 'type': '1', 'status': '1'}])
             self.assertEqual(bus.manifest('fixture')['scope']['symbols'], ['600003'])
-            bus.delete('sources', 'fixture', 'basic/stock_basic_sh.600004.json')
-            # The same catalogue still repairs a missing standard projection.
-            methods.publish(source, dict(records=rows, raw=[], scope={}))
-            self.assertEqual(json.loads(bus.read('sources', 'fixture',
-                'basic/stock_basic_sh.600004.json')), fact)
-            with patch.object(bus, 'write', wraps=bus.write) as write:
-                methods.publish(source, dict(records=rows, raw=[], scope={}))
-            self.assertEqual([c.args[2] for c in write.call_args_list
-                              if c.args[:2] == ('sources', 'fixture')], [])
+            self.assertEqual(publish()['audit_rows'], [])
+            self.assertEqual(bus.fact(reference), fact)
             rows[0].update(outDate='2020-02-04', status='0')
-            methods.publish(source, dict(records=rows, raw=[], scope={}, request={'refresh': True}))
-            name = 'basic/stock_basic_sh.600003.json'
-            ref = next(r for r in bus.manifest('fixture')['files'] if r['file'] == name)
-            self.assertEqual(ref['sha256'], __import__('hashlib').sha256(
-                bus.read('sources', 'fixture', name)).hexdigest())
+            self.assertEqual(publish()['failures'], [])
+            self.assertEqual(bus.fact(fact_ref('security', 'sh.600003'))['records'], [{
+                'listing_date': '2019-07-01', 'delisting_date': '2020-02-04',
+                'type': '1', 'status': '0',
+            }])
+            self.assertEqual(bus.fact(reference), fact)
 
 
-    def test_daily_refresh_preserves_unreturned_dates_and_other_securities(self):
-        from tests.history_fixture import make_snapshot
-        import pyarrow as pa
-        import pyarrow.parquet as pq
+    def test_daily_repeat_preserves_unreturned_dates_and_other_securities(self):
         with tempfile.TemporaryDirectory() as root:
             root=Path(root)
             make_snapshot(root,symbols=('600003','600004'))
@@ -64,19 +66,14 @@ class FactorStorageTests(unittest.TestCase):
                 start='2019-12-31',end='2020-02-07'),calendar=dict(sessions=['2019-12-31','2020-02-06','2020-02-07'],
                 coverage=[dict(start='2019-12-31',end='2020-02-07')]))
             methods.publish(source,packet)
-            packet['records']=[rows[1]]
-            packet['request'].update(codes=['sh.600003'],refresh=True)
-            methods.publish(source,packet)
-            actual=pq.read_table(pa.BufferReader(bus.read('sources','fixture','daily/2020.parquet'))).to_pylist()
-            self.assertEqual({(r['code'],r['date']) for r in actual},
-                {('sh.600003','2020-02-06'),('sh.600003','2020-02-07'),('sh.600004','2020-02-06'),('sh.600004','2020-02-07')})
-            previous=pq.read_table(pa.BufferReader(bus.read('sources','fixture','daily/2019.parquet'))).to_pylist()
-            self.assertEqual({(r['code'],r['date']) for r in previous},{('sh.600003','2019-12-31'),('sh.600004','2019-12-31')})
+            reference = bus.source('fixture', 'bars')
+            before = bus.table(reference, order=('code', 'date'))
+            packet['records'] = [rows[1]]
+            packet['request'].update(codes=['sh.600003'])
+            self.assertEqual(methods.publish(source, packet)['records'], 1)
+            self.assertEqual(bus.table(reference, order=('code', 'date')), before)
 
     def test_daily_publish_is_independent_of_missing_distribution_facts(self):
-        from tests.history_fixture import make_snapshot
-        from market import fact_ref
-        from protocol import Filter, TableQuery
         with tempfile.TemporaryDirectory() as root:
             root=Path(root)
             make_snapshot(root, symbols=('600003',))
@@ -98,56 +95,59 @@ class FactorStorageTests(unittest.TestCase):
 
 
     def test_missing_fact_does_not_refetch_complete_daily_prices(self):
-        from tests.history_fixture import make_snapshot
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             make_snapshot(root, symbols=('600003',))
             bus = build_data(root)
-            source = dict(id='prices', method='daily', dataset_id='fixture')
+            source = dict(id='prices', method='daily', dataset_id='fixture', storage_id='fixture')
             request = dict(codes=['sh.600003'], start='2020-01-31', end='2020-02-04')
             methods = factors.Methods(bus)
-            with patch.object(methods, 'daily_coverage', return_value={'complete': True}):
-                self.assertTrue(methods.coverage(source, request)['complete'])
-                path = root/'data/source/fixture/manifest.json'
-                value = json.loads(path.read_text())
-                name = 'corp/dividend_sh.600003_2019.json'
-                (root/'data/source/fixture'/name).unlink()
-                value['files'] = [r for r in value['files'] if r['file'] != name]
-                path.write_text(json.dumps(value))
-                self.assertTrue(methods.coverage(source, request)['complete'])
+            before = methods.coverage(source, request)
+            self.assertTrue(before['complete'])
+            ref = fact_ref('dividend', 'sh.600003', year='2019')
+            bus.delete(TableQuery('fact_coverage', (Filter('reference', 'eq', ref),)))
+            with self.assertRaises(DataError):
+                bus.fact(ref)
+            self.assertEqual(methods.coverage(source, request), before)
 
 
 
     def test_evidence_is_written_and_verified_through_protocol(self):
-        request = factors.Request('adjust', '600000', '2020-01-01', '2020-12-31', None)
-        response = SimpleNamespace(error_code='0', error_msg='', code='sh.600000',
-                                   fields=['code', 'dividOperateDate', 'foreAdjustFactor', 'backAdjustFactor'],
-                                   data=[['sh.600000', '2020-01-01', '1.2', '1.1']])
-        response.next = Mock(side_effect=[True, False])
-        response.get_row_data = Mock(return_value=response.data[0])
-        provider = SimpleNamespace(query_adjust_factor=Mock(return_value=response))
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            ref = factors.fetch_and_cache(request, provider, bus, timeout=0)
-            self.assertEqual((ref.identity, ref.name), ('facts', f'{request.key}.json'))
-            self.assertEqual(factors.pending_requests([request], bus), [])
-            payload = json.loads(bus.read(ref.kind, ref.identity, ref.name))
-            raw_log = json.loads(bus.read('state', 'collect', bus.list('state', 'collect')[0].name))
-            self.assertEqual(payload['source_hash'], raw_log['raw_response_sha256'])
-            payload['records'][0]['forward'] = -9
-            bus.write(ref.kind, ref.identity, ref.name, json.dumps(payload).encode())
-            with self.assertRaises(factors.CacheIntegrityError):
-                factors.pending_requests([request], bus)
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            make_snapshot(root, symbols=('600003',))
+            with closing(build_data(root)) as bus:
+                methods = factors.Methods(bus)
+                raw = {'response': 'fixture adjustment response'}
+                start = bus.manifest('fixture')['inputs']['adjustments']['start']
+                fact = {'schema': 1, 'kind': 'adjust', 'code': 'sh.600003', 'start': start,
+                        'end': ADJUST_REQUEST['end'], 'year': None, 'source_hash': factors._sha256(raw),
+                        'records': [{'date': start, 'forward': 1.2, 'backward': 1.1}]}
+                with patch.object(factors.SinaFactors, 'collect', return_value=(raw, fact)):
+                    packet = methods.fetch(ADJUST_SOURCE, ADJUST_REQUEST)
+                self.assertEqual(methods.publish(ADJUST_SOURCE, packet)['records'], 1)
+                ref = fact_ref('adjust', fact['code'], start, fact['end'])
+                actual = bus.fact(ref)
+                self.assertEqual(actual, fact)
+                self.assertEqual(methods.record_evidence(actual), [raw])
+                bus.delete(TableQuery('fact_adjust', (Filter('reference', 'eq', ref),)))
+                with self.assertRaises(DataError) as caught:
+                    bus.fact(ref)
+                self.assertEqual(caught.exception.code, 'data_corrupt')
 
     def test_failed_provider_creates_no_cache(self):
-        request = factors.Request('adjust', '600000', '2020-01-01', '2020-12-31', None)
-        provider = SimpleNamespace(query_adjust_factor=Mock(return_value=SimpleNamespace(error_code='10002007', error_msg='failed')))
-        with tempfile.TemporaryDirectory() as root:
-            bus = build_data(Path(root))
-            with self.assertRaises(factors.ProviderError):
-                factors.fetch_and_cache(request, provider, bus, timeout=0)
-            self.assertEqual(bus.list('sources', 'facts'), ())
-            provider.query_adjust_factor.assert_called_once()
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            make_snapshot(root, symbols=('600003',))
+            with closing(build_data(root)) as bus:
+                methods = factors.Methods(bus)
+                table = TableQuery('fact_coverage', order=('reference',))
+                before = bus.scan(table).table
+                with patch.object(factors.SinaFactors, 'collect', side_effect=factors.ProviderError('failed')) as provider:
+                    with self.assertRaisesRegex(factors.ProviderError, 'failed'):
+                        methods.fetch(ADJUST_SOURCE, ADJUST_REQUEST)
+                provider.assert_called_once()
+                self.assertEqual(bus.scan(table).table, before)
 
 
 class SinaFactorTests(unittest.TestCase):

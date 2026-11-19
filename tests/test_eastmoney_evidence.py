@@ -1,42 +1,39 @@
 """Public source snapshots are evidence, never an automatic cn_a replacement."""
 import copy
-import hashlib
+from contextlib import closing
 import json
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 
-import pandas as pd
 from market import build_data
 
-from collect.methods import canonical, digest, capture, make_request, parse_bars, snapshot, validate_snapshot
+from collect.methods import capture, make_request, parse_bars, snapshot, validate_snapshot
 
 
 class EastmoneyEvidenceTests(unittest.TestCase):
     def test_capture_processes_every_market_in_the_same_master_without_market_filter(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            data = build_data(root)
-            master = data.path("sources", "cn_a", "master.parquet")
-            output = data.path("sources", "bar_evidence", "manifest.json").parent
-            master_ref = data.write("sources", "cn_a", "master.parquet", pd.DataFrame({"code": ["600000", "000001", "920000"],
-                          "exchange": ["SH", "SZ", "BJ"]}).to_parquet(index=False))
-            for code, exchange in [("600000", "SH"), ("000001", "SZ"), ("920000", "BJ")]:
-                request = make_request(code, exchange, "20260901", "20260918", "raw")
-                raw = json.dumps({"rc": 0, "data": {"code": code, "klines": [
+        with tempfile.TemporaryDirectory() as directory, closing(build_data(Path(directory))) as data:
+            symbols = [("600000", "SH"), ("000001", "SZ"), ("920000", "BJ")]
+            data.put_rows("security_master", [{"code": code, "exchange": exchange}
+                                              for code, exchange in symbols], keys=("code",))
+            master_hash = data.evidence("lake:security_master")
+            def fetch(request):
+                return json.dumps({"rc": 0, "data": {"code": request["code"], "klines": [
                     "2026-09-01,10,10.2,10.3,9.9,100,101000,4,2,0.2,1"]}})
-                data.write("sources", "bar_evidence", digest(request) + ".json", canonical(snapshot(request, raw)) + b"\n")
-            result = capture(data, [("600000", "SH"), ("000001", "SZ"), ("920000", "BJ")],
-                             "20260901", "20260918", "raw", master_sha256=master_ref.sha256,
+
+            first = capture(data, symbols, "20260901", "20260918", "raw",
+                            master_sha256=master_hash, fetcher=fetch)
+            result = capture(data, symbols, "20260901", "20260918", "raw", master_sha256=master_hash,
                              fetcher=lambda _: self.fail("saved evidence must not be fetched again"))
+            self.assertEqual(result, first)
             self.assertEqual(result["failed_or_empty"], 0)
-            manifest = json.loads((output / "manifest.json").read_text())
+            manifest = data.config("collect:bar_evidence:manifest")
             self.assertEqual([row["code"] for row in manifest["responses"]],
                              ["000001", "600000", "920000"])
             self.assertEqual([row["status"] for row in manifest["responses"]],
                              ["STRUCTURALLY_VALID"] * 3)
-            self.assertEqual(manifest["master_sha256"], hashlib.sha256(master.read_bytes()).hexdigest())
+            self.assertEqual(manifest["master_sha256"], master_hash)
             self.assertEqual(manifest["release_status"], "NOT_RELEASED")
 
     def setUp(self):

@@ -98,3 +98,7 @@ taint 引擎不追踪容器而漏报，但 regex 抓到那一行。曾实现「A
 
 **实测**：全策略目录 125 文件，regex+AST 223 high / 85 medium（旧 regex-only 180 high / 74 medium），
 新增 high 均为 `G1-TAINT-*`，抽查 `exp_alpha_b1` / `exp_qf_h8f1` 确为净值派生权重，真阳性。
+
+## v0.2.1 | 2026-11-20 | 修正文案
+
+失败决策树改用源码移除反馈做对照。依据 `references/case-r31.md` 中压平档位后仍存在的反馈路径。

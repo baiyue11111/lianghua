@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import asdict, fields, is_dataclass
 from hashlib import sha256
 import importlib
-import inspect
 import json
 from math import isfinite
 from pathlib import Path
@@ -108,10 +107,3 @@ def catalog() -> list[dict]:
                       'name':module.NAME,
                       'description':module.__doc__,'parameters':parameters,'defaults':asdict(strategy.params)})
     return _json_value(items)
-
-
-def code_hash() -> str:
-    """Cover all executable package code, including shared indicator/ledger rules."""
-    root=Path(__file__).parent
-    hashes={str(path.relative_to(root)):sha256(path.read_bytes()).hexdigest() for path in sorted(root.rglob('*.py'))}
-    return canonical_hash(hashes)

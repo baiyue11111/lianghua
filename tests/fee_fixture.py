@@ -27,17 +27,3 @@ def settlement(initial_cash):
     from core.calculation import AllocationLimits
     from plugins.data import Settlement
     return Settlement(initial_cash, fees(), tax_policy(), limits=AllocationLimits(), execution=execution())
-
-
-def configuredSettlement(initial_cash, fees, tax_policy, *, limits, execution):
-    from plugins.data import Settlement
-    return Settlement(initial_cash, fees, tax_policy, limits=limits, execution=execution)
-
-
-def configured_settlement():
-    from backend import _load_plugin
-    return _load_plugin({"settlement": {
-        "module": "tests.fee_fixture:configuredSettlement",
-        "params": {"limits": {"stock_weight": "0.4", "adv_fraction": "0.01"},
-                    "execution": execution()},
-    }}, "settlement")

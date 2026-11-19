@@ -2,17 +2,16 @@
 from __future__ import annotations
 
 import duckdb
-import hashlib
 import json
 import math
 import numpy as np
 import re
-from collections import deque
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from hashlib import sha256
+from market import HistoryView
 from protocol import (
     Bar,
     DataError,
@@ -37,12 +36,6 @@ def _digest(value):
     from market import digest
     return digest(value)
 from zoneinfo import ZoneInfo
-
-def _sha256_json(value: object) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True,
-                         separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
-
 
 def _session_values(array, column):
     """One session of a value matrix as Python floats, absent values as ``None``.
@@ -344,19 +337,14 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
         source += " WHERE identity IN (SELECT * FROM UNNEST(?))"
         query_params.append([normalize_security_id(symbol) for symbol in symbols])
     source += ")"
-    # ``data.table`` already pushed the date window into the catalog view. The
-    # SQL below only normalises codes and aggregates, so filtering the same
-    # rows again on CAST(date AS DATE) walked the source twice and bound two
-    # extra parameters to each of the three queries.
-    row_filter = ""
     try:
         bounds = connection.execute(
             "SELECT code, min(date), max(date), count(*), count(DISTINCT date), "
-            "arg_max(name, date) FROM " + source + row_filter + " GROUP BY code ORDER BY code",
+            "arg_max(name, date) FROM " + source + " GROUP BY code ORDER BY code",
             query_params,
         ).fetchall()
         calendar_strings = [row[0] for row in connection.execute(
-            "SELECT DISTINCT date FROM " + source + row_filter + " ORDER BY date", query_params
+            "SELECT DISTINCT date FROM " + source + " ORDER BY date", query_params
         ).fetchall()]
         if not bounds or not calendar_strings:
             raise AdjustmentCoverageError((CoverageIssue("*", "empty_source", str(daily_dir)),))
@@ -550,7 +538,7 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
         date_index = {str(day): column for column, day in enumerate(calendar_strings)}
         reader = connection.execute(
             "SELECT code, date, open, high, low, close, volume, amount, tradestatus "
-            "FROM " + source + row_filter + " ORDER BY code, date", query_params,
+            "FROM " + source + " ORDER BY code, date", query_params,
         ).to_arrow_reader(batch_size=100_000)
         for batch in reader:
             columns = batch.to_pydict()
@@ -618,7 +606,6 @@ def _load_adjusted_panel(data, dataset, *, factor_start, factor_end, code_change
             volume=arrays["volume"], amount=arrays["amount"],
             back_factor=factor, traded_bar=traded_bar,
             signal_close=np.where(traded_bar, arrays["close"] * factor, np.nan),
-            signal_high=np.where(traded_bar, arrays["high"] * factor, np.nan),
             factor_events=tuple(factor_events),
             listing_anchors=tuple(listing_anchors),
             source_hashes=source_hashes + tuple(cache_hashes) + tuple(stock_basic_hashes)
@@ -820,7 +807,7 @@ def _load_dataset(data, query):
     calendar = tuple(calendar[read_start_index:end_index+2])
     # Each requested code/year cache is explicit evidence, including successful empty results.
     coverage_template=inputs['distributions']['template']
-    source_events={}; query_keys=set(); observations=[]; facts={}
+    observations=[]; facts={}
     selected_codes=tuple(panel.symbols) if query.accounting == 'account' else ()
     # One batched read replaces a query per (security, year) distribution.
     dividend_names=tuple(coverage_template.format(symbol=normalize_security_id(code),year=year)
@@ -839,7 +826,6 @@ def _load_dataset(data, query):
         path=market_evidence(name); payload=read(name)
         records, _ = validate_facts(payload, kind='dividend',
             code=normalize_security_id(code), start=None, end=None, year=str(year))
-        query_keys.add((code,year))
         for row,record in enumerate(records):
             try:
                 event=normalize_dividend_records([{**record,'code':normalize_security_id(code)}])[0]
@@ -853,7 +839,6 @@ def _load_dataset(data, query):
                 distribution_id=f"{code}:{record['announce_date']}:{record['registration_date']}"
                 source=canonical_hash({'file':name,'row':row,'hash':hashes[str(path)]})
                 observations.append((source,distribution_id,event))
-                source_events[(name,row)]=(event,hashes[str(path)])
                 cash_only=(event.stock_dividend_per_share == 0 and event.reserve_to_stock_per_share == 0)
                 if query.tax == 'none':
                     # Research holds a valued share claim until its sourced tradable date.
@@ -898,7 +883,6 @@ def _load_dataset(data, query):
     fees=FeePolicy.from_mapping(policy['fees'],policy_hash)
     taxes=TaxPolicy.from_mapping(policy['tax'],policy_hash)
     if query.tax == 'fifo' and start<taxes.effective: raise ValueError('requested start precedes supported tax effective date')
-    matched={}
     day_inputs={day:[] for day in calendar[:-1]}
     for action in reconcile_corporate_actions(observations,{code:code for code in selected_codes}):
         terms,sources=facts[(action.security_id,action.distribution_id)]
@@ -1051,7 +1035,7 @@ def _load_dataset(data, query):
             raw_low=reorder(panel.raw_low),raw_close=reorder(panel.raw_close),
             volume=reorder(panel.volume),amount=reorder(panel.amount),
             back_factor=reorder(panel.back_factor),traded_bar=reorder(panel.traded_bar),
-            signal_close=reorder(panel.signal_close),signal_high=reorder(panel.signal_high),
+            signal_close=reorder(panel.signal_close),
             factor_events=tuple(replace(event,code=output_by_id[normalize_security_id(event.code)])
                                 for event in panel.factor_events),
             listing_anchors=tuple(replace(anchor,code=output_by_id[normalize_security_id(anchor.code)])
@@ -1151,7 +1135,7 @@ def _prepare_raw_dataset(data, query):
     for identity, day_text in rows:
         first, last = observed_span.get(identity, (day_text, day_text))
         observed_span[identity] = (min(first, day_text), max(last, day_text))
-    history = {symbol: deque(maxlen=query.history) for symbol in symbols}
+    history = {symbol: [] for symbol in symbols}
     prepared = []
     for column, day in enumerate(run_days):
         fields, bars = {}, {}
@@ -1199,13 +1183,15 @@ def _prepare_raw_dataset(data, query):
         frame = MarketFrame(
             datetime.combine(day, time(15), tzinfo=ZoneInfo("Asia/Shanghai")),
             "MARKET", fields, {"next_session": next_session.isoformat()},
-            {symbol: tuple(history[symbol]) for symbol in symbols},
+            HistoryView.window(history, column + 1, query.history),
         )
         prepared.append(HistoryDay(
             day, frame, bars, {}, opening, closing, {}, {},
             sessions[first_index + column - 1] if column else date.min,
             (), {},
         ))
+    for symbol, rows in history.items():
+        history[symbol] = tuple(rows)
     scope["symbols"] = symbols
     scope['delistings'] = _delisting_evidence(data, symbols)
     scope["calendar_start"] = sessions[0].isoformat()
@@ -1228,8 +1214,7 @@ def _prepare_dataset(data, query):
     run_calendar = calendar[:end_index + 2]
     amount_liquidity = Calculation.own_day_rolling_mean(panel.amount, LIQUIDITY_WINDOW, panel.traded_bar)
     volume_liquidity = Calculation.own_day_rolling_mean(panel.volume, LIQUIDITY_WINDOW, panel.traded_bar)
-    own_history = {symbol: deque(maxlen=query.history) for symbol in panel.symbols}
-    session_history = {symbol: deque(maxlen=query.history) for symbol in panel.symbols}
+    history = {symbol: [] for symbol in panel.symbols}
     sources = {"open": panel.raw_open, "high": panel.raw_high, "low": panel.raw_low,
                "close": panel.raw_close, "volume": panel.volume, "amount": panel.amount,
                "signal_close": panel.signal_close, **field_data}
@@ -1254,10 +1239,7 @@ def _prepare_dataset(data, query):
         opening_adv, closing_adv, opening_volume20, closing_volume20 = {}, {}, {}, {}
         for row, symbol in enumerate(panel.symbols):
             selected = {name: session[name][row] for name in query.fields}
-            history_bar = HistoryBar(at, selected)
-            session_history[symbol].append(history_bar)
-            if traded[row]:
-                own_history[symbol].append(history_bar)
+            history[symbol].append(HistoryBar(at, selected))
             fields[symbol] = selected
             if query.accounting == 'research' and not traded[row]:
                 continue
@@ -1282,7 +1264,7 @@ def _prepare_dataset(data, query):
                                  for row,symbol in enumerate(panel.symbols)
                                  if back_factors[row] is not None}}
                 if query.accounting == 'research' else {})},
-            {symbol: tuple(session_history[symbol]) for symbol in panel.symbols},
+            HistoryView.window(history, column + 1, query.history),
         )
         prepared.append(HistoryDay(
             day, frame, bars, dict(last_marks), opening, closing,
@@ -1292,6 +1274,8 @@ def _prepare_dataset(data, query):
         last_marks.update({symbol: float(value) for symbol, value in closing.items()})
         last_liquidity.update(closing_adv)
         last_volume.update(closing_volume20)
+    for symbol, rows in history.items():
+        history[symbol] = tuple(rows)
     plugin_provenance = None
     if plugins:
         prepared, plugin_provenance = _apply_signal_plugins(prepared, plugins, query.start, query.end)

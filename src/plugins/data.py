@@ -306,6 +306,7 @@ def _prepare_market(data, query, dataset):
     import json
     from dataclasses import replace
     from hashlib import sha256
+    from market import HistoryView
     from protocol import DataError, normalize_security_id
 
     registry = data.registry()
@@ -401,10 +402,15 @@ def _prepare_market(data, query, dataset):
     for record in dataset.records:
         current = tuple(symbol_map[code] for code in selected[record.trade_date])
         opening_symbols = tuple(symbol_map[code] for code in opening[record.trade_date])
+        fields = {symbol: record.frame.fields[symbol] for symbol in current}
+        history = record.frame.history
+        missing = fields.keys() - history.keys()
+        if missing:
+            raise KeyError(next(symbol for symbol in fields if symbol in missing))
         frame = replace(
             record.frame,
-            fields={symbol: record.frame.fields[symbol] for symbol in current},
-            history={symbol: record.frame.history[symbol] for symbol in current},
+            fields=fields,
+            history=HistoryView(fields, history.__getitem__),
         )
         records.append(replace(record, frame=frame, opening_eligible=opening_symbols))
         counts[record.trade_date.isoformat()] = len(current)

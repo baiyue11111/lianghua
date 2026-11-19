@@ -14,12 +14,23 @@ from collect.core import Collect
 from collect.methods import Methods
 from collect.sources import Sources
 from market import DataBus
-from protocol import DataError
+from protocol import DataError, TableQuery
 from backend import Modules, Protocol
 from storage import DataStore
 from frontend import cli
 
 ui = importlib.import_module('frontend.ui-protocol')
+
+
+def save_daily_fixture(bus, sessions, rows, *, types=None):
+    bus.put_rows('fixture_bars', rows, keys=('code', 'date'), updates=(), storage='parquet', types=types)
+    reference = 'lake:fixture_bars'
+    bus.bind('fixture', 'bars', reference)
+    bus.save_calendar('fixture', {'sessions': sessions,
+        'coverage': [{'start': sessions[0], 'end': sessions[-1]}]})
+    bus.save_manifest('fixture', {'schema': 3, 'fields': {}, 'calendar': 'calendar.json',
+        'scope': {'symbols': sorted({row['code'] for row in rows}), 'universe': 'market'},
+        'inputs': {'bars': reference}})
 
 
 def bridge(backend):
@@ -133,12 +144,8 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([r['codes'] for r in self.calls], [['Y']])
 
-    def test_invalid_catalogue_security_does_not_block_other_prices(self):
-        from tests.history_fixture import make_snapshot
+    def test_prices_use_only_catalogue_securities_listed_in_the_interval(self):
         from collect.methods import Catalogue
-        prices = self.sources.get('prices')
-        make_snapshot(Path(self.temp.name), symbols=('600003',))
-        self.sources.register(prices)
         self.sources.register({'id': 'catalogue', 'name': 'Catalogue', 'method': 'catalogue',
                                'data_type': 'catalogue', 'frequency': 'snapshot', 'defaults': {}})
         def register(registry):
@@ -149,13 +156,14 @@ class CollectionCommandTests(unittest.TestCase):
             return registry
         self.bus.update_registry(register)
         rows = [dict(code='sh.600003', ipoDate='2019-07-01', outDate='', type='1', status='1'),
-                dict(code='sz.000004', ipoDate='2020-02-30', outDate='', type='1', status='1')]
+                dict(code='sz.000004', ipoDate='2020-03-02', outDate='', type='1', status='1')]
         with patch.object(Catalogue, 'collect', return_value={'records': rows, 'raw': [], 'scope': {}}):
-            result = self.collect.run({'market': 'CN_A', 'command': 'range',
+            result = self.collect.run({'market': 'TEST', 'command': 'range',
                                        'start': '2020-02-03', 'end': '2020-02-04'})
-        self.assertEqual(result['outcome'], 'failed')
+        self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([r['codes'] for r in self.calls], [['sh.600003']])
-        self.assertEqual([r['code'] for r in result['failures']], ['sz.000004'])
+        self.assertEqual([r['code'] for r in self.collect.methods.records(self.sources.get('prices'))['records']],
+                         ['sh.600003'])
 
     def test_explicit_latest_with_history_does_not_require_catalogue(self):
         self.sources.register({'id': 'catalogue', 'name': 'Catalogue',
@@ -175,56 +183,32 @@ class CollectionCommandTests(unittest.TestCase):
         self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual([(r['codes'], r['start']) for r in self.calls], [(['X'], '2026-10-14')])
 
-    def test_catalogue_failure_keeps_updates_for_observed_securities(self):
-        self.sources.register({'id': 'catalogue', 'name': 'Catalogue',
-            'method': 'catalogue_fixture', 'frequency': 'snapshot', 'defaults': {},
-            'params': {'key_fields': ['code']}})
-        def fail(source, request):
-            raise ValueError('catalogue offline')
-        self.collect.methods.handlers['catalogue_fixture'] = fail
-        def register(registry):
-            registry['markets'][0]['collect']['securities'] = {
-                'source': 'catalogue', 'code': 'code', 'from': 'listed', 'to': 'delisted'}
-            return registry
-        self.bus.update_registry(register)
-        self.bus.write('sources', 'catalogue', 'records.json',
-                       b'{"records":[{"code":"Y","listed":"2020-01-02"}]}')
-        self.collect.run({'source_id': 'prices', 'codes': ['X'],
-                          'start': '2026-10-01', 'end': '2026-10-14'})
-        self.calls.clear()
-        result = self.collect.run({'market': 'TEST', 'command': 'latest', 'codes': ['X', 'Y']})
-        self.assertEqual(result['outcome'], 'failed')
-        self.assertEqual([(r['codes'], r['start']) for r in self.calls], [(['X'], '2026-10-14')])
-        self.assertIn('Y', [r['code'] for r in result['failures']])
-
     def test_shared_storage_sources_keep_their_original_request_start(self):
-        from tests.history_fixture import make_snapshot
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        make_snapshot(Path(self.temp.name), symbols=('600003',))
-        for identity, field in [('prices', 'close'), ('ratios', 'peTTM')]:
+        save_daily_fixture(self.bus, ['2020-02-04', '2020-02-05', '2020-02-06', '2020-02-07'],
+                           [{'code': 'sh.600003', 'date': '2020-02-04', 'close': 11.}])
+        identities = ('first_daily', 'second_daily')
+        for identity in identities:
             self.sources.register({'id': identity, 'name': identity, 'method': 'fixture',
-                'data_type': 'daily', 'frequency': 'daily', 'defaults': {}, 'fields': [field],
+                'data_type': 'daily', 'frequency': 'daily', 'defaults': {}, 'fields': ['close'],
                 'dataset_id': 'fixture', 'storage_id': 'fixture'})
         def register(registry):
-            registry['markets'][0]['collect'] = {'default': ['prices', 'ratios'],
-                'codes': ['sh.600003'], 'data': {name: {'source': name} for name in ('prices', 'ratios')}}
+            registry['markets'][0]['collect'] = {'default': list(identities),
+                'codes': ['sh.600003'], 'data': {name: {'source': name} for name in identities}}
             return registry
         self.bus.update_registry(register)
         calls = []
         def fetch(source, request):
             calls.append((source['id'], request['start']))
-            return {'records': [{'code': 'sh.600003', 'date': day, source['fields'][0]: 12.}
+            return {'records': [{'code': 'sh.600003', 'date': day, 'close': 12.}
                 for day in ('2020-02-05', '2020-02-06') if request['start'] <= day <= request['end']],
-                'raw': [], 'scope': {}, 'calendar': {'sessions': ['2020-02-05', '2020-02-06'],
-                    'coverage': [{'start': '2020-02-05', 'end': '2020-02-06'}]}}
+                'raw': [], 'scope': {}}
         self.collect.methods.handlers['fixture'] = fetch
-        result = self.collect.run({'market': 'CN_A', 'command': 'latest'})
+        result = self.collect.run({'market': 'TEST', 'command': 'latest', 'end': '2020-02-06'})
         self.assertEqual(result['outcome'], 'succeeded')
-        rows = pq.read_table(pa.BufferReader(self.bus.read('sources', 'fixture', 'daily/2020.parquet'))).to_pylist()
-        self.assertEqual({row['date']: row['peTTM'] for row in rows},
-                         {'2020-02-05': 12., '2020-02-06': 12.})
-        self.assertEqual(calls, [('prices', '2020-02-04'), ('ratios', '2020-02-04')])
+        rows = self.bus.table(self.bus.source('fixture', 'bars')).to_pylist()
+        self.assertEqual({row['date']: row['close'] for row in rows},
+                         {'2020-02-04': 11., '2020-02-05': 12., '2020-02-06': 12.})
+        self.assertEqual(calls, [(identity, '2020-02-05') for identity in identities])
 
     def test_security_results_share_one_publication_with_correct_evidence_offsets(self):
         def fetch(source, request):
@@ -237,9 +221,10 @@ class CollectionCommandTests(unittest.TestCase):
                                        'start': '2026-10-01', 'end': '2026-10-14'})
         self.assertEqual(result['outcome'], 'succeeded')
         self.assertEqual(publish.call_count, 1)
-        event = self.collect.methods.evidence(result['snapshot_id'])
-        self.assertEqual([row['raw_page'] for row in event['incoming']], [0, 1])
-        self.assertEqual(event['raw'], [{'code': 'X'}, {'code': 'Y'}])
+        source = self.sources.get('prices')
+        rows = self.collect.methods.records(source)['records']
+        self.assertEqual([self.collect.methods.record_evidence(row) for row in rows],
+                         [[{'code': 'X'}], [{'code': 'Y'}]])
 
     def test_source_lock_stays_held_across_publication_batches(self):
         attempted = []
@@ -274,39 +259,24 @@ class CollectionCommandTests(unittest.TestCase):
         rows = self.collect.methods.records(self.sources.get('prices'))['records']
         self.assertEqual([row['code'] for row in rows], ['OLD', 'X'])
 
-    def test_daily_stored_conflict_keeps_other_securities_in_one_write(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        calendar = {'sessions': ['2026-10-01', '2026-10-02'],
-                    'coverage': [{'start': '2026-10-01', 'end': '2026-10-02'}]}
-        calendar_ref = self.bus.write('sources', 'fixture', 'calendar.json', json.dumps(calendar).encode())
-        output = pa.BufferOutputStream()
-        pq.write_table(pa.Table.from_pylist([{'code': 'sh.600000', 'date': '2026-10-01', 'close': 10.}]), output)
-        daily_ref = self.bus.write('sources', 'fixture', 'daily/2026.parquet', output.getvalue().to_pybytes())
-        manifest = {'schema': 2, 'fields': {}, 'calendar': 'calendar.json',
-                    'scope': {'symbols': ['sh.600000'], 'universe': 'market'},
-                    'files': [{'file': 'calendar.json', 'sha256': calendar_ref.sha256, 'role': 'market'},
-                              {'file': 'source/fixture/daily/2026.parquet', 'sha256': daily_ref.sha256, 'role': 'market'}]}
-        self.bus.write('sources', 'fixture', 'manifest.json', json.dumps(manifest).encode())
+    def test_daily_overlap_keeps_stored_bar_and_publishes_other_securities_together(self):
+        save_daily_fixture(self.bus, ['2026-10-01', '2026-10-02'],
+                           [{'code': 'sh.600000', 'date': '2026-10-01', 'close': 10.}])
         self.sources.register({'id': 'daily', 'name': 'Daily', 'method': 'daily_fixture',
             'data_type': 'daily', 'frequency': 'daily', 'dataset_id': 'fixture',
             'storage_id': 'fixture', 'calendar': 'calendar.json', 'fields': ['close'], 'defaults': {}})
         self.collect.methods.handlers['daily_fixture'] = lambda source, request: {
             'records': [{'code': request['codes'][0], 'date': request['end'], 'close': 11.}],
             'raw': [{'code': request['codes'][0]}], 'scope': {}}
-        original = self.bus.write
-        writes = []
-        def write(kind, identity, name, payload):
-            if name == 'daily/2026.parquet': writes.append(name)
-            return original(kind, identity, name, payload)
-        with patch.object(self.bus, 'write', side_effect=write):
+        with patch.object(self.collect.methods, 'publish', wraps=self.collect.methods.publish) as publish:
             result = self.collect.run({'source_id': 'daily', 'codes': ['sh.600000', 'sh.600001', 'sh.600002'],
                                        'start': '2026-10-01', 'end': '2026-10-01'})
-        self.assertEqual(result['outcome'], 'failed')
-        self.assertEqual(result['records'], 2)
-        self.assertEqual([item['code'] for item in result['failures']], ['sh.600000'])
-        self.assertEqual(writes, ['daily/2026.parquet'])
-        rows = pq.read_table(pa.BufferReader(self.bus.read('sources', 'fixture', 'daily/2026.parquet'))).to_pylist()
+        self.assertEqual(result['outcome'], 'succeeded')
+        self.assertEqual(result['records'], 3)
+        self.assertEqual(result['failures'], [])
+        self.assertEqual(publish.call_count, 1)
+        reference = self.bus.source('fixture', 'bars')
+        rows = self.bus.table(reference, order=('code', 'date')).to_pylist()
         self.assertEqual({row['code']: row['close'] for row in rows},
                          {'sh.600000': 10., 'sh.600001': 11., 'sh.600002': 11.})
         self.collect._fetch_only({'source_id': 'daily', 'codes': ['sh.600000'],
@@ -315,9 +285,8 @@ class CollectionCommandTests(unittest.TestCase):
         job_id = self.collect._current_job_id
         self.assertEqual(self.collect.status(job_id)['status'], 'awaiting_publish')
         self.collect._merge_task(job_id, False)
-        self.assertEqual(self.collect.status(job_id)['outcome'], 'failed')
-        self.assertEqual(self.collect.status(job_id)['records'], 0)
-        self.assertEqual(self.collect.status(job_id)['failures'][0]['code'], 'sh.600000')
+        self.assertEqual(self.collect.status(job_id)['outcome'], 'succeeded')
+        self.assertEqual(self.bus.table(reference, order=('code', 'date')).to_pylist(), rows)
 
     def invoke(self, selector, **values):
         from backend import CollectionPort
@@ -418,6 +387,9 @@ class CollectionCommandTests(unittest.TestCase):
             self.invoke('TEST:range',start='2026-10-01',end='2026-10-14')
 
     def test_check_reports_incomplete_without_fetching(self):
+        self.collect.run({'source_id': 'prices', 'codes': ['X', 'Y'],
+                          'start': '2026-10-01', 'end': '2026-10-14'})
+        self.calls.clear()
         with patch.object(self.collect.methods,'coverage',return_value={'complete':False,'fields':('close',)}):
             result=self.invoke('TEST:check',start='2026-10-01',end='2026-10-14')
         self.assertEqual(result['status'],'incomplete')
@@ -653,24 +625,17 @@ class HistoricalFillTests(unittest.TestCase):
 
 
     def test_old_and_new_years_read_with_different_optional_columns(self):
-        import pyarrow as pa
-        import pyarrow.parquet as pq
-        from datetime import date
-        from types import SimpleNamespace
-        from collect.methods import Methods
         with tempfile.TemporaryDirectory() as folder:
-            root=Path(folder)
-            row={'code':'sh.600000','date':'2003-01-02','open':10.,'high':11.,'low':9.,
-                 'close':10.,'volume':100.,'amount':1000.}
-            pq.write_table(pa.Table.from_pylist([{**row,'name':'浦发银行'}]),root/'old.parquet')
-            pq.write_table(pa.Table.from_pylist([{**row,'date':'2003-01-03','peTTM':10.}]),root/'new.parquet')
-            data=SimpleNamespace(transaction=lambda *a:contextlib.nullcontext(),path=lambda kind,identity,name:root/name)
-            methods=Methods(data)
-            context=({},[date(2003,1,2),date(2003,1,3),date(2003,1,6)],{},('sh.600000',),
-                     [('cn_a','old.parquet'),('cn_a','new.parquet')],'snapshot',('sh.600000',))
-            with patch.object(methods,'_daily_view_context',return_value=context):
-                page=methods.daily_collection_page({'id':'daily'},'cn_a')
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                row = {'code': 'sh.600000', 'date': '2003-12-31', 'close': 10.}
+                save_daily_fixture(bus, ['2003-12-31', '2004-01-02', '2004-01-05'],
+                                   [{**row, 'name': '浦发银行'}], types={'peTTM': 'DOUBLE'})
+                bus.put_rows('fixture_bars', [{**row, 'date': '2004-01-02', 'peTTM': 10.}],
+                             keys=('code', 'date'))
+                page = Methods(bus).daily_collection_page({'id': 'fixture'}, 'fixture')
             self.assertEqual(page['total'],2)
+            self.assertEqual(page['records'][0]['name'], '浦发银行')
+            self.assertIsNone(page['records'][0]['peTTM'])
             self.assertIsNone(page['records'][1]['name'])
             self.assertEqual(page['records'][1]['peTTM'],10.)
 
@@ -755,12 +720,12 @@ class OfficialCatalogueTests(unittest.TestCase):
 
     def test_catalogue_publication_preserves_historical_codes(self):
         with tempfile.TemporaryDirectory() as folder:
-            bus = DataBus(DataStore(Path(folder)))
-            methods = Methods(bus)
-            source = {'id':'catalogue','method':'catalogue'}
-            methods.publish(source, {'records':[{'code':'sz.000043','ipoDate':'1994-09-28'}], 'raw':[], 'scope':{'exchanges':['sz']}})
-            methods.publish(source, {'records':[{'code':'sz.001914','ipoDate':'1994-09-28'}], 'raw':[], 'scope':{'exchanges':['sz']}})
-            rows = json.loads(bus.read('sources','catalogue','records.json'))['records']
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                methods = Methods(bus)
+                source = {'id':'catalogue','method':'catalogue'}
+                methods.publish(source, {'records':[{'code':'sz.000043','ipoDate':'1994-09-28'}], 'raw':[], 'scope':{'exchanges':['sz']}})
+                methods.publish(source, {'records':[{'code':'sz.001914','ipoDate':'1994-09-28'}], 'raw':[], 'scope':{'exchanges':['sz']}})
+                rows = methods.records(source)['records']
             self.assertEqual([row['code'] for row in rows], ['sz.000043','sz.001914'])
 
     def test_shenzhen_listed_fields_use_real_ipo(self):
@@ -772,48 +737,47 @@ class OfficialCatalogueTests(unittest.TestCase):
         self.assertEqual(record['status'], '1')
 
 class CollectionEvidenceTests(unittest.TestCase):
-    def test_evidence_reads_json_events_and_preserves_other_source_documents(self):
+    def test_evidence_resolves_snapshot_and_record_without_mixing_sources(self):
         from collect.methods import _sha256
         with tempfile.TemporaryDirectory() as folder:
-            bus = DataBus(DataStore(Path(folder)))
-            methods = Methods(bus)
-            record = {'code':'sh.600000'}
-            bus.write('state','collect','announcement.pdf.txt',b'original extracted document')
-            event = {'snapshot_id':'version','raw':[{'provider':'official'}],
-                     'incoming':[{'record_hash':_sha256(record),'raw_page':0}]}
-            bus.write('state','collect','event.json',json.dumps(event).encode())
-            self.assertEqual(methods.evidence('version'), event)
-            self.assertEqual(methods.record_evidence(record), event['raw'])
-            self.assertEqual(bus.read('state','collect','announcement.pdf.txt'),b'original extracted document')
-            bus.write('state','collect','broken.json',b'broken')
-            with self.assertRaises(json.JSONDecodeError):
-                methods.evidence('unknown')
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                methods = Methods(bus)
+                record = {'code': 'sh.600000'}
+                event = {'snapshot_id': 'version', 'raw': [{'provider': 'official'}],
+                         'incoming': [{'record_hash': _sha256(record), 'raw_page': 0}]}
+                other = {'snapshot_id': 'announcement', 'raw': [{'text': 'original extracted document'}]}
+                methods.log(other)
+                methods.log(event)
+                self.assertEqual(methods.evidence('version'), event)
+                self.assertEqual(methods.record_evidence(record), event['raw'])
+                self.assertEqual(methods.evidence('announcement'), other)
+                self.assertEqual(methods.evidence('unknown'), {})
 
     def test_immutable_snapshot_evidence_is_read_once_but_a_miss_is_not_cached(self):
         with tempfile.TemporaryDirectory() as folder:
-            bus = DataBus(DataStore(Path(folder)))
-            methods = Methods(bus)
-            self.assertEqual(methods.evidence('version'), {})
-            event = {'snapshot_id':'version','raw':[{'provider':'official'}]}
-            bus.write('state','collect','event.json',json.dumps(event).encode())
-            with patch.object(bus, 'list', wraps=bus.list) as read:
-                self.assertEqual(methods.evidence('version'), event)
-                self.assertEqual(methods.evidence('version'), event)
-                self.assertEqual(read.call_count, 1)
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                methods = Methods(bus)
+                self.assertEqual(methods.evidence('version'), {})
+                event = {'snapshot_id': 'version', 'raw': [{'provider': 'official'}]}
+                methods.log(event)
+                with patch.object(bus, 'scan', wraps=bus.scan) as scan:
+                    self.assertEqual(methods.evidence('version'), event)
+                    self.assertEqual(methods.evidence('version'), event)
+                scan.assert_called_once_with(TableQuery('collection_audit'))
 
-    def test_publishing_known_snapshot_never_scans_the_audit_directory(self):
+    def test_publishing_a_record_does_not_read_the_audit_table(self):
         with tempfile.TemporaryDirectory() as folder:
-            bus=DataBus(DataStore(Path(folder)))
-            methods=Methods(bus)
-            source={'id':'example','method':'fixture','params':{'key_fields':['code']}}
-            packet={'records':[{'code':'sh.600000','raw_page':0}],
-                    'raw':[{'source':'official'}],'scope':{}}
-            with patch.object(bus,'list',side_effect=AssertionError('audit scan is forbidden')):
-                methods.publish(source,packet)
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                methods = Methods(bus)
+                source = {'id': 'example', 'method': 'fixture', 'params': {'key_fields': ['code']}}
+                packet = {'records': [{'code': 'sh.600000', 'raw_page': 0}],
+                          'raw': [{'source': 'official'}], 'scope': {}}
+                with patch.object(bus, 'scan', wraps=bus.scan) as scan:
+                    methods.publish(source, packet)
+                self.assertNotIn(TableQuery('collection_audit'), [call.args[0] for call in scan.call_args_list])
                 page=methods.records(source)
-            self.assertEqual(page['scope'],{})
-            self.assertIsNotNone(page['collected_at'])
-            self.assertEqual(page['records'],[{'code':'sh.600000'}])
+                self.assertEqual(page['records'], [{'code': 'sh.600000'}])
+                self.assertEqual(page['raw'], packet['raw'])
 
 class SinaDailyTests(unittest.TestCase):
     def request(self):
@@ -860,15 +824,15 @@ class SinaDailyTests(unittest.TestCase):
         from collect.methods import DEFAULT_METHODS,SinaDaily
         self.assertIs(DEFAULT_METHODS['sina_daily'],SinaDaily)
         with tempfile.TemporaryDirectory() as folder:
-            bus=DataBus(DataStore(Path(folder)))
-            calendar={'sessions':['2024-09-03','2024-09-04','2024-09-05'],
-                      'coverage':[{'start':'2024-09-03','end':'2024-09-05'}]}
-            bus.write('sources','fixture','calendar.json',json.dumps(calendar).encode())
-            source={'id':'daily','method':'sina_daily','data_type':'daily','dataset_id':'fixture','calendar':'calendar.json'}
-            packet={'records':[{'code':'sz.000456','date':'2024-09-03','open':10,'high':12,'low':9,'close':11,'volume':2000,'amount':21000}],
-                    'raw':[{'provider':'sina'}],'scope':{}}
-            with patch.object(SinaDaily,'collect',return_value=packet):
-                result=Methods(bus).fetch(source,self.request())
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                calendar={'sessions':['2024-09-03','2024-09-04','2024-09-05'],
+                          'coverage':[{'start':'2024-09-03','end':'2024-09-05'}]}
+                bus.save_calendar('fixture', calendar)
+                source={'id':'daily','method':'sina_daily','data_type':'daily','dataset_id':'fixture','calendar':'calendar.json'}
+                packet={'records':[{'code':'sz.000456','date':'2024-09-03','open':10,'high':12,'low':9,'close':11,'volume':2000,'amount':21000}],
+                        'raw':[{'provider':'sina'}],'scope':{}}
+                with patch.object(SinaDaily,'collect',return_value=packet):
+                    result=Methods(bus).fetch(source,self.request())
             self.assertEqual(result['calendar'],calendar)
 
     def test_trade_status_is_not_invented_and_observed_zero_turnover_is_preserved(self):

@@ -2017,7 +2017,7 @@ class ListingAnchorEvidence:
 class AdjustedPricePanel:
     """Raw execution bars and independent, non-investable signal price index.
 
-    ``back_factor`` and ``signal_*`` are for indicators only. They do not
+    ``back_factor`` and ``signal_close`` are for indicators only. They do not
     encode cash receivable, payable tax, or shares owed by a distribution.
     All arrays have shape ``(len(symbols), len(calendar))``; absent raw bars
     and their signal values are NaN.
@@ -2035,7 +2035,6 @@ class AdjustedPricePanel:
     back_factor: np.ndarray
     traded_bar: np.ndarray
     signal_close: np.ndarray
-    signal_high: np.ndarray
     factor_events: tuple[FactorEvent, ...]
     listing_anchors: tuple[ListingAnchorEvidence, ...]
     source_hashes: tuple[SourceHash, ...]

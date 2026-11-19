@@ -1,5 +1,4 @@
 """Collection saves observations; completeness is a separate question."""
-import copy
 import json
 import tempfile
 import unittest
@@ -7,15 +6,13 @@ from types import SimpleNamespace
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
-import pyarrow as pa
-import pyarrow.parquet as pq
 from collect.methods import Methods, SinaDaily
 from market import build_data
-from protocol import DataError
+from protocol import DataError, Filter, TableQuery
 from tests.history_fixture import make_snapshot
 
 class ObservedTests(unittest.TestCase):
-    def test_json_conflicts_keep_other_codes_and_rollback_all_rejected_code_rows(self):
+    def test_record_conflicts_keep_other_codes_and_rollback_all_rejected_code_rows(self):
         with tempfile.TemporaryDirectory() as folder:
             bus=build_data(Path(folder)); methods=Methods(bus)
             source={'id':'quotes','method':'fixture','params':{'key_fields':['code','date']}}
@@ -27,7 +24,7 @@ class ObservedTests(unittest.TestCase):
                 {'code':'C','date':'2020-01-01','close':10.}]},dry_run=False)
             self.assertEqual(result['records'],1)
             self.assertEqual([item['code'] for item in result['failures']],['A'])
-            self.assertEqual(json.loads(bus.read('sources','quotes','records.json'))['records'],
+            self.assertEqual(bus.table(bus.source('quotes', 'records'), order=('code', 'date')).to_pylist(),
                 [{'code':'A','date':'2020-01-01','close':10.}, {'code':'C','date':'2020-01-01','close':10.}])
             document={**source,'id':'documents','params':{'key_fields':['id']}}
             methods._deliver(document,{**packet,'records':[{'id':'one','text':'old'}]},dry_run=False)
@@ -40,8 +37,7 @@ class ObservedTests(unittest.TestCase):
             keys=('code','period','visible_at'), validate_record=lambda row:None)
         with tempfile.TemporaryDirectory() as folder:
             bus=build_data(Path(folder)); methods=Methods(bus,{'fixture':handler})
-            bus.write('sources','fixture','manifest.json',json.dumps({'schema':2,'fields':{},'files':[]}).encode())
-            source={'id':'facts','method':'fixture','data_type':'facts','storage_id':'facts','dataset_id':'fixture'}
+            source={'id':'facts','method':'fixture','data_type':'facts'}
             row={'code':'sh.600003','date':'2020-01-01','period':'2019-09-30',
                  'visible_at':'2020-01-01T00:00:00+08:00','value':.2}
             packet={'records':[row],'raw':[],'scope':{}}
@@ -50,7 +46,7 @@ class ObservedTests(unittest.TestCase):
                 {**row,'code':'sh.600004','value':.4}]},dry_run=False)
             self.assertEqual(result['records'],1)
             self.assertEqual([item['code'] for item in result['failures']],['sh.600003'])
-            rows=pq.read_table(bus.path('sources','facts','records.parquet')).to_pylist()
+            rows=bus.table(bus.source('facts', 'records'), order=('code',)).to_pylist()
             self.assertEqual([(item['code'],item['value']) for item in rows],[('sh.600003',.2),('sh.600004',.4)])
 
     def setup_store(self, folder):
@@ -59,6 +55,10 @@ class ObservedTests(unittest.TestCase):
         source={'id':'daily','method':'sina_daily','data_type':'daily','storage_id':'fixture','dataset_id':'fixture',
                 'fields':['open','high','low','close','volume','amount']}
         return bus,Methods(bus,{}),source
+
+    def bars(self, bus, code):
+        return bus.table(bus.source('fixture', 'bars'), filters=(Filter('code', 'eq', code),),
+                         order=('date',)).to_pylist()
 
     def packet(self, rows, **request):
         return {'data_type':'daily','records':rows,'raw':[{'url':'https://source.example/daily','response':'raw'}],
@@ -70,30 +70,42 @@ class ObservedTests(unittest.TestCase):
     def test_partial_fields_and_zero_are_saved_without_invented_prices(self):
         with tempfile.TemporaryDirectory() as folder:
             bus,m,source=self.setup_store(folder)
-            m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':12.,'amount':None},
-                                         {'code':'sh.600003','date':'2020-02-03','volume':0.}]))
-            rows=pq.read_table(pa.BufferReader(bus.read('sources','fixture','daily/2020.parquet'))).to_pylist()
-            self.assertEqual(rows,[{'code':'sh.600003','date':'2020-01-31','close':12.,'volume':None},
-                                   {'code':'sh.600003','date':'2020-02-03','close':None,'volume':0.}])
+            code = 'sh.600004'
+            m.publish(source, self.packet([
+                {'code': code, 'date': '2020-01-31', 'close': 12., 'amount': None},
+                {'code': code, 'date': '2020-02-03', 'volume': 0.},
+            ], codes=[code]))
+            rows = self.bars(bus, code)
+            self.assertEqual([(r['date'], r['close'], r['volume'], r['amount']) for r in rows],
+                             [('2020-01-31', 12., None, None), ('2020-02-03', None, 0., None)])
 
-    def test_refresh_keeps_missing_values_and_dates(self):
+    def test_append_only_bars_reject_refresh_without_changing_observations(self):
         with tempfile.TemporaryDirectory() as folder:
             bus,m,source=self.setup_store(folder)
-            m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':12.,'amount':50.},
-                                         {'code':'sh.600003','date':'2020-02-03','close':13.,'amount':60.}]))
-            m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':14.,'amount':None}],refresh=True))
-            rows=pq.read_table(pa.BufferReader(bus.read('sources','fixture','daily/2020.parquet'))).to_pylist()
-            self.assertEqual([(r['close'],r['amount']) for r in rows],[(14.,50.),(13.,60.)])
+            code = 'sh.600004'
+            m.publish(source, self.packet([
+                {'code': code, 'date': '2020-01-31', 'close': 12., 'amount': 50.},
+                {'code': code, 'date': '2020-02-03', 'close': 13., 'amount': 60.},
+            ], codes=[code]))
+            before = self.bars(bus, code)
+            with self.assertRaises(DataError) as caught:
+                m.publish(source, self.packet([{'code': code, 'date': '2020-01-31', 'close': 14.}],
+                                              codes=[code], refresh=True))
+            self.assertEqual(caught.exception.code, 'unsupported_refresh')
+            self.assertEqual(self.bars(bus, code), before)
 
     def test_valid_empty_response_writes_evidence_only(self):
         with tempfile.TemporaryDirectory() as folder:
             bus,m,source=self.setup_store(folder)
-            before=bus.read('sources','fixture','manifest.json')
-            m.publish(source,self.packet([],refresh=True))
-            self.assertEqual(before,bus.read('sources','fixture','manifest.json'))
+            before = bus.calendar('fixture'), self.bars(bus, 'sh.600003')
+            packet = self.packet([])
+            self.assertEqual(m.publish(source, packet)['records'], 0)
+            self.assertEqual((bus.calendar('fixture'), self.bars(bus, 'sh.600003')), before)
             self.assertFalse(m.daily_coverage('fixture',('sh.600999',),date(2020,1,31),date(2020,2,3),('close',))['complete'])
-            events=[json.loads(bus.read('state','collect',ref.name)) for ref in bus.list('state','collect') if '/' not in ref.name]
-            self.assertTrue(any(e.get('raw')==self.packet([])['raw'] for e in events))
+            rows = bus.scan(TableQuery('collection_audit')).table.to_pylist()
+            events = [json.loads(row['settings']) for row in rows]
+            self.assertEqual([event['raw'] for event in events], [packet['raw']])
+            self.assertEqual(events[0]['incoming'], [])
 
     def test_bad_identity_date_value_and_duplicate_are_rejected_before_publish(self):
         good={'code':'sh.600003','date':'2020-01-31','close':12.}
@@ -143,32 +155,12 @@ class ObservedTests(unittest.TestCase):
                               ('sh.600003','2020-02-05',12.),('sh.600003','2020-02-06',15.),
                               ('sh.600004','2020-02-05',20.)])
 
-    def test_partial_merge_validates_the_result_and_keeps_other_securities(self):
-        with tempfile.TemporaryDirectory() as folder:
-            bus,m,source=self.setup_store(folder)
-            m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':10.,'high':12.,'low':8.}]))
-            packet=self.packet([{'code':'sh.600003','date':'2020-01-31','close':20.},
-                                {'code':'sh.600004','date':'2020-01-31','close':30.}],refresh=True)
-            packet['request']['codes'].append('sh.600004')
-            result=m.publish(source,packet)
-            self.assertEqual([r['code'] for r in result['failures']],['sh.600003'])
-            self.assertEqual(result['records'],1)
-            rows=pq.read_table(pa.BufferReader(bus.read('sources','fixture','daily/2020.parquet'))).to_pylist()
-            self.assertEqual([r['close'] for r in rows],[10.,30.])
-
     def test_partial_rows_are_readable_in_collection_view(self):
         with tempfile.TemporaryDirectory() as folder:
             bus,m,source=self.setup_store(folder)
             m.publish(source,self.packet([{'code':'sh.600003','date':'2020-01-31','close':10.}]))
             view=m.records(source,0,500)
             self.assertTrue(any(row['close']==10. for row in view['records']))
-
-    def test_evidence_cache_does_not_grow_with_each_publication(self):
-        with tempfile.TemporaryDirectory() as folder:
-            bus,m,source=self.setup_store(folder)
-            for day in ['2020-01-31','2020-02-03']:
-                m.publish(source,self.packet([{'code':'sh.600003','date':day,'close':10.}]))
-            self.assertEqual(len(m._evidence),1)
 
     def test_provider_record_validation_runs_before_batch_publication(self):
         class Provider:

@@ -11,11 +11,9 @@ dependencies = [
   "fastapi>=0.141,<0.142",
   "numpy>=2.2,<3",
   "pandas>=3.0,<4",
-  "plotly>=7,<8",
   "pyarrow>=18,<20",
   "pypdf==6.10.0",
   "pydantic>=2.13,<3",
-  "rich>=15,<16",
   "requests>=2,<3",
   "uvicorn>=0.52,<0.53",
 ]
