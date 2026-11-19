@@ -29,21 +29,6 @@ def settlement_payload():
             "execution": EXECUTION}
 
 
-def configured_plugin(initial_cash, fees, tax_policy, *, limits, execution):
-    return (initial_cash, fees, tax_policy, limits, execution)
-
-
-DATASET_VALIDATION_CALLS = []
-
-
-def configured_plugin_validate_dataset(dataset, request, *, limits, execution):
-    DATASET_VALIDATION_CALLS.append((dataset, request, limits, execution))
-
-
-configured_plugin.validate_dataset = configured_plugin_validate_dataset
-CONFIGURED_PLUGIN = f"{__name__}:configured_plugin"
-
-
 class EmptyPort:
     def handle(self, operation, data):
         return {}
@@ -362,9 +347,9 @@ class ProtocolTests(unittest.TestCase):
         self.assertNotEqual(build_execution_hash(provenance, first), build_execution_hash(provenance, second))
         self.assertNotEqual(first_config_hash, second_config_hash)
 
-    def test_execution_validation_is_shared_by_request_and_config_paths(self):
+    def test_execution_validation_is_shared_by_request_and_settlement(self):
         from protocol import BacktestError, parse_backtest_request
-        from backend import _load_plugin
+        from plugins.data import Settlement
 
         invalid = {**EXECUTION,
                    "price": {"model": "ratio", "params": {"rate": "1", "tick": "0.01"}}}
@@ -377,36 +362,10 @@ class ProtocolTests(unittest.TestCase):
             parse_backtest_request(payload)
 
         with self.assertRaises(ValueError):
-            _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
-            "limits": {}, "execution": invalid,
-            }}}, "settlement")
-
-        configured = _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
-            "limits": {}, "execution": EXECUTION,
-        }}}, "settlement")
-        self.assertEqual(configured.describe({})["params"]["execution"]["quantity"]["params"], {})
-
-    def test_loaded_plugin_exposes_one_dataset_validation_hook_with_merged_request(self):
-        from types import SimpleNamespace
-        from backend import _load_plugin
-
-        DATASET_VALIDATION_CALLS.clear()
-        configured = _load_plugin({"settlement": {"module": CONFIGURED_PLUGIN, "params": {
-            "limits": {}, "execution": EXECUTION,
-        }}}, "settlement")
-        dataset = object()
-        request = SimpleNamespace(settlement_parameters={
-            "limits": {}, "execution": EXECUTION,
-        })
-
-        configured.validate_dataset(dataset, request, limits={"stock_weight": "0.2"})
-
-        self.assertEqual(len(DATASET_VALIDATION_CALLS), 1)
-        actual_dataset, actual_request, limits, execution = DATASET_VALIDATION_CALLS[0]
-        self.assertIs(actual_dataset, dataset)
-        self.assertIs(actual_request, request)
-        self.assertEqual(limits.lot_size, 100)
-        self.assertEqual(execution["quantity"]["params"], {})
+            Settlement.describe({"execution": invalid})
+        self.assertEqual(
+            Settlement.describe({"execution": EXECUTION})["params"]["execution"]["quantity"]["params"], {}
+        )
 
     def test_execution_rules_reject_invalid_bounds_and_mismatched_ticks(self):
         from protocol import BacktestError, parse_backtest_request
@@ -483,13 +442,13 @@ class ProtocolTests(unittest.TestCase):
         from market import DataBus
         from backend import KernelBacktestPort
         from storage import DataStore
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
-            port = KernelBacktestPort(bus, configured_settlement())
+            port = KernelBacktestPort(bus, Settlement)
             result = port.handle("backtest.run", {
                 "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
                 "params": {"positions": 4}, "dataset_id": "fixture",
@@ -503,18 +462,81 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(saved["trace"], result.data["trace"])
         self.assertEqual(saved["equity"], result.data["equity"])
 
+    def test_a_long_backtest_is_submitted_as_a_job_and_read_back(self):
+        # The transport allows twenty seconds per request; a backtest is minutes.
+        # Submitting and polling keeps the work inside the backend instead of in
+        # a second process that would fight the same file for its write lock.
+        import time
+        from market import DataBus
+        from backend import KernelBacktestPort, Research
+        from storage import DataStore
+        from plugins.data import Settlement
+
+        payload = {
+            "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
+            "params": {"positions": 4}, "dataset_id": "fixture",
+            "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+            **settlement_payload(),
+        }
+        with TemporaryDirectory() as root:
+            root = Path(root)
+            make_snapshot(root)
+            bus = DataBus(DataStore(root))
+            port = KernelBacktestPort(bus, Settlement)
+            self.assertEqual(port.handle("backtest.job", {}).data["status"], "idle")
+            started = port.handle("backtest.submit", payload)
+            deadline = time.monotonic() + 120
+            while port.handle("backtest.job", {}).data["running"]:
+                self.assertLess(time.monotonic(), deadline, "the job never finished")
+                time.sleep(0.02)
+            view = port.handle("backtest.job", {}).data
+            by_id = port.handle("backtest.job", {"id": started.data["job_id"]}).data
+            saved = Research(bus).result("one")
+
+        self.assertEqual(started.kind, "operation")
+        self.assertEqual(view["status"], "succeeded")
+        self.assertEqual(view["result"]["run_id"], "one")
+        self.assertEqual(by_id["job_id"], started.data["job_id"])
+        self.assertEqual(saved["equity"], view["result"]["equity"])
+
+    def test_a_second_backtest_job_is_refused_while_one_is_running(self):
+        import threading
+        from market import DataBus
+        from backend import KernelBacktestPort
+        from protocol import BacktestError
+        from storage import DataStore
+        from plugins.data import Settlement
+
+        payload = {
+            "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",
+            "params": {"positions": 4}, "dataset_id": "fixture",
+            "start": "2020-01-31", "end": "2020-02-04", "initial_cash": "100000",
+            **settlement_payload(),
+        }
+        with TemporaryDirectory() as root:
+            port = KernelBacktestPort(DataBus(DataStore(Path(root))), Settlement)
+            release = threading.Event()
+            port._value = lambda request, search, progress=None: (release.wait(10), {})[1]
+            port.handle("backtest.submit", payload)
+            try:
+                with self.assertRaises(BacktestError) as caught:
+                    port.handle("backtest.submit", payload)
+            finally:
+                release.set()
+        self.assertEqual(caught.exception.code, "busy")
+
     def test_protocol_routes_backtest_to_the_injected_port(self):
         from market import DataBus
         from backend import KernelBacktestPort, Modules, Protocol
         from storage import DataStore
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
             backend = Protocol(Modules(
-                KernelBacktestPort(bus, configured_settlement()), *[EmptyPort() for _ in range(4)]))
+                KernelBacktestPort(bus, Settlement), *[EmptyPort() for _ in range(4)]))
             message = send(backend, ui.UiRequest(
                 "one", "backtest.run", "urn:lianghua:ui:input:backtest.run:v1", {
                     "run_id": "one", "module": "plugins.strategies.breadth_low_amount_reversal",

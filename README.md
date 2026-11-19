@@ -6,7 +6,27 @@
 
 安装 Python 项目依赖后，分别在 `frontend/display` 和 `frontend/web` 执行 `npm ci`。在 `frontend/display` 执行 `npm run build`，从当前源码生成 CLI。打包 Python 项目前也需先完成此构建。
 
-macOS 上首次安装常驻后端：
+一句命令启动前后端（在项目根目录）：
+
+```sh
+uv run lianghua-dev
+```
+
+启动器只认端口和一个数据文件，不感知服务内部做什么，按三步报告并只补缺失的部分：
+
+```
+[1/3] 数据库已就绪。
+[2/3] 后端已启动。
+[3/3] 前端已启动：http://127.0.0.1:3000/
+```
+
+8000 或 3000 上已有响应就直接复用，不重启。`data/catalog.duckdb` 是嵌入式 DuckDB，写进程持有独占锁，第二个进程连只读都打不开，所以它不能被"再打开一次"共享，能复用的是持有它的**进程**：后端已在跑时库天然归它所有，这一步跳过；库被别的进程占着时启动器报出占用者 PID 并停下——回测和采集都通过协议提交给后端跑，不再自己开库，所以这种情况只剩一次性迁移工具。
+
+漫长的回测不占用请求：`backtest.submit` 提交后返回任务，`backtest.job` 轮询进度与结果，前端据此显示进度条，一分钟和十分钟的回测走同一条路。
+
+打开 `http://127.0.0.1:3000/`。按 Ctrl+C 关闭本次由它启动的进程；已经在跑的服务不受影响。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
+
+可选：让后端在用户登录后常驻（开机自启、崩溃自动重启），供自动续采使用。这与上面的启动器无关——启动器只探测端口，不安装、不管理常驻服务。macOS 上首次安装：
 
 ```sh
 mkdir -p ~/Library/LaunchAgents
@@ -14,7 +34,7 @@ mkdir -p ~/Library/LaunchAgents
 launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/org.lianghua.backend.plist
 ```
 
-后端在用户登录时启动，使用端口 8000；日志在 `data/service.log`。在项目根目录运行 `uv run lianghua-dev` 启动 React，打开 `http://127.0.0.1:3000/`。按 Ctrl+C 关闭前端，后端继续运行。浏览器和 CLI 共用前端交互核心，通过 `frontend/ui-protocol.py` 连接 `src/backend.py`；HTTP 只有 `POST /api/protocol` 一个业务路由。`src/protocol.py` 定义标准数据结构和校验，`src/market` 负责 DataBus、历史数据读取和只读视图，`src/storage.py` 负责文件存储。操作按 `backtest.*`、`research.*`、`collection.*`、`data.*` 分组，旧操作名直接拒绝。
+常驻后端使用端口 8000，日志在 `data/service.log`。
 
 ## 命令行入口
 
@@ -98,7 +118,7 @@ BaoStock 日线适配器在同一进程内按请求间隔采集。来源配置�
 
 回测省略 `market` 时默认请求 `CN_A` 全市场。`scope` 的市场定义来自 registry；`codes`、`index` 和 `filters` 可组合，按 AND 取交集。普通市场按 registry 中唯一的 `code_pattern` 从标准证券全集筛选，收集与回测共用该规则，不再维护市场成员名单。指数筛选只读取 registry 的 `members` 绑定所指向的标准成分记录，按生效日期和公开时间解析调入、调出；注册表和回测配置都不保存成分股名单。财务条件需要带可知时间的事实数据。市场未登记或所需数据缺失时会明确拒绝，不会静默缩成可用子集。实际可用范围由 registry 与数据覆盖决定；此配置约定不表示当前数据已覆盖全 A，也不表示 HK 已可回测。
 
-CLI 返回指标、净值、参数和运行 ID；完整成交与执行轨迹按 ID 保存在 `data/result/<run_id>/`，网页查询仍读取完整结果。错误写入标准错误，并用非零退出码表示失败。策略、数据集和基准由 registry 与现有插件登记，不复制旧的万能配置结构。
+CLI 返回指标、净值、参数和运行 ID。完整成交与执行轨迹按运行 ID 存入本地数据库。网页研究页可查看记录。错误写入标准错误，退出码为非零值。策略、数据集和基准由 registry 与现有插件登记。
 
 ## 生成下一交易日操作
 
@@ -154,14 +174,14 @@ lianghua --collect '沪深:latest' --data fundamentals --codes sz.000001,sh.6000
 
 `--fields` 只接受上述字段；采集仍保存完整报告快照，避免将不同版本的字段混在一起。策略通过 `requirements` 选择真正需要读取的字段。`latest` 从所选证券中最早的采集水位续取；新证券须先运行指定区间的采集。本源不把存在少量财报记录视为全历史覆盖，因此不提供 `check` 的完整覆盖结论。
 
-下面仅展示 `manifest.fields` 绑定片段；完整 manifest 的 `files` 每项是含 `file` 和 `sha256` 的对象，摘要必须对应实际文件：
+下面展示 `manifest.fields` 的绑定格式。这里的 `lake:fundamental_records` 是示例表引用。实际引用必须登记在当前数据集的 `files` 证据列表中。
 
 ```json
 {
   "fields": {
     "roe": {
       "source": "facts",
-      "file": "source/fundamentals/records.parquet",
+      "file": "lake:fundamental_records",
       "code": "code",
       "effective": "report_date",
       "known": "available_at",
@@ -172,7 +192,7 @@ lianghua --collect '沪深:latest' --data fundamentals --codes sz.000001,sh.6000
 }
 ```
 
-Parquet 文件必须登记在 `manifest.files` 证据列表，单位由采集层标准化。策略在现有 `requirements` 里声明字段，并在现有 `generate` 内调用计算：
+单位由采集层标准化。策略在 `requirements` 里声明字段，并在 `generate` 内调用计算：
 
 ```python
 from core.calculation import Calculation
@@ -195,12 +215,10 @@ def generate(self, frame, account):
 
 ## 说明
 
-- [中文策略详解](frontend/web/public/strategies.html)，运行时可访问 `/strategies.html`
-
 中文词汇集中在 `frontend/display/src/research/locale.ts`。只翻译显示内容，API 标识、原始响应和文件哈希保持原样。未知名称保留原文，避免猜测含义。
 
-这是项目首个本地 Git 快照。源代码、配置、测试、锁文件和文档纳入版本管理。原始数据、生成的回测运行、依赖目录和备份留在本机，未纳入 Git。仅检出源码不会自动恢复行情数据和运行存档。
+原始数据、生成的回测运行、依赖目录和备份留在本机。复现历史回测需要对应的行情数据和运行存档。
 
 历史策略指标未通过完整经济有效性验收，特别是未复权旧基线不能作为策略效果证据。页面解释当前代码；每个存档运行使用自己的代码版本。
 
-数据只通过 `DataBus` 读写。收集适配器把数据源字段转换为标准字段，回测只读取标准记录。行情位于 `data/source/cn_a`，复权、分红和证券事实位于 `data/source/facts`；原始响应留在 `log` 用于审计。交易日历同时记录交易日和已核实的日期范围。字段缺失会明确报错，不会用旧缓存或默认值补齐。
+数据通过 `DataBus` 读写。收集适配器把数据源字段转换为标准字段。标准记录存入由 `data/catalog.duckdb` 和 `data/parquet/` 组成的本地数据仓。交易日历同时记录交易日和已核实的日期范围。缺少必需字段时报错。

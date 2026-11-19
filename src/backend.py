@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import threading
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import date, datetime
@@ -28,7 +29,6 @@ from protocol import (
     _decode_backtest_config,
     _identity,
     _json_value,
-    _limits,
     _text,
     normalize_security_id,
     parse_backtest_request,
@@ -40,7 +40,6 @@ from protocol import (
     TableQuery,
     TableWrite,
     SQLQuery,
-    validate_execution,
 )
 from typing import Any, Literal, Protocol as TypingProtocol
 from uuid import uuid4
@@ -94,6 +93,8 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("backtest.strategies", "read", "strategies", "strategies", "collection", "backtests"),
     OperationSpec("backtest.prepare", "read", "preflight", "preflight", "document", "backtests"),
     OperationSpec("backtest.run", "write", "backtest", "backtest-result", "resource", "backtests"),
+    OperationSpec("backtest.submit", "write", "backtest-job", "backtest-job", "operation", "backtests"),
+    OperationSpec("backtest.job", "read", "backtest-job", "backtest-job", "resource", "backtests"),
     OperationSpec("cli.backtest", "write", "cli-backtest", "cli-backtest", "operation", "commands"),
     OperationSpec("cli.predict", "read", "cli-predict", "cli-predict", "resource", "commands"),
     OperationSpec("service.info", "read", "service-info", "service-info", "resource", "commands"),
@@ -132,6 +133,7 @@ _DIRECTORY = {item.name: item for item in _OPERATIONS}
 
 _TITLES: dict[str, str] = {
     "strategies": "策略目录", "preflight": "回测预检", "backtest-result": "回测结果",
+    "backtest-job": "回测任务",
     "cli-backtest": "配置文件回测", "cli-predict": "下一交易日预测", "service-info": "服务信息",
     "collection-describe": "来源说明", "collection-inspect": "来源抽查", "collection-run": "采集命令",
     "runs": "回测存档", "run": "回测详情", "benchmarks": "基准指数目录", "benchmark": "基准序列",
@@ -918,6 +920,9 @@ class KernelBacktestPort:
         self._benchmarks = benchmarks
         self._datasets = tuple(datasets)
         self._research = research if research is not None else Research(data)
+        self._jobs: dict[str, dict] = {}
+        self._jobs_lock = threading.Lock()
+        self._latest_job: str | None = None
 
     def handle(self, operation: str, data: JsonValue) -> PortResult | JsonValue:
         if operation == "predict.run":
@@ -973,16 +978,28 @@ class KernelBacktestPort:
             if not isinstance(data, dict):
                 raise TypeError("operation data must be an object")
             return self._benchmarks.series(data["id"], data.get("start"), data.get("end"))
+        if operation == "backtest.submit":
+            request = parse_backtest_request(data)
+            return self._submit(request, _search(data, request))
+        if operation == "backtest.job":
+            return self._job(data if isinstance(data, dict) else {})
         if operation != "backtest.run":
             raise BacktestError("unsupported_operation", operation)
         request = parse_backtest_request(data)
-        search = _search(data, request)
+        return PortResult(
+            "resource", "lianghua:backtest-result",
+            "urn:lianghua:ui:output:backtest.run:v1", self._value(request, _search(data, request)),
+        )
+
+    def _value(self, request: BacktestRequest, search: SearchSpec | None,
+               progress=None) -> JsonObject:
+        """Run one backtest (or one search) and save what it produced."""
         try:
             if search is None:
                 result = self._kernel.run(request)
             else:
                 result = self._kernel.search(
-                    request, search.updater, max_trials=search.max_trials,
+                    request, _tracked(search.updater, progress), max_trials=search.max_trials,
                     metric=search.metric, direction=search.direction,
                 )
         except BacktestError as error:
@@ -1006,10 +1023,52 @@ class KernelBacktestPort:
                 if not getattr(error, "evidence_ref", None):
                     error.evidence_ref = self._save_search_failure(request, error)
                 raise
-        return PortResult(
-            "resource", "lianghua:backtest-result",
-            "urn:lianghua:ui:output:backtest.run:v1", value,
-        )
+        return value
+
+    # -- background jobs ---------------------------------------------------
+    #
+    # A backtest is minutes long; the transport budget is twenty seconds. Run
+    # inside the request and the caller gets a 504 while the work continues
+    # unseen. So the request only submits, and the caller reads the job —
+    # the same shape ``collection.*`` already uses for long collections.
+    # One job at a time: the kernel holds a single slot, and a second submit
+    # would otherwise queue behind a lock it cannot see.
+
+    def _submit(self, request: BacktestRequest, search: SearchSpec | None) -> PortResult:
+        job = {"job_id": uuid4().hex, "status": "running", "phase": "search" if search else "run",
+               "trials_done": 0, "trials_total": search.max_trials if search else 0,
+               "started_at": datetime.now().isoformat(), "finished_at": None,
+               "error": None, "code": None, "value": None}
+        with self._jobs_lock:
+            if any(item["status"] == "running" for item in self._jobs.values()):
+                raise BacktestError("busy", "a backtest is already running")
+            self._jobs[job["job_id"]] = job
+            self._latest_job = job["job_id"]
+            view = _job_view(job)
+        thread = threading.Thread(target=self._work, args=(job, request, search), daemon=True)
+        thread.start()
+        return PortResult("operation", "lianghua:backtest-job",
+                          "urn:lianghua:ui:output:backtest.submit:v1", view)
+
+    def _work(self, job: dict, request: BacktestRequest, search: SearchSpec | None) -> None:
+        try:
+            value = self._value(request, search, job)
+        except BaseException as error:          # the job is the only reporter
+            with self._jobs_lock:
+                job.update(status="failed", error=f"{type(error).__name__}: {error}",
+                           code=getattr(error, "code", None),
+                           finished_at=datetime.now().isoformat())
+            return
+        with self._jobs_lock:
+            job.update(status="succeeded", value=value, finished_at=datetime.now().isoformat())
+
+    def _job(self, payload: JsonValue) -> PortResult:
+        identity = payload.get("id") if isinstance(payload, dict) else None
+        with self._jobs_lock:
+            job = self._jobs.get(identity) if identity else self._jobs.get(self._latest_job)
+            view = _job_view(job) if job is not None else _job_view(None)
+        return PortResult("resource", "lianghua:backtest-job",
+                          "urn:lianghua:ui:output:backtest.job:v1", view)
 
     def _save_search_failure(self, request: BacktestRequest, error: BacktestError) -> str:
         completed = getattr(error, "completed_trials", ())
@@ -1291,6 +1350,31 @@ class Protocol:
         )
 
 
+def _job_view(job: dict | None) -> JsonObject:
+    """What a caller polling the job sees; an idle job is a state, not an error."""
+    if job is None:
+        return {"job_id": None, "running": False, "status": "idle", "phase": None,
+                "trials_done": 0, "trials_total": 0, "started_at": None,
+                "finished_at": None, "error": None, "code": None, "result": None}
+    return {"job_id": job["job_id"], "running": job["status"] == "running",
+            "status": job["status"], "phase": job["phase"],
+            "trials_done": job["trials_done"], "trials_total": job["trials_total"],
+            "started_at": job["started_at"], "finished_at": job["finished_at"],
+            "error": job["error"], "code": job["code"], "result": job["value"]}
+
+
+def _tracked(updater, job: dict | None):
+    """Count finished trials for the reader, without changing the search."""
+    if job is None:
+        return updater
+
+    def counted(completed):
+        job["trials_done"] = len(completed)
+        return updater(completed)
+
+    return counted
+
+
 def _search(data: JsonValue, request: BacktestRequest) -> SearchSpec | None:
     if not isinstance(data, dict) or "search" not in data:
         return None
@@ -1387,62 +1471,6 @@ def _load_registered_strategy(name, parameters):
     if "." not in name:
         name = "plugins.strategies." + name
     return load_strategy(name, parameters)
-
-
-def _load_plugin(settings, key):
-    spec = settings.get(key)
-    if not isinstance(spec, dict) or set(spec) - {"module", "params"}:
-        raise ValueError(f"explicit {key} plugin declaration is required")
-    name = spec.get("module")
-    if not isinstance(name, str) or ":" not in name or not isinstance(spec.get("params", {}), dict):
-        raise ValueError(f"invalid {key} plugin declaration")
-    module, symbol = name.split(":", 1)
-    if not module or not symbol:
-        raise ValueError(f"invalid {key} plugin declaration")
-    plugin = getattr(import_module(module), symbol)
-    params = dict(spec["params"])
-    if "execution" in params:
-        params["execution"] = validate_execution(params["execution"])
-    parameters = signature(plugin).parameters
-    accepted = {name for name, parameter in parameters.items()
-                if name not in {"self", "initial_cash", "fees", "tax_policy"}
-                and parameter.kind in (parameter.POSITIONAL_OR_KEYWORD, parameter.KEYWORD_ONLY)}
-    unknown = set(params) - accepted
-    if unknown:
-        raise ValueError(f"invalid {key} parameters: {', '.join(sorted(unknown))}")
-    if "limits" in params:
-        params["limits"] = _limits(params["limits"])
-
-    def configured(*args, **overrides):
-        merged = merge(overrides)
-        return plugin(*args, **merged)
-
-    def merge(overrides):
-        unknown_overrides = set(overrides) - accepted
-        if unknown_overrides:
-            raise TypeError(f"invalid {key} overrides: {', '.join(sorted(unknown_overrides))}")
-        merged = dict(params)
-        merged.update(overrides)
-        if "limits" in merged and isinstance(merged["limits"], dict):
-            merged["limits"] = _limits(merged["limits"])
-        if "execution" in merged:
-            merged["execution"] = validate_execution(merged["execution"])
-        return merged
-
-    validate_dataset = getattr(plugin, "validate_dataset", None)
-    if callable(validate_dataset):
-        def configured_validate_dataset(dataset, request, **overrides):
-            settlement_parameters = dict(request.settlement_parameters)
-            settlement_parameters.update(overrides)
-            return validate_dataset(dataset, request, **merge(settlement_parameters))
-
-        configured.validate_dataset = configured_validate_dataset
-
-    def describe(overrides):
-        return {"module": name, "params": _config_value(merge(overrides))}
-
-    configured.describe = describe
-    return configured
 
 
 def _result_data(result: BacktestResponse, request: BacktestRequest | None = None, benchmarks=None) -> JsonObject:

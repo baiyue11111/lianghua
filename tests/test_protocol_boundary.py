@@ -175,6 +175,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "backtest.strategies", "backtest.prepare", "backtest.run",
+            "backtest.submit", "backtest.job",
             "cli.backtest", "cli.predict", "service.info", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
             "research.benchmark", "data.research_inputs", "collection.sources", "collection.sync",
             "collection.schedule", "collection.job", "collection.snapshot",
@@ -514,14 +515,14 @@ class ProtocolBoundaryTests(unittest.TestCase):
         from market import DataBus
         from storage import DataStore
         from tests.history_fixture import make_snapshot
-        from tests.fee_fixture import configured_settlement
+        from plugins.data import Settlement
 
         with TemporaryDirectory() as root:
             root = Path(root)
             config = make_snapshot(root)
             bus = DataBus(DataStore(root))
             protocol = Protocol(Modules(
-                backtests=KernelBacktestPort(bus, configured_settlement()),
+                backtests=KernelBacktestPort(bus, Settlement),
                 research=Port({}), sources=Port({}), data=Port({}), commands=Port({}),
             ))
             request = ui.UiRequest(

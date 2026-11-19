@@ -26,7 +26,7 @@ sys.stdin.read()
                 stdout=subprocess.PIPE, text=True,
             ) as process:
                 try:
-                    dev.wait_for_server(process, *address, timeout=5)
+                    dev.wait_for_port(process, *address, timeout=5)
                     self.assertEqual(process.stdout.readline().strip(), "ready")
                     self.assertIsNone(process.poll())
                 finally:
@@ -37,7 +37,7 @@ sys.stdin.read()
         with subprocess.Popen([sys.executable, "-c", "raise SystemExit(7)"]) as process:
             process.wait(timeout=5)
             with self.assertRaisesRegex(RuntimeError, "7"):
-                dev.wait_for_server(process, "127.0.0.1", 0, timeout=5)
+                dev.wait_for_port(process, "127.0.0.1", 0, timeout=5)
 
     def test_stops_waiting_when_server_never_listens(self):
         with socket.socket() as server:
@@ -48,7 +48,7 @@ sys.stdin.read()
             ) as process:
                 try:
                     with self.assertRaises(TimeoutError):
-                        dev.wait_for_server(process, *server.getsockname(), timeout=0)
+                        dev.wait_for_port(process, *server.getsockname(), timeout=0)
                 finally:
                     process.stdin.close()
                     process.wait(timeout=5)

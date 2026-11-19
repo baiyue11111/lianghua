@@ -1,6 +1,9 @@
 import asyncio
 import json
 import plistlib
+import subprocess
+import sys
+import textwrap
 import threading
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -105,43 +108,71 @@ class ServiceTests(unittest.TestCase):
             self.assertTrue(config['RunAtLoad'])
             self.assertTrue(config['KeepAlive'])
 
-    def test_dev_reuses_a_matching_resident_service(self):
-        with TemporaryDirectory() as folder, patch('dev.service_root', return_value=Path(folder).resolve()) as probe, \
-                patch('dev.subprocess.run') as run:
-            dev.ensure_service(Path(folder))
-        probe.assert_called_once()
-        run.assert_not_called()
+    def test_ensure_reuses_a_port_that_is_already_answered(self):
+        with patch('dev.port_open', return_value=True), patch('dev.subprocess.Popen') as popen:
+            processes = []
+            dev.ensure('127.0.0.1', 8000, ['whatever'], Path('.'), processes)
+        popen.assert_not_called()
+        self.assertEqual(processes, [])
 
-    def test_service_probe_reads_identity_from_the_standard_protocol(self):
-        message = dev.ui.UiMessage('m', 'resource', 'urn:test',
-            'urn:lianghua:ui:output:service.info:v1', {'root': '/tmp/project'},
-            correlation_id='service-check')
-        with patch.object(dev.ui, '_send_backend', return_value=[message]) as call:
-            self.assertEqual(dev.service_root(), Path('/tmp/project').resolve())
-        self.assertEqual(call.call_args.args[0].operation, 'service.info')
-        self.assertEqual(call.call_args.kwargs['timeout'], 2)
+    def test_ensure_starts_a_command_when_the_port_is_free(self):
+        with patch('dev.port_open', side_effect=[False, True]), \
+                patch('dev.wait_for_port') as wait, patch('dev.subprocess.Popen') as popen:
+            processes = []
+            dev.ensure('127.0.0.1', 8000, ['python', '-m', 'uvicorn'], Path('/proj'), processes)
+        self.assertEqual(popen.call_args.args[0], ['python', '-m', 'uvicorn'])
+        self.assertEqual(popen.call_args.kwargs['cwd'], Path('/proj'))
+        self.assertTrue(popen.call_args.kwargs['start_new_session'])
+        wait.assert_called_once_with(popen.return_value, '127.0.0.1', 8000)
+        self.assertEqual(processes, [popen.return_value])
 
-    def test_service_probe_rejects_an_unrelated_server(self):
-        message = dev.ui.UiMessage('m', 'resource', 'urn:test',
-            'urn:lianghua:ui:output:service.info:v1', {}, correlation_id='service-check')
-        with patch.object(dev.ui, '_send_backend', return_value=[message]):
-            with self.assertRaisesRegex(RuntimeError, '身份'):
-                dev.service_root()
+    def test_ensure_starts_nothing_when_the_process_dies_is_reported_by_wait(self):
+        with patch('dev.port_open', return_value=False), \
+                patch('dev.wait_for_port', side_effect=RuntimeError('退出码 3')), \
+                patch('dev.subprocess.Popen') as popen:
+            with self.assertRaisesRegex(RuntimeError, '退出码 3'):
+                dev.ensure('127.0.0.1', 8000, ['whatever'], Path('.'), [])
+        popen.assert_called_once()
 
-    def test_dev_rejects_resident_service_for_another_project(self):
-        with TemporaryDirectory() as folder, patch('dev.service_root', return_value=Path('/other')):
-            with self.assertRaisesRegex(RuntimeError, '项目'):
-                dev.ensure_service(Path(folder))
-
-    def test_dev_starts_the_installed_service_when_it_is_down(self):
+    def test_catalog_probe_names_the_process_that_holds_it(self):
+        # DuckDB is embedded and the writer takes an exclusive lock, so a probe
+        # that cannot name the holder cannot tell "busy" from "broken" — and
+        # "busy" is the case that should wait rather than fail.
         with TemporaryDirectory() as folder:
-            root = Path(folder).resolve()
-            with patch('dev.service_root', side_effect=[None, root]), \
-                    patch('dev.subprocess.run') as run:
-                dev.ensure_service(root)
-        self.assertEqual(run.call_args.args[0],
-                         ['launchctl', 'kickstart', f'gui/{dev.os.getuid()}/org.lianghua.backend'])
+            path = Path(folder) / 'catalog.duckdb'
+            writer = subprocess.Popen([sys.executable, '-c', textwrap.dedent(f'''
+                import duckdb, sys
+                connection = duckdb.connect({str(path)!r})
+                connection.execute("create table t as select 1")
+                connection.execute("checkpoint")
+                print("ready", flush=True)
+                sys.stdin.read()
+            ''')], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+            try:
+                self.assertEqual(writer.stdout.readline().strip(), 'ready')
+                self.assertEqual(dev.catalog_holder(path), str(writer.pid))
+            finally:
+                writer.stdin.close()
+                writer.wait(timeout=30)
+                writer.stdout.close()
+            self.assertIsNone(dev.catalog_holder(path))
 
+    def test_a_missing_catalog_is_ready_without_waiting(self):
+        with TemporaryDirectory() as folder:
+            dev.require_catalog(Path(folder) / 'catalog.duckdb')
+
+    def test_a_free_catalog_is_ready(self):
+        with patch('dev.catalog_holder', return_value=None):
+            dev.require_catalog(Path('data/catalog.duckdb'))
+
+    def test_a_busy_catalog_is_refused_naming_the_holder(self):
+        # Nothing but a migration tool opens the file from outside any more, so
+        # the answer is a sentence naming the process — not a traceback and not
+        # a wait on a person.
+        with patch('dev.catalog_holder', return_value='46839'), \
+                patch('dev.describe', return_value='uv run migrate_store.py'):
+            with self.assertRaisesRegex(RuntimeError, '46839'):
+                dev.require_catalog(Path('data/catalog.duckdb'))
 
     def _post(self, app, body: bytes, host: str | None = '127.0.0.1:8000',
               origin: str | None = None, content_type: str = 'application/json'):
