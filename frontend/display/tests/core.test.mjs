@@ -33,7 +33,7 @@ test('eight message kinds are delivered; custom handler must be registered',asyn
  }
  const core=createDisplay({...options,backend:{send:async r=>[msg(r,{},'custom')]}});await core.dispatch(action());assert.equal(core.snapshot().targets.form.problems[0].code,'unsupported');
 });
-test('dispose stops notifications, polling and late replies',async()=>{
+test('dispose stops notifications and late replies',async()=>{
  let finish,r,n=0;const core=createDisplay({...options,backend:{send:x=>{r=x;return new Promise(y=>finish=y)}}});const unsubscribe=core.subscribe(()=>n++);
  const pending=core.dispatch(action());const before=n;unsubscribe();core.dispose();finish([msg(r)]);await pending;assert.equal(n,before);await assert.rejects(core.dispatch(action()),/closed/);
 });
@@ -51,12 +51,6 @@ test('input and output schemas, response correlation and snapshot immutability a
  }
  const core=createDisplay(options);await core.dispatch(action('edit',undefined,{amount:'12.50'}));
  assert.throws(()=>{core.snapshot().targets.form.values.amount='0'});assert.equal(core.snapshot().targets.form.values.amount,'12.50');
-});
-test('polling stops after failure and disposal',async()=>{
- let sent=0;const core=createDisplay({...options,operations:[{...spec,mode:'read',poll:5}],backend:{send:async r=>{if(++sent===2)throw Error('offline');return[msg(r,{task:'running'})]}}});
- await core.dispatch(action());await new Promise(resolve=>setTimeout(resolve,35));assert.equal(sent,2);core.dispose();
- let calls=0;const next=createDisplay({...options,operations:[{...spec,mode:'read',poll:5}],backend:{send:async r=>{calls++;return[msg(r)]}}});
- await next.dispatch(action());next.dispose();await new Promise(resolve=>setTimeout(resolve,20));assert.equal(calls,1);
 });
 test('push routes through the registered receiver without another public action channel',()=>{
  const core=createDisplay({...options,events:{'urn:test:type':'form'}});

@@ -5,15 +5,6 @@ import {action} from '../src/interaction/action';
 import {DisplayProvider} from '../src/interaction/model';
 import {nodes} from './capture';
 import Workspace from '../src/Workspace';
-import Indices from '../src/market/Indices';
-import Chart from '../src/market/Chart';
-import Collection from '../src/market/Collection';
-import Backtest from '../src/research/Backtest';
-import Research from '../src/research/Research';
-import {RecordTable} from '../src/shared/Records';
-import Fields from '../src/shared/Fields';
-import BenchmarkChart from '../src/research/BenchmarkChart';
-import {ResourceView} from '../src/apple/Resource';
 export * from '../src/research/model';
 export * from '../src/shared/format';
 export {strategyGroups as originalGroups} from '../../display/src/research/research-model';
@@ -34,10 +25,9 @@ export function fixture(responses={}){
   }}});
   const edit=(target,data)=>core.dispatch(action('edit',target,data));
   const read=(target,operation,data={})=>core.dispatch(action('invoke',target,data,operation));
-  function render(name,props={}){
+  function render(){
     nodes.length=0;
-    const Component={Workspace,Chart,Collection,Backtest,Research,Indices,RecordTable,Fields,BenchmarkChart,ResourceView}[name];
-    const html=renderToString(<DisplayProvider value={core}><Component {...props}/></DisplayProvider>);
+    const html=renderToString(<DisplayProvider value={core}><Workspace/></DisplayProvider>);
     return {html,nodes:[...nodes]};
   }
   return {core,calls,edit,read,render};

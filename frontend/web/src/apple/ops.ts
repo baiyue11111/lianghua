@@ -9,7 +9,7 @@ export interface OpDef {
   page: ViewId;
 }
 
-/** All 35 operations registered by the interaction core, mapped to a screen entry. */
+/** All 37 operations registered by the interaction core, mapped to a screen entry. */
 export const OPS: OpDef[] = [
   // 行情与基准 · 7
   {operation: 'research.benchmarks', label: '基准指数目录', group: '行情与基准', mode: 'read', page: 'market'},
@@ -39,12 +39,14 @@ export const OPS: OpDef[] = [
   {operation: 'collection.inspect', label: '来源抽查', group: '采集与调度', mode: 'read', page: 'data'},
   {operation: 'collection.doctor', label: '来源诊断', group: '采集与调度', mode: 'write', page: 'data'},
   {operation: 'collection.run', label: '采集命令', group: '采集与调度', mode: 'write', page: 'data'},
-  // 策略与回测 · 5
+  // 策略与回测 · 7
   {operation: 'backtest.strategies', label: '策略目录', group: '策略与回测', mode: 'read', page: 'strategies'},
   {operation: 'research.runs', label: '回测存档', group: '策略与回测', mode: 'read', page: 'strategies'},
   {operation: 'research.run', label: '单次回测结果', group: '策略与回测', mode: 'read', page: 'result'},
   {operation: 'backtest.prepare', label: '回测预检', group: '策略与回测', mode: 'write', page: 'run'},
   {operation: 'backtest.run', label: '运行回测', group: '策略与回测', mode: 'write', page: 'run'},
+  {operation: 'backtest.submit', label: '提交回测任务', group: '策略与回测', mode: 'write', page: 'run'},
+  {operation: 'backtest.job', label: '回测任务进度', group: '策略与回测', mode: 'read', page: 'run'},
   // 服务与 CLI · 4
   {operation: 'service.info', label: '服务信息', group: '服务与 CLI', mode: 'read', page: 'market'},
   {operation: 'cli.backtest', label: '配置文件回测', group: '服务与 CLI', mode: 'write', page: 'strategies'},

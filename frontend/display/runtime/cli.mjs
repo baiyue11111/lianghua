@@ -8830,7 +8830,6 @@ function createDisplay(options) {
   const listeners = /* @__PURE__ */ new Set();
   const pending = /* @__PURE__ */ new Map();
   const approved = /* @__PURE__ */ new Map();
-  const timers = /* @__PURE__ */ new Map();
   let state = freeze({ revision: 0, targets: {} }), closed = false, serial = 0;
   const id = options.id ?? (() => `request-${++serial}`);
   const key = (target, operation) => target + "\0" + operation;
@@ -8849,11 +8848,7 @@ function createDisplay(options) {
     state = freeze({ revision: state.revision + 1, targets: { ...state.targets, [target]: { ...value, operations: states } } });
     for (const listener of listeners) listener();
   }
-  function stop(target) {
-    for (const [k, timer] of timers) if (k.startsWith(target + "\0")) {
-      clearTimeout(timer);
-      timers.delete(k);
-    }
+  function clearChecks(target) {
     for (const k of approved.keys()) if (k.startsWith(target + "\0")) approved.delete(k);
   }
   function fail(target, code, title) {
@@ -8882,7 +8877,7 @@ function createDisplay(options) {
     if (action.kind !== "invoke") {
       try {
         put(target, update(slot(target), action));
-        if (["edit", "query", "select", "reset"].includes(action.kind)) stop(target);
+        if (["edit", "query", "select", "reset"].includes(action.kind)) clearChecks(target);
       } catch (reason) {
         fail(target, "invalid_input", String(reason));
       }
@@ -8894,11 +8889,6 @@ function createDisplay(options) {
       return state;
     }
     const k = key(target, spec.operation), initial = slot(target);
-    const timer = timers.get(k);
-    if (timer) {
-      clearTimeout(timer);
-      timers.delete(k);
-    }
     if (spec.mode === "write" && [...pending.keys()].some((value) => value.startsWith(target + "\0"))) {
       fail(target, "pending", "\u64CD\u4F5C\u6B63\u5728\u6267\u884C");
       return state;
@@ -8967,14 +8957,6 @@ function createDisplay(options) {
       if (!failed && (!spec.ready || spec.ready(messages))) approved.set(k, { revision: initial.revision, identity });
       else approved.delete(k);
       put(target, { ...slot(target), operations: { ...slot(target).operations, [spec.operation]: { ...slot(target).operations[spec.operation], status: failed ? "failed" : "succeeded", request_id: request.request_id, revision: initial.revision, input: action.data, ...!failed ? { result_input: action.data } : {} } } });
-      if (!failed && spec.poll && (!spec.repeat || spec.repeat(messages))) {
-        const old = timers.get(k);
-        if (old) clearTimeout(old);
-        timers.set(k, setTimeout(() => {
-          timers.delete(k);
-          void dispatch(action);
-        }, spec.poll));
-      }
     } catch (reason) {
       if (current()) {
         approved.delete(k);
@@ -9010,8 +8992,6 @@ function createDisplay(options) {
       closed = true;
       controller.abort();
       listeners.clear();
-      for (const timer of timers.values()) clearTimeout(timer);
-      timers.clear();
       pending.clear();
       approved.clear();
     }
@@ -9133,6 +9113,23 @@ var defs = {
   "service.info": { input: object2() },
   "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },
   "collection.merge_job": { input: object2() },
+  // A backtest is minutes long and a request may be held for twenty seconds, so
+  // the page submits a job and polls it. The poll carries the finished result,
+  // which is where the comparison with the previous attempt is taken from.
+  "backtest.job": { input: object2({ id: text }, []), changes: (state, target, _request, messages) => {
+    const data = messages.find((m) => m.kind !== "problem")?.data;
+    const result = data?.result;
+    if (!result?.id) return {};
+    const completed = { input: data, result };
+    const comparison = state.targets[target + ":comparison"]?.values ?? {};
+    const runs = state.targets["research:archives"]?.values["research.runs"]?.[0] ?? [];
+    const kept = runs.filter((run) => run?.id !== result.id);
+    return {
+      [target + ":comparison"]: { baseline: comparison.baseline ?? completed, latest: completed },
+      "research:archives": { "research.runs": [result, ...kept] },
+      research: { current: result.id }
+    };
+  } },
   "data.check": { input: object2() },
   "collection.repair": { input: object2({ id: text }), mode: "write" },
   "collection.repair_job": { input: object2() },
@@ -9158,7 +9155,7 @@ function features() {
     return { ...input2, initial_cash: data.capital.trim() };
   };
   const form = { type: "object", required: ["spec", "values", "capital", "start", "end", "dataset"] };
-  for (const operation of ["backtest.prepare", "backtest.run"]) {
+  for (const operation of ["backtest.prepare", "backtest.run", "backtest.submit"]) {
     schemas[inputSchema(operation)] = { type: "object", required: ["module", "params", "initial_cash", "start", "end", "dataset_id"], properties: { module: text, params: { type: "object" }, initial_cash: { type: "string", pattern: "^[0-9]+(\\.[0-9]+)?$" }, start: text, end: text, dataset_id: text }, additionalProperties: false };
     schemas[outputSchema(operation)] = { type: "object" };
     operations.push({
@@ -9177,7 +9174,7 @@ function features() {
           "research:archives": { "research.runs": [[result, ...runs.filter((run) => run?.id !== result.id)]] },
           research: { current: result.id }
         };
-      } } : { ready: (messages) => messages.some((m) => m.data?.ready === true) }
+      } } : operation === "backtest.submit" ? { requires: "backtest.prepare" } : { ready: (messages) => messages.some((m) => m.data?.ready === true) }
     });
   }
   schemas["urn:lianghua:ui:form:v1"] = form;

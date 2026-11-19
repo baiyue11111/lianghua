@@ -1,8 +1,10 @@
 import type {FormEvent} from 'react';
-import type {Preflight, BacktestResult, StrategyCatalog, StrategySpec} from '@display/research/port';
+import {useEffect} from 'react';
+import type {Preflight, StrategyCatalog, StrategySpec} from '@display/research/port';
 import {comparisonIssue, parameterValues} from '@display/research/strategy-model';
 import type {Completed} from '@display/research/strategy-model';
 import {useOperation, useSlot, useValue} from '../interaction/model';
+import {useBacktestJob} from './job';
 import {day, errorMessage, number, percent, text} from '../shared/format';
 import {go, DEFAULT_LIST} from '../app/router';
 import {ARCHIVE_QUERY} from './queries';
@@ -43,7 +45,9 @@ export default function Run({module: picked}: {module: string}) {
   const ready = !!spec && !!form.dataset && !!capital.trim() && !!start && !!end && start <= end;
 
   const prepare = useOperation<Preflight>(TARGET, 'backtest.prepare', form, true, false);
-  const execute = useOperation<BacktestResult>(TARGET, 'backtest.run', form, true, false);
+  // Submitting and polling, not one long request: the transport holds a call for
+  // twenty seconds and a backtest runs for minutes.
+  const execute = useBacktestJob(TARGET, form);
   const comparison = useSlot(`${TARGET}:comparison`);
   const baseline = comparison.values.baseline as unknown as Completed | undefined;
   const latest = comparison.values.latest as unknown as Completed | undefined;
@@ -57,6 +61,10 @@ export default function Run({module: picked}: {module: string}) {
   // rule: it reports whether the value on hand came from this exact input.
   const approved = prepare.matched && prepare.value?.ready === true && execute.available;
   const canRun = ready && approved && execute.status !== 'pending';
+  const job = execute.job;
+  const progress = job?.trials_total
+    ? `回测运行中：第 ${job.trials_done}/${job.trials_total} 次试验`
+    : job ? (job.phase === 'search' ? '回测运行中：参数搜索' : '回测运行中…') : '已提交，等待后端开始…';
 
   function submitPrepare(event: FormEvent) {
     event.preventDefault();
@@ -68,8 +76,13 @@ export default function Run({module: picked}: {module: string}) {
     if (!canRun) return;
     // The run stays on this page so the comparison with the previous attempt is
     // still readable; its result has its own address, one click away.
-    void execute.invoke(form).then(() => { void archives.invoke(); });
+    void execute.invoke(form);
   }
+  // The archive list is read on arrival; a finished run is a new attempt, so the
+  // list has to be asked again once the job reports it is done.
+  useEffect(() => {
+    if (execute.job?.status === 'succeeded') void archives.invoke();
+  }, [execute.job?.status]);
   function submitConfig(event: FormEvent) {
     event.preventDefault();
     const value = configPath.trim();
@@ -191,12 +204,14 @@ export default function Run({module: picked}: {module: string}) {
           </>}
         </Card>
 
-        <Card title="运行与对比" hint="backtest.run">
+        <Card title="运行与对比" hint="backtest.submit">
           <form onSubmit={submitRun}>
             <button className="btn dark" type="submit" disabled={!canRun}>运行回测</button>
           </form>
           {execute.error && <Notice tone="error">{errorMessage(execute.error)}</Notice>}
-          {!execute.value ? <Empty busy={execute.status === 'pending'}>运行后在这里查看结果与对比结论</Empty> : <>
+          {!execute.value ? <Empty busy={execute.status === 'pending'}>
+            {execute.status === 'pending' ? progress : '运行后在这里查看结果与对比结论'}
+          </Empty> : <>
             <div className="grid g2" style={{gap: 12, margin: '16px 0'}}>
               <Metric label="累计收益" value={percent(execute.value.metrics.total_return)} small />
               <Metric label="最大回撤" value={percent(execute.value.metrics.max_drawdown)} small />

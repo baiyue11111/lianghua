@@ -35,6 +35,21 @@ const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes
  'collection.set_automatic':{input:object({market:text,enabled:boolean}),mode:'write'},
  'service.info':{input:object()},
  'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object()},
+ // A backtest is minutes long and a request may be held for twenty seconds, so
+ // the page submits a job and polls it. The poll carries the finished result,
+ // which is where the comparison with the previous attempt is taken from.
+ 'backtest.job':{input:object({id:text},[]),changes:(state,target,_request,messages):Record<string,Record<string,JsonValue>>=>{
+   const data=messages.find(m=>m.kind!=='problem')?.data as {running?:boolean;result?:{id?:string}}|undefined;
+   const result=data?.result;
+   if(!result?.id)return {};
+   const completed={input:data as unknown as JsonValue,result:result as unknown as JsonValue};
+   const comparison=state.targets[target+":comparison"]?.values??{};
+   const runs=(state.targets["research:archives"]?.values["research.runs"] as JsonValue[][]|undefined)?.[0]??[];
+   const kept=runs.filter(run=>(run as {id?:string})?.id!==result.id);
+   return {[target+":comparison"]:{baseline:comparison.baseline??completed,latest:completed},
+     "research:archives":{"research.runs":[result as unknown as JsonValue,...kept]},
+     research:{current:result.id}};
+ }},
  'data.check':{input:object()},'collection.repair':{input:object({id:text}),mode:'write'},'collection.repair_job':{input:object()},
  'cli.backtest':{input:object({config:text}),mode:'write'},
  'cli.predict':{input:object({config:text,account:text})},
@@ -60,7 +75,7 @@ export function features():Pick<Options,'operations'|'schemas'> {
    return {...input,initial_cash:data.capital.trim()} as unknown as JsonValue;
  };
  const form={type:'object',required:['spec','values','capital','start','end','dataset']};
- for(const operation of ['backtest.prepare','backtest.run']){
+ for(const operation of ['backtest.prepare','backtest.run','backtest.submit']){
    schemas[inputSchema(operation)]={type:'object',required:['module','params','initial_cash','start','end','dataset_id'],properties:{module:text,params:{type:'object'},initial_cash:{type:'string',pattern:'^[0-9]+(\\.[0-9]+)?$'},start:text,end:text,dataset_id:text},additionalProperties:false};
    schemas[outputSchema(operation)]={type:'object'};
    operations.push({operation,input_schema:inputSchema(operation),response_schemas:[outputSchema(operation),'urn:lianghua:ui:problem:v1'],mode:'write',prepare,
@@ -72,7 +87,7 @@ export function features():Pick<Options,'operations'|'schemas'> {
        return {[target+":comparison"]:{baseline:comparison.baseline??completed,latest:completed},
          "research:archives":{"research.runs":[[result as unknown as JsonValue,...runs.filter(run=>(run as {id?:string})?.id!==result.id)]]},
          research:{current:result.id}};
-     }}:{ready:messages=>messages.some(m=>(m.data as {ready?:boolean})?.ready===true)}),
+     }}:operation==='backtest.submit'?{requires:'backtest.prepare'}:{ready:messages=>messages.some(m=>(m.data as {ready?:boolean})?.ready===true)}),
    });
  }
  // Exported by the feature, rather than added to the generic public contract.

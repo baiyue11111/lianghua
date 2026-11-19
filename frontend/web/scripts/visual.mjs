@@ -9,7 +9,6 @@ const directory=await mkdtemp(join(tmpdir(),'readable-visual-'));
 const result=await build({entryPoints:[join(web,'scripts/visual.fixture.jsx')],bundle:true,write:false,platform:'browser',format:'iife',jsx:'automatic',mainFields:['module','main'],alias:{'@display':resolve(web,'../display/src')},loader:{'.css':'empty'}});
 const css=(await Promise.all([
  readFile(join(web,'src/index.css'),'utf8'),
- readFile(join(web,'src/shared/app.css'),'utf8'),
  readFile(join(web,'src/apple/theme.css'),'utf8'),
 ])).join('\n');
 const file=join(directory,'readable-check.html');

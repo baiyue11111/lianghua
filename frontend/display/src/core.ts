@@ -13,8 +13,6 @@ export interface Operation extends UiOperation {
   ready?:(messages:UiMessage[])=>boolean;
   prepare?:(data:JsonValue)=>JsonValue;
   changes?:(state:State,target:string,request:UiRequest,messages:UiMessage[])=>Record<string,Record<string,JsonValue>>;
-  poll?:number;
-  repeat?:(messages:UiMessage[])=>boolean;
 }
 export interface Options {
   operations:Operation[];
@@ -56,7 +54,7 @@ function object(value:JsonValue|undefined):Record<string,JsonValue> {
   if(value===null||typeof value!=='object'||Array.isArray(value))throw Error('输入必须是对象');
   return value;
 }
-// Pure reducer: no transport, file, timer, browser or process access.
+// Pure reducer: no transport, file, browser or process access.
 export function update(slot:Slot,action:UiAction):Slot {
   switch(action.kind){
     case 'edit':return {...slot,values:{...slot.values,...object(action.data)},revision:slot.revision+1,problems:[]};
@@ -77,7 +75,6 @@ export function createDisplay(options:Options) {
   const listeners=new Set<()=>void>();
   const pending=new Map<string,{id:string;revision:number}>();
   const approved=new Map<string,{revision:number;identity:string}>();
-  const timers=new Map<string,ReturnType<typeof setTimeout>>();
   let state:State=freeze({revision:0,targets:{}}),closed=false,serial=0;
   const id=options.id??(()=>`request-${++serial}`);
   const key=(target:string,operation:string)=>target+'\0'+operation;
@@ -96,8 +93,7 @@ export function createDisplay(options:Options) {
     state=freeze({revision:state.revision+1,targets:{...state.targets,[target]:{...value,operations:states}}});
     for(const listener of listeners)listener();
   }
-  function stop(target:string){
-    for(const [k,timer] of timers)if(k.startsWith(target+'\0')){clearTimeout(timer);timers.delete(k);}
+  function clearChecks(target:string){
     for(const k of approved.keys())if(k.startsWith(target+'\0'))approved.delete(k);
   }
   function fail(target:string,code:string,title:string){put(target,{...slot(target),problems:[problem(code,title)]});}
@@ -122,14 +118,13 @@ export function createDisplay(options:Options) {
     if(!validateWire('UiAction',action))throw Error('动作不符合公共协议');
     const target=action.target;
     if(action.kind!=='invoke'){
-      try{put(target,update(slot(target),action));if(['edit','query','select','reset'].includes(action.kind))stop(target);}
+      try{put(target,update(slot(target),action));if(['edit','query','select','reset'].includes(action.kind))clearChecks(target);}
       catch(reason){fail(target,'invalid_input',String(reason));}
       return state;
     }
     const spec=operations.get(action.operation!);
     if(!spec){fail(target,'unsupported','未注册操作');return state;}
     const k=key(target,spec.operation),initial=slot(target);
-    const timer=timers.get(k);if(timer){clearTimeout(timer);timers.delete(k);}
     if(spec.mode==='write'&&[...pending.keys()].some(value=>value.startsWith(target+'\0'))){fail(target,'pending','操作正在执行');return state;}
     let data:JsonValue;
     try {
@@ -175,10 +170,6 @@ export function createDisplay(options:Options) {
       const failed=slot(target).problems.length>0;
       if(!failed&&(!spec.ready||spec.ready(messages)))approved.set(k,{revision:initial.revision,identity});else approved.delete(k);
       put(target,{...slot(target),operations:{...slot(target).operations,[spec.operation]:{...slot(target).operations[spec.operation],status:failed?'failed':'succeeded',request_id:request.request_id,revision:initial.revision,input:action.data,...(!failed?{result_input:action.data}:{})}}});
-      if(!failed&&spec.poll&&(!spec.repeat||spec.repeat(messages))){
-        const old=timers.get(k);if(old)clearTimeout(old);
-        timers.set(k,setTimeout(()=>{timers.delete(k);void dispatch(action);},spec.poll));
-      }
     } catch(reason){
       if(current()){
         approved.delete(k);
@@ -204,6 +195,6 @@ export function createDisplay(options:Options) {
       if(!target)throw Error("未注册消息接收目标");
       publish(target,[message]);
     },
-    dispose(){closed=true;controller.abort();listeners.clear();for(const timer of timers.values())clearTimeout(timer);timers.clear();pending.clear();approved.clear();},
+    dispose(){closed=true;controller.abort();listeners.clear();pending.clear();approved.clear();},
   };
 }

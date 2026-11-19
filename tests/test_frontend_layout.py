@@ -22,7 +22,8 @@ class FrontendLayoutTests(unittest.TestCase):
             DISPLAY / "src" / "research" / "locale.ts",
             DISPLAY / "src" / "research" / "research-model.ts",
             DISPLAY / "src" / "research" / "strategy-model.ts",
-            DISPLAY / "src" / "lib" / "closed-loop.ts",
+            DISPLAY / "src" / "core.ts",
+            DISPLAY / "src" / "features.ts",
         )
         for path in expected:
             with self.subTest(path=path):
