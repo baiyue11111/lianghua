@@ -258,7 +258,7 @@ class DataStoreTest(unittest.TestCase):
     def test_readonly_transaction_rejects_native_insert(self):
         with self.assertRaises(duckdb.Error):
             with self.store.transaction(readonly=True):
-                self.store._connection.execute("INSERT INTO lake.main.prices (code, day) VALUES ('sh.600000', DATE '2025-01-02')")
+                self.store._cursor().execute("INSERT INTO lake.main.prices (code, day) VALUES ('sh.600000', DATE '2025-01-02')")
         self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 0)
 
     def test_partial_write_preserves_absent_columns_and_can_set_null(self):
@@ -425,6 +425,59 @@ class DataStoreTest(unittest.TestCase):
         with self.assertRaisesRegex(DataError, 'registered relation'):
             self.store.scan(SQLQuery('SELECT * FROM (WITH hidden AS (SELECT 1) SELECT * FROM hidden) t '
                                      'JOIN hidden USING (x)'))
+
+    def test_reader_sees_committed_snapshot_while_writer_transaction_is_open(self):
+        written = threading.Event()
+        release = threading.Event()
+        errors = []
+
+        def writer():
+            try:
+                with self.store.transaction():
+                    self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+                    written.set()
+                    if not release.wait(10):
+                        raise AssertionError('writer was not released')
+            except BaseException as error:
+                errors.append(error)
+
+        thread = threading.Thread(target=writer)
+        thread.start()
+        try:
+            self.assertTrue(written.wait(10))
+            with self.store.transaction(readonly=True):
+                seen = self.store.scan(TableQuery('prices')).table.num_rows
+        finally:
+            release.set()
+            thread.join(10)
+        self.assertEqual(errors, [])
+        self.assertFalse(thread.is_alive())
+        self.assertEqual(seen, 0)
+        self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 1)
+
+    def test_read_paths_do_not_take_the_write_lock(self):
+        self.store.write(TableWrite('prices', pa.Table.from_pylist([self.row])))
+        original = self.store._lock
+
+        class ForbiddenLock:
+            def acquire(self, *args, **kwargs):
+                raise AssertionError('read path took the write lock')
+
+            def release(self):
+                raise AssertionError('read path released an unacquired lock')
+
+        self.store._lock = ForbiddenLock()
+        try:
+            self.assertEqual(self.store.definition('prices').name, 'prices')
+            self.assertEqual(self.store.scan(TableQuery('prices')).table.num_rows, 1)
+            self.assertTrue(self.store.fingerprint('prices'))
+            self.assertTrue(self.store.manifest_digest('prices'))
+            self.assertEqual(len(self.store.select_schema(TableSelect('SELECT * FROM prices')).names), 4)
+            with self.store.transaction(readonly=True):
+                rows = self.store.scan(SQLQuery('SELECT count(*) AS n FROM prices')).table.to_pylist()
+            self.assertEqual(rows, [{'n': 1}])
+        finally:
+            self.store._lock = original
 
 
 if __name__ == '__main__':

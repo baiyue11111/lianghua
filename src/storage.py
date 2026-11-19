@@ -102,6 +102,9 @@ class DataStore:
             self.parquet.mkdir(parents=True, exist_ok=True)
             self._lock = threading.RLock()
             self._local = threading.local()
+            self._cursors = []
+            self._schema_lock = threading.RLock()
+            self._schema_epoch = 0
             self._pid = os.getpid()
             # A table definition changes only when ``define`` writes it, but a
             # single dataset load asks for the same one thousands of times (every
@@ -139,6 +142,13 @@ class DataStore:
     def close(self):
         with self._lock:
             self._check()
+            with self._guard:
+                cursors, self._cursors = list(self._cursors), []
+            for connection in cursors:
+                try:
+                    connection.close()
+                except duckdb.Error:
+                    pass
             self._connection.close()
             self._ready = False
             self._owners.pop((self._pid, str(self.project)), None)
@@ -149,6 +159,34 @@ class DataStore:
         if not self._ready:
             raise DataError('storage_closed', 'data store is closed')
 
+    def _cursor(self):
+        """One DuckDB connection per caller thread, sharing the attached lake.
+
+        ``cursor()`` is not a second ATTACH: it is another connection to the
+        same database instance, so it sees the catalog and the committed views
+        without asking DuckDB to open the same file twice.
+        """
+        self._check()
+        connection = getattr(self._local, 'connection', None)
+        if connection is None:
+            with self._guard:
+                connection = self._local.connection = self._connection.cursor()
+                connection.execute('USE lake.main')
+                self._cursors.append(connection)
+        return connection
+
+    def _query_connection(self):
+        connection = getattr(self._local, 'tx_connection', None)
+        return connection if connection is not None else self._cursor()
+
+    def _invalidate_schema(self, name=None):
+        with self._schema_lock:
+            self._schema_epoch += 1
+            if name is None:
+                self._schemas.clear()
+            else:
+                self._schemas.pop(name, None)
+
     # -- definitions -------------------------------------------------------
 
     @staticmethod
@@ -158,23 +196,28 @@ class DataStore:
         return value
 
     def _schema(self, name):
-        cached = self._schemas.get(name)
-        if cached is not None:
-            return cached
-        rows = self._connection.execute(
-            'SELECT definition FROM lake.main._tables WHERE name=?', [name]).fetchall()
-        if len(rows) != 1:
-            raise DataError('missing_table', 'table is not registered: ' + str(name))
-        definition = self._schemas[name] = self._decode(rows[0][0])
-        return definition
+        while True:
+            with self._schema_lock:
+                epoch = self._schema_epoch
+                cached = self._schemas.get(name)
+            if cached is not None:
+                return cached
+            rows = self._query_connection().execute(
+                'SELECT definition FROM lake.main._tables WHERE name=?', [name]).fetchall()
+            if len(rows) != 1:
+                raise DataError('missing_table', 'table is not registered: ' + str(name))
+            definition = self._decode(rows[0][0])
+            with self._schema_lock:
+                if epoch == self._schema_epoch:
+                    self._schemas[name] = definition
+                    return definition
 
     def definition(self, name):
-        with self._lock:
-            self._check()
-            value = self._schema(name)
-            # ``TableDef`` owns the column order it was built from; the cached
-            # record stays untouched so the next reader sees the same object.
-            return TableDef(**{**value, 'columns': dict(value['columns'])})
+        self._check()
+        value = self._schema(name)
+        # ``TableDef`` owns the column order it was built from; the cached
+        # record stays untouched so the next reader sees the same object.
+        return TableDef(**{**value, 'columns': dict(value['columns'])})
 
     def define(self, table: TableDef):
         if not isinstance(table, TableDef):
@@ -198,7 +241,7 @@ class DataStore:
                     self._add_column(table.name, old['storage'], name, kind)
                 self._connection.execute('UPDATE lake.main._tables SET definition=? WHERE name=?',
                                          [payload, table.name])
-                self._schemas.pop(table.name, None)
+                self._invalidate_schema(table.name)
                 if old['storage'] == 'parquet':
                     self._render(table.name, dict(new['columns']))
                 return
@@ -369,20 +412,31 @@ class DataStore:
 
     @contextmanager
     def transaction(self, *, readonly=False):
-        with self._lock:
-            self._check()
-            depth = getattr(self._local, 'depth', 0)
-            if depth and readonly != self._local.readonly:
-                self._local.failed = True
-                raise DataError('transaction_mode', 'nested transaction must use the same read/write mode')
+        # Writes and DDL still go through one connection and one lock: DuckDB's
+        # staging tables are connection-local and a catalog view must change in
+        # the same transaction as its manifest. A read-only transaction uses the
+        # caller's cursor and does not wait behind a writer.
+        self._check()
+        depth = getattr(self._local, 'depth', 0)
+        if depth and readonly != self._local.readonly:
+            self._local.failed = True
+            raise DataError('transaction_mode', 'nested transaction must use the same read/write mode')
+        write_guard = None if depth or readonly else self._lock
+        if write_guard is not None:
+            write_guard.acquire()
+        try:
             if depth == 0:
-                self._connection.execute('BEGIN TRANSACTION READ ONLY' if readonly else 'BEGIN TRANSACTION')
+                connection = self._cursor() if readonly else self._connection
+                self._local.tx_connection = connection
+                connection.execute('BEGIN TRANSACTION READ ONLY' if readonly else 'BEGIN TRANSACTION')
                 self._local.readonly = readonly
                 self._local.failed = False
                 self._local.buffers = {}
                 self._local.full = set()
                 self._local.written = []
                 self._local.removed = []
+            else:
+                connection = self._local.tx_connection
             self._local.depth = depth + 1
             try:
                 yield self
@@ -392,28 +446,33 @@ class DataStore:
                 self._local.failed = True
                 if depth == 0:
                     try:
-                        self._connection.execute('ROLLBACK')
+                        connection.execute('ROLLBACK')
                     finally:
                         # A definition read inside the transaction may describe a
                         # table whose registration the rollback just removed.
-                        self._schemas.clear()
+                        self._invalidate_schema()
                         self._reset(self._local.written)
                 raise
             else:
                 if depth == 0:
                     try:
                         self._flush()
-                        self._connection.execute('COMMIT')
+                        connection.execute('COMMIT')
                     except BaseException:
                         try:
-                            self._connection.execute('ROLLBACK')
+                            connection.execute('ROLLBACK')
                         finally:
-                            self._schemas.clear()
+                            self._invalidate_schema()
                             self._reset(self._local.written)
                         raise
                     self._reset(self._local.removed)
             finally:
                 self._local.depth = depth
+                if depth == 0:
+                    self._local.tx_connection = None
+        finally:
+            if write_guard is not None:
+                write_guard.release()
 
     # -- rows --------------------------------------------------------------
 
@@ -442,13 +501,14 @@ class DataStore:
         if isinstance(query, SQLQuery):
             try:
                 with self.transaction(readonly=True):
-                    statements = self._connection.extract_statements(query.sql)
+                    connection = self._local.tx_connection
+                    statements = connection.extract_statements(query.sql)
                     if len(statements) != 1 or statements[0].type != duckdb.StatementType.SELECT:
                         raise DataError('invalid_query', 'scan accepts one read-only SELECT statement')
-                    tree = json.loads(self._connection.execute('SELECT json_serialize_sql(?)', [query.sql]).fetchone()[0])
+                    tree = json.loads(connection.execute('SELECT json_serialize_sql(?)', [query.sql]).fetchone()[0])
                     if tree['error']:
                         raise DataError('invalid_query', tree['error_message'])
-                    registered = {name.lower() for name, in self._connection.execute(
+                    registered = {name.lower() for name, in connection.execute(
                         'SELECT name FROM lake.main._tables').fetchall()}
                     def check(node, scope=frozenset()):
                         if isinstance(node, dict):
@@ -466,27 +526,27 @@ class DataStore:
                             for child in node:
                                 check(child, scope)
                     check(tree)
-                    return TableResult(self._connection.execute(query.sql, list(query.values)).to_arrow_table(), 'lake:query')
+                    return TableResult(connection.execute(query.sql, list(query.values)).to_arrow_table(), 'lake:query')
             except duckdb.Error as error:
                 raise DataError('invalid_query', str(error)) from error
         if not isinstance(query, TableQuery):
             raise TypeError('TableQuery required')
-        with self._lock:
-            definition = self.definition(query.table)
-            columns = query.columns or tuple(definition.columns)
-            order = query.order or definition.keys
-            if not set((*columns, *order)) <= definition.columns.keys():
-                raise DataError('invalid_query', 'query columns are not registered')
-            where, values = self._where(definition, query.filters)
-            sql = f'SELECT {", ".join(map(quote, columns))} FROM {self._physical(query.table)}' + where
-            sql += ' ORDER BY ' + ', '.join(map(quote, order))
-            if query.limit is not None:
-                sql += ' LIMIT ?'
-                values.append(query.limit)
-            sql += ' OFFSET ?'
-            values.append(query.offset)
-            table = self._connection.execute(sql, values).to_arrow_table()
-            return TableResult(table, 'lake:' + query.table)
+        connection = self._query_connection()
+        definition = self.definition(query.table)
+        columns = query.columns or tuple(definition.columns)
+        order = query.order or definition.keys
+        if not set((*columns, *order)) <= definition.columns.keys():
+            raise DataError('invalid_query', 'query columns are not registered')
+        where, values = self._where(definition, query.filters)
+        sql = f'SELECT {", ".join(map(quote, columns))} FROM {self._physical(query.table)}' + where
+        sql += ' ORDER BY ' + ', '.join(map(quote, order))
+        if query.limit is not None:
+            sql += ' LIMIT ?'
+            values.append(query.limit)
+        sql += ' OFFSET ?'
+        values.append(query.offset)
+        table = connection.execute(sql, values).to_arrow_table()
+        return TableResult(table, 'lake:' + query.table)
 
     def scan_files(self, sql: str, values=()) -> TableResult:
         """One read-only SELECT that is allowed to name files on disk.
@@ -505,25 +565,25 @@ class DataStore:
         """
         with self.transaction(readonly=True):
             try:
-                statements = self._connection.extract_statements(sql)
+                connection = self._local.tx_connection
+                statements = connection.extract_statements(sql)
                 if len(statements) != 1 or statements[0].type != duckdb.StatementType.SELECT:
                     raise DataError('invalid_query', 'file scan accepts one read-only SELECT statement')
-                table = self._connection.execute(sql, list(values)).to_arrow_table()
+                table = connection.execute(sql, list(values)).to_arrow_table()
             except duckdb.Error as error:
                 raise DataError('invalid_query', str(error)) from error
         return TableResult(table, 'lake:files')
 
     def fingerprint(self, name):
-        with self._lock:
-            definition = self.definition(name)
-            columns = ', '.join(map(quote, definition.columns))
-            fields = ', '.join(quote(column) + ' := row.' + quote(column) for column in definition.columns)
-            keys = ', '.join('row.' + quote(key) for key in definition.keys)
-            schema = canonical(list(definition.columns.items()))
-            sql = ("SELECT sha256(? || '\n' || coalesce("
-                   f"string_agg(to_json(struct_pack({fields})), '\n' ORDER BY {keys}), '')) "
-                   f'FROM (SELECT {columns} FROM {self._physical(name)}) AS row')
-            return self._connection.execute(sql, [schema]).fetchone()[0]
+        definition = self.definition(name)
+        columns = ', '.join(map(quote, definition.columns))
+        fields = ', '.join(quote(column) + ' := row.' + quote(column) for column in definition.columns)
+        keys = ', '.join('row.' + quote(key) for key in definition.keys)
+        schema = canonical(list(definition.columns.items()))
+        sql = ("SELECT sha256(? || '\n' || coalesce("
+               f"string_agg(to_json(struct_pack({fields})), '\n' ORDER BY {keys}), '')) "
+               f'FROM (SELECT {columns} FROM {self._physical(name)}) AS row')
+        return self._query_connection().execute(sql, [schema]).fetchone()[0]
 
     def manifest_digest(self, name):
         """A generation id for a bulk table: its file set, not its rows.
@@ -537,22 +597,19 @@ class DataStore:
         definition = self.definition(name)
         if definition.storage != 'parquet':
             return self.fingerprint(name)
-        with self._lock:
-            self._check()
-            rows = self._connection.execute(
-                'SELECT path, row_count, size_bytes, sha256 FROM lake.main._files '
-                'WHERE table_name=? ORDER BY path', [name]).fetchall()
+        rows = self._query_connection().execute(
+            'SELECT path, row_count, size_bytes, sha256 FROM lake.main._files '
+            'WHERE table_name=? ORDER BY path', [name]).fetchall()
         return sha256(json.dumps(rows, ensure_ascii=False, default=str).encode()).hexdigest()
 
     def select_schema(self, select: TableSelect):
         """Columns and Arrow types a stored ``SELECT`` returns, without running it."""
-        with self._lock:
-            self._check()
-            return self._probe(select)
+        self._check()
+        return self._probe(select)
 
     def _probe(self, select):
         try:
-            return self._connection.execute(
+            return self._query_connection().execute(
                 f'SELECT * FROM ({select.sql}) AS _probe LIMIT 0',
                 list(select.values)).to_arrow_table().schema
         except duckdb.Error as error:
