@@ -4,6 +4,7 @@ import {DEFAULT_LIST, go, useRoute} from './app/router';
 import type {Route} from './app/router';
 import Data from './apple/Data';
 import Market from './apple/Market';
+import Radar from './apple/Radar';
 import Result from './apple/Result';
 import RunView from './apple/Run';
 import Strategies from './apple/Strategies';
@@ -14,6 +15,7 @@ import './apple/theme.css';
 const NAV: {id: string; label: string; icon: string; route: Route}[] = [
   {id: 'market', label: '行情', icon: 'market', route: {name: 'market'}},
   {id: 'strategies', label: '策略研究', icon: 'strategies', route: {name: 'strategies', list: DEFAULT_LIST}},
+  {id: 'radar', label: '雷达', icon: 'radar', route: {name: 'radar'}},
   {id: 'data', label: '数据中心', icon: 'data', route: {name: 'data'}},
 ];
 
@@ -24,7 +26,7 @@ const NAV: {id: string; label: string; icon: string; route: Route}[] = [
 // Every strategy screen still belongs to one section, so the sidebar can say
 // where you are even when the second level is a detail.
 const SECTION: Record<Route['name'], string> = {
-  market: 'market', data: 'data',
+  market: 'market', radar: 'radar', data: 'data',
   strategies: 'strategies', strategy: 'strategies', newRun: 'strategies', run: 'strategies',
 };
 
@@ -65,6 +67,7 @@ export default function Workspace() {
         {route.name === 'strategy' && <StrategyDetail strategyKey={route.key} />}
         {route.name === 'newRun' && <RunView module={route.module} />}
         {route.name === 'run' && <Result runId={route.id} />}
+        {route.name === 'radar' && <Radar />}
         {route.name === 'data' && <Data />}
       </main>
     </div>

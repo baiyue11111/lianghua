@@ -1,6 +1,6 @@
 import type {FormEvent} from 'react';
 import {useEffect} from 'react';
-import type {Preflight, StrategyCatalog, StrategySpec} from '@display/research/port';
+import type {StrategyCatalog, StrategySpec} from '@display/research/port';
 import {comparisonIssue, parameterValues} from '@display/research/strategy-model';
 import type {Completed} from '@display/research/strategy-model';
 import {useOperation, useSlot, useValue} from '../interaction/model';
@@ -9,7 +9,7 @@ import {day, errorMessage, number, percent, text} from '../shared/format';
 import {go, DEFAULT_LIST} from '../app/router';
 import {ARCHIVE_QUERY} from './queries';
 import {Card, Empty, KV, Metric, Notice, PageHead, Tag} from './ui';
-import {firstError, summary} from './summary';
+import {summary} from './summary';
 
 const TARGET = 'apple:run:backtest';
 const dateBack = (days: number) => new Date(Date.now() - days * 86400000).toISOString().slice(0, 10);
@@ -32,7 +32,7 @@ export default function Run({module: picked}: {module: string}) {
   const [accountPath, setAccountPath] = useValue('apple:run', 'accountPath', '');
 
   const catalog = useOperation<StrategyCatalog>('apple:catalog', 'backtest.strategies', {}, true, true, {fresh: 60_000});
-  const archives = useOperation<{items: unknown[]; total?: number}>('apple:archives', 'research.runs', ARCHIVE_QUERY, true, true, {fresh: 30_000});
+  const {invoke: refreshArchives} = useOperation('apple:archives', 'research.runs', ARCHIVE_QUERY, true, true, {fresh: 30_000});
   const cliBacktest = useOperation<unknown>('apple:run:cli', 'cli.backtest', {}, true, false);
   const cliPredict = useOperation<unknown>('apple:run:predict', 'cli.predict', {}, true, false);
   const specs = catalog.value?.items ?? [];
@@ -44,33 +44,17 @@ export default function Run({module: picked}: {module: string}) {
   const form = {spec, values, capital, start, end, dataset: dataset || datasets[0]?.id || ''};
   const ready = !!spec && !!form.dataset && !!capital.trim() && !!start && !!end && start <= end;
 
-  const prepare = useOperation<Preflight>(TARGET, 'backtest.prepare', form, true, false);
-  // Submitting and polling, not one long request: the transport holds a call for
-  // twenty seconds and a backtest runs for minutes.
   const execute = useBacktestJob(TARGET, form);
   const comparison = useSlot(`${TARGET}:comparison`);
   const baseline = comparison.values.baseline as unknown as Completed | undefined;
   const latest = comparison.values.latest as unknown as Completed | undefined;
   const issue = baseline && latest ? comparisonIssue(baseline, latest) : '';
-  const error = firstError(catalog.error, prepare.error, execute.error);
-  // The interaction core owns the gate: a run may only proceed under an
-  // approval that still matches this exact input, and it refuses otherwise with
-  // one flag. Restating the rule here would give it two sources of truth to
-  // drift between — and the copy would be wrong after a page switch, when local
-  // state resets but the session's approval does not. `matched` is not a second
-  // rule: it reports whether the value on hand came from this exact input.
-  const approved = prepare.matched && prepare.value?.ready === true && execute.available;
-  const canRun = ready && approved && execute.status !== 'pending';
+  const canRun = ready && execute.status !== 'pending';
   const job = execute.job;
   const progress = job?.trials_total
     ? `回测运行中：第 ${job.trials_done}/${job.trials_total} 次试验`
     : job ? (job.phase === 'search' ? '回测运行中：参数搜索' : '回测运行中…') : '已提交，等待后端开始…';
 
-  function submitPrepare(event: FormEvent) {
-    event.preventDefault();
-    if (!ready) return;
-    void prepare.invoke(form);
-  }
   function submitRun(event: FormEvent) {
     event.preventDefault();
     if (!canRun) return;
@@ -81,8 +65,8 @@ export default function Run({module: picked}: {module: string}) {
   // The archive list is read on arrival; a finished run is a new attempt, so the
   // list has to be asked again once the job reports it is done.
   useEffect(() => {
-    if (execute.job?.status === 'succeeded') void archives.invoke();
-  }, [execute.job?.status]);
+    if (execute.job?.status === 'succeeded') void refreshArchives();
+  }, [execute.job?.status, refreshArchives]);
   function submitConfig(event: FormEvent) {
     event.preventDefault();
     const value = configPath.trim();
@@ -96,7 +80,6 @@ export default function Run({module: picked}: {module: string}) {
 
   return <>
     <PageHead eyebrow="Run" title="新建回测"
-      subtitle={picked ? `为 ${text(specs.find(item => item.module === picked)?.name) ?? picked} 配置一次回测` : '从策略目录选取参数，先预检再运行；配置与结果都走交互核心'}
       actions={<>
         <button className="btn" type="button"
           onClick={() => go(module ? {name: 'strategy', key: strategyId(module, specs)} : {name: 'strategies', list: DEFAULT_LIST})}>
@@ -106,15 +89,9 @@ export default function Run({module: picked}: {module: string}) {
           {catalog.value?.availability?.ready ? '目录就绪' : '目录状态待确认'}</Tag>
       </>} />
 
-    <div className="run-steps">
-      <div className="run-step done"><span className="n">1</span>配置</div><span className="run-arrow">→</span>
-      <div className={`run-step${approved ? ' done' : ''}`}><span className="n">2</span>预检</div><span className="run-arrow">→</span>
-      <div className={`run-step${execute.value ? ' done' : ''}`}><span className="n">3</span>运行与对比</div>
-    </div>
-
     <div className="grid" style={{gridTemplateColumns: 'minmax(0, 1.15fr) minmax(0, 1fr)', alignItems: 'start'}}>
-      <Card title="回测配置" hint="backtest.prepare">
-        <form onSubmit={submitPrepare}>
+      <Card title="回测配置">
+        <form onSubmit={submitRun}>
           <div className="form-grid">
             <label className="field"><span className="lbl">策略</span>
               <select className="input" aria-label="策略" value={spec?.module ?? ''}
@@ -175,40 +152,16 @@ export default function Run({module: picked}: {module: string}) {
           </>}
 
           <div className="inline" style={{marginTop: 18}}>
-            <button className="btn primary" type="submit" disabled={!ready || prepare.status === 'pending'}>运行预检</button>
-            <span className="faint" style={{fontSize: 11}}>预检通过后才能运行回测</span>
+            <button className="btn primary" type="submit" disabled={!canRun}>运行回测</button>
           </div>
         </form>
         {!specs.length && <Empty busy={catalog.status === 'pending'}>策略目录为空，请检查服务是否已登记策略</Empty>}
-        {error && <Notice tone="error">{errorMessage(error)}</Notice>}
+        {catalog.error && <Notice tone="error">{errorMessage(catalog.error)}</Notice>}
       </Card>
 
       <div className="grid" style={{gap: 18}}>
-        <Card title="预检结果" hint="backtest.prepare">
-          {prepare.value && !approved && <Notice>输入在上次预检后被修改，结论已失效，请重新预检。</Notice>}
-          {!prepare.value ? <Empty busy={prepare.status === 'pending'}>提交配置后显示预检结论</Empty> : <>
-            <div className="inline" style={{marginBottom: 14}}>
-              <Tag tone={prepare.value.ready ? 'green' : 'red'}>{prepare.value.ready ? '可以运行' : '暂不可运行'}</Tag>
-              {!!prepare.value.issues?.length && <span className="muted" style={{fontSize: 12}}>{prepare.value.issues.length} 个问题项</span>}
-            </div>
-            <KV items={[
-              {name: '所需字段', value: `${prepare.value.requirements?.fields?.length ?? 0} 项`},
-              {name: '历史 K 线', value: number(prepare.value.requirements?.history_bars, 0)},
-              {name: '数据频率', value: text(prepare.value.requirements?.frequency) ?? '未提供'},
-              {name: '价格口径', value: text(prepare.value.requirements?.price_basis) ?? '未提供'},
-              {name: '生效参数', value: `${Object.keys(prepare.value.effective_params ?? {}).length} 项`},
-            ]} />
-            {!!prepare.value.issues?.length && <div style={{marginTop: 12}}>
-              {prepare.value.issues.map((item, index) => <Notice tone="error" key={index}>{text(item.message) ?? '配置存在问题'}</Notice>)}
-            </div>}
-          </>}
-        </Card>
-
-        <Card title="运行与对比" hint="backtest.submit">
-          <form onSubmit={submitRun}>
-            <button className="btn dark" type="submit" disabled={!canRun}>运行回测</button>
-          </form>
-          {execute.error && <Notice tone="error">{errorMessage(execute.error)}</Notice>}
+        <Card title="运行与对比">
+          {execute.error && <Notice tone="error">{execute.error}</Notice>}
           {!execute.value ? <Empty busy={execute.status === 'pending'}>
             {execute.status === 'pending' ? progress : '运行后在这里查看结果与对比结论'}
           </Empty> : <>
@@ -219,19 +172,18 @@ export default function Run({module: picked}: {module: string}) {
               <Metric label="观测数" value={number(execute.value.metrics.observations, 0)} small />
             </div>
             <KV items={[
-              {name: '状态', value: execute.value.status},
               {name: '期末', value: day(execute.value.equity.at(-1)?.at)},
               {name: '权益观测', value: execute.value.equity.length},
               {name: '成交', value: number(execute.value.trades.length, 0)},
             ]} />
             <div className="divider" />
-            <div className="section-title">与上一次运行的对比</div>
+            <div className="section-title">与基线对比</div>
             {issue ? <Notice tone="error">{issue}</Notice>
               : <div className="muted" style={{fontSize: 12}}>{baseline ? '两次运行的数据与执行身份一致，结果可比。' : '首次运行，暂无对比基线。'}</div>}
             <div className="inline" style={{marginTop: 14}}>
               <button className="btn sm primary" type="button"
                 onClick={() => go({name: 'run', id: execute.value?.id ?? ''})}>打开这次回测</button>
-              <button className="btn sm" type="button" onClick={() => void archives.invoke()}>刷新存档</button>
+              <button className="btn sm" type="button" onClick={() => void refreshArchives()}>刷新存档</button>
             </div>
           </>}
         </Card>

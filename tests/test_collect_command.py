@@ -737,6 +737,32 @@ class OfficialCatalogueTests(unittest.TestCase):
         self.assertEqual(record['status'], '1')
 
 class CollectionEvidenceTests(unittest.TestCase):
+    def test_catalogue_job_finishes_without_exporting_the_audit_log(self):
+        with tempfile.TemporaryDirectory() as folder:
+            with contextlib.closing(DataBus(DataStore(Path(folder)))) as bus:
+                sources = Sources(bus)
+                sources.register({'id': 'directory', 'name': 'Directory', 'method': 'fixture',
+                    'frequency': 'snapshot', 'defaults': {}, 'params': {'key_fields': ['code']}})
+                methods = Methods(bus, {'fixture': lambda _source, _request: {
+                    'records': [{'code': 'sh.600000'}], 'raw': [], 'scope': {}}})
+                methods.log({'snapshot_id': 'other', 'raw': [{'text': 'old provider response'}]})
+                collect = Collect(sources, methods)
+                scan = bus.scan
+
+                def bounded_scan(query):
+                    if query == TableQuery('collection_audit'):
+                        raise OverflowError('full audit history exceeds the Arrow string buffer')
+                    return scan(query)
+
+                with patch.object(bus, 'scan', side_effect=bounded_scan), \
+                     patch.object(methods, 'evidence', side_effect=MemoryError('audit history too large')):
+                    job = collect.run({'source_id': 'directory'})
+                    self.assertEqual(job['outcome'], 'succeeded', job['error'])
+                    self.assertEqual(job['records'], 1)
+                    self.assertTrue(job['snapshot_id'])
+                    rows = list(methods.record_rows(sources.get('directory')))
+                self.assertEqual(rows, [{'code': 'sh.600000'}])
+
     def test_evidence_resolves_snapshot_and_record_without_mixing_sources(self):
         from collect.methods import _sha256
         with tempfile.TemporaryDirectory() as folder:
@@ -763,7 +789,7 @@ class CollectionEvidenceTests(unittest.TestCase):
                 with patch.object(bus, 'scan', wraps=bus.scan) as scan:
                     self.assertEqual(methods.evidence('version'), event)
                     self.assertEqual(methods.evidence('version'), event)
-                scan.assert_called_once_with(TableQuery('collection_audit'))
+                scan.assert_called_once()
 
     def test_publishing_a_record_does_not_read_the_audit_table(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -48,16 +48,23 @@ test('the market page reads a selected security and renders its K-line', async()
  }finally{f.core.dispose()}
 });
 
-test('the data page submits collection writes only after user events', async()=>{
- const f=fixture({'collection.automatic':{enabled:false},'collection.current':{running:false,status:'idle'},'collection.set_automatic':{enabled:true},'collection.start':{status:'running'}});
+test('the data page observes one stream and writes only after user events', async()=>{
+ // The console state is supplied by SSE, not by an operation read on mount.
+ // Injecting it here is the same seam a server render uses; it must never turn
+ // into a protocol request from the page itself.
+ const snapshot={status:'live',value:{market:'沪深',at:1,enabled:false,running:false,
+  scheduler:true,phase:null,source_id:null,records:0,next_run_at:2,
+  last_run_at:null,last_outcome:null,error:null}};
+ const f=fixture({'collection.set_automatic':{enabled:true},'collection.start':{status:'running'}},snapshot);
  try{
   go({name:'data'});
-  assert.equal(find(f.render(),'自动采集').disabled,true);
+  let tree=f.render();
+  assert.match(tree.html,/空闲/);
+  assert.match(tree.html,/未开启/);
+  assert.equal(find(tree,'自动采集').disabled,false);
   assert.equal(f.calls.length,0);
-  await f.read('apple:data:auto','collection.automatic',{market:'沪深'});
-  await f.read('apple:data:current','collection.current');
-  assert.match(f.render().html,/空闲/);
-  find(f.render(),'自动采集').onChange({target:{checked:true}});
+  assert.ok(!f.calls.some(call=>['collection.automatic','collection.current'].includes(call.operation)));
+  find(tree,'自动采集').onChange({target:{checked:true}});
   await settle();
   find(f.render(),'启动采集').onClick();
   await settle();
@@ -66,6 +73,15 @@ test('the data page submits collection writes only after user events', async()=>
    {operation:'collection.start',data:{mode:'auto'}},
   ]);
  }finally{go({name:'market'});f.core.dispose()}
+});
+
+test('console observation is one SSE stream, not a set of polled reads',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../src/apple/console.ts',import.meta.url),'utf8');
+ assert.ok(source.includes("new EventSource('/api/console/stream')"),'one stream must own observation');
+ assert.ok(source.includes("addEventListener('console'"),'the stream must decode console events');
+ assert.ok(!source.includes('fetch('),'the console must not poll through fetch');
+ assert.ok(!source.includes('collection.automatic'),'diagnostic payloads must stay off the console');
 });
 
 test('the run page sends one trimmed server configuration path after submission', async()=>{
@@ -89,6 +105,27 @@ test('the run page sends one trimmed server configuration path after submission'
  }finally{go({name:'market'});f.core.dispose()}
 });
 
+test('the run form submits once and reads its own job',async()=>{
+ const module='plugins.strategies.moving_average_cross';
+ const spec={module,strategy_id:module,name:'双均线',defaults:{},parameters:[]};
+ const catalog={items:[spec],availability:{ready:true,datasets:[{id:'fixture'}]}};
+ const f=fixture({'backtest.strategies':catalog,'backtest.submit':{job_id:'job-1'},
+   'backtest.job':{job_id:'job-1',running:true,status:'running'}});
+ try{
+  go({name:'newRun',module});
+  await f.read('apple:catalog','backtest.strategies');
+  await f.edit('apple:run',{capital:'9007199254740993.10',start:'2020-01-01',end:'2020-01-03'});
+  const page=f.render();
+  assert.equal(find(page,'运行回测').disabled,false);
+  assert.doesNotMatch(page.html,/运行预检|预检结果/);
+  page.nodes.find(node=>node.type==='form').props.onSubmit({preventDefault(){}});
+  await settle();
+  assert.deepEqual(f.calls.slice(1),[{operation:'backtest.submit',data:{module,params:{},
+    initial_cash:'9007199254740993.10',start:'2020-01-01',end:'2020-01-03',dataset_id:'fixture'}},
+    {operation:'backtest.job',data:{id:'job-1'}}]);
+ }finally{go({name:'market'});f.core.dispose()}
+});
+
 test('the sidebar lists destinations, and creating or opening a run is not one',()=>{
  const f=fixture();try{
   const tree=f.render();
@@ -96,11 +133,15 @@ test('the sidebar lists destinations, and creating or opening a run is not one',
   // A destination is a place you can be without first choosing an object.
   // "新建回测" is an action and "回测结果" is whatever you last opened, so
   // neither can be a peer of 行情 — they live at #/runs/new and #/runs/<id>.
-  assert.deepEqual(nav.map(n=>n.props['data-od-id']),['nav-market','nav-strategies','nav-data']);
+  assert.deepEqual(nav.map(n=>n.props['data-od-id']),['nav-market','nav-strategies','nav-radar','nav-data']);
   assert.match(tree.html,/行情/);assert.match(tree.html,/数据中心/);
   assert.doesNotMatch(tree.html,/数据审核|数据同步|营销/);
   assert.equal(f.calls.length,0);
- }finally{f.core.dispose()}
+  nav.find(node=>node.props['data-od-id']==='nav-radar').props.onClick();
+  assert.deepEqual(routeNow(),{name:'radar'});
+  assert.match(f.render().html,/<h1>雷达<\/h1>/);
+  assert.equal(find(f.render(),'搜索证券代码或名称').type,'search');
+ }finally{go({name:'market'});f.core.dispose()}
 });
 
 test('every screen has an address, and a bad address resolves to something real',async()=>{
@@ -110,8 +151,9 @@ test('every screen has an address, and a bad address resolves to something real'
  assert.deepEqual(parse('#/strategies/plugins.example?'),{name:'strategy',key:'plugins.example'});
  assert.deepEqual(parse('#/runs/attempt-1'),{name:'run',id:'attempt-1'});
  assert.deepEqual(parse('#/runs/new?module=plugins.example'),{name:'newRun',module:'plugins.example'});
+ assert.deepEqual(parse('#/radar'),{name:'radar'});
  // Round trip: what a page writes is what a page can read back.
- for(const route of [{name:'market'},{name:'strategies',list:{...list,q:'均线',page:3}},{name:'strategy',key:'a b'},{name:'run',id:'x/y'},{name:'newRun',module:'m'},{name:'data'}]){
+ for(const route of [{name:'market'},{name:'strategies',list:{...list,q:'均线',page:3}},{name:'strategy',key:'a b'},{name:'run',id:'x/y'},{name:'newRun',module:'m'},{name:'radar'},{name:'data'}]){
   assert.deepEqual(parse(href(route)),route);
  }
  // An unknown or truncated address is not a blank screen.
@@ -237,7 +279,9 @@ test('the run result displays its equity, stored configuration and paged trade d
   assert.match(trades.html,/买入/);
   assert.ok(!trades.html.includes(orderId));
   find(trades,'下一页').onClick();
-  const inputs={id:archive.id,offset:50};
+  const offset=f.core.snapshot().targets['apple:result'].values.offset;
+  assert.equal(offset,50);
+  const inputs={id:archive.id,offset};
   await f.read('apple:result:detail','research.run',inputs);
   assert.deepEqual(f.calls.at(-1),{operation:'research.run',data:inputs});
   assert.match(f.render().html,/卖出/);

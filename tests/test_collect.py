@@ -625,10 +625,10 @@ class CollectionTests(unittest.TestCase):
                 self.assertEqual(backend._modules.sources.collect.sources.list(), [])
                 backend._modules.sources.collect.sources.register({
                     "id": "new_quotes", "name": "New quotes", "method": "quotes",
-                    "frequency": "daily", "defaults": {"codes": ["1.600000"]},
+                    "frequency": "daily", "defaults": {"codes": ["sh.600000"]},
                 })
                 with patch("collect.methods.EastmoneyQuotes.collect", return_value={
-                        "records": [{"code": "1.600000", "data_at": "2026-10-14T15:00:00+08:00",
+                        "records": [{"code": "sh.600000", "data_at": "2026-10-14T15:00:00+08:00",
                                      "source": "new_quotes"}], "raw": [],
                         "scope": {"kind": "fixture"}}):
                     result = backend._modules.sources.handle("collection.run", {"source_id": "new_quotes"})
@@ -746,8 +746,8 @@ class CollectionTests(unittest.TestCase):
         announcement = {"totalRecordNum": 0, "hasMore": False, "announcements": []}
         with patch("collect.methods.urlopen",
                    side_effect=[Response(quote), Response(announcement)]):
-            result = EastmoneyQuotes({}).collect({"codes": ["1.600000"]})
-            self.assertEqual(result["records"][0]["code"], "1.600000")
+            result = EastmoneyQuotes({}).collect({"codes": ["sh.600000"]})
+            self.assertEqual(result["records"][0]["code"], "sh.600000")
             result = CninfoAnnouncements({}).collect({
                 "start": "2026-01-01", "end": "2026-01-01"})
             self.assertEqual(result["records"], [])
@@ -1037,7 +1037,7 @@ class CollectionTests(unittest.TestCase):
     def test_quote_values_must_be_finite_numbers(self):
         from collect.methods import EastmoneyQuotes, CollectionError
         import copy
-        fixture = json.loads((Path(__file__).resolve().parents[1] / 'test/data/quotes.json').read_bytes())
+        fixture = json.loads((Path(__file__).parent / 'fixtures/quotes.json').read_bytes())
         for field, value in (('f2', '-'), ('f3', float('nan')), ('f5', -1), ('f6', True), ('f124', False)):
             response = copy.deepcopy(fixture['response'])
             response['data']['diff'][0][field] = value
@@ -1177,13 +1177,13 @@ class CollectionTests(unittest.TestCase):
 
     def test_latest_quote_fields_are_selectable(self):
         from collect.methods import EastmoneyQuotes
-        fixture = json.loads((Path(__file__).resolve().parents[1] / 'test/data/quotes.json').read_bytes())
+        fixture = json.loads((Path(__file__).parent / 'fixtures/quotes.json').read_bytes())
         result = EastmoneyQuotes({}, lambda *a: fixture['response']).collect({**fixture['request'], 'fields': ['price', 'volume']})
         self.assertEqual(set(result['records'][0]), {'code', 'data_at', 'raw_page', 'price', 'volume'})
 
     def test_latest_quote_rejects_unsupported_parameters(self):
         from collect.methods import EastmoneyQuotes, CollectionError
-        fixture = json.loads((Path(__file__).resolve().parents[1] / 'test/data/quotes.json').read_bytes())
+        fixture = json.loads((Path(__file__).parent / 'fixtures/quotes.json').read_bytes())
         from unittest.mock import Mock
         transport = Mock(return_value=fixture['response'])
         provider = EastmoneyQuotes({}, transport)

@@ -1,32 +1,39 @@
-import {useMemo, useState} from 'react';
-import {features} from '@display/features';
+import {useState} from 'react';
 import type {Source} from '@display/research/port';
-import type {FetchJob, ContinuousFetch} from '@display/lib/market';
 import {useOperation} from '../interaction/model';
-import {day, errorMessage, number, status as statusText, text} from '../shared/format';
-import {Card, DataTable, KV, Metric, Notice, PageHead, Progress, Segmented, Tag} from './ui';
-import {OP_GROUPS, OPS} from './ops';
-import {countOf, firstError, summary} from './summary';
+import {useConsole} from './console';
+import {day, errorMessage, number, text} from '../shared/format';
+import {Card, DataTable, Metric, Notice, PageHead, Segmented, Tag} from './ui';
+import {firstError} from './summary';
 
 const MARKET = '沪深';
+
+function clock(value: number | null | undefined): string {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return '未安排';
+  return new Date(value * 1000).toLocaleString('zh-CN', {hour12: false});
+}
+
+function freshness(at: number | undefined): string {
+  if (!at) return '等待状态推送';
+  const seconds = Math.max(0, Math.round(Date.now() / 1000 - at));
+  return seconds < 5 ? '刚刚更新' : `${seconds} 秒前更新`;
+}
 
 export default function Data() {
   const [sourceId, setSourceId] = useState('');
   const [codes, setCodes] = useState('');
   const [selector, setSelector] = useState('沪深:status');
   const [command, setCommand] = useState<'status' | 'latest' | 'range' | 'check' | 'doctor'>('status');
-  const [lastCommand, setLastCommand] = useState('');
 
-  const status = useOperation<unknown>('apple:data:status', 'data.status');
-  const check = useOperation<unknown>('apple:data:check', 'data.check');
-  const inputs = useOperation<unknown>('apple:data:inputs', 'data.research_inputs');
+  // Observation comes from one stream. Only the source registry is still read
+  // on mount: it changes rarely and it is not part of the live control loop.
+  const consoleState = useConsole();
   const sources = useOperation<unknown>('apple:data:sources', 'collection.sources');
-  const describe = useOperation<unknown>('apple:data:describe', 'collection.describe');
-  const current = useOperation<FetchJob>('apple:data:current', 'collection.current');
-  const automatic = useOperation<ContinuousFetch>('apple:data:auto', 'collection.automatic', {market: MARKET});
-  const mergeJob = useOperation<unknown>('apple:data:mergejob', 'collection.merge_job');
-  const repairJob = useOperation<unknown>('apple:data:repairjob', 'collection.repair_job');
 
+  // Commands remain discrete writes. Nothing here is auto-invoked.
+  const setAuto = useOperation('apple:data:setauto', 'collection.set_automatic', {}, true, false);
+  const startJob = useOperation('apple:data:start', 'collection.start', {}, true, false);
+  const stopJob = useOperation('apple:data:stop', 'collection.stop', {}, true, false);
   const sync = useOperation<unknown>('apple:data:sync', 'collection.sync', {}, true, false);
   const schedule = useOperation<unknown>('apple:data:schedule', 'collection.schedule', {}, true, false);
   const job = useOperation<unknown>('apple:data:job', 'collection.job', {}, true, false);
@@ -38,12 +45,10 @@ export default function Data() {
   const doctor = useOperation<unknown>('apple:data:doctor', 'collection.doctor', {}, true, false);
   const run = useOperation<unknown>('apple:data:run', 'collection.run', {}, true, false);
   const cliCollect = useOperation<unknown>('apple:data:clicollect', 'cli.collect', {}, true, false);
-  const setAuto = useOperation('apple:data:setauto', 'collection.set_automatic', {}, true, false);
-  const startJob = useOperation('apple:data:start', 'collection.start', {}, true, false);
-  const stopJob = useOperation('apple:data:stop', 'collection.stop', {}, true, false);
 
-  const registered = useMemo(() => new Set(features().operations.map(item => item.operation)), []);
-  const covered = OPS.filter(item => registered.has(item.operation));
+  const state = consoleState.value;
+  const busy = [setAuto, startJob, stopJob].some(item => item.status === 'pending');
+  const error = firstError(sources.error, setAuto.error, startJob.error, stopJob.error);
   const sourceList: Source[] = (() => {
     const value = sources.value;
     if (Array.isArray(value)) return value as Source[];
@@ -51,165 +56,100 @@ export default function Data() {
     return Array.isArray(items) ? items as Source[] : [];
   })();
   const selected = sourceId || sourceList[0]?.id || '';
-  const currentSource = sourceList.find(item => item.id === selected);
-  const codeList = codes.split(/[\s,，]+/).map(item => item.trim()).filter(Boolean);
-  const jobValue = current.value;
-  const busy = [sync, schedule, job, snapshot, evidence, merge, repair, inspect, doctor, run, cliCollect, setAuto, startJob, stopJob]
-    .some(item => item.status === 'pending');
-  const error = firstError(sources.error, status.error, check.error, inputs.error, describe.error,
-    current.error, automatic.error, mergeJob.error, repairJob.error);
 
-  const commands = [
-    {label: '同步来源', operation: 'collection.sync', run: () => sync.invoke({id: selected, input: {}}), disabled: !selected, result: sync},
-    {label: '调度设置', operation: 'collection.schedule', run: () => schedule.invoke({id: selected, enabled: true, interval_seconds: 300, input: {}}), disabled: !selected, result: schedule},
-    {label: '查询任务', operation: 'collection.job', run: () => job.invoke({id: selected}), disabled: !selected, result: job},
-    {label: '读取快照', operation: 'collection.snapshot', run: () => snapshot.invoke({id: selected, offset: 0}), disabled: !selected, result: snapshot},
-    {label: '审核证据', operation: 'collection.evidence', run: () => evidence.invoke({id: selected, index: 0}), disabled: !selected, result: evidence},
-    {label: '试合并', operation: 'collection.merge', run: () => merge.invoke({dryRun: true}), disabled: false, result: merge},
-    {label: '修复来源', operation: 'collection.repair', run: () => repair.invoke({id: selected}), disabled: !selected, result: repair},
-    {label: '来源抽查', operation: 'collection.inspect', run: () => inspect.invoke({source_id: selected, codes: codeList, start: '', end: ''}), disabled: !selected, result: inspect},
-    {label: '来源诊断', operation: 'collection.doctor', run: () => doctor.invoke({source_id: selected, codes: codeList, refresh: false}), disabled: !selected || !codeList.length, result: doctor},
-    {label: '运行命令', operation: 'collection.run', run: () => run.invoke({market: MARKET, command}), disabled: false, result: run},
-    {label: 'CLI 采集', operation: 'cli.collect', run: () => cliCollect.invoke({selector}), disabled: !selector.trim(), result: cliCollect},
+  const diagnostics = [
+    {label: '同步来源', run: () => sync.invoke({id: selected, input: {}}), disabled: !selected},
+    {label: '调度设置', run: () => schedule.invoke({id: selected, enabled: true, interval_seconds: 300, input: {}}), disabled: !selected},
+    {label: '查询任务', run: () => job.invoke({id: selected}), disabled: !selected},
+    {label: '读取快照', run: () => snapshot.invoke({id: selected, offset: 0}), disabled: !selected},
+    {label: '审核证据', run: () => evidence.invoke({id: selected, index: 0}), disabled: !selected},
+    {label: '试合并', run: () => merge.invoke({dryRun: true}), disabled: false},
+    {label: '修复来源', run: () => repair.invoke({id: selected}), disabled: !selected},
+    {label: '来源抽查', run: () => inspect.invoke({source_id: selected, codes: codes.split(/[\s,，]+/).filter(Boolean), start: '', end: ''}), disabled: !selected},
+    {label: '来源诊断', run: () => doctor.invoke({source_id: selected, codes: codes.split(/[\s,，]+/).filter(Boolean), refresh: false}), disabled: !selected},
+    {label: '采集命令', run: () => run.invoke({market: MARKET, command}), disabled: false},
+    {label: 'CLI 采集', run: () => cliCollect.invoke({selector}), disabled: !selector.trim()},
   ];
 
   return <>
     <PageHead eyebrow="Data" title="数据中心"
-      subtitle="来源、快照、体检、修复与调度 — 所有采集接口在此有入口"
-      actions={<button className="btn" type="button" onClick={() => {
-          [status, check, inputs, sources, describe, current, automatic, mergeJob, repairJob]
-            .forEach(item => void item.invoke());
-        }}>刷新数据</button>} />
+      subtitle="运行状态由后端持续推送；开关和命令只在明确操作后执行"
+      actions={<span className="faint" style={{fontSize: 12}}>
+        {consoleState.status === 'live' ? '实时连接' : consoleState.status === 'retrying' ? '重连中' : '连接中'}
+      </span>} />
 
     <div className="grid g4" style={{marginBottom: 18}}>
-      <Card><Metric label="已登记数据源" value={sourceList.length || '—'} foot="来源注册表" /></Card>
-      <Card><Metric label="研究数据集" value={countOf(inputs.value) ?? '—'} foot="可供回测使用" /></Card>
-      <Card><Metric label="当前任务" value={jobValue ? statusText(jobValue.status) : '读取中'} small foot={jobValue?.running ? `${number(jobValue.done, 0)} / ${number(jobValue.total, 0)}` : '暂无运行中的任务'} /></Card>
-      <Card><Metric label="最新行情" value={automatic.value?.latest_data_date ? day(automatic.value.latest_data_date) : '—'} small foot="自动续采" /></Card>
+      <Card><Metric label="自动续采" value={state ? (state.enabled ? '已开启' : '未开启') : '—'}
+        small foot={state?.scheduler ? '调度线程在运行' : '调度线程未运行'} /></Card>
+      <Card><Metric label="当前任务" value={state?.running ? '运行中' : '空闲'} small
+        foot={state?.records ? `已处理 ${number(state.records, 0)} 条` : '暂无新增'} /></Card>
+      <Card><Metric label="下次续采" value={state ? clock(state.next_run_at) : '—'} small
+        foot={state?.last_run_at ? `上次 ${day(state.last_run_at)}` : '尚无运行记录'} /></Card>
+      <Card><Metric label="最近结果" value={state?.last_outcome ? text(state.last_outcome) ?? '—' : '—'}
+        small foot={state ? freshness(state.at) : '等待状态'} /></Card>
     </div>
 
-    <div className="grid" style={{gridTemplateColumns: 'minmax(0, 1.25fr) minmax(0, 1fr)', alignItems: 'start'}}>
-      <div className="grid" style={{gap: 18}}>
-        <Card flush title="数据源" hint={`${sourceList.length} 个来源 · 已选 ${text(currentSource?.name) ?? selected ?? '无'}`}>
-          <DataTable columns={[
-            {label: '名称', render: item => <button className="rowbtn" type="button" onClick={() => setSourceId(item.id)}>
-              {text(item.name) ?? '来源名称未提供'}</button>},
-            {label: '频率', render: item => text(item.frequency) ?? '未提供'},
-            {label: '记录', align: 'right', render: item => <span className="num">{number(item.records, 0)}</span>},
-            {label: '调度', render: item => <Tag tone={item.schedule?.enabled ? 'green' : undefined}>
-              {item.schedule?.enabled ? '已启用' : '未启用'}</Tag>},
-            {label: '最新快照', render: item => item.snapshot ? day(item.snapshot.collected_at) : '—'},
-          ]} rows={sourceList} empty={sources.status === 'pending' ? '读取来源中…' : '暂无登记的数据源'} />
-          <div className="inline" style={{padding: '14px 20px', borderTop: '1px solid var(--border)'}}>
-            <span className="faint" style={{fontSize: 11}}>来源说明 · collection.describe</span>
-            <span className="muted" style={{fontSize: 11}}>{describe.value ? `${countOf(describe.value) ?? 0} 项说明` : '读取中'}</span>
+    <div className="grid" style={{gridTemplateColumns: 'minmax(0, 1.5fr) minmax(0, 1fr)', alignItems: 'start'}}>
+      <Card title="采集控制台" hint="collection.console · 实时">
+        {!state ? <div className="muted" style={{padding: '24px 0'}}>
+          {consoleState.status === 'retrying' ? '状态连接中断，正在重连…' : '正在连接状态流…'}
+        </div> : <>
+          <div className="op-row" style={{marginBottom: 14}}>
+            <span className="lb">当前状态</span>
+            <span className="grow" />
+            <Tag tone={state.running ? 'blue' : undefined}>{state.running ? state.phase ?? '运行中' : '空闲'}</Tag>
+            {state.source_id && <span className="faint" style={{fontSize: 11}}>{state.source_id}</span>}
           </div>
-        </Card>
-
-        <Card title="采集任务" hint="collection.current · collection.automatic">
-          <div className="grid g2" style={{gap: 12}}>
-            <Metric label="自动续采" value={automatic.value?.enabled ? '已开启' : '未开启'} small
-              foot={automatic.value?.latest_data_date ? `最新行情 ${day(automatic.value.latest_data_date)}` : '行情日期未提供'} />
-            <Metric label="任务进度" value={jobValue?.running ? `${number(jobValue.done, 0)} / ${number(jobValue.total, 0)}` : '空闲'} small
-              foot={jobValue?.rows ? `新增 ${number(jobValue.rows, 0)} 行` : '暂无新增'} />
-          </div>
-          {jobValue?.running && <div style={{marginTop: 12}}><Progress value={jobValue.done} total={jobValue.total} /></div>}
-          <div className="inline" style={{marginTop: 14}}>
-            <label className="check"><input type="checkbox" role="switch" aria-label="自动采集"
-              checked={automatic.value?.enabled ?? false} disabled={!automatic.value || busy}
-              onChange={event => void setAuto.invoke({market: MARKET, enabled: event.target.checked})
-                .then(() => automatic.invoke())} />自动续采</label>
-            <button className="btn sm" type="button" disabled={busy || jobValue?.running}
-              onClick={() => void startJob.invoke({mode: 'auto'}).then(() => current.invoke())}>启动采集</button>
-            {jobValue?.running && <button className="btn sm" type="button" disabled={busy}
-              onClick={() => void stopJob.invoke().then(() => current.invoke())}>停止</button>}
-          </div>
-          <div className="divider" />
-          <div className="grid g2" style={{gap: 16}}>
-            <div><div className="section-title">合并任务 · collection.merge_job</div><KV items={summary(mergeJob.value, 3)} /></div>
-            <div><div className="section-title">修复队列 · collection.repair_job</div><KV items={summary(repairJob.value, 3)} /></div>
-          </div>
-        </Card>
-
-        {/* Diagnostics are a developer surface. They stay available but
-            collapsed: an operator should not have to read operation names to
-            run a data check. */}
-        <details className="adv">
-          <summary>高级 · 诊断与采集命令</summary>
-          <div className="adv-body">
           <div className="inline" style={{marginBottom: 14}}>
-            <input className="input" aria-label="证券代码列表" placeholder="证券代码，逗号分隔" style={{width: 190}}
-              value={codes} onChange={event => setCodes(event.target.value)} />
-            <input className="input" aria-label="CLI 选择器" placeholder="沪深:status" style={{width: 170}}
-              value={selector} onChange={event => setSelector(event.target.value)} />
-            <Segmented<'status' | 'latest' | 'range' | 'check' | 'doctor'> label="采集命令" value={command} onChange={setCommand}
-              options={[
-                {value: 'status', label: '状态'}, {value: 'latest', label: '续采'},
-                {value: 'range', label: '区间'}, {value: 'check', label: '检查'}, {value: 'doctor', label: '诊断'},
-              ]} />
+            <label className="check"><input type="checkbox" role="switch" aria-label="自动采集"
+              checked={state.enabled} disabled={busy}
+              onChange={event => void setAuto.invoke({market: MARKET, enabled: event.target.checked})} />自动续采</label>
+            <button className="btn sm" type="button" disabled={busy || state.running}
+              onClick={() => void startJob.invoke({mode: 'auto'})}>启动采集</button>
+            {state.running && <button className="btn sm" type="button" disabled={busy}
+              onClick={() => void stopJob.invoke()}>停止</button>}
+            <span className="grow" />
+            <span className="faint" style={{fontSize: 11}}>{freshness(state.at)}</span>
           </div>
-          <div className="ops-grid">
-            {commands.map(item => <div className="op-row" key={item.operation}>
-              <button className="btn sm" type="button" disabled={item.disabled || busy || item.result.status === 'pending'}
-                onClick={() => { setLastCommand(item.operation); void item.run(); }}>{item.label}</button>
-              <span className="op">{item.operation}</span>
-              {item.result.error && <Tag tone="red">失败</Tag>}
-              {item.result.value != null && <Tag tone="green">已返回</Tag>}
-              <span className="lb">{item.result.error ? errorMessage(item.result.error) : ''}</span>
-            </div>)}
-          </div>
-          <div className="faint" style={{marginTop: 12, fontSize: 11}}>
-            诊断与抽查需要证券代码；快照与证据按上方选中的来源读取。
-          </div>
-          <div className="divider" />
-          <div className="section-title">最近一次命令结果</div>
-          {(() => {
-            const latest = commands.find(item => item.operation === lastCommand);
-            return latest?.result.value != null
-              ? <><div className="muted" style={{fontSize: 12, marginBottom: 8}}>{latest.label}</div>
-                <KV items={summary(latest.result.value, 6)} /></>
-              : <div className="muted" style={{fontSize: 12}}>尚未执行命令</div>;
-          })()}
-          </div>
-        </details>
-      </div>
+          {state.error && <Notice tone="error">{state.error}</Notice>}
+        </>}
+        {error && <Notice tone="error">{errorMessage(error)}</Notice>}
+      </Card>
 
-      <div className="grid" style={{gap: 18}}>
-        <Card title="数据体检" hint="data.status · data.check">
-          <div className="grid g2" style={{gap: 16}}>
-            <div><div className="section-title">数据状态</div><KV items={summary(status.value, 6)} /></div>
-            <div><div className="section-title">完整性检查</div><KV items={summary(check.value, 6)} /></div>
-          </div>
-          {status.error && <Notice tone="error">{errorMessage(status.error)}</Notice>}
-          {check.error && <Notice tone="error">{errorMessage(check.error)}</Notice>}
-        </Card>
-
-        <Card title="研究数据集" hint="data.research_inputs">
-          <KV items={summary(inputs.value, 8)} />
-          <div className="faint" style={{marginTop: 12, fontSize: 11}}>
-            原始数据以 Parquet long-format 存放，样本覆盖现役与退市证券，避免生存者偏差。
-          </div>
-        </Card>
-
-        <details className="adv">
-          <summary>高级 · 接口覆盖（{covered.length} / {registered.size}）</summary>
-          <div className="adv-body">
-          {OP_GROUPS.map(group => <div className="op-group" key={group}>
-            <h3>{group}<Tag tone="blue">{OPS.filter(item => item.group === group).length}</Tag></h3>
-            {OPS.filter(item => item.group === group).map(item => <div className="op-row" key={item.operation}>
-              <span className={`dot${registered.has(item.operation) ? '' : ' off'}`} />
-              <span className="op">{item.operation}</span>
-              <span className="lb">{item.label}</span>
-              <Tag tone={item.mode === 'write' ? 'amber' : undefined}>{item.mode === 'write' ? '写' : '读'}</Tag>
-            </div>)}
-          </div>)}
-          <div className="faint" style={{fontSize: 11}}>
-            清单来自交互核心注册表；圆点表示该 operation 已在核心注册并在本套界面有入口。
-          </div>
-          </div>
-        </details>
-      </div>
+      <Card flush title="数据源" hint={`${sourceList.length} 个来源`}>
+        <DataTable columns={[
+          {label: '名称', render: item => <button className="rowbtn" type="button" onClick={() => setSourceId(item.id)}>
+            {text(item.name) ?? '来源名称未提供'}</button>},
+          {label: '频率', render: item => text(item.frequency) ?? '未提供'},
+          {label: '记录', align: 'right', render: item => number(item.records, 0)},
+        ]} rows={sourceList} empty={sources.status === 'pending' ? '读取来源中…' : '暂无登记的数据源'} />
+      </Card>
     </div>
-    {error && <Notice tone="error">{errorMessage(error)}</Notice>}
+
+    <details className="adv" style={{marginTop: 18}}>
+      <summary>诊断与采集命令（开发入口）</summary>
+      <div className="adv-body">
+        <div className="inline" style={{marginBottom: 14}}>
+          <input className="input" aria-label="证券代码列表" placeholder="证券代码，逗号分隔" style={{width: 190}}
+            value={codes} onChange={event => setCodes(event.target.value)} />
+          <input className="input" aria-label="CLI 选择器" placeholder="沪深:status" style={{width: 170}}
+            value={selector} onChange={event => setSelector(event.target.value)} />
+          <Segmented<'status' | 'latest' | 'range' | 'check' | 'doctor'> label="采集命令" value={command} onChange={setCommand}
+            options={[
+              {value: 'status', label: '状态'}, {value: 'latest', label: '续采'},
+              {value: 'range', label: '区间'}, {value: 'check', label: '检查'}, {value: 'doctor', label: '诊断'},
+            ]} />
+        </div>
+        <div className="ops-grid">
+          {diagnostics.map(item => <div className="op-row" key={item.label}>
+            <button className="btn sm" type="button" disabled={item.disabled || busy}
+              onClick={() => void item.run()}>{item.label}</button>
+          </div>)}
+        </div>
+        <div className="faint" style={{marginTop: 12, fontSize: 11}}>
+          这些是排查入口，不参与实时监控；需要长期留存的结果请用 CLI。
+        </div>
+      </div>
+    </details>
   </>;
 }

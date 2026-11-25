@@ -20,6 +20,7 @@ export type Route =
   | {name: 'strategy'; key: string}
   | {name: 'newRun'; module: string}
   | {name: 'run'; id: string}
+  | {name: 'radar'}
   | {name: 'data'};
 
 export const LIST_PAGE = 20;
@@ -51,7 +52,8 @@ export function parse(hash: string): Route {
       page: Number.isFinite(page) && page >= 1 ? Math.floor(page) : 1,
     }};
   }
-  return parts[0] === 'data' ? {name: 'data'} : {name: 'market'};
+  if (parts[0] === 'radar' || parts[0] === 'data') return {name: parts[0]};
+  return {name: 'market'};
 }
 
 export function href(route: Route): string {
@@ -73,7 +75,8 @@ export function href(route: Route): string {
     case 'strategy': return `#/strategies/${encodeURIComponent(route.key)}`;
     case 'newRun': return `#/runs/new${route.module ? '?module=' + encodeURIComponent(route.module) : ''}`;
     case 'run': return `#/runs/${encodeURIComponent(route.id)}`;
-    case 'data': return '#/data';
+    case 'radar':
+    case 'data': return `#/${route.name}`;
     default: return '#/market';
   }
 }

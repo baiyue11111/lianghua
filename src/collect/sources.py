@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from collections.abc import Mapping
+import re
 
 
 class Sources:
@@ -63,6 +64,8 @@ class Sources:
             raise TypeError("source modes must be a non-empty list")
         if "default" in source and type(source["default"]) is not bool:
             raise TypeError("source default must be boolean")
+        if 'code_format' in source:
+            re.compile(source['code_format'])
 
     def register(self, source: Mapping) -> dict:
         self._validate(source)
@@ -124,11 +127,17 @@ class Sources:
         self._refresh()
         return [self.get(source_id) for source_id in sorted(self._items)]
 
-    def select(self, *, mode: str, data_type: str) -> dict:
+    def select(self, *, mode: str, data_type: str, code: str | None = None) -> dict:
         self._refresh()
-        matches = [source for source in self._items.values()
-                   if source.get("data_type") == data_type and
-                   mode in source.get("modes", ()) and source.get("default") is True]
+        candidates = [source for source in self._items.values()
+                      if source.get('data_type') == data_type and mode in source.get('modes', ())]
+        matches = [source for source in candidates if source.get('code_format') and code
+                   and re.fullmatch(source['code_format'], code)]
+        if matches:
+            if len(matches) != 1:
+                raise ValueError(f'expected one source for {mode}/{data_type}/{code}, found {len(matches)}')
+            return deepcopy(matches[0])
+        matches = [source for source in candidates if source.get('default') is True]
         if len(matches) != 1:
             raise ValueError(f"expected one default source for {mode}/{data_type}, found {len(matches)}")
         return deepcopy(matches[0])

@@ -5,6 +5,7 @@ export type ViewId = 'market' | 'strategies' | 'result' | 'data' | 'run';
 const paths: Record<string, string> = {
   market: 'M3 17l5-6 4 3 5-8 4 4',
   strategies: 'M4 19V5m0 14h16M8 15v-4m4 4V8m4 7v-6',
+  radar: 'M12 12l6-6m2 6a8 8 0 1 1-8-8m4 8a4 4 0 1 1-4-4',
   result: 'M4 6h16M4 12h10M4 18h7',
   data: 'M4 6c0-1.7 3.6-3 8-3s8 1.3 8 3-3.6 3-8 3-8-1.3-8-3zm0 0v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3',
   run: 'M8 5l11 7-11 7V5z',

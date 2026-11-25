@@ -21,6 +21,15 @@ class Port:
         return self.value
 
 
+def sse_frame(raw):
+    """Parse one encoded SSE frame into its fields."""
+    return dict(
+        line.split(': ', 1)
+        for line in raw.decode('utf-8').strip().split('\n')
+        if ': ' in line
+    )
+
+
 class ProtocolBoundaryTests(unittest.TestCase):
     def test_frontend_catalog_matches_backend_and_local_collect(self):
         import subprocess
@@ -116,8 +125,70 @@ class ProtocolBoundaryTests(unittest.TestCase):
         self.assertEqual(backend.requests, [request])
         self.assertEqual(
             {route.path for route in app.routes if route.path.startswith("/api/")},
-            {"/api/protocol"},
+            {"/api/protocol", "/api/console/stream"},
         )
+
+    def test_console_stream_uses_the_declared_operation_schema(self):
+        # The directory validates input schema as urn:...:input:<operation>:v1.
+        # A stream that hard-codes a different name looks fine until it connects.
+        from importlib import import_module
+        from backend import export_operations
+        web = import_module("frontend.web")
+        self.assertEqual(web.CONSOLE_OPERATION, "collection.console")
+        self.assertEqual(
+            web.CONSOLE_SCHEMA,
+            f"urn:lianghua:ui:input:{web.CONSOLE_OPERATION}:v1",
+        )
+        self.assertIn(web.CONSOLE_OPERATION, export_operations())
+
+    def test_console_stream_pushes_each_snapshot_as_a_console_event(self):
+        from frontend.web import console_events
+        states = [{'at': 1.0, 'enabled': False}, {'at': 2.0, 'enabled': True}]
+        expected = [dict(item) for item in states]
+
+        async def read():
+            return states.pop(0)
+
+        async def take():
+            stream = console_events(read, tick=0)
+            return [await stream.__anext__() for _ in range(2)]
+
+        first, second = (sse_frame(event) for event in asyncio.run(take()))
+        self.assertEqual([first['event'], second['event']], ['console', 'console'])
+        self.assertEqual([json.loads(first['data']), json.loads(second['data'])], expected)
+        self.assertEqual([first['id'], second['id']], ['1000', '2000'])
+
+    def test_console_stream_bounds_an_error_detail(self):
+        from frontend.web import console_events
+
+        async def read():
+            raise ValueError('x' * 500)
+
+        frame = sse_frame(asyncio.run(anext(console_events(read, tick=0))))
+        self.assertEqual(frame['event'], 'error')
+        self.assertEqual(json.loads(frame['data']), {'detail': 'x' * 200})
+
+    def test_console_stream_shares_the_loopback_guard(self):
+        # An EventSource is a GET: it gets no CORS preflight. The stream has to
+        # refuse a foreign origin itself instead of becoming the open door.
+        from starlette.requests import Request
+        from frontend.web import _guard
+
+        def request(host, origin=b""):
+            headers = [(b"host", host)]
+            if origin:
+                headers.append((b"origin", origin))
+            return Request({
+                "type": "http", "asgi": {"version": "3.0"}, "method": "GET",
+                "path": "/api/console/stream", "raw_path": b"/api/console/stream",
+                "query_string": b"", "headers": headers,
+                "scheme": "http", "server": ("test", 80), "client": ("test", 1),
+                "root_path": "",
+            })
+
+        self.assertIsNotNone(_guard(request(b"evil.example:8000", b"https://evil.example")))
+        self.assertIsNotNone(_guard(request(b"127.0.0.1:8000", b"https://evil.example")))
+        self.assertIsNone(_guard(request(b"127.0.0.1:8000", b"http://localhost:5173")))
 
     def test_frontend_adapters_do_not_import_business_modules(self):
         root = Path(__file__).resolve().parents[1]
@@ -167,7 +238,13 @@ class ProtocolBoundaryTests(unittest.TestCase):
                             and isinstance(decorator.args[0], ast.Constant)
                             and str(decorator.args[0].value).startswith("/api/")):
                         routes.append((path.relative_to(root).as_posix(), decorator.args[0].value))
-        self.assertEqual(routes, [("frontend/web.py", "/api/protocol")])
+        # The console stream is an explicit read-only exception: it carries the
+        # same loopback guard and enters the backend through the same protocol,
+        # but it is a GET so EventSource can hold it open without preflight.
+        self.assertEqual(routes, [
+            ("frontend/web.py", "/api/console/stream"),
+            ("frontend/web.py", "/api/protocol"),
+        ])
 
     def test_operation_directory_is_the_single_public_operation_list(self):
         from backend import Modules, Protocol, build_protocol, export_operations
@@ -175,14 +252,14 @@ class ProtocolBoundaryTests(unittest.TestCase):
         operations = export_operations()
         self.assertEqual(set(operations), {
             "backtest.strategies", "backtest.prepare", "backtest.run",
-            "backtest.submit", "backtest.job",
+            "backtest.submit", "backtest.job", "radar.scan",
             "cli.backtest", "cli.predict", "service.info", "collection.describe", "collection.inspect", "collection.run", "research.runs", "research.run", "research.benchmarks",
             "research.benchmark", "data.research_inputs", "collection.sources", "collection.sync",
             "collection.schedule", "collection.job", "collection.snapshot",
             "collection.evidence",
             "data.status", "data.search", "data.bars",
             "collection.start", "collection.current", "collection.stop",
-            "collection.automatic", "collection.set_automatic", "collection.merge",
+            "collection.automatic", "collection.console", "collection.set_automatic", "collection.merge",
             "collection.merge_job", "data.check", "collection.repair", "collection.repair_job",
         })
         self.assertEqual(operations["backtest.run"]["mode"], "write")

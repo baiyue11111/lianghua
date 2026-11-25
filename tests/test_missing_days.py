@@ -144,7 +144,7 @@ class LatestRequestTests(unittest.TestCase):
             def publish(self, source, packet):
                 return {'ref': None, 'records': 0, 'failures': []}
 
-            def records(self, source, offset=0, limit=0):
+            def records(self, source, offset=0, limit=0, *, include_audit=True):
                 return {'snapshot_id': 'fixed'}
 
         self.collect = Collect(SimpleNamespace(get=lambda name: {'id': 'daily'}), Stub())
@@ -157,7 +157,8 @@ class LatestRequestTests(unittest.TestCase):
         job = self.collect._run({'id': 'daily'}, {'codes': ['sh.600000', 'sh.600001']},
                                 missing={'sh.600000': ['2025-01-07', '2025-01-08']})
         self.assertEqual(self.fetched, [(['sh.600000'], '2025-01-07', '2025-01-08')])
-        self.assertEqual(job['status'], 'succeeded')
+        self.assertEqual(job['status'], 'finished')
+        self.assertEqual(job['outcome'], 'succeeded')
 
     def test_the_request_covers_the_absent_span_only(self):
         self.collect._run({'id': 'daily'}, {'codes': ['sh.600000']},

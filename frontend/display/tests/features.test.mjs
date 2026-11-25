@@ -6,6 +6,31 @@ const spec={module:'strategies.test',strategy_id:'test',defaults:{count:8},param
 const form={spec,values:{count:'8'},capital:'9007199254740993.10',start:'2020-01-01',end:'2020-01-02',dataset:'verified'};
 let serial=0;const invoke=(operation,data=form)=>({action_id:'a'+ ++serial,kind:'invoke',target:'strategy:strategies.test',operation,data});
 const message=(r,data)=>({message_id:r.request_id+'-m',kind:'resource',type:'urn:test',schema:outputSchema(r.operation),correlation_id:r.request_id,data});
+test('submitting a backtest sends one request without a separate check',async()=>{
+ const requests=[];
+ const core=createDisplay({...features(),backend:{send:async r=>{
+   requests.push(r);
+   return [message(r,{job_id:'job-1',status:'running'})];
+ }}});
+ await core.dispatch(invoke('backtest.submit'));
+ assert.deepEqual(requests.map(r=>r.operation),['backtest.submit']);
+ assert.equal(requests[0].data.initial_cash,form.capital);
+ assert.equal(core.snapshot().targets['strategy:strategies.test'].values['backtest.submit'][0].job_id,'job-1');
+});
+test('a second completed job updates the comparison',async()=>{
+ const core=createDisplay({...features(),backend:{send:async r=>[
+   message(r,{job_id:r.data.id,status:'succeeded',result:{id:r.data.id,metrics:{},
+     effective_config:{module:spec.module,start:form.start,end:form.end}}}),
+ ]}});
+ await core.dispatch(invoke('backtest.job',{id:'first'}));
+ await core.dispatch(invoke('backtest.job',{id:'second'}));
+ const targets=core.snapshot().targets;
+ const comparison=targets['strategy:strategies.test:comparison'].values;
+ assert.equal(targets['strategy:strategies.test'].operations['backtest.job'].status,'succeeded');
+ assert.equal(comparison.baseline.result.id,'first');
+ assert.equal(comparison.latest.result.id,'second');
+ assert.deepEqual(comparison.latest.input,comparison.latest.result.effective_config);
+});
 test('feature check and execution use identical input, preserve money text and register completed archive',async()=>{
  const requests=[];const core=createDisplay({...features(),backend:{send:async r=>{requests.push(r);return [message(r,r.operation.endsWith('prepare')?{ready:true}: {id:'new',run_id:'new',metrics:{}})]}}});
  await core.dispatch(invoke('backtest.prepare'));await core.dispatch(invoke('backtest.run'));

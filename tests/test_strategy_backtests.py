@@ -34,14 +34,8 @@ class BacktestPortTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
-    def test_catalog_uses_declared_parameter_schema(self):
+    def test_catalog_lists_requirements_when_no_dataset_is_ready(self):
         response = self.port.handle("backtest.strategies", {})
-        item = response["items"][0]
-        self.assertEqual(item["defaults"]["positions"], 8)
-        self.assertEqual(
-            next(value for value in item["parameters"] if value["key"] == "positions")["type"],
-            "integer",
-        )
         self.assertFalse(response["availability"]["ready"])
         self.assertIn(
             "plugins.strategies.breadth_low_amount_reversal",

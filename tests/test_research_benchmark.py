@@ -49,6 +49,20 @@ class BenchmarkFixture(ResearchStorageFixture):
 
 
 class BenchmarkTests(BenchmarkFixture):
+    def test_unbounded_benchmark_keeps_latest_native_close(self):
+        self.publish_prices()
+        self.data.put_rows("benchmark_prices", [
+            {"code": CODE, "date": DAYS[-1], "close": 13.0},
+        ], keys=("code", "date"))
+        port = KernelBacktestPort(self.data, object, self.benchmark())
+        result = port.handle("research.benchmark", {"id": "hs300"})
+        self.assertEqual(result["end"], DAYS[-1])
+        self.assertEqual(result["points"], [
+            {"at": day, "close": close} for day, close in zip(DAYS, (11.0, 12.0, 13.0))
+        ])
+        self.assertEqual(result["source_hashes"], {"hs300": result["snapshot_id"]})
+        self.assertRegex(result["snapshot_id"], "^[a-f0-9]{64}$")
+
     def test_compare_benchmark_does_not_require_trade_bar_fields(self):
         self.publish_prices()
         result = self.benchmark().series("hs300", DAYS[0], DAYS[1])

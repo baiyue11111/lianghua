@@ -1,6 +1,7 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useEffect, useState} from 'react';
 import type {BacktestResult} from '@display/research/port';
 import {useOperation} from '../interaction/model';
+import {errorMessage, text} from '../shared/format';
 
 export type BacktestJob = {
   job_id: string | null; running: boolean; status: string; phase: string | null;
@@ -9,55 +10,49 @@ export type BacktestJob = {
   result: BacktestResult | null;
 };
 
-type SubmitReply = {job_id?: string | null; status?: string};
+type SubmitReply = {job_id: string};
 
 const POLL_MS = 800;
 
-/**
- * A backtest is minutes long; a request may hold the connection for twenty
- * seconds. So the page submits a job and polls it, which keeps the work inside
- * the one backend instead of in a second process that would open the data file
- * behind its back. The returned shape mirrors `useOperation` so a view reads a
- * run the same way whether it came from a job or from a synchronous call.
- */
 export function useBacktestJob(target: string, form: unknown) {
   const submit = useOperation<SubmitReply>(target, 'backtest.submit', form, true, false);
-  const poll = useOperation<BacktestJob>(target, 'backtest.job', {}, false, false);
-  const [watching, setWatching] = useState(false);
-  const job = poll.value;
+  const [id, setId] = useState<string | null>(null);
+  const {invoke: read, status: readStatus, value} = useOperation<BacktestJob>(
+    target, 'backtest.job', id ? {id} : {}, false, false);
+  const lost = id !== null && value !== undefined && value.job_id !== id;
+  const job = id && !lost ? value : undefined;
 
-  const invoke = useCallback(async (input?: unknown) => {
-    setWatching(false);
+  async function invoke(input?: unknown) {
+    setId(null);
     const state = await submit.invoke(input);
-    const slot = (state as {targets?: Record<string, {problems?: unknown[]}>}).targets?.[target];
-    // A refused submit (busy, no approval) starts nothing, and polling would
-    // then report whichever job is already running as if it were this one.
-    if (!slot?.problems?.length) {
-      setWatching(true);
-      void poll.invoke();
+    const slot = state.targets?.[target];
+    if (!slot?.problems?.length && slot?.operations?.['backtest.submit']?.status === 'succeeded') {
+      const reply = (slot.values?.['backtest.submit'] as SubmitReply[] | undefined)?.[0];
+      if (reply?.job_id) {
+        setId(reply.job_id);
+        void read({id: reply.job_id});
+      }
     }
     return state;
-  }, [submit.invoke, poll.invoke, target]);
+  }
 
   useEffect(() => {
-    if (!watching) return;
-    if (job && !job.running) return;
-    const timer = setTimeout(() => void poll.invoke(), job ? POLL_MS : 0);
+    if (!job?.running || readStatus !== 'succeeded') return;
+    const timer = setTimeout(() => void read(), POLL_MS);
     return () => clearTimeout(timer);
-  }, [watching, job, poll.invoke]);
-  // Stop when the page unmounts: a timer left behind would keep polling for a
-  // job nobody is reading.
-  useEffect(() => () => setWatching(false), []);
+  }, [job, read, readStatus]);
 
-  const failed = job?.status === 'failed' || submit.status === 'failed';
-  const running = watching && (submit.status === 'pending' || !job || job.running);
+  const failed = lost || job?.status === 'failed' || submit.status === 'failed'
+    || (id !== null && readStatus === 'failed');
+  const running = submit.status === 'pending' || (id !== null && !failed && (!job || job.running));
+  const error = submit.error ? errorMessage(submit.error)
+    : lost ? '找不到这次任务，请在策略存档中查看结果'
+    : job?.error ? text(job.error.replace(/^\w+:\s*/, '')) ?? errorMessage(job.error) : '';
   return {
     value: job?.result ?? undefined,
     job,
     status: running ? 'pending' : failed ? 'failed' : job ? 'succeeded' : submit.status,
-    available: submit.available,
-    matched: submit.matched,
-    error: submit.error || job?.error || '',
+    error,
     invoke,
   };
 }

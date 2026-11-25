@@ -84,6 +84,7 @@ class Modules:
     sources: ModulePort
     data: ModulePort
     commands: ModulePort
+    radar: ModulePort | None = None
 
     def port(self, name: PortKind) -> ModulePort:
         return getattr(self, name)
@@ -115,10 +116,12 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("data.status", "read", "data-status", "data-status", "resource", "data"),
     OperationSpec("data.search", "read", "data-search", "data-search", "collection", "data"),
     OperationSpec("data.bars", "read", "kline", "kline", "series", "data"),
+    OperationSpec("radar.scan", "read", "radar-scan", "radar-scan", "collection", "radar"),
     OperationSpec("collection.start", "write", "start-fetch", "fetch-job", "operation", "sources"),
     OperationSpec("collection.current", "read", "fetch-job", "fetch-job", "resource", "sources"),
     OperationSpec("collection.stop", "write", "stop-fetch", "stop-fetch", "operation", "sources"),
     OperationSpec("collection.automatic", "read", "continuous-fetch", "continuous-fetch", "resource", "sources"),
+    OperationSpec("collection.console", "read", "console-state", "console-state", "resource", "sources"),
     OperationSpec("collection.set_automatic", "write", "set-continuous-fetch", "continuous-fetch", "operation", "sources"),
     OperationSpec("collection.merge", "write", "start-merge", "merge-job", "operation", "sources"),
     OperationSpec("collection.merge_job", "read", "merge-job", "merge-job", "resource", "sources"),
@@ -139,7 +142,7 @@ _TITLES: dict[str, str] = {
     "runs": "回测存档", "run": "回测详情", "benchmarks": "基准指数目录", "benchmark": "基准序列",
     "research-inputs": "研究数据集", "sources": "数据源", "data-status": "数据状态",
     "data-search": "证券检索", "kline": "行情序列", "doctor": "完整性检查",
-    "continuous-fetch": "自动续采", "fetch-job": "采集任务", "snapshot": "来源快照",
+    "continuous-fetch": "自动续采", "console-state": "中控台状态", "fetch-job": "采集任务", "snapshot": "来源快照",
     "evidence": "采集证据", "job": "采集任务", "merge-job": "合并任务", "doctor-job": "修复队列",
 }
 
@@ -303,7 +306,6 @@ def export_operations() -> dict[str, JsonObject]:
 
 class Benchmarks:
     def __init__(self, store, specs):
-        from math import isfinite
         self.store = store
         self.specs = {item["id"]: item for item in specs}
         if len(self.specs) != len(specs):
@@ -312,33 +314,117 @@ class Benchmarks:
     def list(self):
         return list(self.specs.values())
 
+    def _dataset(self, spec):
+        dataset = spec.get('dataset_id')
+        if not isinstance(dataset, str) or not dataset:
+            raise ValueError('基准必须登记标准dataset_id')
+        code = normalize_security_id(spec['code'])
+        manifest = self.store.manifest(dataset)
+        declared = (manifest.get('scope') or {}).get('symbols') or ()
+        spellings = {str(symbol) for symbol in declared if normalize_security_id(str(symbol)) == code}
+        if declared and not spellings:
+            raise ValueError(f"基准 {spec['id']} 需要 {code} 的行情，"
+                             f'数据集 {dataset} 未包含；先导入该基准数据，或改用已导入的基准')
+        return manifest, code, tuple(sorted(spellings | {code}))
+
+    def _observations(self, spec):
+        from math import isfinite
+        from market import digest
+
+        manifest, code, spellings = self._dataset(spec)
+        reference = manifest['inputs']['bars']
+        rows = self.store.table(reference, filters=(Filter('code', 'in', spellings),),
+                                columns=('date', 'close'), order=('date',)).to_pylist()
+        points = []
+        for row in rows:
+            if row['close'] is None:
+                continue
+            day, close = str(row['date']), float(row['close'])
+            if not isfinite(close) or close <= 0:
+                raise ValueError('基准收盘价必须为正数')
+            if points and points[-1]['at'] == day:
+                raise ValueError('基准收盘日期重复')
+            points.append({'at': day, 'close': close})
+        if not points:
+            raise ValueError('基准标准行情在请求区间没有数据')
+        return points, digest({'dataset': spec['dataset_id'], 'code': code,
+                               'bars': reference, 'points': points})
+
+    def _fx_spec(self, spec):
+        rate = self.specs[spec['fx_id']]
+        if rate['id'] == spec['id'] or rate.get('fx_id'):
+            raise ValueError('benchmark FX must be a direct rate series')
+        if (rate.get('base_currency') != spec.get('quote_currency')
+                or rate.get('currency') != spec.get('currency')):
+            raise ValueError('benchmark FX currency direction differs')
+        return rate
+
+    @staticmethod
+    def _result(spec, start, end, points, hashes):
+        from hashlib import sha256
+
+        digest = (sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
+                  if spec.get('fx_id') else hashes[spec['id']])
+        return {**spec, 'snapshot_id': digest, 'source_hashes': hashes,
+                'collected_at': None, 'start': start, 'end': end, 'points': points}
+
+    def _chart(self, spec):
+        from bisect import bisect_right
+        from datetime import time
+        from zoneinfo import ZoneInfo
+
+        # A chart reads recorded closes. Replaying an account uses a trading
+        # calendar and requires a following session for its last day.
+        points, digest = self._observations(spec)
+        hashes = {spec['id']: digest}
+        if spec.get('alignment') not in (None, 'previous_close'):
+            raise ValueError('unsupported benchmark date alignment')
+        if spec.get('alignment') == 'previous_close':
+            points = [{**point, 'observed_at': point['at']} for point in points]
+        if spec.get('fx_id'):
+            rate = self._fx_spec(spec)
+            rates, rate_digest = self._observations(rate)
+            hashes[rate['id']] = rate_digest
+            zone = ZoneInfo(spec['timezone'])
+            rate_zone = ZoneInfo(rate['timezone'])
+            close = time.fromisoformat(spec['session_close'])
+            rate_close = time.fromisoformat(rate['session_close'])
+            stamps = [datetime.combine(date.fromisoformat(point['at']), rate_close, rate_zone)
+                      for point in rates]
+            converted = []
+            for point in points:
+                stamp = datetime.combine(date.fromisoformat(point['at']), close, zone)
+                if stamp.astimezone(rate_zone).date().isoformat() > rates[-1]['at']:
+                    break
+                index = bisect_right(stamps, stamp) - 1
+                if index >= 0:
+                    row = rates[index]
+                    converted.append({**point, 'close': point['close'] * row['close'],
+                                      'observed_at': point['at'], 'fx_observed_at': row['at']})
+            if not converted:
+                raise ValueError('基准和汇率没有重叠的观测日期')
+            points = converted
+        return self._result(spec, points[0]['at'], points[-1]['at'], points, hashes)
+
     def series(self, identity, start, end, *, dates=None):
         from math import isfinite
         if identity not in self.specs:
             raise KeyError(identity)
         spec = self.specs[identity]
+        if start is None and end is None and dates is None:
+            with self.store.transaction(readonly=True):
+                return self._chart(spec)
         dataset_id = spec.get("dataset_id")
         if isinstance(dataset_id, str) and dataset_id:
             from bisect import bisect_right
             from datetime import datetime, time
             from zoneinfo import ZoneInfo
-            requested_code = normalize_security_id(spec["code"])
-            manifest = self.store.manifest(dataset_id)
-            declared = {normalize_security_id(str(code))
-                        for code in (manifest.get('scope') or {}).get('symbols') or ()}
-            if declared and requested_code not in declared:
-                raise ValueError(f'基准 {identity} 需要 {requested_code} 的行情，'
-                                 f'数据集 {dataset_id} 未包含；先导入该基准数据，或改用已导入的基准')
+            _, requested_code, _ = self._dataset(spec)
             calendar = self.store.calendar(dataset_id)
             sessions = [date.fromisoformat(day) for day in calendar.get('sessions', ())]
             if len(sessions) < 2:
                 raise ValueError('benchmark calendar is missing')
-            # An omitted bound means "whatever the benchmark actually covers":
-            # a chart should span the stored history, not a window the caller
-            # had to guess. The end stops one session short because the query
-            # needs a following session to complete the last bar. A
-            # previous-close benchmark also needs one session of lead-in, since
-            # its first plotted day is priced off the prior close.
+            # A comparison with one bound omitted still uses the replay calendar.
             aligned = spec.get('alignment') == 'previous_close'
             if start is None:
                 start = (sessions[1] if aligned and len(sessions) > 2 else sessions[0]).isoformat()
@@ -402,26 +488,15 @@ class Benchmarks:
                           for target, day in zip(requested, observed)]
             elif dates is not None and tuple(item["at"] for item in points) != tuple(dates):
                 raise ValueError("基准日期不全或顺序不一致")
-            digest = result.provenance.get('data_hash')
-            hashes = {identity: digest}
+            hashes = {identity: result.provenance.get('data_hash')}
             if spec.get('fx_id'):
-                fx_id = spec['fx_id']
-                if fx_id == identity or self.specs[fx_id].get('fx_id'):
-                    raise ValueError('benchmark FX must be a direct rate series')
-                rate_spec = self.specs[fx_id]
-                if (rate_spec.get('base_currency') != spec.get('quote_currency')
-                        or rate_spec.get('currency') != spec.get('currency')):
-                    raise ValueError('benchmark FX currency direction differs')
-                fx = self.series(fx_id, start, end, dates=tuple(point['at'] for point in points))
+                rate = self._fx_spec(spec)
+                fx = self.series(rate['id'], start, end, dates=tuple(point['at'] for point in points))
                 points = [{**point, 'close': point['close'] * rate['close'],
                            'fx_observed_at': rate.get('observed_at', rate['at'])}
                           for point, rate in zip(points, fx['points'])]
                 hashes.update(fx['source_hashes'])
-                from hashlib import sha256
-                digest = sha256(json.dumps(hashes, sort_keys=True).encode()).hexdigest()
-            return {**spec, "snapshot_id": digest, 'source_hashes': hashes,
-                    "collected_at": None, "start": start, "end": end,
-                    "points": points}
+            return self._result(spec, start, end, points, hashes)
         raise ValueError('基准必须登记标准dataset_id')
 
 
@@ -905,7 +980,8 @@ def build_backend(root: Path) -> Protocol:
         datasets=datasets, research=Research(data),
     )
     commands = CommandPort(project, backtests, data)
-    return Protocol(Modules(backtests, backtests, CollectionPort(sources_port), Views(data, sources), commands))
+    from radar import Radar
+    return Protocol(Modules(backtests, backtests, CollectionPort(sources_port), Views(data, sources), commands, Radar(data)))
 
 
 class KernelBacktestPort:
@@ -1327,9 +1403,9 @@ class Protocol:
         unique = []
         for port in (
             self._modules.backtests, self._modules.research, self._modules.sources,
-            self._modules.data, self._modules.commands,
+            self._modules.data, self._modules.commands, self._modules.radar,
         ):
-            if all(port is not item for item in unique):
+            if port is not None and all(port is not item for item in unique):
                 unique.append(port)
         return tuple(unique)
 

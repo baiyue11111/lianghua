@@ -3,6 +3,7 @@ import {createDisplay} from '../../display/src/core';
 import {features,outputSchema} from '../../display/src/features';
 import {action} from '../src/interaction/action';
 import {DisplayProvider} from '../src/interaction/model';
+import {ConsoleContext} from '../src/apple/console';
 import {nodes} from './capture';
 import Workspace from '../src/Workspace';
 export * from '../src/research/model';
@@ -10,7 +11,7 @@ export * from '../src/shared/format';
 export {strategyGroups as originalGroups} from '../../display/src/research/research-model';
 export {strategyGroups,runConfig} from '../src/research/groups';
 export * from '../src/app/router';
-export function fixture(responses={}){
+export function fixture(responses={},consoleSnapshot){
   const calls=[];
   const core=createDisplay({...features(),backend:{send:async request=>{
     calls.push({operation:request.operation,data:request.data});
@@ -27,7 +28,7 @@ export function fixture(responses={}){
   const read=(target,operation,data={})=>core.dispatch(action('invoke',target,data,operation));
   function render(){
     nodes.length=0;
-    const html=renderToString(<DisplayProvider value={core}><Workspace/></DisplayProvider>);
+    const html=renderToString(<ConsoleContext.Provider value={consoleSnapshot}><DisplayProvider value={core}><Workspace/></DisplayProvider></ConsoleContext.Provider>);
     return {html,nodes:[...nodes]};
   }
   return {core,calls,edit,read,render};

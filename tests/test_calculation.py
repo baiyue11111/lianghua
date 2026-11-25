@@ -1,12 +1,14 @@
 from datetime import date, datetime, timezone
 from decimal import Decimal
-import json
+from pathlib import Path
+from tempfile import TemporaryDirectory
 import unittest
 
 from protocol import BacktestError, BacktestRequest
 from protocol import HistoryBar, MarketFrame
-from backend import save_backtest
+from backend import Research, save_backtest
 from core.calculation import Calculation
+from tests.history_fixture import fixture_data
 
 
 class CalculationTests(unittest.TestCase):
@@ -188,14 +190,6 @@ class CalculationTests(unittest.TestCase):
             )
 
     def test_save_backtest_reuses_result_effective_config(self):
-        class Data:
-            def __init__(self):
-                self.writes = {}
-
-            def write(self, kind, identity, name, value):
-                self.writes[(kind, identity, name)] = value
-
-        data = Data()
         request = BacktestRequest(
             "run", "strategy", {}, "dataset",
             datetime(2024, 1, 1, tzinfo=timezone.utc),
@@ -203,6 +197,11 @@ class CalculationTests(unittest.TestCase):
             Decimal("100"), evaluation_parameters={"periods": 12, "risk_free_rate": .01},
         )
         value = {
+            "run_id": request.run_id, "strategy_id": request.strategy_id,
+            "dataset_id": request.dataset_id, "first_at": request.start.isoformat(),
+            "last_at": request.end.isoformat(), "steps": 2, "fills": 0,
+            "final_cash": "110", "final_equity": "110", "pending_orders": 0,
+            "positions": {},
             "metrics": {"total_return": .1},
             "effective_config": {
                 "dataset_id": "dataset", "evaluation": {"periods": 12, "risk_free_rate": .01},
@@ -211,8 +210,9 @@ class CalculationTests(unittest.TestCase):
             },
             "config_hash": "hash", "provenance": {}, "trace": {},
         }
-        save_backtest(data, request, value)
-        manifest = json.loads(data.writes[("runs", "run", "manifest.json")])
+        with TemporaryDirectory() as directory, fixture_data(Path(directory)) as data:
+            save_backtest(data, request, value)
+            manifest = Research(data).rows('runs', request.run_id)[0]['manifest']
         self.assertEqual(manifest["effective_config"], value["effective_config"])
         self.assertEqual(manifest["config_hash"], value["config_hash"])
 

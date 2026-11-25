@@ -16,13 +16,15 @@ class SeriesTests(unittest.TestCase):
         return methods.FredSeries({}, transport=lambda url: text)
 
     def test_identity_dates_missing_observations_and_raw_evidence(self):
-        text='observation_date,OTHER\n2020-01-30,100\n2020-01-31,.\n2020-02-03,102\n'
-        request={'codes':['fred.other'],'fields':['close'],'start':'2020-01-30','end':'2020-02-03'}
+        text=('observation_date,OTHER\n2020-01-30,100\n2020-01-31,.\n'
+              '2020-02-03,102\n2020-02-04,.\n')
+        request={'codes':['fred.other'],'fields':['close'],'start':'2020-01-30','end':'2020-02-04'}
         packet=self.provider(text).collect(request)
         self.assertEqual(packet['records'],[
             {'code':'fred.other','date':'2020-01-30','close':100.},
             {'code':'fred.other','date':'2020-02-03','close':102.}])
         self.assertEqual(packet['calendar']['sessions'],['2020-01-30','2020-02-03'])
+        self.assertEqual(packet['calendar']['coverage'], [{'start': '2020-01-30', 'end': '2020-02-03'}])
         self.assertEqual(packet['raw'][0]['response'],text)
         self.assertIn('id=OTHER',packet['raw'][0]['request']['url'])
         self.assertEqual(normalize_security_id('FRED.NASDAQCOM'),'fred.nasdaqcom')
@@ -83,6 +85,67 @@ class SeriesTests(unittest.TestCase):
                                    packet)
             self.assertEqual(result["records"], 3)
             self.assertEqual(bus.manifest("series"), before)
+
+    def test_unbounded_index_uses_observed_closes_and_covered_fx(self):
+        from backend import Benchmarks
+
+        sources = [
+            ("index", "fred.other", "OTHER", [
+                ("2020-01-30", 100), ("2020-01-31", 110), ("2020-02-03", 120),
+                ("2020-02-04", 130), ("2020-02-05", 140),
+            ]),
+            ("fx", "fred.rate", "RATE", [("2020-01-31", 7), ("2020-02-04", 8)]),
+        ]
+        with tempfile.TemporaryDirectory() as folder, closing(build_data(Path(folder))) as bus:
+            for dataset, code, series, observations in sources:
+                source = {"id": dataset, "method": "fred_series", "data_type": "daily",
+                          "dataset_id": dataset, "storage_id": dataset, "fields": ["close"],
+                          "defaults": {"codes": [code]}}
+                text = f"observation_date,{series}\n" + "".join(
+                    f"{day},{close}\n" for day, close in observations)
+                provider = self.provider(text)
+                fetch = methods.Methods(bus, {"fred_series": lambda _source, request:
+                                              provider.collect(request)})
+                first, second = (day for day, _close in observations[:2])
+                bus.save_calendar(dataset, {"sessions": [first, second],
+                                            "coverage": [{"start": first, "end": second}]})
+                request = fetch.prepare_request(source, {"codes": [code], "start": first,
+                                                        "end": observations[-1][0]})
+                fetch.publish(source, fetch.fetch(source, request))
+                bus.save_manifest(dataset, {
+                    "schema": 3, "calendar": "calendar:" + dataset, "fields": {},
+                    "inputs": {"bars": bus.source(dataset, "bars")},
+                    "scope": {"symbols": [code], "universe": "benchmark"},
+                })
+            alignment = {"alignment": "previous_close", "timezone": "America/New_York",
+                         "comparison_timezone": "Asia/Shanghai", "comparison_close": "15:00"}
+            index = {**alignment, "id": "index", "dataset_id": "index", "code": "fred.other",
+                     "currency": "USD", "session_close": "16:00"}
+            cny = {**index, "id": "index_cny", "currency": "CNY", "quote_currency": "USD", "fx_id": "fx"}
+            fx = {**alignment, "id": "fx", "dataset_id": "fx", "code": "fred.rate",
+                  "currency": "CNY", "base_currency": "USD", "session_close": "12:00"}
+            service = Benchmarks(bus, [index, cny, fx])
+
+            with self.subTest("USD chart includes native latest observation"):
+                result = service.series("index", None, None)
+                self.assertEqual(result["end"], "2020-02-05")
+                self.assertEqual(result["points"][-1], {
+                    "at": "2020-02-05", "close": 140, "observed_at": "2020-02-05",
+                })
+
+            with self.subTest("CNY chart is limited to FX coverage and records source dates"):
+                result = service.series("index_cny", None, None)
+                self.assertEqual((result["start"], result["end"]), ("2020-01-31", "2020-02-04"))
+                self.assertEqual(result["points"], [
+                    {"at": "2020-01-31", "close": 770, "observed_at": "2020-01-31",
+                     "fx_observed_at": "2020-01-31"},
+                    {"at": "2020-02-03", "close": 840, "observed_at": "2020-02-03",
+                     "fx_observed_at": "2020-01-31"},
+                    {"at": "2020-02-04", "close": 1040, "observed_at": "2020-02-04",
+                     "fx_observed_at": "2020-02-04"},
+                ])
+                self.assertEqual(set(result["source_hashes"]), {"index_cny", "fx"})
+                self.assertRegex(result["snapshot_id"], "^[a-f0-9]{64}$")
 
 
 class CrossMarketBenchmarkTests(unittest.TestCase):

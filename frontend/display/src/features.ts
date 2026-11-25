@@ -17,6 +17,7 @@ const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes
  // start/end are optional: omitted means the benchmark's own stored span, so a
  // chart never has to guess a window. Existing callers may still pass a range.
  'research.benchmark':{input:object({id:text,start:text,end:text},['id'])},
+ 'radar.scan':{input:object({q:text},[])},
  'collection.sources':{input:object()},
  'collection.sync':{input:object({id:text,input:{type:'object'}}),mode:'write'},
  'collection.schedule':{input:object({id:text,enabled:boolean,interval_seconds:{type:'integer',minimum:30},input:{type:'object'}}),mode:'write'},
@@ -32,6 +33,7 @@ const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes
  'data.bars':{input:object({code:text,freq:text,adj:text,start:text,end:text},['code','freq','adj'])},
  'collection.start':{input:{type:'object'},mode:'write'},'collection.current':{input:object()},
  'collection.stop':{input:object(),mode:'write'},'collection.automatic':{input:object({market:text})},
+ 'collection.console':{input:object({market:text})},
  'collection.set_automatic':{input:object({market:text,enabled:boolean}),mode:'write'},
  'service.info':{input:object()},
  'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object()},
@@ -39,16 +41,12 @@ const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes
  // the page submits a job and polls it. The poll carries the finished result,
  // which is where the comparison with the previous attempt is taken from.
  'backtest.job':{input:object({id:text},[]),changes:(state,target,_request,messages):Record<string,Record<string,JsonValue>>=>{
-   const data=messages.find(m=>m.kind!=='problem')?.data as {running?:boolean;result?:{id?:string}}|undefined;
+   const data=messages.find(m=>m.kind!=='problem')?.data as {result?:{id?:string;effective_config:JsonValue}}|undefined;
    const result=data?.result;
    if(!result?.id)return {};
-   const completed={input:data as unknown as JsonValue,result:result as unknown as JsonValue};
+   const completed={input:result.effective_config,result};
    const comparison=state.targets[target+":comparison"]?.values??{};
-   const runs=(state.targets["research:archives"]?.values["research.runs"] as JsonValue[][]|undefined)?.[0]??[];
-   const kept=runs.filter(run=>(run as {id?:string})?.id!==result.id);
-   return {[target+":comparison"]:{baseline:comparison.baseline??completed,latest:completed},
-     "research:archives":{"research.runs":[result as unknown as JsonValue,...kept]},
-     research:{current:result.id}};
+   return {[target+":comparison"]:{baseline:comparison.baseline??completed,latest:completed}};
  }},
  'data.check':{input:object()},'collection.repair':{input:object({id:text}),mode:'write'},'collection.repair_job':{input:object()},
  'cli.backtest':{input:object({config:text}),mode:'write'},
@@ -87,7 +85,7 @@ export function features():Pick<Options,'operations'|'schemas'> {
        return {[target+":comparison"]:{baseline:comparison.baseline??completed,latest:completed},
          "research:archives":{"research.runs":[[result as unknown as JsonValue,...runs.filter(run=>(run as {id?:string})?.id!==result.id)]]},
          research:{current:result.id}};
-     }}:operation==='backtest.submit'?{requires:'backtest.prepare'}:{ready:messages=>messages.some(m=>(m.data as {ready?:boolean})?.ready===true)}),
+     }}:operation==='backtest.prepare'?{ready:messages=>messages.some(m=>(m.data as {ready?:boolean})?.ready===true)}:{}),
    });
  }
  // Exported by the feature, rather than added to the generic public contract.

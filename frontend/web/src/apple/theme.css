@@ -78,6 +78,10 @@
 .apple .pagehead .sub { margin-top: 7px; color: var(--muted); font-size: 13px; }
 .apple .head-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
 
+.apple .input.radar-search { width: auto; }
+.apple .radar-date { white-space: nowrap; }
+.apple [data-od-id='radar-page'] .notice { margin: 0 0 16px; }
+
 /* ---- primitives ---- */
 .apple .grid { display: grid; gap: 18px; }
 .apple .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -261,12 +265,6 @@
 .apple .op-row .lb { color: var(--muted); }
 .apple .op-group { margin-bottom: 20px; }
 .apple .op-group h3 { font-size: 13px; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
-.apple .run-steps { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 18px; }
-.apple .run-step { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
-.apple .run-step .n { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; background: #e9e9ee; color: var(--muted); font-size: 11px; font-weight: 650; }
-.apple .run-step.done .n { background: var(--accent); color: #fff; }
-.apple .run-step.done { color: var(--fg); font-weight: 600; }
-.apple .run-arrow { color: var(--faint); }
 
 @media (max-width: 1280px) {
   .apple .market-layout { grid-template-columns: 224px minmax(0, 1fr); }

@@ -30,13 +30,16 @@ from __future__ import annotations
 
 import asyncio
 import json
+import time
+from collections.abc import AsyncIterable
 from contextlib import asynccontextmanager
 from importlib import import_module
 from urllib.parse import urlsplit
 from uuid import uuid4
 
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.sse import format_sse_event
 
 
 ui = import_module("frontend.ui-protocol")
@@ -47,6 +50,17 @@ MEDIA_TYPE = "application/json"
 BODY_LIMIT = 1 << 20          # one megabyte; a UiRequest is a few kilobytes
 BUDGET = 20.0                 # seconds a UI operation may hold the caller
 TITLE = "协议请求未完成"
+
+# A control console shows a handful of facts that change at human speed. One
+# second is fast enough to watch a job start, and slow enough that a stream of
+# ~300-byte documents costs nothing. The stream is read-only; commands still go
+# through the ordinary request/response path with its write guards. Every tick
+# carries its own timestamp, so "updated N seconds ago" stays honest without a
+# second clock in the browser.
+CONSOLE_TICK = 1.0
+CONSOLE_MARKET = "沪深"
+CONSOLE_OPERATION = "collection.console"
+CONSOLE_SCHEMA = f"urn:lianghua:ui:input:{CONSOLE_OPERATION}:v1"
 
 
 def _problem(detail: str, code: str = "invalid_request", retryable: bool = False) -> dict:
@@ -69,6 +83,24 @@ def _problem(detail: str, code: str = "invalid_request", retryable: bool = False
 def _reject(status: int, detail: str, code: str = "invalid_request",
             retryable: bool = False) -> JSONResponse:
     return JSONResponse(status_code=status, content=[_problem(detail, code, retryable)])
+
+
+def _guard(request: Request) -> JSONResponse | None:
+    """The same two checks every loopback entry point has to pass.
+
+    An ``EventSource`` is a GET, so it gets no preflight either. Sharing the
+    rule with the POST path keeps a stream from becoming the one door that
+    skips the boundary.
+    """
+    host = request.headers.get("host", "")
+    if not host:
+        return _reject(403, "transport requires a loopback Host header")
+    if not _loopback(host):
+        return _reject(403, f"transport serves loopback hosts only: {host}")
+    origin = request.headers.get("origin", "")
+    if origin and not _origin_ok(origin):
+        return _reject(403, f"transport serves loopback origins only: {origin}")
+    return None
 
 
 def _host_name(value: str) -> str:
@@ -136,16 +168,29 @@ def create_app(backend: ui.BackendPort) -> FastAPI:
 
     app = FastAPI(title="Lianghua Protocol Transport", lifespan=lifespan)
 
+    @app.get("/api/console/stream")
+    async def console_stream(request: Request):
+        refusal = _guard(request)
+        if refusal is not None:
+            return refusal
+
+        async def read_state():
+            return await _console_state(backend)
+
+        # FastAPI's `response_class=EventSourceResponse` only encodes handlers
+        # that are generators, and a generator cannot return the 403 a rejected
+        # stream needs. An explicit streaming response keeps the guard intact
+        # and leaves the wire format to FastAPI's own SSE encoder.
+        return StreamingResponse(
+            console_events(read_state), media_type="text/event-stream",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
     @app.post("/api/protocol")
     async def exchange(request: Request):
-        host = request.headers.get("host", "")
-        if not host:
-            return _reject(403, "transport requires a loopback Host header")
-        if not _loopback(host):
-            return _reject(403, f"transport serves loopback hosts only: {host}")
-        origin = request.headers.get("origin", "")
-        if origin and not _origin_ok(origin):
-            return _reject(403, f"transport serves loopback origins only: {origin}")
+        refusal = _guard(request)
+        if refusal is not None:
+            return refusal
         declared = _media_type(request.headers.get("content-type", ""))
         if declared != MEDIA_TYPE:
             # Refusing this is what keeps the browser from sending the request
@@ -171,6 +216,46 @@ def create_app(backend: ui.BackendPort) -> FastAPI:
         return [item.to_dict() for item in messages]
 
     return app
+
+
+async def console_events(read_state, tick: float = CONSOLE_TICK) -> AsyncIterable[bytes]:
+    """Push one compact snapshot per tick as an SSE frame.
+
+    An earlier version deduplicated by hashing the whole document. That could
+    never fire: the snapshot carries ``at = time.time()``, so every hash was
+    different and the filter only added dead code. A fixed, small stream is
+    simpler and keeps the freshness label accurate.
+    """
+    while True:
+        try:
+            state = await read_state()
+            yield format_sse_event(
+                data_str=json.dumps(state, ensure_ascii=False, separators=(',', ':')),
+                event="console", id=str(int(state['at'] * 1000)),
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            yield format_sse_event(
+                data_str=json.dumps({"detail": str(error)[:200]}, ensure_ascii=False),
+                event="error",
+            )
+        await asyncio.sleep(tick)
+
+
+async def _console_state(backend: ui.BackendPort) -> dict:
+    """Read one compact console snapshot through the ordinary protocol path.
+
+    The stream does not reach around the backend into the store: the same
+    registry, schema check and port dispatch apply, only the operation is one
+    that returns six facts instead of the entire job history.
+    """
+    request = ui.UiRequest(uuid4().hex, CONSOLE_OPERATION, CONSOLE_SCHEMA,
+                           {"market": CONSOLE_MARKET})
+    for item in await _run(backend, request):
+        if item.kind == "resource":
+            return item.data
+    raise ValueError("console state did not return a resource")
 
 
 async def _run(backend: ui.BackendPort, message):

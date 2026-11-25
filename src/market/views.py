@@ -1,6 +1,7 @@
 """Read-only data views behind the standard backend port."""
 from collections.abc import Mapping
 from datetime import date, datetime
+import re
 
 from protocol import DataError, EXECUTION_FIELDS, SQLQuery, normalize_security_id
 
@@ -23,12 +24,21 @@ class Views:
             return self.doctor_report()
         raise ValueError(f"unsupported data operation: {operation}")
 
-    def _tables(self, data_type):
+    def _tables(self, data_type, *, categories=(None,), observed=False):
         sources = self.data.registry()['sources']
-        return tuple(dict.fromkeys(
-            self.data.source(source.get('storage_id', source['id']),
-                             'bars' if data_type == 'daily' else 'records')
-            for source in sources if source.get('data_type') == data_type))
+        kind = 'bars' if data_type == 'daily' else 'records'
+        references = {}
+        for source in sources:
+            if source.get('data_type') != data_type or source.get('category') not in categories:
+                continue
+            try:
+                reference = self.data.source(source.get('storage_id', source['id']), kind)
+            except DataError as error:
+                if not observed or error.code != 'missing':
+                    raise
+            else:
+                references[reference] = None
+        return tuple(references)
 
     @staticmethod
     def _name(name):
@@ -211,7 +221,7 @@ class Views:
         if not isinstance(query, str):
             raise TypeError('q must be text')
         with self.data.transaction(readonly=True):
-            tables = self._tables('stock_info')
+            tables = self._tables('stock_info', categories=(None, 'fund'), observed=True)
             if not tables:
                 raise DataError('missing', 'canonical stock_info table is required')
             stocks = self._source(tables)
@@ -227,7 +237,7 @@ class Views:
                 WHERE cast(code AS VARCHAR) LIKE '%' || ? || '%'
                    OR coalesce(cast(name AS VARCHAR), '') LIKE '%' || ? || '%'
                 ORDER BY code LIMIT 20)"""
-            daily_tables = self._tables('daily')
+            daily_tables = self._tables('daily', categories=(None, 'fund'), observed=True)
             if daily_tables:
                 daily = self._source(daily_tables)
                 columns = self._columns(daily)
@@ -355,6 +365,21 @@ class Views:
         return {"items": rows}
 
 
+    def _chart_code(self, code):
+        try:
+            return normalize_security_id(code)
+        except ValueError:
+            if not isinstance(code, str) or not re.fullmatch(r'\d{6}', code):
+                return code
+        tables = self._tables('stock_info', categories=(None, 'fund'), observed=True)
+        if not tables:
+            return code
+        rows = self._rows("SELECT DISTINCT code FROM " + self._source(tables)
+                          + " WHERE split_part(code, '.', 2) = ? LIMIT 2", (code,))
+        if len(rows) > 1:
+            raise ValueError('证券代码匹配多个市场，请使用完整代码')
+        return rows[0]['code'] if rows else code
+
     def bars(self, value):
         frequencies = {"分时", "日", "周", "月", "年"}
         adjustments = {"不复权", "前复权", "后复权"}
@@ -366,7 +391,9 @@ class Views:
             if source.get("frequency") not in {"minute", "intraday"}:
                 raise ValueError("分时源频率无效")
             raise ValueError("分时源尚未提供标准查询字段")
-        source = self.sources.select(mode="kline", data_type="daily")
+        code = value["code"]
+        qualified = self._chart_code(code)
+        source = self.sources.select(mode="kline", data_type="daily", code=qualified)
         dataset = source.get("dataset_id")
         calendar_name = source.get("calendar")
         if not isinstance(dataset, str) or not isinstance(calendar_name, str):
@@ -380,19 +407,17 @@ class Views:
         # default existed only because the backtest query fills suspended days
         # and rejects the resulting holes; that is a write-side correctness rule
         # and does not apply to displaying bars that were actually observed.
-        reference = self.data.source(dataset, 'bars')
-        table = self._name(reference[5:])
+        permitted = source.get('params', {}).get('adjustments', adjustments)
+        if adj not in permitted:
+            raise ValueError('这一行情来源不提供所选复权口径')
         # The store keys codes market-qualified (sh.600000); callers may pass a
         # bare six-digit code. Match either so display is as tolerant as the
         # backtest query path that used to normalize this for us.
-        code = value["code"]
-        try:
-            qualified = normalize_security_id(code)
-        except ValueError:
-            qualified = code
         codes = (code, qualified) if qualified != code else (code,)
         marks = ', '.join('?' for _ in codes)
         try:
+            reference = self.data.source(source.get('storage_id', dataset), 'bars')
+            table = self._name(reference[5:])
             bounds = self._rows(f'SELECT min(cast(date AS DATE)) AS first, '
                                 f'max(cast(date AS DATE)) AS last FROM {table} '
                                 f'WHERE code IN ({marks})', codes)[0]

@@ -27,6 +27,7 @@ from urllib.request import Request as URLRequest, urlopen
 
 DEFAULT_TIMEOUT = 30
 _BAOSTOCK_LOCK = Lock()
+_SINA_LOCK = Lock()
 # Relative slack on the daily open/close-in-range test; see Methods.daily_rows.
 _OHLC_SLACK = 1e-4
 
@@ -1036,6 +1037,9 @@ class Methods:
         value.update(deepcopy(dict(request)))
         if "codes" in value:
             value["codes"] = cls._request_items(value["codes"], "codes")
+            pattern = source.get('code_format')
+            if pattern and any(not re.fullmatch(pattern, code) for code in value['codes']):
+                raise ValueError('security code is outside the source scope')
         if "fields" in value:
             fields = cls._request_items(value["fields"], "fields")
             if source.get('data_type') not in {'daily', 'daily_factors'} and source.get('method') != 'daily':
@@ -1506,6 +1510,8 @@ class Methods:
         try:
             ref = result['ref']
             version = None if ref is None else (self.records(source, 0, 0)['snapshot_id'] if daily else ref.sha256)
+            if source.get('data_type') == 'quotes':
+                version = _sha256(rows)
             if source.get('data_type') == 'calendar':
                 version = self.records(source, 0, 0)['snapshot_id']
             event = {'source_id': source['id'], 'snapshot_id': version,
@@ -1518,6 +1524,7 @@ class Methods:
                                        if row.get('_previous_hash') else {})} for row in rows],
                       'collected_at': datetime.now(timezone.utc).isoformat()}
             self.log(event)
+            result['snapshot_id'] = version
             if version is not None:
                 self._evidence.clear()
                 self._evidence[version] = event
@@ -1613,7 +1620,10 @@ class Methods:
                         for row in incoming):
             raise DataError("invalid_packet", "record identity fields are required")
         try:
-            old = self._source_rows(self._identity(source))
+            reference = self.data.source(self._identity(source), 'records')
+            filters = tuple(Filter(key, 'in', tuple(dict.fromkeys(row[key] for row in incoming)))
+                            for key in keys)
+            old = self.data.table(reference, filters=filters).to_pylist() if incoming else []
         except DataError as error:
             if error.code != 'missing':
                 raise
@@ -1745,7 +1755,7 @@ class Methods:
         return {'records': len(incoming), 'incoming': len(incoming), 'failures': []} if dry_run else {
             'ref': None, 'records': len(incoming), 'failures': []}
 
-    def records(self, source: Mapping, offset=0, limit=50, **scope):
+    def records(self, source: Mapping, offset=0, limit=50, *, include_audit=True, **scope):
         if type(offset) is not int or offset < 0 or type(limit) is not int or not 0 <= limit <= 1000:
             raise ValueError("invalid records page")
         if source.get('data_type') == 'market_facts':
@@ -1756,7 +1766,7 @@ class Methods:
                 refs = [row['reference'] for row in rows[offset:offset + limit]]
                 facts = self.data.facts(refs, strict=True)
             page = [facts[ref] for ref in refs]
-            raw = self.record_evidence(page[0]) if len(page) == 1 else []
+            raw = self.record_evidence(page[0]) if include_audit and len(page) == 1 else []
             from market import digest as table_digest
             return {'snapshot_id': table_digest(rows), 'source_id': source['id'],
                     'collected_at': None, 'request': {}, 'data_as_of': None, 'scope': {},
@@ -1790,7 +1800,7 @@ class Methods:
                  if row.get(name) is not None]
         from market import digest as table_digest
         version = table_digest(content)
-        evidence = self.evidence(version)
+        evidence = self.evidence(version) if include_audit else {}
         start, end, keyword = scope.get('start'), scope.get('end'), scope.get('keyword', '')
         if start is not None and end is not None and date.fromisoformat(start) > date.fromisoformat(end):
             raise ValueError('start must not exceed end')
@@ -1804,7 +1814,7 @@ class Methods:
             return not keyword or keyword in json.dumps(row, ensure_ascii=False)
         rows = [row for row in rows if selected(row)]
         page = rows[offset:offset + limit]
-        raw = self.record_evidence(page[0]) if len(page) == 1 else []
+        raw = self.record_evidence(page[0]) if include_audit and len(page) == 1 else []
         fields = scope.get('fields')
         if fields is not None:
             fields = self._request_items(fields, 'fields')
@@ -1837,13 +1847,18 @@ class Methods:
     def evidence(self, version):
         if version in self._evidence:
             return self._evidence[version]
-        with self.data.transaction(readonly=True):
-            for row in self.data.scan(TableQuery('collection_audit')).table.to_pylist():
-                value = json.loads(row['settings']) if isinstance(row['settings'], str) else row['settings']
-                if value.get('snapshot_id') == version and isinstance(value.get('raw'), list):
-                    self._evidence[version] = value
-                    return value
-        return {}
+        rows = self.data.scan(SQLQuery("""
+            SELECT settings FROM collection_audit
+            WHERE json_extract(settings, '$.snapshot_id') = to_json(CAST(? AS VARCHAR))
+              AND json_type(settings, '$.raw') = 'ARRAY'
+            ORDER BY id LIMIT 1
+        """, (version,))).table.to_pylist()
+        if not rows:
+            return {}
+        settings = rows[0]['settings']
+        value = json.loads(settings) if isinstance(settings, str) else settings
+        self._evidence[version] = value
+        return value
 
     @staticmethod
     def _sql_name(name):
@@ -1950,7 +1965,8 @@ class Methods:
                     'sessions': sorted(set(current_calendar['sessions']) | set(incoming_calendar['sessions'])),
                     'coverage': _calendar_coverage([*current_calendar['coverage'], *incoming_calendar['coverage']]),
                 }
-                self.data.save_calendar(dataset_id, merged_calendar)
+                if merged_calendar != current_calendar:
+                    self.data.save_calendar(dataset_id, merged_calendar)
         return {'ref': None, 'records': len(incoming), 'failures': []}
 
     @staticmethod
@@ -1998,12 +2014,13 @@ class Methods:
 
     def _daily_view_context_readonly(self, source: Mapping, dataset_id: str):
         source_id = source['id']
-        manifest = self.data.manifest(dataset_id)
         calendar = self.data.calendar(dataset_id)
         sessions = tuple(date.fromisoformat(str(item)) for item in calendar.get('sessions', ()))
         if len(sessions) < 2:
             raise DataError('invalid_dataset', 'daily calendar requires a following session')
-        scope = dict(manifest.get('scope', {}))
+        catalogue = source.get('params', {}).get('catalogue')
+        scope = ({'symbols': [row['code'] for row in self._source_rows(catalogue)]}
+                 if catalogue else dict(self.data.manifest(dataset_id).get('scope', {})))
         dataset_symbols = tuple(scope.get('symbols', ()))
         if not dataset_symbols:
             raise DataError('invalid_dataset', 'daily scope symbols are required')
@@ -2022,11 +2039,11 @@ class Methods:
                       'evidence': self.data.manifest_digest(reference), 'scope': scope,
                       'calendar': [day.isoformat() for day in sessions]}
         snapshot_id = hashlib.sha256(_bytes(generation)).hexdigest()
-        return manifest, sessions, scope, symbols, reference, snapshot_id, dataset_symbols
+        return sessions, scope, symbols, reference, snapshot_id, dataset_symbols
 
     def daily_collection_summary(self, source: Mapping, dataset_id: str) -> Mapping[str, object]:
         source_id = source['id']
-        manifest, sessions, scope, symbols, reference, snapshot_id, dataset_symbols = self._daily_view_context(
+        sessions, scope, symbols, reference, snapshot_id, dataset_symbols = self._daily_view_context(
             source, dataset_id)
         table = reference[5:]
         codes = sorted({str(item) for item in symbols} | {normalize_security_id(str(item)) for item in symbols}
@@ -2051,7 +2068,7 @@ class Methods:
         source_id = source['id']
         if type(offset) is not int or offset < 0 or type(limit) is not int or limit < 0:
             raise DataError('invalid_snapshot', 'invalid snapshot page')
-        manifest, sessions, scope, declared, reference, snapshot_id, dataset_symbols = self._daily_view_context(
+        sessions, scope, declared, reference, snapshot_id, dataset_symbols = self._daily_view_context(
             source, dataset_id)
         start = sessions[0] if start is None else date.fromisoformat(str(start))
         end = sessions[-2] if end is None else date.fromisoformat(str(end))
@@ -2220,16 +2237,7 @@ class Methods:
 
 
     def record_rows(self, source):
-        with self.data.transaction(readonly=True):
-            offset = 0
-            while True:
-                view = self.records(source, offset, 1000)
-                if view is None:
-                    return
-                yield from view['records']
-                offset += len(view['records'])
-                if not view['records'] or offset >= view['total']:
-                    return
+        yield from self._source_rows(self._identity(source))
 
 
 
@@ -2257,6 +2265,23 @@ class EastmoneyQuotes:
     def __init__(self, config, transport: Callable = http):
         self.config, self.transport = config, transport
 
+    @staticmethod
+    def _observation(code, row, page):
+        if type(row.get('f124')) is not int or row['f124'] <= 0:
+            raise ValueError('invalid quote timestamp')
+        for field in ('f2', 'f3', 'f5', 'f6'):
+            if type(row.get(field)) not in (int, float) or not math.isfinite(row[field]):
+                raise ValueError('invalid quote value')
+        if any(row[field] < 0 for field in ('f2', 'f5', 'f6')):
+            raise ValueError('negative quote value')
+        volume = row['f5'] * 100
+        if not math.isfinite(volume):
+            raise ValueError('invalid quote volume')
+        return {'code': code, 'name': row['f14'], 'price': row['f2'],
+                'change_pct': row['f3'], 'volume': volume, 'amount': row['f6'],
+                'data_at': datetime.fromtimestamp(row['f124'], timezone.utc).isoformat(),
+                'raw_page': page}
+
     def collect(self, request):
         raw = []
         try:
@@ -2269,39 +2294,147 @@ class EastmoneyQuotes:
                 raise ValueError("latest quotes do not support historical frequency or adjustment")
             codes = request["codes"]
             if not codes or len(codes) != len(set(codes)) \
-                    or any(not re.fullmatch(r"[01]\.\d{6}", code) for code in codes):
-                raise ValueError("quotes codes require market.number e.g. 1.600000")
+                    or any(not re.fullmatch(r"(?:sh|sz)\.\d{6}", code) for code in codes):
+                raise ValueError("quotes require exchange-qualified codes e.g. sh.600000")
+            identities = {('1.' if code.startswith('sh.') else '0.') + code.split('.')[1]: code
+                          for code in codes}
             fields = "f2,f3,f4,f5,f6,f12,f13,f14,f124"
-            url = "https://push2.eastmoney.com/api/qt/ulist.np/get?" + urlencode(
-                {"secids": ",".join(codes), "fields": fields, "fltt": "2"})
-            response = self.transport(url)
-            raw.append({"url": url, "request": request, "response": response})
-            rows = response.get("data", {}).get("diff")
-            if not isinstance(rows, list) or len(rows) != len(codes):
-                raise ValueError("quote response missing requested securities")
-            records = []
-            for row in rows:
-                code = f"{row['f13']}.{row['f12']}"
-                if code not in codes or type(row.get("f124")) is not int or row["f124"] <= 0:
-                    raise ValueError("invalid quote identity or timestamp")
-                for field in ("f2", "f3", "f5", "f6"):
-                    if type(row.get(field)) not in (int, float) or not math.isfinite(row[field]):
-                        raise ValueError("invalid quote value")
-                if any(row[field] < 0 for field in ("f2", "f5", "f6")):
-                    raise ValueError("negative quote value")
-                records.append({"code": code, "name": row["f14"], "price": row["f2"],
-                                "change_pct": row["f3"], "volume": row["f5"], "amount": row["f6"],
-                                "data_at": datetime.fromtimestamp(
-                                    row["f124"], timezone.utc).isoformat(), "raw_page": 0})
-            if len({row["code"] for row in records}) != len(codes):
-                raise ValueError("duplicate quotes")
+            records, failures = [], []
+            items = list(identities)
+            for offset in range(0, len(items), 25):
+                batch = {key: identities[key] for key in items[offset:offset + 25]}
+                try:
+                    url = "https://push2.eastmoney.com/api/qt/ulist.np/get?" + urlencode(
+                        {"secids": ",".join(batch), "fields": fields, "fltt": "2"})
+                    response = self.transport(url)
+                    raw.append({"url": url, "request": request, "response": response})
+                    rows = response.get("data", {}).get("diff")
+                    if not isinstance(rows, list):
+                        raise ValueError('quote response must contain a list of observations')
+                    by_identity = {}
+                    for row in rows:
+                        identity = f"{row['f13']}.{row['f12']}"
+                        if identity not in batch:
+                            raise ValueError('quote identities differ from request')
+                        by_identity.setdefault(identity, []).append(row)
+                except Exception as error:
+                    failures.extend({"code": code, "error": f"{type(error).__name__}: {error}"}
+                                    for code in batch.values())
+                    continue
+                for identity, code in batch.items():
+                    observations = by_identity.get(identity, ())
+                    try:
+                        if not observations:
+                            raise ValueError('quote response missing requested security')
+                        if len(observations) != 1:
+                            raise ValueError('quote response contains duplicate security')
+                        records.append(self._observation(code, observations[0], len(raw) - 1))
+                    except (KeyError, OSError, OverflowError, TypeError, ValueError) as error:
+                        failures.append({'code': code, 'error': f'{type(error).__name__}: {error}'})
+            if not records and failures:
+                raise ValueError(failures[0]['error'])
             if names is not None:
                 records = [{key: value for key, value in row.items()
                             if key in {"code", "data_at", "raw_page"} | set(names)}
                             for row in records]
             return {"records": records, "raw": raw,
-                    "data_as_of": max(row["data_at"] for row in records),
+                    "data_as_of": max((row["data_at"] for row in records), default=None),
+                    "failures": failures,
                     "scope": {"codes": codes, "frequency": "provider quote snapshot"}}
+        except Exception as error:
+            raise CollectionError(str(error), raw) from error
+
+
+class SinaQuotes:
+    """Timestamped Shanghai and Shenzhen quotes with volume already in shares."""
+
+    keys = ('code', 'data_at')
+    types = {'change_pct': 'DOUBLE'}
+    fields = {'name', 'price', 'change_pct', 'volume', 'amount'}
+    envelope = re.compile(r'var hq_str_((?:sh|sz)\d{6})="([^"]*)";')
+
+    def __init__(self, config, transport=None):
+        self.transport = self.get if transport is None else transport
+
+    @staticmethod
+    def get(url):
+        request = URLRequest(url, headers={'Referer': 'https://finance.sina.com.cn/',
+                                          'User-Agent': 'Mozilla/5.0'})
+        with urlopen(request, timeout=DEFAULT_TIMEOUT) as response:
+            return response.read().decode('gb18030')
+
+    @staticmethod
+    def _observation(code, payload, page):
+        from zoneinfo import ZoneInfo
+
+        values = payload.split(',')
+        if len(values) < 32 or not values[0].strip():
+            raise ValueError('Sina quote is incomplete')
+        name = values[0].strip()
+        previous, price, amount = (float(values[index]) for index in (2, 3, 9))
+        volume = int(values[8])
+        if any(not isfinite(value) or value < 0 for value in (previous, price, amount)) or volume < 0:
+            raise ValueError('invalid Sina quote value')
+        local = datetime.strptime(f'{values[30]} {values[31]}', '%Y-%m-%d %H:%M:%S')
+        timestamp = local.replace(tzinfo=ZoneInfo('Asia/Shanghai')).astimezone(timezone.utc)
+        change = (price / previous - 1) * 100 if previous else None
+        if change is not None and not isfinite(change):
+            raise ValueError('invalid Sina quote change')
+        return {'code': code, 'name': name, 'price': price, 'change_pct': change,
+                'volume': volume, 'amount': amount, 'data_at': timestamp.isoformat(), 'raw_page': page}
+
+    def collect(self, request):
+        raw = []
+        try:
+            fields = request.get('fields')
+            if fields is not None and (not fields or not set(fields) <= self.fields
+                                       or len(fields) != len(set(fields))):
+                raise ValueError('invalid quote fields')
+            if request.get('frequency', 'd') != 'd' or request.get('adjustment', '3') != '3':
+                raise ValueError('latest quotes do not support historical frequency or adjustment')
+            codes = request['codes']
+            if (not codes or len(codes) != len(set(codes))
+                    or any(not re.fullmatch(r'(?:sh|sz)\.\d{6}', code) for code in codes)):
+                raise ValueError('quotes require exchange-qualified codes e.g. sh.600000')
+            records, failures = [], []
+            for offset in range(0, len(codes), 25):
+                batch = {code.replace('.', ''): code for code in codes[offset:offset + 25]}
+                url = 'https://hq.sinajs.cn/list=' + ','.join(batch)
+                try:
+                    text = self.transport(url)
+                    raw.append({'provider': 'sina', 'url': url, 'response': text,
+                                'volume_unit': 'share', 'amount_unit': 'CNY'})
+                    payloads = {}
+                    for line in text.splitlines():
+                        if not line.strip():
+                            continue
+                        match = self.envelope.fullmatch(line.strip())
+                        if not match:
+                            raise ValueError('invalid Sina quote response format')
+                        symbol, payload = match.groups()
+                        if symbol not in batch or symbol in payloads:
+                            raise ValueError('Sina quote identities differ from request')
+                        payloads[symbol] = payload
+                except Exception as error:
+                    failures.extend({'code': code, 'error': f'{type(error).__name__}: {error}'}
+                                    for code in batch.values())
+                    continue
+                for symbol, code in batch.items():
+                    try:
+                        payload = payloads.get(symbol)
+                        if not payload:
+                            raise ValueError('Sina quote response missing requested security')
+                        records.append(self._observation(code, payload, len(raw) - 1))
+                    except (OverflowError, ValueError) as error:
+                        failures.append({'code': code, 'error': f'{type(error).__name__}: {error}'})
+            if not records:
+                raise ValueError(failures[0]['error'])
+            if fields is not None:
+                keys = {'code', 'data_at', 'raw_page'} | set(fields)
+                records = [{key: value for key, value in row.items() if key in keys} for row in records]
+            return {'records': records, 'raw': raw, 'failures': failures,
+                    'data_as_of': max(row['data_at'] for row in records),
+                    'scope': {'codes': codes, 'frequency': 'provider quote snapshot'}}
         except Exception as error:
             raise CollectionError(str(error), raw) from error
 
@@ -3154,7 +3287,7 @@ class FredSeries:
         return {'records': records, 'raw': raw, 'fields': ['close'], 'frequency': 'daily',
                 'price_basis': 'raw', 'scope': {'codes': codes, 'start': str(start), 'end': str(end)},
                 'calendar': {'sessions': sorted(sessions),
-                             'coverage': [{'start': str(start), 'end': str(end)}]}}
+                             'coverage': [{'start': str(start), 'end': max(sessions)}]}}
 
 
 class SinaDaily:
@@ -3182,7 +3315,7 @@ class SinaDaily:
         encoded, end = json.JSONDecoder().raw_decode(text[match.end():])
         if not isinstance(encoded,str) or not encoded or not re.fullmatch(r'\s*;\s*(?:/\*[\s\S]*\*/)?\s*',text[match.end()+end:]):
             raise ValueError('daily response format changed')
-        with MiniRacer() as js:
+        with _SINA_LOCK, MiniRacer() as js:
             js.eval(hk_js_decode)
             return js.call('d', encoded)
 
@@ -3307,6 +3440,43 @@ class EastmoneyDaily:
             raise CollectionError(str(error),[*raw,*error.evidence]) from error
         except Exception as error:
             raise CollectionError(str(error),raw) from error
+
+
+class SinaEtfCatalogue:
+    """Current exchange-qualified ETF directory from Sina Finance."""
+
+    keys = ('code',)
+    types = {'ipoDate': 'VARCHAR', 'outDate': 'VARCHAR'}
+
+    def __init__(self, config):
+        pass
+
+    def collect(self, request):
+        import akshare
+
+        exchanges = request.get('exchanges', ['sh', 'sz'])
+        if not isinstance(exchanges, (list, tuple)) or not exchanges or set(exchanges) - {'sh', 'sz'}:
+            raise ValueError('invalid ETF catalogue exchanges')
+        rows = akshare.fund_etf_category_sina(symbol='ETF基金')[['代码', '名称']].to_dict('records')
+        raw = [{'provider': 'sina', 'node': 'etf_hq_fund', 'response': rows}]
+        records = {}
+        for row in rows:
+            symbol, name = row['代码'], row['名称']
+            match = re.fullmatch(r'(sh|sz)(\d{6})', symbol) if isinstance(symbol, str) else None
+            if not match or not isinstance(name, str) or not name.strip() or name == '-':
+                raise CollectionError('invalid ETF catalogue identity', raw)
+            exchange, number = match.groups()
+            if exchange not in exchanges:
+                continue
+            code = f'{exchange}.{number}'
+            if code in records:
+                raise CollectionError('duplicate ETF catalogue identity: ' + code, raw)
+            records[code] = {'code': code, 'code_name': name.strip(), 'type': 'etf', 'status': '1',
+                             'ipoDate': None, 'outDate': None, 'raw_page': 0}
+        if set(exchanges) != {code.split('.')[0] for code in records}:
+            raise CollectionError('incomplete ETF catalogue exchanges', raw)
+        return {'records': list(records.values()), 'raw': raw, 'scope': {'exchanges': list(exchanges)},
+                'data_as_of': datetime.now(timezone.utc).isoformat()}
 
 
 class Catalogue:
@@ -3497,8 +3667,10 @@ class BaostockCalendar:
 
 DEFAULT_METHODS = {
     "catalogue": Catalogue,
+    "sina_etf_catalogue": SinaEtfCatalogue,
     "news": News,
     "quotes": EastmoneyQuotes,
+    "sina_quotes": SinaQuotes,
     "eastmoney_fundamentals": EastmoneyFundamentals,
     "daily": BaostockDaily,
     "baostock_calendar": BaostockCalendar,

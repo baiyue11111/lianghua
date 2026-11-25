@@ -1,4 +1,7 @@
-"""双均线：短均线高于长均线时持有，选中集合变化时等权调仓。"""
+"""读取复权信号收盘价，比较短期与长期均线，选中短线高于长线的证券并等权配置。
+支持日度或月末调仓，可设置窗口和总仓位。历史不足时等待，选中集合不变时
+保留持仓，信号完备但无候选时输出清仓目标。
+"""
 from dataclasses import dataclass, field
 from datetime import date
 from math import isfinite

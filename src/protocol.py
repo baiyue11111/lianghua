@@ -21,7 +21,7 @@ JsonValue: TypeAlias = None | bool | int | float | str | list["JsonValue"] | dic
 JsonObject: TypeAlias = dict[str, JsonValue]
 
 
-PortKind: TypeAlias = Literal["backtests", "research", "sources", "data", "commands"]
+PortKind: TypeAlias = Literal["backtests", "research", "sources", "data", "commands", "radar"]
 
 
 PROTOCOL_NAME = "lianghua.ui"

@@ -9,7 +9,7 @@ export interface OpDef {
   page: ViewId;
 }
 
-/** All 37 operations registered by the interaction core, mapped to a screen entry. */
+/** All 38 operations registered by the interaction core, mapped to a screen entry. */
 export const OPS: OpDef[] = [
   // 行情与基准 · 7
   {operation: 'research.benchmarks', label: '基准指数目录', group: '行情与基准', mode: 'read', page: 'market'},
@@ -26,11 +26,12 @@ export const OPS: OpDef[] = [
   {operation: 'collection.job', label: '采集任务', group: '采集与调度', mode: 'read', page: 'data'},
   {operation: 'collection.snapshot', label: '采集快照', group: '采集与调度', mode: 'read', page: 'data'},
   {operation: 'collection.evidence', label: '快照审核证据', group: '采集与调度', mode: 'read', page: 'data'},
-  {operation: 'collection.start', label: '启动采集', group: '采集与调度', mode: 'write', page: 'market'},
-  {operation: 'collection.current', label: '当前采集任务', group: '采集与调度', mode: 'read', page: 'market'},
-  {operation: 'collection.stop', label: '停止采集', group: '采集与调度', mode: 'write', page: 'market'},
-  {operation: 'collection.automatic', label: '自动续采状态', group: '采集与调度', mode: 'read', page: 'market'},
-  {operation: 'collection.set_automatic', label: '自动续采开关', group: '采集与调度', mode: 'write', page: 'market'},
+  {operation: 'collection.start', label: '启动采集', group: '采集与调度', mode: 'write', page: 'data'},
+  {operation: 'collection.current', label: '当前采集任务', group: '采集与调度', mode: 'read', page: 'data'},
+  {operation: 'collection.stop', label: '停止采集', group: '采集与调度', mode: 'write', page: 'data'},
+  {operation: 'collection.automatic', label: '自动续采状态', group: '采集与调度', mode: 'read', page: 'data'},
+  {operation: 'collection.set_automatic', label: '自动续采开关', group: '采集与调度', mode: 'write', page: 'data'},
+  {operation: 'collection.console', label: '中控台状态', group: '采集与调度', mode: 'read', page: 'data'},
   {operation: 'collection.merge', label: '合并数据', group: '采集与调度', mode: 'write', page: 'data'},
   {operation: 'collection.merge_job', label: '合并任务', group: '采集与调度', mode: 'read', page: 'data'},
   {operation: 'collection.repair', label: '修复数据', group: '采集与调度', mode: 'write', page: 'data'},

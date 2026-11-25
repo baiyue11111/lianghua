@@ -1,4 +1,7 @@
-"""Momentum leadership strategy with tunable lookback and portfolio size."""
+"""读取指定窗口的复权信号价格，筛选区间上涨的证券，按动量排序选取若干只等权持有。
+支持日度或月末调仓，持股数、窗口、仓位及排序方向可调。选中集合不变时
+保留持仓，已持仓证券缺少最新信号时暂停调整。
+"""
 from dataclasses import dataclass, field
 from datetime import date
 

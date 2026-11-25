@@ -9091,6 +9091,7 @@ var defs = {
   // start/end are optional: omitted means the benchmark's own stored span, so a
   // chart never has to guess a window. Existing callers may still pass a range.
   "research.benchmark": { input: object2({ id: text, start: text, end: text }, ["id"]) },
+  "radar.scan": { input: object2({ q: text }, []) },
   "collection.sources": { input: object2() },
   "collection.sync": { input: object2({ id: text, input: { type: "object" } }), mode: "write" },
   "collection.schedule": { input: object2({ id: text, enabled: boolean, interval_seconds: { type: "integer", minimum: 30 }, input: { type: "object" } }), mode: "write" },
@@ -9109,6 +9110,7 @@ var defs = {
   "collection.current": { input: object2() },
   "collection.stop": { input: object2(), mode: "write" },
   "collection.automatic": { input: object2({ market: text }) },
+  "collection.console": { input: object2({ market: text }) },
   "collection.set_automatic": { input: object2({ market: text, enabled: boolean }), mode: "write" },
   "service.info": { input: object2() },
   "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },
@@ -9120,15 +9122,9 @@ var defs = {
     const data = messages.find((m) => m.kind !== "problem")?.data;
     const result = data?.result;
     if (!result?.id) return {};
-    const completed = { input: data, result };
+    const completed = { input: result.effective_config, result };
     const comparison = state.targets[target + ":comparison"]?.values ?? {};
-    const runs = state.targets["research:archives"]?.values["research.runs"]?.[0] ?? [];
-    const kept = runs.filter((run) => run?.id !== result.id);
-    return {
-      [target + ":comparison"]: { baseline: comparison.baseline ?? completed, latest: completed },
-      "research:archives": { "research.runs": [result, ...kept] },
-      research: { current: result.id }
-    };
+    return { [target + ":comparison"]: { baseline: comparison.baseline ?? completed, latest: completed } };
   } },
   "data.check": { input: object2() },
   "collection.repair": { input: object2({ id: text }), mode: "write" },
@@ -9174,7 +9170,7 @@ function features() {
           "research:archives": { "research.runs": [[result, ...runs.filter((run) => run?.id !== result.id)]] },
           research: { current: result.id }
         };
-      } } : operation === "backtest.submit" ? { requires: "backtest.prepare" } : { ready: (messages) => messages.some((m) => m.data?.ready === true) }
+      } } : operation === "backtest.prepare" ? { ready: (messages) => messages.some((m) => m.data?.ready === true) } : {}
     });
   }
   schemas["urn:lianghua:ui:form:v1"] = form;
