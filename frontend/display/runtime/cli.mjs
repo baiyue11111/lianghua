@@ -9111,6 +9111,7 @@ var defs = {
   "collection.stop": { input: object2(), mode: "write" },
   "collection.automatic": { input: object2({ market: text }) },
   "collection.console": { input: object2({ market: text }) },
+  "system.console": { input: object2({}) },
   "collection.set_automatic": { input: object2({ market: text, enabled: boolean }), mode: "write" },
   "service.info": { input: object2() },
   "collection.merge": { input: object2({ dryRun: boolean }), mode: "write" },

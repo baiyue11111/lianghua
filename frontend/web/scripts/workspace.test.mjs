@@ -52,15 +52,21 @@ test('the data page observes one stream and writes only after user events', asyn
  // The console state is supplied by SSE, not by an operation read on mount.
  // Injecting it here is the same seam a server render uses; it must never turn
  // into a protocol request from the page itself.
- const snapshot={status:'live',value:{market:'沪深',at:1,enabled:false,running:false,
-  scheduler:true,phase:null,source_id:null,records:0,next_run_at:2,
-  last_run_at:null,last_outcome:null,error:null}};
+ const snapshot={status:'live',value:{at:1,modules:[
+  {key:'service',label:'服务',level:'ok',summary:'协议服务在线',facts:[],events:[],detail:'service.info'},
+  {key:'collection',label:'行情采集',level:'ok',summary:'自动续采未开启',facts:[
+   {label:'状态',value:'空闲'},{label:'调度线程',value:'正常'}],
+   events:[{at:'2026-11-25T15:30:00',label:'沪深',detail:'succeeded',level:'ok'}],detail:'collection.automatic'},
+  {key:'sources',label:'数据源',level:'ok',summary:'1 个已登记来源',facts:[],events:[],detail:'collection.sources'},
+ ]}};
  const f=fixture({'collection.set_automatic':{enabled:true},'collection.start':{status:'running'}},snapshot);
  try{
   go({name:'data'});
   let tree=f.render();
-  assert.match(tree.html,/空闲/);
-  assert.match(tree.html,/未开启/);
+  assert.match(tree.html,/协议服务在线/);
+  assert.match(tree.html,/自动续采未开启/);
+  assert.match(tree.html,/沪深/);
+  assert.match(tree.html,/刷新行情采集/);
   assert.equal(find(tree,'自动采集').disabled,false);
   assert.equal(f.calls.length,0);
   assert.ok(!f.calls.some(call=>['collection.automatic','collection.current'].includes(call.operation)));

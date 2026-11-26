@@ -1,19 +1,20 @@
 import {createContext, useContext, useEffect, useState} from 'react';
 
-/** The compact state a control console shows. Mirrors collection.console. */
+/** A card on the system overview. Mirrors one entry of system.console.modules. */
+export interface ConsoleModule {
+  key: string;
+  label: string;
+  level: 'ok' | 'warn' | 'error' | 'idle';
+  summary: string;
+  facts: {label: string; value: string | number | null}[];
+  events: {at: string | null; label: string; detail: string; level: string}[];
+  detail: string;
+}
+
+/** The compact state a control console shows. Mirrors system.console. */
 export interface ConsoleState {
-  market: string;
   at: number;
-  enabled: boolean;
-  running: boolean;
-  scheduler: boolean;
-  phase: string | null;
-  source_id: string | null;
-  records: number;
-  next_run_at: number | null;
-  last_run_at: string | null;
-  last_outcome: string | null;
-  error: string | null;
+  modules: ConsoleModule[];
 }
 
 export type StreamStatus = 'connecting' | 'live' | 'retrying';
@@ -61,8 +62,6 @@ export function useConsole(enabled = true): ConsoleSnapshot {
   }, [enabled, injected]);
 
   // "Updated 3s ago" needs the clock to move even when the state did not.
-  // Re-rendering on a timer is what makes the "updated N seconds ago" label
-  // move while the underlying state is unchanged.
   useEffect(() => {
     const timer = setInterval(() => setTick(value => value + 1), 5000);
     return () => clearInterval(timer);

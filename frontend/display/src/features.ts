@@ -34,6 +34,7 @@ const defs:Record<string,{input:object;mode?:'write';changes?:Operation['changes
  'collection.start':{input:{type:'object'},mode:'write'},'collection.current':{input:object()},
  'collection.stop':{input:object(),mode:'write'},'collection.automatic':{input:object({market:text})},
  'collection.console':{input:object({market:text})},
+ 'system.console':{input:object({})},
  'collection.set_automatic':{input:object({market:text,enabled:boolean}),mode:'write'},
  'service.info':{input:object()},
  'collection.merge':{input:object({dryRun:boolean}),mode:'write'},'collection.merge_job':{input:object()},

@@ -122,6 +122,57 @@ class Collect:
             'error': detail[:200] if isinstance(detail, str) else None,
         }
 
+    def _system_view(self):
+        """A small status card per module, with a few recent events each.
+
+        The console is an overview, not a diagnosis. Every read here is a small
+        table or a value already in memory: the full data-quality report scans
+        millions of rows and must never sit on a one-second stream. Diagnosis
+        stays on the existing operations, reachable from each card.
+        """
+        markets = self.sources.describe().get('markets', ())
+        market = self._console_view(markets[0]['scope']) if markets else None
+        jobs = sorted(self._states('collection_jobs'),
+                      key=lambda job: job.get('started_at') or '', reverse=True)
+        events = []
+        for job in jobs[:5]:
+            events.append({
+                'at': job.get('started_at'), 'label': job.get('source_id') or job.get('market') or '',
+                'detail': job.get('outcome') or job.get('status') or '',
+                'level': 'error' if job.get('outcome') in ('failed', 'interrupted') else
+                         'warn' if job.get('outcome') in ('partial', 'cancelled') else 'ok',
+            })
+        sources = self.sources.describe().get('sources', [])
+        running = [job for job in jobs if job.get('status') in (RUNNING, WAITING)]
+        return {
+            'at': time.time(),
+            'modules': [
+                {'key': 'service', 'label': '服务', 'level': 'ok',
+                 'summary': '协议服务在线',
+                 'facts': [], 'events': [],
+                 'detail': 'service.info'},
+                {'key': 'collection', 'label': '行情采集',
+                 'level': 'error' if market and market.get('error') else
+                          'ok' if market and market.get('enabled') else 'idle',
+                 'summary': (('自动续采已开启' if market.get('enabled') else '自动续采未开启')
+                             if market else '未登记沪深市场'),
+                 'facts': ([
+                     {'label': '状态', 'value': '运行中' if market.get('running') else '空闲'},
+                     {'label': '调度线程', 'value': '正常' if market.get('scheduler') else '未运行'},
+                     {'label': '下次续采', 'value': market.get('next_run_at')},
+                     {'label': '最近结果', 'value': market.get('last_outcome') or '暂无'},
+                 ] if market else []),
+                 'events': events,
+                 'detail': 'collection.automatic'},
+                {'key': 'sources', 'label': '数据源',
+                 'level': 'error' if any(item.get('integrity_error') for item in sources) else 'ok',
+                 'summary': f'{len(sources)} 个已登记来源',
+                 'facts': [{'label': '正在采集', 'value': f'{len(running)} 个任务'}],
+                 'events': [],
+                 'detail': 'collection.sources'},
+            ],
+        }
+
     def _save(self, job):
         self.data.put_rows('collection_jobs', [{'job_id': job['job_id'],
             'settings': json.dumps(job, ensure_ascii=False, sort_keys=True,
@@ -1112,6 +1163,8 @@ class Collect:
             return self._market_status(value['market'])
         if operation == "collection.console":
             return self._console_view(value['market'])
+        if operation == "system.console":
+            return self._system_view()
         if operation == "collection.set_automatic":
             return self._market_plan(value['market'], value['enabled'])
         if operation == "collection.merge":

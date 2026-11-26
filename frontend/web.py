@@ -59,7 +59,7 @@ TITLE = "协议请求未完成"
 # second clock in the browser.
 CONSOLE_TICK = 1.0
 CONSOLE_MARKET = "沪深"
-CONSOLE_OPERATION = "collection.console"
+CONSOLE_OPERATION = "system.console"
 CONSOLE_SCHEMA = f"urn:lianghua:ui:input:{CONSOLE_OPERATION}:v1"
 
 
@@ -175,7 +175,7 @@ def create_app(backend: ui.BackendPort) -> FastAPI:
             return refusal
 
         async def read_state():
-            return await _console_state(backend)
+            return await _system_state(backend)
 
         # FastAPI's `response_class=EventSourceResponse` only encodes handlers
         # that are generators, and a generator cannot return the 403 a rejected
@@ -241,6 +241,15 @@ async def console_events(read_state, tick: float = CONSOLE_TICK) -> AsyncIterabl
                 event="error",
             )
         await asyncio.sleep(tick)
+
+
+async def _system_state(backend: ui.BackendPort) -> dict:
+    """Read the whole console through the same protocol path as any command."""
+    request = ui.UiRequest(uuid4().hex, CONSOLE_OPERATION, CONSOLE_SCHEMA, {})
+    for item in await _run(backend, request):
+        if item.kind == "resource":
+            return item.data
+    raise ValueError("system state did not return a resource")
 
 
 async def _console_state(backend: ui.BackendPort) -> dict:

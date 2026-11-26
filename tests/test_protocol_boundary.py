@@ -134,7 +134,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
         from importlib import import_module
         from backend import export_operations
         web = import_module("frontend.web")
-        self.assertEqual(web.CONSOLE_OPERATION, "collection.console")
+        self.assertEqual(web.CONSOLE_OPERATION, "system.console")
         self.assertEqual(
             web.CONSOLE_SCHEMA,
             f"urn:lianghua:ui:input:{web.CONSOLE_OPERATION}:v1",
@@ -259,7 +259,7 @@ class ProtocolBoundaryTests(unittest.TestCase):
             "collection.evidence",
             "data.status", "data.search", "data.bars",
             "collection.start", "collection.current", "collection.stop",
-            "collection.automatic", "collection.console", "collection.set_automatic", "collection.merge",
+            "collection.automatic", "collection.console", "system.console", "collection.set_automatic", "collection.merge",
             "collection.merge_job", "data.check", "collection.repair", "collection.repair_job",
         })
         self.assertEqual(operations["backtest.run"]["mode"], "write")

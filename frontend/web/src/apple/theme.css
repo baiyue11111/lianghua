@@ -294,3 +294,24 @@
 @media (prefers-reduced-motion: no-preference) {
   .apple .btn, .apple .side-item, .apple .index-card { transition: background .16s, border-color .16s, color .16s; }
 }
+
+/* System overview: one card per module, a lamp for state and a short event log. */
+.console-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;margin-bottom:16px;align-items:start}
+.lamp{display:inline-block;width:9px;height:9px;border-radius:50%;background:#c7c7cc;box-shadow:0 0 0 3px rgba(199,199,204,.18)}
+.lamp.ok{background:#34c759;box-shadow:0 0 0 3px rgba(52,199,89,.18);animation:lamp-pulse 2.4s ease-in-out infinite}
+.lamp.warn{background:#ff9f0a;box-shadow:0 0 0 3px rgba(255,159,10,.18)}
+.lamp.error{background:#ff3b30;box-shadow:0 0 0 3px rgba(255,59,48,.18)}
+@keyframes lamp-pulse{50%{box-shadow:0 0 0 6px rgba(52,199,89,.06)}}
+.module-summary{display:flex;align-items:center;gap:8px;font-size:13px;color:#1d1d1f;margin-bottom:10px}
+.module-facts{display:grid;gap:6px;margin-bottom:10px}
+.module-fact{display:flex;justify-content:space-between;gap:12px;font-size:12px}
+.module-fact .lb{color:#86868b}
+.module-events{border-top:1px solid #f0f0f2;padding-top:8px;display:grid;gap:5px}
+.event-row{display:grid;grid-template-columns:78px 8px minmax(0,1fr) auto;gap:7px;align-items:center;font-size:11px;color:#6e6e73}
+.event-time{font-variant-numeric:tabular-nums}
+.event-dot{width:6px;height:6px;border-radius:50%;background:#c7c7cc}
+.event-dot.ok{background:#34c759}.event-dot.warn{background:#ff9f0a}.event-dot.error{background:#ff3b30}
+.event-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.event-detail{color:#86868b}
+.console-control{margin-top:4px}
+@media (prefers-reduced-motion:reduce){.lamp.ok{animation:none}}

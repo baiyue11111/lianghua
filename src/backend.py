@@ -122,6 +122,7 @@ _OPERATIONS: tuple[OperationSpec, ...] = (
     OperationSpec("collection.stop", "write", "stop-fetch", "stop-fetch", "operation", "sources"),
     OperationSpec("collection.automatic", "read", "continuous-fetch", "continuous-fetch", "resource", "sources"),
     OperationSpec("collection.console", "read", "console-state", "console-state", "resource", "sources"),
+    OperationSpec("system.console", "read", "system-state", "system-state", "resource", "sources"),
     OperationSpec("collection.set_automatic", "write", "set-continuous-fetch", "continuous-fetch", "operation", "sources"),
     OperationSpec("collection.merge", "write", "start-merge", "merge-job", "operation", "sources"),
     OperationSpec("collection.merge_job", "read", "merge-job", "merge-job", "resource", "sources"),
@@ -142,7 +143,7 @@ _TITLES: dict[str, str] = {
     "runs": "回测存档", "run": "回测详情", "benchmarks": "基准指数目录", "benchmark": "基准序列",
     "research-inputs": "研究数据集", "sources": "数据源", "data-status": "数据状态",
     "data-search": "证券检索", "kline": "行情序列", "doctor": "完整性检查",
-    "continuous-fetch": "自动续采", "console-state": "中控台状态", "fetch-job": "采集任务", "snapshot": "来源快照",
+    "continuous-fetch": "自动续采", "console-state": "中控台状态", "system-state": "系统总览", "fetch-job": "采集任务", "snapshot": "来源快照",
     "evidence": "采集证据", "job": "采集任务", "merge-job": "合并任务", "doctor-job": "修复队列",
 }
 

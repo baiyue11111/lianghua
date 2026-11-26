@@ -88,6 +88,24 @@ class AutomaticMarketTests(unittest.TestCase):
         for key in ('jobs', 'failures', 'sessions', 'history'):
             self.assertNotIn(key, console)
 
+    def test_system_view_is_a_small_overview_of_each_module(self):
+        self.enable(instant(11, 15, 0))
+        view = self.collect.handle('system.console', {})
+        keys = [module['key'] for module in view['modules']]
+        self.assertEqual(keys, ['service', 'collection', 'sources'])
+        for module in view['modules']:
+            self.assertIn(module['level'], ('ok', 'warn', 'error', 'idle'))
+            self.assertIsInstance(module['summary'], str)
+            self.assertIsInstance(module['facts'], list)
+            self.assertIsInstance(module['events'], list)
+            self.assertTrue(module['detail'])
+        market = next(item for item in view['modules'] if item['key'] == 'collection')
+        self.assertTrue(market['summary'])
+        self.assertTrue(market['facts'])
+        # A one-second stream must not carry a full data-quality report.
+        self.assertLess(len(json.dumps(view, ensure_ascii=False)), 2000)
+        self.assertNotIn('年度覆盖', json.dumps(view, ensure_ascii=False))
+
     def test_linked_observation_market_shares_switch_but_uses_its_own_cutoff(self):
         now = instant(11, 16)
         self.enable(now)
